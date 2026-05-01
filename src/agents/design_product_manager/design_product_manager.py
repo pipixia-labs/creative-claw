@@ -16,6 +16,8 @@ from src.agents.design_product_manager.validation import validate_design_artifac
 
 _RESOURCE_ROOT = Path("skills/design-knowledge-and-skills")
 _MANIFEST_PATH = _RESOURCE_ROOT / "resource-manifest.json"
+DESIGN_BRIEF_SCHEMA_VERSION = "design-brief-v1"
+DESIGN_RESULT_SCHEMA_VERSION = "design-product-result-v1"
 
 _SURFACE_KEYWORDS = {
     "dashboard": (
@@ -63,6 +65,17 @@ _SURFACE_KEYWORDS = {
         "汇报",
         "周报",
     ),
+    "social_carousel": (
+        "carousel",
+        "social",
+        "instagram",
+        "xiaohongshu",
+        "小红书",
+        "社媒",
+        "轮播",
+        "长图",
+        "卡片",
+    ),
 }
 
 _DEFAULT_FRAME_BY_SURFACE = {
@@ -93,6 +106,7 @@ class DesignProductBrief:
     questions: tuple[dict[str, str], ...]
     missing_fields: tuple[str, ...]
     assumptions: dict[str, Any]
+    design_brief: dict[str, Any]
     needs_clarification: bool
     generation_prompt: str
     code_generation_request: dict[str, Any]
@@ -112,6 +126,7 @@ class DesignProductBrief:
             "questions": list(self.questions),
             "missing_fields": list(self.missing_fields),
             "assumptions": self.assumptions,
+            "design_brief": self.design_brief,
             "needs_clarification": self.needs_clarification,
             "generation_prompt": self.generation_prompt,
             "code_generation_request": self.code_generation_request,
@@ -140,13 +155,28 @@ class DesignProductManager:
         return """
 You are Creative Claw's DesignProductManager.
 
-Your job is to turn a user's design request into one focused design production brief:
+# Role
+Turn a user's design request into one focused, resource-grounded production brief.
+
+# Discovery
 - Search design-knowledge-and-skills before choosing resources.
-- Select one primary task skill, at most one primary design system, and only useful device frame context.
-- Ask for scenario-specific missing design elements from the matching brief-elements schema when needed.
+- Read the matching brief-elements schema before asking questions.
+- Ask scenario-specific missing design elements when the brief is not executable.
 - If the user asks to proceed without clarification, use explicit assumptions from the selected schema defaults.
-- Use CodeGenerationExpert for code-backed design artifacts such as dashboards, landing pages, mobile prototypes, and HTML decks.
+
+# Resource selection
+- Select exactly one primary task skill.
+- Select at most one primary design system.
+- Add a device frame only when it helps the requested surface.
+- Do not use runtime-disabled or reference-only resources for execution context.
+
+# Capability orchestration
+- Use CodeGenerationExpert for code-backed design artifacts such as dashboards, landing pages, mobile prototypes, social carousels, and HTML decks.
+- Treat built-in tools as deterministic bottom capabilities for file inspection, validation, and future export work.
+
+# Result policy
 - Keep the final brief concrete enough for a coding agent to generate one runnable artifact.
+- Interpret CodeGenerationExpert and validation outputs into DesignProductManager statuses and next actions.
 """.strip()
 
     def prepare_brief(
@@ -208,11 +238,22 @@ Your job is to turn a user's design request into one focused design production b
             selected_design_system=selected_design_system,
             selected_device_frame=selected_device_frame,
         )
+        design_brief = self._build_design_brief(
+            user_prompt=clean_prompt,
+            surface=surface,
+            brief_schema=brief_schema,
+            assumptions=assumptions,
+            selected_task_skill=selected_task_skill,
+            selected_design_system=selected_design_system,
+            selected_device_frame=selected_device_frame,
+            output_format=output_format,
+        )
         generation_prompt = self._build_generation_prompt(
             user_prompt=clean_prompt,
             surface=surface,
             brief_schema=brief_schema,
             assumptions=assumptions,
+            design_brief=design_brief,
             questions=questions,
             needs_clarification=needs_clarification,
         )
@@ -222,6 +263,7 @@ Your job is to turn a user's design request into one focused design production b
             "output_path": str(output_path or "").strip(),
             "context_files": list(context_files),
             "constraints": self._build_constraints(surface=surface, output_format=output_format),
+            "design_brief": design_brief,
         }
 
         return DesignProductBrief(
@@ -237,6 +279,7 @@ Your job is to turn a user's design request into one focused design production b
             questions=questions,
             missing_fields=missing_fields,
             assumptions=assumptions,
+            design_brief=design_brief,
             needs_clarification=needs_clarification,
             generation_prompt=generation_prompt,
             code_generation_request=code_generation_request,
@@ -246,6 +289,7 @@ Your job is to turn a user's design request into one focused design production b
         """Build a structured result when the design brief needs user input."""
         brief_payload = brief.to_dict()
         return {
+            "result_schema_version": DESIGN_RESULT_SCHEMA_VERSION,
             "status": "needs_clarification",
             "message": "Design brief needs user clarification before generation.",
             "brief": brief_payload,
@@ -285,6 +329,7 @@ Your job is to turn a user's design request into one focused design production b
             design_issues=design_issues,
         )
         return {
+            "result_schema_version": DESIGN_RESULT_SCHEMA_VERSION,
             "status": status,
             "message": self._build_result_message(
                 status=status,
@@ -324,7 +369,11 @@ Your job is to turn a user's design request into one focused design production b
         return [
             resource
             for resource in list(manifest.get("resources") or [])
-            if resource.get("type") == resource_type and resource.get("runtimeEnabled", True)
+            if (
+                resource.get("type") == resource_type
+                and resource.get("runtimeEnabled", True)
+                and not resource.get("referenceOnly", False)
+            )
         ]
 
     def _select_brief_resource(
@@ -337,12 +386,12 @@ Your job is to turn a user's design request into one focused design production b
         """Select the most relevant brief element schema."""
         brief_resources = self._resources_by_type(manifest, "brief_element_schema")
         normalized_text = self._normalize_match_text(f"{scenario} {prompt}")
+        matched_resource = self._best_matching_resource(brief_resources, normalized_text)
+        if matched_resource:
+            return matched_resource
         explicit_surface = self._detect_surface(normalized_text)
         for resource in brief_resources:
             if str(resource.get("surface", "")).strip() == explicit_surface:
-                return resource
-        for resource in brief_resources:
-            if self._resource_matches(resource, normalized_text):
                 return resource
         return next(
             (
@@ -519,8 +568,16 @@ Your job is to turn a user's design request into one focused design production b
             return override_slug
 
         normalized_text = self._normalize_match_text(prompt)
-        matched_slug = self._best_matching_resource_slug(resources_by_slug, normalized_text)
+        matched_slug, matched_score = self._best_matching_resource_slug(resources_by_slug, normalized_text)
         if matched_slug:
+            for candidate in candidates:
+                candidate_slug = self._normalize_slug(candidate)
+                candidate_resource = resources_by_slug.get(candidate_slug)
+                if not candidate_resource:
+                    continue
+                candidate_score = self._resource_match_score(candidate_resource, normalized_text)
+                if candidate_score == matched_score:
+                    return candidate_slug
             return matched_slug
 
         for candidate in candidates:
@@ -599,12 +656,56 @@ Your job is to turn a user's design request into one focused design production b
         return assumptions
 
     @staticmethod
+    def _build_design_brief(
+        *,
+        user_prompt: str,
+        surface: str,
+        brief_schema: dict[str, Any],
+        assumptions: dict[str, Any],
+        selected_task_skill: str,
+        selected_design_system: str,
+        selected_device_frame: str,
+        output_format: str,
+    ) -> dict[str, Any]:
+        """Build the stable DesignProductManager brief contract."""
+        required_fields = [str(field) for field in brief_schema.get("required_fields", []) if str(field).strip()]
+        raw_interactions = assumptions.get("interactions") or assumptions.get("interaction_requirements") or []
+        if isinstance(raw_interactions, str):
+            interactions = [raw_interactions] if raw_interactions.strip() else []
+        else:
+            interactions = [str(item) for item in list(raw_interactions or []) if str(item).strip()]
+        return {
+            "schema_version": DESIGN_BRIEF_SCHEMA_VERSION,
+            "surface": surface,
+            "scenario": list(brief_schema.get("scenarios") or []),
+            "source_brief_schema_id": str(brief_schema.get("id", "") or ""),
+            "user_prompt": user_prompt,
+            "primary_user": str(assumptions.get("primary_user", "") or ""),
+            "business_domain": str(assumptions.get("business_domain", "") or ""),
+            "goal": str(assumptions.get("decision_goal") or assumptions.get("conversion_goal") or user_prompt),
+            "content_requirements": required_fields,
+            "visual_direction": str(assumptions.get("visual_direction", "") or ""),
+            "design_system": selected_design_system,
+            "device_frame": selected_device_frame,
+            "interactions": interactions,
+            "output_format": DesignProductManager._normalize_output_format(output_format),
+            "constraints": {
+                "output_contract": str(assumptions.get("output_contract", "") or ""),
+                "density": str(assumptions.get("density", "") or ""),
+                "platform": str(assumptions.get("platform", "") or ""),
+                "task_skill": selected_task_skill,
+            },
+            "assumptions": assumptions,
+        }
+
+    @staticmethod
     def _build_generation_prompt(
         *,
         user_prompt: str,
         surface: str,
         brief_schema: dict[str, Any],
         assumptions: dict[str, Any],
+        design_brief: dict[str, Any],
         questions: tuple[dict[str, str], ...],
         needs_clarification: bool,
     ) -> str:
@@ -622,6 +723,9 @@ Your job is to turn a user's design request into one focused design production b
             "",
             "# Assumptions to use unless the user has already specified otherwise",
             json.dumps(assumptions, ensure_ascii=False, indent=2),
+            "",
+            "# Structured design brief contract",
+            json.dumps(design_brief, ensure_ascii=False, indent=2),
         ]
         if questions:
             lines.extend(
@@ -669,6 +773,8 @@ Your job is to turn a user's design request into one focused design production b
             constraints.append("Constrain the main UI to a realistic mobile viewport and use the selected device frame context if provided.")
         elif surface == "deck":
             constraints.append("Create slide-like sections with a clear narrative arc.")
+        elif surface == "social_carousel":
+            constraints.append("Create swipeable social-card sections with clear hierarchy and shareable content rhythm.")
         if output_format.lower() != "html":
             constraints.append(f"Respect the requested output format: {output_format}.")
         return constraints
@@ -708,11 +814,26 @@ Your job is to turn a user's design request into one focused design production b
         return DesignProductManager._resource_match_score(resource, normalized_text) > 0
 
     @staticmethod
+    def _best_matching_resource(
+        resources: list[dict[str, Any]],
+        normalized_text: str,
+    ) -> dict[str, Any] | None:
+        """Return the best matching resource by trigger specificity."""
+        best_resource: dict[str, Any] | None = None
+        best_score = 0
+        for resource in resources:
+            score = DesignProductManager._resource_match_score(resource, normalized_text)
+            if score > best_score:
+                best_resource = resource
+                best_score = score
+        return best_resource
+
+    @staticmethod
     def _best_matching_resource_slug(
         resources_by_slug: dict[str, dict[str, Any]],
         normalized_text: str,
-    ) -> str:
-        """Return the slug with the most specific trigger match."""
+    ) -> tuple[str, int]:
+        """Return the slug and score with the most specific trigger match."""
         best_slug = ""
         best_score = 0
         for slug, resource in resources_by_slug.items():
@@ -720,7 +841,7 @@ Your job is to turn a user's design request into one focused design production b
             if score > best_score:
                 best_slug = slug
                 best_score = score
-        return best_slug
+        return best_slug, best_score
 
     @staticmethod
     def _resource_match_score(resource: dict[str, Any], normalized_text: str) -> int:

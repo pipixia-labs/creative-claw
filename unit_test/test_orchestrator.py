@@ -121,6 +121,8 @@ class OrchestratorTests(unittest.TestCase):
         self.assertIn("Product line: design", instruction)
         self.assertIn("run_design_product", instruction)
         self.assertIn("Product line options", instruction)
+        self.assertIn("If the user asks for UI design", instruction)
+        self.assertIn("prefer `run_design_product`", instruction)
 
     def test_agent_uses_structured_output_schema(self) -> None:
         orchestrator = Orchestrator(

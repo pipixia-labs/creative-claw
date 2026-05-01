@@ -1,10 +1,10 @@
 {
   "id": "brief_elements.dashboard",
   "type": "brief_element_schema",
-  "title": "Dashboard / Operation Data UI",
+  "title": "Dashboard / Analytics Console",
   "description": "Key design elements for operational dashboards, analytics consoles, and internal data tools.",
   "surface": "dashboard",
-  "scenarios": ["dashboard", "operation_data_ui", "analytics_dashboard", "admin_panel", "bi_console"],
+  "scenarios": ["dashboard", "analytics_dashboard", "bi_console", "metrics_dashboard"],
   "required_fields": [
     "business_domain",
     "primary_user",

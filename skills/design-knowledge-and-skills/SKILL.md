@@ -44,6 +44,7 @@ This skill is an index skill. It does not contain all design knowledge inline. I
 - Prefer task skills whose `scenario`, `surface`, and triggers match the user request.
 - Prefer design systems that match the product category and tone.
 - If the user names a brand or design system, use that as the primary design system when present.
+- Never inject resources marked `runtimeEnabled: false` or `referenceOnly: true` into execution context.
 - If no brand is given, choose a conservative system for the surface:
   - dashboards and operational tools: `linear-app`, `vercel`, `stripe`, `figma`, or `default`;
   - SaaS landing pages: `stripe`, `linear-app`, `vercel`, `supabase`, or `default`;
@@ -55,20 +56,20 @@ This skill is an index skill. It does not contain all design knowledge inline. I
 
 Before execution, produce a compact design brief with:
 
+- `schema_version`
 - `surface`
 - `scenario`
 - `primary_user`
-- `audience`
+- `business_domain`
 - `goal`
-- `platform`
 - `content_requirements`
-- `interaction_requirements`
-- `selected_skill`
-- `selected_design_system`
-- `selected_frame`
+- `visual_direction`
+- `design_system`
+- `device_frame`
+- `interactions`
+- `output_format`
 - `constraints`
 - `assumptions`
-- `output_contract`
 
 The design brief is the handoff to `CodeGenerationExpert` or another bottom capability.
 
@@ -76,9 +77,14 @@ The design brief is the handoff to `CodeGenerationExpert` or another bottom capa
 
 This first version supports resource lookup and clarification for:
 
-- dashboard / operation data UI
+- dashboard
+- operation data UI
+- admin console
 - SaaS landing page
+- marketing campaign page
 - mobile app screen or prototype
+- social carousel
 - slide deck
+- HTML deck
 
 Other scenarios can still use general task skills, but their clarification strategy should be added to `brief-elements` before relying on them heavily.

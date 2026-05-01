@@ -1,0 +1,65 @@
+{
+  "id": "brief_elements.marketing_campaign_page",
+  "type": "brief_element_schema",
+  "title": "Marketing Campaign Page",
+  "description": "Key design elements for campaign pages, launch pages, event pages, and conversion-oriented marketing pages.",
+  "surface": "landing_page",
+  "scenarios": ["marketing_campaign_page", "campaign_page", "event_page", "launch_page", "promo_page", "活动页", "营销活动"],
+  "required_fields": [
+    "campaign_name",
+    "target_audience",
+    "offer",
+    "conversion_goal",
+    "primary_cta",
+    "page_sections",
+    "proof_points",
+    "urgency_or_timing",
+    "visual_direction"
+  ],
+  "optional_fields": [
+    "brand_context",
+    "media_assets",
+    "legal_copy",
+    "tracking_requirements",
+    "seo_keywords",
+    "localization"
+  ],
+  "question_templates": [
+    {
+      "field": "campaign_name",
+      "question": "活动或页面名称是什么？"
+    },
+    {
+      "field": "target_audience",
+      "question": "这个活动主要面向谁？"
+    },
+    {
+      "field": "offer",
+      "question": "核心权益或卖点是什么：折扣、试用、发布、报名、预约、资料下载，还是其他？"
+    },
+    {
+      "field": "conversion_goal",
+      "question": "最重要的转化目标是什么？"
+    },
+    {
+      "field": "primary_cta",
+      "question": "主 CTA 文案希望是什么？"
+    },
+    {
+      "field": "page_sections",
+      "question": "需要哪些版块：hero、权益、流程、案例、FAQ、倒计时、表单，还是其他？"
+    },
+    {
+      "field": "visual_direction",
+      "question": "视觉方向更偏品牌发布、促销转化、活动报名、内容专题，还是让系统推荐？"
+    }
+  ],
+  "defaults": {
+    "platform": "responsive web",
+    "page_sections": ["hero", "offer", "benefits", "how_it_works", "proof", "cta"],
+    "recommended_skill": "web-prototype",
+    "fallback_skill": "saas-landing",
+    "recommended_design_system_candidates": ["stripe", "vercel", "airbnb", "default"],
+    "output_contract": "standalone responsive HTML marketing campaign page"
+  }
+}

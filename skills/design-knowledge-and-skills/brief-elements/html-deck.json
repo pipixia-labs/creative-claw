@@ -1,0 +1,65 @@
+{
+  "id": "brief_elements.html_deck",
+  "type": "brief_element_schema",
+  "title": "HTML Deck",
+  "description": "Key design elements for browser-native slide decks, presentation readouts, and horizontal HTML storytelling.",
+  "surface": "deck",
+  "scenarios": ["html_deck", "web_deck", "browser_deck", "presentation_html", "网页PPT", "HTML演示"],
+  "required_fields": [
+    "deck_purpose",
+    "audience",
+    "slide_count",
+    "narrative_arc",
+    "source_material",
+    "interaction_model",
+    "visual_direction",
+    "aspect_ratio"
+  ],
+  "optional_fields": [
+    "speaker_notes",
+    "keyboard_navigation",
+    "media_assets",
+    "chart_requirements",
+    "export_requirements",
+    "brand_context"
+  ],
+  "question_templates": [
+    {
+      "field": "deck_purpose",
+      "question": "这份 HTML deck 用来做什么：汇报、发布、培训、路演、复盘，还是作品展示？"
+    },
+    {
+      "field": "audience",
+      "question": "观众是谁？他们最关心什么？"
+    },
+    {
+      "field": "slide_count",
+      "question": "希望大概多少页？"
+    },
+    {
+      "field": "narrative_arc",
+      "question": "叙事结构希望是什么：背景-洞察-方案-行动，还是问题-方案-证据-下一步？"
+    },
+    {
+      "field": "source_material",
+      "question": "是否有现成文案、数据、图片或素材？"
+    },
+    {
+      "field": "interaction_model",
+      "question": "需要键盘翻页、横向滚动、目录导航、进度条，还是静态分屏即可？"
+    },
+    {
+      "field": "visual_direction",
+      "question": "视觉更偏商务、杂志、技术产品、极简，还是让系统推荐？"
+    }
+  ],
+  "defaults": {
+    "aspect_ratio": "16:9",
+    "interaction_model": "keyboard navigation and section anchors",
+    "speaker_notes": false,
+    "recommended_skill": "simple-deck",
+    "fallback_skill": "guizang-ppt",
+    "recommended_design_system_candidates": ["warm-editorial", "vercel", "stripe", "default"],
+    "output_contract": "standalone responsive HTML deck"
+  }
+}

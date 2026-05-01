@@ -1,0 +1,71 @@
+{
+  "id": "brief_elements.operation_data_ui",
+  "type": "brief_element_schema",
+  "title": "Operation Data UI",
+  "description": "Key design elements for operational data dashboards focused on business monitoring, diagnosis, and action.",
+  "surface": "dashboard",
+  "scenarios": ["operation_data_ui", "operations_dashboard", "growth_dashboard", "business_metrics", "运营数据", "运营看板"],
+  "required_fields": [
+    "business_domain",
+    "primary_user",
+    "decision_goal",
+    "north_star_metric",
+    "supporting_metrics",
+    "dimensions",
+    "time_range",
+    "comparison_model",
+    "interaction_requirements",
+    "density"
+  ],
+  "optional_fields": [
+    "alert_rules",
+    "workflow_actions",
+    "data_freshness",
+    "permission_model",
+    "export_requirements",
+    "empty_states",
+    "brand_context"
+  ],
+  "question_templates": [
+    {
+      "field": "business_domain",
+      "question": "这个运营数据 UI 面向什么业务：电商、内容社区、SaaS、广告投放、门店、直播，还是其他？"
+    },
+    {
+      "field": "primary_user",
+      "question": "主要使用者是谁：运营专员、运营负责人、管理层、客户成功，还是数据分析师？"
+    },
+    {
+      "field": "decision_goal",
+      "question": "用户打开它后最重要的判断或动作是什么：发现异常、复盘活动、调整预算、分配任务，还是导出汇报？"
+    },
+    {
+      "field": "north_star_metric",
+      "question": "最核心的北极星指标是什么？例如 GMV、DAU、转化率、留存、订单、ROI。"
+    },
+    {
+      "field": "supporting_metrics",
+      "question": "还需要哪些辅助指标？请给 3-6 个。"
+    },
+    {
+      "field": "dimensions",
+      "question": "需要按哪些维度查看或下钻：渠道、地区、商品、活动、用户分层、时间，还是其他？"
+    },
+    {
+      "field": "comparison_model",
+      "question": "需要和什么对比：昨日、上周、目标值、历史均值、同环比，还是竞品/渠道之间对比？"
+    },
+    {
+      "field": "interaction_requirements",
+      "question": "需要哪些操作：筛选、排序、下钻、异常标记、任务分配、导出，还是只读？"
+    }
+  ],
+  "defaults": {
+    "platform": "desktop web",
+    "density": "high",
+    "comparison_model": "previous period and target",
+    "recommended_skill": "dashboard",
+    "recommended_design_system_candidates": ["linear-app", "vercel", "stripe", "figma", "default"],
+    "output_contract": "standalone responsive HTML operation data dashboard"
+  }
+}

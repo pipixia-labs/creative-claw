@@ -26,20 +26,33 @@ class DesignKnowledgeResourceTests(unittest.TestCase):
         self.assertIn("brief_elements.landing_page", resource_ids)
         self.assertIn("brief_elements.mobile_app", resource_ids)
         self.assertIn("brief_elements.deck", resource_ids)
+        self.assertIn("brief_elements.operation_data_ui", resource_ids)
+        self.assertIn("brief_elements.admin_console", resource_ids)
+        self.assertIn("brief_elements.marketing_campaign_page", resource_ids)
+        self.assertIn("brief_elements.social_carousel", resource_ids)
+        self.assertIn("brief_elements.html_deck", resource_ids)
         self.assertIn("task_skill.dashboard", resource_ids)
         self.assertIn("task_skill.saas-landing", resource_ids)
+        self.assertIn("task_skill.social-carousel", resource_ids)
         self.assertIn("design_system.linear-app", resource_ids)
         self.assertIn("device_frame.iphone-15-pro", resource_ids)
-
-    def test_brief_elements_provide_question_templates(self) -> None:
-        dashboard = json.loads(
-            (self._resource_root() / "brief-elements" / "dashboard.json").read_text(encoding="utf-8")
+        self.assertEqual(
+            sum(1 for resource in resources if resource["type"] == "brief_element_schema"),
+            9,
         )
 
-        self.assertEqual(dashboard["type"], "brief_element_schema")
-        self.assertIn("metrics", dashboard["required_fields"])
-        self.assertTrue(dashboard["question_templates"])
-        self.assertEqual(dashboard["defaults"]["recommended_skill"], "dashboard")
+    def test_brief_elements_provide_question_templates(self) -> None:
+        brief_elements = [
+            json.loads(path.read_text(encoding="utf-8"))
+            for path in sorted((self._resource_root() / "brief-elements").glob("*.json"))
+        ]
+
+        self.assertTrue(brief_elements)
+        for brief_element in brief_elements:
+            self.assertEqual(brief_element["type"], "brief_element_schema")
+            self.assertTrue(brief_element["required_fields"], brief_element["id"])
+            self.assertTrue(brief_element["question_templates"], brief_element["id"])
+            self.assertIn("recommended_skill", brief_element["defaults"])
 
     def test_design_resource_files_do_not_embed_local_absolute_paths(self) -> None:
         for path in [

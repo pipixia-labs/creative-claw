@@ -313,6 +313,49 @@ class RuntimeSessionTests(unittest.IsolatedAsyncioTestCase):
         self.assertEqual(session.state["product_line_options"]["design"]["scenario"], "dashboard")
         self.assertFalse(session.state["product_line_options"]["design"]["allow_assumptions"])
 
+    async def test_run_message_with_design_prompt_without_metadata_uses_orchestrator(self) -> None:
+        runtime = CreativeClawRuntime()
+        inbound = InboundMessage(
+            channel="cli",
+            sender_id="cli-user",
+            chat_id="terminal",
+            text="设计一个运营数据 dashboard，展示 DAU、留存和渠道 ROI",
+        )
+
+        class _FakeOrchestrator:
+            constructed = False
+
+            def __init__(self, **_kwargs) -> None:
+                type(self).constructed = True
+                self.uid = ""
+                self.sid = ""
+
+            async def run_until_done(self) -> dict:
+                return {
+                    "workflow_status": "finished",
+                    "final_summary": "Design request routed through Orchestrator.",
+                    "final_response": "Design request routed through Orchestrator.",
+                    "last_output_message": "",
+                    "new_orchestration_events": [],
+                }
+
+        with patch("src.runtime.workflow_service.Orchestrator", _FakeOrchestrator):
+            events = [event async for event in runtime.run_message(inbound)]
+
+        self.assertTrue(_FakeOrchestrator.constructed)
+        self.assertEqual(events[-1].event_type, "final")
+        self.assertEqual(events[-1].text, "Design request routed through Orchestrator.")
+
+        session_id = events[-1].metadata["session_id"]
+        session = await runtime.session_service.get_session(
+            app_name=SYS_CONFIG.app_name,
+            user_id="cli-user",
+            session_id=session_id,
+        )
+        self.assertEqual(session.state["product_line"], "")
+        self.assertEqual(session.state["product_line_options"], {})
+        self.assertIn("运营数据 dashboard", session.state["user_prompt"])
+
     async def test_run_message_scopes_progress_metadata_by_turn_index(self) -> None:
         runtime = CreativeClawRuntime()
         inbound = InboundMessage(

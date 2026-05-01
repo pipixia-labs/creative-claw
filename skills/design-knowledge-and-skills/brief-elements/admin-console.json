@@ -1,0 +1,65 @@
+{
+  "id": "brief_elements.admin_console",
+  "type": "brief_element_schema",
+  "title": "Admin Console",
+  "description": "Key design elements for dense admin consoles, internal tools, list-detail workflows, and permissioned management UI.",
+  "surface": "dashboard",
+  "scenarios": ["admin_console", "admin_panel", "backoffice", "internal_tool", "management_console", "后台管理"],
+  "required_fields": [
+    "business_domain",
+    "primary_user",
+    "managed_entities",
+    "primary_workflow",
+    "table_columns",
+    "filters",
+    "bulk_actions",
+    "detail_panel",
+    "permission_model",
+    "data_states"
+  ],
+  "optional_fields": [
+    "audit_log",
+    "import_export",
+    "approval_flow",
+    "empty_states",
+    "error_states",
+    "brand_context"
+  ],
+  "question_templates": [
+    {
+      "field": "managed_entities",
+      "question": "后台主要管理什么对象：用户、订单、商品、内容、线索、工单、权限，还是其他？"
+    },
+    {
+      "field": "primary_workflow",
+      "question": "最核心的工作流是什么：查找记录、审核、编辑、批量处理、分配任务，还是查看详情？"
+    },
+    {
+      "field": "table_columns",
+      "question": "列表里最重要的列有哪些？"
+    },
+    {
+      "field": "filters",
+      "question": "需要哪些筛选条件？例如状态、时间、负责人、地区、标签、金额区间。"
+    },
+    {
+      "field": "bulk_actions",
+      "question": "是否需要批量操作？需要哪些操作？"
+    },
+    {
+      "field": "detail_panel",
+      "question": "详情页或侧栏需要展示哪些信息和操作？"
+    },
+    {
+      "field": "permission_model",
+      "question": "不同角色的权限有什么区别？"
+    }
+  ],
+  "defaults": {
+    "platform": "desktop web",
+    "density": "high",
+    "recommended_skill": "dashboard",
+    "recommended_design_system_candidates": ["linear-app", "figma", "notion", "default"],
+    "output_contract": "standalone responsive HTML admin console"
+  }
+}

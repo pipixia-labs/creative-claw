@@ -41,6 +41,7 @@ class DesignProductToolTests(unittest.IsolatedAsyncioTestCase):
             )
 
         self.assertEqual(result["status"], "needs_clarification")
+        self.assertEqual(result["result_schema_version"], "design-product-result-v1")
         self.assertTrue(result["questions"])
         self.assertEqual(result["resource_selection"]["surface"], "dashboard")
         self.assertEqual(result["next_action"], "ask_user")
@@ -124,9 +125,12 @@ class DesignProductToolTests(unittest.IsolatedAsyncioTestCase):
 
         dispatch.assert_called_once()
         self.assertEqual(result["status"], "success")
+        self.assertEqual(result["result_schema_version"], "design-product-result-v1")
         self.assertEqual(result["brief"]["selection"]["surface"], "dashboard")
+        self.assertEqual(result["brief"]["selection"]["brief_schema_id"], "brief_elements.operation_data_ui")
         self.assertEqual(result["brief"]["selection"]["task_skill"], "dashboard")
         self.assertEqual(result["brief"]["selection"]["design_system"], "linear-app")
+        self.assertEqual(result["brief"]["design_brief"]["schema_version"], "design-brief-v1")
         self.assertEqual(result["resource_selection"]["surface"], "dashboard")
         self.assertEqual(result["next_action"], "deliver_artifact")
         self.assertEqual(result["design_issues"], [])

@@ -5,7 +5,9 @@
     "briefElementsFirst": true,
     "maxPrimaryTaskSkills": 1,
     "maxPrimaryDesignSystems": 1,
-    "useDefaultsWhenUserSkipsQuestions": true
+    "useDefaultsWhenUserSkipsQuestions": true,
+    "excludeReferenceOnlyFromExecution": true,
+    "excludeRuntimeDisabledFromExecution": true
   },
   "resources": [
     {
@@ -19,24 +21,82 @@
       "license": "MIT"
     },
     {
+      "id": "brief_elements.admin_console",
+      "type": "brief_element_schema",
+      "title": "Admin Console",
+      "description": "Key design elements for dense admin consoles, internal tools, list-detail workflows, and permissioned management UI.",
+      "path": "brief-elements/admin-console.json",
+      "triggers": [
+        "admin_console",
+        "admin_panel",
+        "backoffice",
+        "internal_tool",
+        "management_console",
+        "后台管理"
+      ],
+      "scenario": [
+        "admin_console",
+        "admin_panel",
+        "backoffice",
+        "internal_tool",
+        "management_console",
+        "后台管理"
+      ],
+      "surface": "dashboard",
+      "requiredFields": [
+        "business_domain",
+        "primary_user",
+        "managed_entities",
+        "primary_workflow",
+        "table_columns",
+        "filters",
+        "bulk_actions",
+        "detail_panel",
+        "permission_model",
+        "data_states"
+      ],
+      "optionalFields": [
+        "audit_log",
+        "import_export",
+        "approval_flow",
+        "empty_states",
+        "error_states",
+        "brand_context"
+      ],
+      "questionTemplatePath": "brief-elements/admin-console.json",
+      "defaults": {
+        "platform": "desktop web",
+        "density": "high",
+        "recommended_skill": "dashboard",
+        "recommended_design_system_candidates": [
+          "linear-app",
+          "figma",
+          "notion",
+          "default"
+        ],
+        "output_contract": "standalone responsive HTML admin console"
+      },
+      "runtimeEnabled": true,
+      "source": "creative-claw",
+      "license": "MIT"
+    },
+    {
       "id": "brief_elements.dashboard",
       "type": "brief_element_schema",
-      "title": "Dashboard / Operation Data UI",
+      "title": "Dashboard / Analytics Console",
       "description": "Key design elements for operational dashboards, analytics consoles, and internal data tools.",
       "path": "brief-elements/dashboard.json",
       "triggers": [
         "dashboard",
-        "operation_data_ui",
         "analytics_dashboard",
-        "admin_panel",
-        "bi_console"
+        "bi_console",
+        "metrics_dashboard"
       ],
       "scenario": [
         "dashboard",
-        "operation_data_ui",
         "analytics_dashboard",
-        "admin_panel",
-        "bi_console"
+        "bi_console",
+        "metrics_dashboard"
       ],
       "surface": "dashboard",
       "requiredFields": [
@@ -137,6 +197,66 @@
       "license": "MIT"
     },
     {
+      "id": "brief_elements.html_deck",
+      "type": "brief_element_schema",
+      "title": "HTML Deck",
+      "description": "Key design elements for browser-native slide decks, presentation readouts, and horizontal HTML storytelling.",
+      "path": "brief-elements/html-deck.json",
+      "triggers": [
+        "html_deck",
+        "web_deck",
+        "browser_deck",
+        "presentation_html",
+        "网页PPT",
+        "HTML演示"
+      ],
+      "scenario": [
+        "html_deck",
+        "web_deck",
+        "browser_deck",
+        "presentation_html",
+        "网页PPT",
+        "HTML演示"
+      ],
+      "surface": "deck",
+      "requiredFields": [
+        "deck_purpose",
+        "audience",
+        "slide_count",
+        "narrative_arc",
+        "source_material",
+        "interaction_model",
+        "visual_direction",
+        "aspect_ratio"
+      ],
+      "optionalFields": [
+        "speaker_notes",
+        "keyboard_navigation",
+        "media_assets",
+        "chart_requirements",
+        "export_requirements",
+        "brand_context"
+      ],
+      "questionTemplatePath": "brief-elements/html-deck.json",
+      "defaults": {
+        "aspect_ratio": "16:9",
+        "interaction_model": "keyboard navigation and section anchors",
+        "speaker_notes": false,
+        "recommended_skill": "simple-deck",
+        "fallback_skill": "guizang-ppt",
+        "recommended_design_system_candidates": [
+          "warm-editorial",
+          "vercel",
+          "stripe",
+          "default"
+        ],
+        "output_contract": "standalone responsive HTML deck"
+      },
+      "runtimeEnabled": true,
+      "source": "creative-claw",
+      "license": "MIT"
+    },
+    {
       "id": "brief_elements.landing_page",
       "type": "brief_element_schema",
       "title": "SaaS / Marketing Landing Page",
@@ -204,6 +324,75 @@
       "license": "MIT"
     },
     {
+      "id": "brief_elements.marketing_campaign_page",
+      "type": "brief_element_schema",
+      "title": "Marketing Campaign Page",
+      "description": "Key design elements for campaign pages, launch pages, event pages, and conversion-oriented marketing pages.",
+      "path": "brief-elements/marketing-campaign-page.json",
+      "triggers": [
+        "marketing_campaign_page",
+        "campaign_page",
+        "event_page",
+        "launch_page",
+        "promo_page",
+        "活动页",
+        "营销活动"
+      ],
+      "scenario": [
+        "marketing_campaign_page",
+        "campaign_page",
+        "event_page",
+        "launch_page",
+        "promo_page",
+        "活动页",
+        "营销活动"
+      ],
+      "surface": "landing_page",
+      "requiredFields": [
+        "campaign_name",
+        "target_audience",
+        "offer",
+        "conversion_goal",
+        "primary_cta",
+        "page_sections",
+        "proof_points",
+        "urgency_or_timing",
+        "visual_direction"
+      ],
+      "optionalFields": [
+        "brand_context",
+        "media_assets",
+        "legal_copy",
+        "tracking_requirements",
+        "seo_keywords",
+        "localization"
+      ],
+      "questionTemplatePath": "brief-elements/marketing-campaign-page.json",
+      "defaults": {
+        "platform": "responsive web",
+        "page_sections": [
+          "hero",
+          "offer",
+          "benefits",
+          "how_it_works",
+          "proof",
+          "cta"
+        ],
+        "recommended_skill": "web-prototype",
+        "fallback_skill": "saas-landing",
+        "recommended_design_system_candidates": [
+          "stripe",
+          "vercel",
+          "airbnb",
+          "default"
+        ],
+        "output_contract": "standalone responsive HTML marketing campaign page"
+      },
+      "runtimeEnabled": true,
+      "source": "creative-claw",
+      "license": "MIT"
+    },
+    {
       "id": "brief_elements.mobile_app",
       "type": "brief_element_schema",
       "title": "Mobile App Screen / Prototype",
@@ -261,6 +450,129 @@
           "default"
         ],
         "output_contract": "standalone mobile HTML prototype"
+      },
+      "runtimeEnabled": true,
+      "source": "creative-claw",
+      "license": "MIT"
+    },
+    {
+      "id": "brief_elements.operation_data_ui",
+      "type": "brief_element_schema",
+      "title": "Operation Data UI",
+      "description": "Key design elements for operational data dashboards focused on business monitoring, diagnosis, and action.",
+      "path": "brief-elements/operation-data-ui.json",
+      "triggers": [
+        "operation_data_ui",
+        "operations_dashboard",
+        "growth_dashboard",
+        "business_metrics",
+        "运营数据",
+        "运营看板"
+      ],
+      "scenario": [
+        "operation_data_ui",
+        "operations_dashboard",
+        "growth_dashboard",
+        "business_metrics",
+        "运营数据",
+        "运营看板"
+      ],
+      "surface": "dashboard",
+      "requiredFields": [
+        "business_domain",
+        "primary_user",
+        "decision_goal",
+        "north_star_metric",
+        "supporting_metrics",
+        "dimensions",
+        "time_range",
+        "comparison_model",
+        "interaction_requirements",
+        "density"
+      ],
+      "optionalFields": [
+        "alert_rules",
+        "workflow_actions",
+        "data_freshness",
+        "permission_model",
+        "export_requirements",
+        "empty_states",
+        "brand_context"
+      ],
+      "questionTemplatePath": "brief-elements/operation-data-ui.json",
+      "defaults": {
+        "platform": "desktop web",
+        "density": "high",
+        "comparison_model": "previous period and target",
+        "recommended_skill": "dashboard",
+        "recommended_design_system_candidates": [
+          "linear-app",
+          "vercel",
+          "stripe",
+          "figma",
+          "default"
+        ],
+        "output_contract": "standalone responsive HTML operation data dashboard"
+      },
+      "runtimeEnabled": true,
+      "source": "creative-claw",
+      "license": "MIT"
+    },
+    {
+      "id": "brief_elements.social_carousel",
+      "type": "brief_element_schema",
+      "title": "Social Carousel",
+      "description": "Key design elements for swipeable social media carousel cards, Xiaohongshu posts, and campaign card sequences.",
+      "path": "brief-elements/social-carousel.json",
+      "triggers": [
+        "social_carousel",
+        "xiaohongshu_carousel",
+        "instagram_carousel",
+        "social_cards",
+        "小红书",
+        "社媒轮播"
+      ],
+      "scenario": [
+        "social_carousel",
+        "xiaohongshu_carousel",
+        "instagram_carousel",
+        "social_cards",
+        "小红书",
+        "社媒轮播"
+      ],
+      "surface": "social_carousel",
+      "requiredFields": [
+        "platform",
+        "audience",
+        "message_goal",
+        "card_count",
+        "content_outline",
+        "hook",
+        "cta",
+        "visual_direction",
+        "asset_requirements"
+      ],
+      "optionalFields": [
+        "brand_context",
+        "copy_tone",
+        "image_requirements",
+        "export_requirements",
+        "safe_area",
+        "localization"
+      ],
+      "questionTemplatePath": "brief-elements/social-carousel.json",
+      "defaults": {
+        "platform": "xiaohongshu",
+        "card_count": 6,
+        "recommended_skill": "social-carousel",
+        "recommended_design_system_candidates": [
+          "xiaohongshu",
+          "pinterest",
+          "airbnb",
+          "warm-editorial",
+          "default"
+        ],
+        "output_contract": "standalone responsive HTML social carousel storyboard"
       },
       "runtimeEnabled": true,
       "source": "creative-claw",

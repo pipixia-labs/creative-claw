@@ -4,7 +4,7 @@ This index summarizes the resources exposed by `design-knowledge-and-skills`. Us
 
 ## Counts
 
-- `brief_element_schema`: 4
+- `brief_element_schema`: 9
 - `design_system`: 72
 - `device_frame`: 5
 - `index_skill`: 1
@@ -17,14 +17,20 @@ This index summarizes the resources exposed by `design-knowledge-and-skills`. Us
 3. Ask only the highest-impact missing questions, or use schema defaults when the user asks to proceed directly.
 4. Select one primary task skill.
 5. Select at most one primary design system.
-6. Read only the selected resource files before building the design brief.
+6. Exclude resources marked `runtimeEnabled: false` or `referenceOnly: true` from execution context.
+7. Read only the selected resource files before building the design brief.
 
 ## Brief Elements
 
-- `brief_elements.dashboard`: Dashboard / Operation Data UI -> `brief-elements/dashboard.json`
+- `brief_elements.admin_console`: Admin Console -> `brief-elements/admin-console.json`
+- `brief_elements.dashboard`: Dashboard / Analytics Console -> `brief-elements/dashboard.json`
 - `brief_elements.deck`: Slide Deck -> `brief-elements/deck.json`
+- `brief_elements.html_deck`: HTML Deck -> `brief-elements/html-deck.json`
 - `brief_elements.landing_page`: SaaS / Marketing Landing Page -> `brief-elements/landing-page.json`
+- `brief_elements.marketing_campaign_page`: Marketing Campaign Page -> `brief-elements/marketing-campaign-page.json`
 - `brief_elements.mobile_app`: Mobile App Screen / Prototype -> `brief-elements/mobile-app.json`
+- `brief_elements.operation_data_ui`: Operation Data UI -> `brief-elements/operation-data-ui.json`
+- `brief_elements.social_carousel`: Social Carousel -> `brief-elements/social-carousel.json`
 
 ## Task Skills
 
