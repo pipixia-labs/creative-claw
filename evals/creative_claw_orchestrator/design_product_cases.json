@@ -1,0 +1,88 @@
+{
+  "version": "creative-claw-orchestrator-design-eval-v1",
+  "description": "Offline eval cases for Design product-line routing through the Orchestrator. These cases describe expected tool use and arguments; they are intentionally versioned before live ADK eval automation is introduced.",
+  "agent": "Orchestrator",
+  "entrypoint": "chat",
+  "cases": [
+    {
+      "id": "design_operation_data_ui_clarification",
+      "user_message": "帮我设计一个运营数据 UI",
+      "expected_tool": "run_design_product",
+      "expected_arguments": {
+        "scenario": "operation_data_ui",
+        "allow_assumptions": false,
+        "output_format": "html"
+      },
+      "expected_result": {
+        "status": "needs_clarification",
+        "brief_schema_id": "brief_elements.operation_data_ui",
+        "task_skill": "dashboard"
+      },
+      "assertions": [
+        "Orchestrator should not call CodeGenerationExpert directly.",
+        "Orchestrator should ask scenario-specific questions from design-knowledge-and-skills.",
+        "The selected brief schema should be operation_data_ui rather than generic dashboard."
+      ]
+    },
+    {
+      "id": "design_pricing_page_generation",
+      "user_message": "做一个 AI CRM 的 pricing page，三档套餐，突出免费试用和企业版预约演示，直接生成 HTML。",
+      "expected_tool": "run_design_product",
+      "expected_arguments": {
+        "scenario": "pricing_page",
+        "allow_assumptions": true,
+        "output_format": "html"
+      },
+      "expected_result": {
+        "status": "success_or_warning",
+        "brief_schema_id": "brief_elements.pricing_page",
+        "task_skill": "pricing-page"
+      },
+      "assertions": [
+        "Orchestrator should prefer run_design_product for pricing page design.",
+        "DesignProductManager should use the pricing_page brief element schema.",
+        "The handoff to CodeGenerationExpert should include design-brief-v1."
+      ]
+    },
+    {
+      "id": "design_mobile_wireframe_clarification",
+      "user_message": "给习惯打卡 app 做一个低保真 wireframe",
+      "expected_tool": "run_design_product",
+      "expected_arguments": {
+        "scenario": "wireframe_sketch",
+        "allow_assumptions": false,
+        "output_format": "html"
+      },
+      "expected_result": {
+        "status": "needs_clarification",
+        "brief_schema_id": "brief_elements.wireframe_sketch",
+        "task_skill": "wireframe-sketch"
+      },
+      "assertions": [
+        "The request should stay inside the Orchestrator product-line path.",
+        "The selected task skill should be wireframe-sketch.",
+        "Missing flow and screen details should be converted into questions."
+      ]
+    },
+    {
+      "id": "design_magazine_poster_generation",
+      "user_message": "做一张新品发布的杂志风海报，主标题是 FlowKit Launch，竖版 4:5，直接做。",
+      "expected_tool": "run_design_product",
+      "expected_arguments": {
+        "scenario": "magazine_poster",
+        "allow_assumptions": true,
+        "output_format": "html"
+      },
+      "expected_result": {
+        "status": "success_or_warning",
+        "brief_schema_id": "brief_elements.magazine_poster",
+        "task_skill": "magazine-poster"
+      },
+      "assertions": [
+        "Poster requests should route through run_design_product.",
+        "DesignProductManager should use poster-specific constraints.",
+        "Preview-quality validation may return non-blocking warnings for HTML poster artifacts."
+      ]
+    }
+  ]
+}

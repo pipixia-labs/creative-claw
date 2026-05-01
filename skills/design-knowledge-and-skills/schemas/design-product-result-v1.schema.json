@@ -1,0 +1,97 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "creative-claw.design-product-result-v1",
+  "title": "Creative Claw Design Product Result v1",
+  "description": "Stable result contract returned by DesignProductManager through the Orchestrator run_design_product tool.",
+  "type": "object",
+  "additionalProperties": true,
+  "required": [
+    "result_schema_version",
+    "status",
+    "message",
+    "brief",
+    "resource_selection",
+    "design_issues",
+    "next_action",
+    "code_generation",
+    "design_validation",
+    "output_files"
+  ],
+  "properties": {
+    "result_schema_version": {
+      "const": "design-product-result-v1"
+    },
+    "status": {
+      "enum": [
+        "needs_clarification",
+        "success",
+        "warning",
+        "validation_failed",
+        "generation_failed"
+      ]
+    },
+    "message": {
+      "type": "string"
+    },
+    "brief": {
+      "type": "object",
+      "required": [
+        "design_brief",
+        "selection"
+      ]
+    },
+    "resource_selection": {
+      "type": "object",
+      "required": [
+        "surface",
+        "brief_schema_id",
+        "task_skill",
+        "design_system",
+        "device_frame",
+        "context_files"
+      ]
+    },
+    "questions": {
+      "type": "array"
+    },
+    "missing_fields": {
+      "type": "array"
+    },
+    "design_issues": {
+      "type": "array",
+      "items": {
+        "type": "object",
+        "required": [
+          "source",
+          "severity",
+          "message"
+        ]
+      }
+    },
+    "next_action": {
+      "type": "string"
+    },
+    "code_generation": {
+      "type": [
+        "object",
+        "null"
+      ]
+    },
+    "design_validation": {
+      "type": "array",
+      "items": {
+        "type": "object",
+        "required": [
+          "status",
+          "path",
+          "errors",
+          "warnings",
+          "checks"
+        ]
+      }
+    },
+    "output_files": {
+      "type": "array"
+    }
+  }
+}

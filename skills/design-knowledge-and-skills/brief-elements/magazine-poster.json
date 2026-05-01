@@ -1,0 +1,51 @@
+{
+  "id": "brief_elements.magazine_poster",
+  "type": "brief_element_schema",
+  "title": "Magazine Poster",
+  "description": "Key design elements for editorial posters, launch posters, event visuals, and magazine-style static compositions.",
+  "surface": "poster",
+  "scenarios": ["magazine_poster", "editorial_poster", "launch_poster", "event_poster", "海报", "杂志海报"],
+  "required_fields": [
+    "poster_goal",
+    "audience",
+    "headline",
+    "supporting_copy",
+    "visual_subject",
+    "format_or_size",
+    "brand_context",
+    "call_to_action"
+  ],
+  "optional_fields": [
+    "date_or_event_info",
+    "sponsor_or_logo",
+    "image_assets",
+    "typography_direction",
+    "print_constraints",
+    "social_platform"
+  ],
+  "question_templates": [
+    {
+      "field": "poster_goal",
+      "question": "这张海报的目的是什么：活动宣传、产品发布、品牌视觉、社媒传播，还是门店物料？"
+    },
+    {
+      "field": "headline",
+      "question": "主标题是什么？如果还没有，我可以根据主题先拟一个。"
+    },
+    {
+      "field": "visual_subject",
+      "question": "海报视觉主体是什么：产品、人物、场景、数据大字报、抽象图形，还是纯文字排版？"
+    },
+    {
+      "field": "format_or_size",
+      "question": "需要什么尺寸或比例：方图、竖版 4:5、海报 A4、横版 16:9，还是其他？"
+    }
+  ],
+  "defaults": {
+    "platform": "static visual",
+    "density": "medium",
+    "recommended_skill": "magazine-poster",
+    "recommended_design_system_candidates": ["warm-editorial", "wired", "theverge", "default"],
+    "output_contract": "standalone HTML poster composition"
+  }
+}

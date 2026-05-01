@@ -1,0 +1,57 @@
+{
+  "id": "brief_elements.pricing_page",
+  "type": "brief_element_schema",
+  "title": "Pricing Page",
+  "description": "Key design elements for SaaS pricing pages, plan comparison, conversion decision support, and upgrade CTAs.",
+  "surface": "landing_page",
+  "scenarios": ["pricing_page", "pricing_table", "plans_page", "subscription_pricing", "定价页", "价格页"],
+  "required_fields": [
+    "product_category",
+    "target_customer",
+    "pricing_model",
+    "plans",
+    "feature_comparison",
+    "primary_conversion_action",
+    "trust_proof",
+    "billing_options",
+    "faq_topics"
+  ],
+  "optional_fields": [
+    "discount_rules",
+    "enterprise_contact_flow",
+    "trial_offer",
+    "competitor_context",
+    "currency",
+    "brand_context"
+  ],
+  "question_templates": [
+    {
+      "field": "product_category",
+      "question": "这个定价页对应什么产品：SaaS、AI 工具、开发者平台、会员订阅，还是其他？"
+    },
+    {
+      "field": "target_customer",
+      "question": "主要购买者是谁：个人用户、团队负责人、企业采购、开发者，还是创作者？"
+    },
+    {
+      "field": "plans",
+      "question": "需要展示几个套餐？每个套餐的名称、价格和核心权益是什么？"
+    },
+    {
+      "field": "primary_conversion_action",
+      "question": "主转化动作是什么：免费试用、立即购买、预约演示、联系销售，还是升级套餐？"
+    },
+    {
+      "field": "trust_proof",
+      "question": "是否有客户 logo、用户数、评价、安全合规或退款承诺等信任证明？"
+    }
+  ],
+  "defaults": {
+    "platform": "desktop web",
+    "density": "medium",
+    "recommended_skill": "pricing-page",
+    "fallback_skill": "saas-landing",
+    "recommended_design_system_candidates": ["stripe", "linear-app", "vercel", "supabase", "default"],
+    "output_contract": "standalone responsive HTML pricing page"
+  }
+}

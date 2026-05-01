@@ -2,9 +2,9 @@
   "id": "brief_elements.landing_page",
   "type": "brief_element_schema",
   "title": "SaaS / Marketing Landing Page",
-  "description": "Key design elements for SaaS landing pages, product marketing pages, and pricing-oriented pages.",
+  "description": "Key design elements for SaaS landing pages, product marketing pages, and homepage-style conversion pages.",
   "surface": "landing_page",
-  "scenarios": ["landing_page", "saas_landing", "marketing_page", "pricing_page", "homepage"],
+  "scenarios": ["landing_page", "saas_landing", "marketing_page", "homepage"],
   "required_fields": [
     "product_name",
     "target_audience",

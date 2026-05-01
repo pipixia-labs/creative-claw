@@ -22,6 +22,8 @@ class DesignKnowledgeResourceTests(unittest.TestCase):
         resource_ids = {resource["id"] for resource in resources}
 
         self.assertEqual(manifest["selectionPolicy"]["briefElementsFirst"], True)
+        self.assertIn("schema.design_brief_v1", resource_ids)
+        self.assertIn("schema.design_product_result_v1", resource_ids)
         self.assertIn("brief_elements.dashboard", resource_ids)
         self.assertIn("brief_elements.landing_page", resource_ids)
         self.assertIn("brief_elements.mobile_app", resource_ids)
@@ -31,15 +33,38 @@ class DesignKnowledgeResourceTests(unittest.TestCase):
         self.assertIn("brief_elements.marketing_campaign_page", resource_ids)
         self.assertIn("brief_elements.social_carousel", resource_ids)
         self.assertIn("brief_elements.html_deck", resource_ids)
+        self.assertIn("brief_elements.pricing_page", resource_ids)
+        self.assertIn("brief_elements.docs_page", resource_ids)
+        self.assertIn("brief_elements.kanban_board", resource_ids)
+        self.assertIn("brief_elements.magazine_poster", resource_ids)
+        self.assertIn("brief_elements.wireframe_sketch", resource_ids)
         self.assertIn("task_skill.dashboard", resource_ids)
         self.assertIn("task_skill.saas-landing", resource_ids)
         self.assertIn("task_skill.social-carousel", resource_ids)
         self.assertIn("design_system.linear-app", resource_ids)
         self.assertIn("device_frame.iphone-15-pro", resource_ids)
         self.assertEqual(
-            sum(1 for resource in resources if resource["type"] == "brief_element_schema"),
-            9,
+            sum(1 for resource in resources if resource["type"] == "contract_schema"),
+            2,
         )
+        self.assertEqual(
+            sum(1 for resource in resources if resource["type"] == "brief_element_schema"),
+            14,
+        )
+
+    def test_contract_schemas_define_stable_versions(self) -> None:
+        schema_dir = self._resource_root() / "schemas"
+        design_brief_schema = json.loads((schema_dir / "design-brief-v1.schema.json").read_text(encoding="utf-8"))
+        result_schema = json.loads((schema_dir / "design-product-result-v1.schema.json").read_text(encoding="utf-8"))
+
+        self.assertEqual(design_brief_schema["properties"]["schema_version"]["const"], "design-brief-v1")
+        self.assertIn("design_system", design_brief_schema["required"])
+        self.assertIn("constraints", design_brief_schema["required"])
+        self.assertEqual(
+            result_schema["properties"]["result_schema_version"]["const"],
+            "design-product-result-v1",
+        )
+        self.assertIn("design_validation", result_schema["required"])
 
     def test_brief_elements_provide_question_templates(self) -> None:
         brief_elements = [
@@ -59,6 +84,7 @@ class DesignKnowledgeResourceTests(unittest.TestCase):
             self._resource_root() / "SKILL.md",
             self._resource_root() / "resource-manifest.json",
             self._resource_root() / "resource-index.md",
+            *sorted((self._resource_root() / "schemas").glob("*.json")),
             *sorted((self._resource_root() / "brief-elements").glob("*.json")),
         ]:
             content = path.read_text(encoding="utf-8")

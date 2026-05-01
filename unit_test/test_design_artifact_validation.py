@@ -37,7 +37,31 @@ class DesignArtifactValidationTests(unittest.TestCase):
         self.assertTrue(result["checks"]["exists"])
         self.assertTrue(result["checks"]["parseable_html"])
         self.assertTrue(result["checks"]["has_visible_text"])
-        self.assertNotIn("has_layout_css", result["checks"])
+        self.assertTrue(result["checks"]["has_layout_css"])
+        self.assertTrue(result["checks"]["has_responsive_signal"])
+        self.assertTrue(result["checks"]["has_viewport_meta"])
+
+    def test_validate_design_artifact_warns_for_weak_preview_quality(self) -> None:
+        with tempfile.TemporaryDirectory(dir=workspace_root()) as tmpdir:
+            output_file = Path(tmpdir) / "thin.html"
+            output_file.write_text(
+                """<!doctype html>
+<html lang="en">
+<body>
+  <main><h1>Dashboard</h1><p>Thin.</p></main>
+</body>
+</html>
+""",
+                encoding="utf-8",
+            )
+
+            result = validate_design_artifact(output_file).to_dict()
+
+        self.assertEqual(result["status"], "warning")
+        self.assertEqual(result["errors"], [])
+        self.assertFalse(result["checks"]["has_viewport_meta"])
+        self.assertFalse(result["checks"]["has_layout_css"])
+        self.assertIn("preview quality: missing viewport meta tag", result["warnings"])
 
     def test_validate_design_artifact_errors_for_invalid_html(self) -> None:
         with tempfile.TemporaryDirectory(dir=workspace_root()) as tmpdir:

@@ -39,20 +39,46 @@ class _VisibleTextParser(HTMLParser):
         super().__init__()
         self.tags: set[str] = set()
         self.text_parts: list[str] = []
-        self._ignored_depth = 0
+        self.style_parts: list[str] = []
+        self.script_parts: list[str] = []
+        self.external_asset_refs: list[str] = []
+        self.has_inline_style = False
+        self.has_viewport_meta = False
+        self._script_depth = 0
+        self._style_depth = 0
 
     def handle_starttag(self, tag: str, attrs: list[tuple[str, str | None]]) -> None:
         normalized_tag = tag.lower()
         self.tags.add(normalized_tag)
-        if normalized_tag in {"script", "style"}:
-            self._ignored_depth += 1
+        attrs_by_name = {name.lower(): value or "" for name, value in attrs}
+        if normalized_tag == "meta" and attrs_by_name.get("name", "").lower() == "viewport":
+            self.has_viewport_meta = True
+        if attrs_by_name.get("style", "").strip():
+            self.has_inline_style = True
+        for name in ("src", "href"):
+            value = attrs_by_name.get(name, "").strip()
+            if value.startswith(("http://", "https://")):
+                self.external_asset_refs.append(value)
+        if normalized_tag == "script":
+            self._script_depth += 1
+        elif normalized_tag == "style":
+            self._style_depth += 1
 
     def handle_endtag(self, tag: str) -> None:
-        if tag.lower() in {"script", "style"} and self._ignored_depth > 0:
-            self._ignored_depth -= 1
+        normalized_tag = tag.lower()
+        if normalized_tag == "script" and self._script_depth > 0:
+            self._script_depth -= 1
+        elif normalized_tag == "style" and self._style_depth > 0:
+            self._style_depth -= 1
 
     def handle_data(self, data: str) -> None:
-        if self._ignored_depth:
+        if self._script_depth:
+            if data.strip():
+                self.script_parts.append(data)
+            return
+        if self._style_depth:
+            if data.strip():
+                self.style_parts.append(data)
             return
         text = data.strip()
         if text:
@@ -125,6 +151,9 @@ def validate_design_artifact(path: str | Path) -> DesignArtifactValidation:
 
     visible_text = " ".join(parser.text_parts)
     checks["has_visible_text"] = bool(re.sub(r"\s+", "", visible_text))
+    preview_quality = _build_preview_quality(parser=parser, content=content, visible_text=visible_text)
+    checks.update(preview_quality["checks"])
+    warnings.extend(preview_quality["warnings"])
 
     required_checks = {
         "non_empty": "artifact is empty",
@@ -152,6 +181,61 @@ def validate_design_artifact(path: str | Path) -> DesignArtifactValidation:
         warnings=warnings,
         checks=checks,
     )
+
+
+def _build_preview_quality(
+    *,
+    parser: _VisibleTextParser,
+    content: str,
+    visible_text: str,
+) -> dict[str, Any]:
+    """Return deterministic preview-quality signals for one HTML artifact."""
+    lower_content = content.lower()
+    style_text = "\n".join(parser.style_parts).lower()
+    script_text = "\n".join(parser.script_parts)
+    visible_character_count = len(re.sub(r"\s+", "", visible_text))
+    responsive_markers = (
+        "@media",
+        "clamp(",
+        "minmax(",
+        "max-width",
+        "min-width",
+        "flex-wrap",
+        "grid-template",
+        "aspect-ratio",
+        "vw",
+        "vh",
+    )
+    checks = {
+        "has_viewport_meta": parser.has_viewport_meta,
+        "has_layout_css": bool(style_text.strip() or parser.has_inline_style),
+        "has_responsive_signal": any(marker in lower_content for marker in responsive_markers),
+        "has_semantic_structure": bool(
+            parser.tags.intersection({"main", "section", "article", "nav", "header", "footer"})
+        ),
+        "has_meaningful_content": visible_character_count >= 60,
+        "no_external_runtime_assets": not parser.external_asset_refs,
+        "no_obvious_console_errors": not re.search(
+            r"(throw\s+new\s+error|console\.error|referenceerror|typeerror)",
+            script_text,
+            flags=re.IGNORECASE,
+        ),
+    }
+    warning_messages = {
+        "has_viewport_meta": "preview quality: missing viewport meta tag",
+        "has_layout_css": "preview quality: missing CSS/layout styling signal",
+        "has_responsive_signal": "preview quality: no responsive layout signal found",
+        "has_semantic_structure": "preview quality: missing semantic layout structure",
+        "has_meaningful_content": "preview quality: visible content is too thin for preview validation",
+        "no_external_runtime_assets": "preview quality: external runtime assets may be unavailable in local preview",
+        "no_obvious_console_errors": "preview quality: script contains obvious console/error marker",
+    }
+    warnings = [message for check, message in warning_messages.items() if not checks.get(check, False)]
+    return {
+        "status": "warning" if warnings else "pass",
+        "checks": checks,
+        "warnings": warnings,
+    }
 
 
 def validate_design_artifacts(paths: list[str]) -> list[dict[str, Any]]:

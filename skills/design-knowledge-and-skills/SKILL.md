@@ -13,6 +13,7 @@ This skill is an index skill. It does not contain all design knowledge inline. I
 
 - `resource-manifest.json`: machine-readable registry of design resources.
 - `resource-index.md`: human-readable overview and selection rules.
+- `schemas/*.schema.json`: stable DesignProductManager handoff and result contracts.
 - `brief-elements/*.json`: scenario-specific key design elements and clarification questions.
 - `skills/*/SKILL.md`: task-specific design workflows and output contracts.
 - `design-systems/*/DESIGN.md`: product or style design systems.
@@ -30,7 +31,7 @@ This skill is an index skill. It does not contain all design knowledge inline. I
 8. Choose exactly one primary task skill.
 9. Choose at most one primary design system unless the user asks for comparison or multiple directions.
 10. Read only the selected task skill, selected design system, and any required frame/reference files.
-11. Build a structured design brief.
+11. Build a structured design brief that conforms to `schemas/design-brief-v1.schema.json`.
 12. Invoke the right bottom capability:
     - Use `CodeGenerationExpert` for HTML, CSS, JavaScript, prototype, app screen, dashboard, and deck code generation.
     - Use image generation/editing experts for bitmap image work.
@@ -71,7 +72,7 @@ Before execution, produce a compact design brief with:
 - `constraints`
 - `assumptions`
 
-The design brief is the handoff to `CodeGenerationExpert` or another bottom capability.
+The design brief is the handoff to `CodeGenerationExpert` or another bottom capability. The result returned through the Orchestrator should conform to `schemas/design-product-result-v1.schema.json`.
 
 ## Current Scope
 
@@ -80,10 +81,15 @@ This first version supports resource lookup and clarification for:
 - dashboard
 - operation data UI
 - admin console
+- pricing page
+- documentation page
+- kanban board
 - SaaS landing page
 - marketing campaign page
 - mobile app screen or prototype
 - social carousel
+- magazine poster
+- wireframe sketch
 - slide deck
 - HTML deck
 

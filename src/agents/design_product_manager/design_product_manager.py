@@ -44,6 +44,16 @@ _SURFACE_KEYWORDS = {
         "首页",
         "营销页",
         "定价页",
+        "价格页",
+    ),
+    "docs_page": (
+        "docs",
+        "documentation",
+        "api docs",
+        "developer docs",
+        "knowledge base",
+        "文档",
+        "开发者文档",
     ),
     "mobile_app": (
         "mobile",
@@ -76,12 +86,32 @@ _SURFACE_KEYWORDS = {
         "长图",
         "卡片",
     ),
+    "poster": (
+        "poster",
+        "magazine poster",
+        "editorial poster",
+        "launch poster",
+        "海报",
+        "杂志海报",
+        "活动海报",
+    ),
+    "wireframe": (
+        "wireframe",
+        "low fidelity",
+        "lofi",
+        "ux sketch",
+        "线框图",
+        "低保真",
+        "草图",
+    ),
 }
 
 _DEFAULT_FRAME_BY_SURFACE = {
     "dashboard": "browser-chrome",
+    "docs_page": "browser-chrome",
     "landing_page": "browser-chrome",
     "mobile_app": "iphone-15-pro",
+    "wireframe": "browser-chrome",
 }
 
 
@@ -576,7 +606,7 @@ Turn a user's design request into one focused, resource-grounded production brie
                 if not candidate_resource:
                     continue
                 candidate_score = self._resource_match_score(candidate_resource, normalized_text)
-                if candidate_score == matched_score:
+                if candidate_score == matched_score or matched_score <= 2:
                     return candidate_slug
             return matched_slug
 
@@ -775,6 +805,18 @@ Turn a user's design request into one focused, resource-grounded production brie
             constraints.append("Create slide-like sections with a clear narrative arc.")
         elif surface == "social_carousel":
             constraints.append("Create swipeable social-card sections with clear hierarchy and shareable content rhythm.")
+        elif surface == "docs_page":
+            constraints.append(
+                "Create a structured documentation page with persistent navigation, readable examples, and clear content hierarchy."
+            )
+        elif surface == "poster":
+            constraints.append(
+                "Create a poster-like composition with a stable aspect ratio, strong editorial hierarchy, and no decorative app chrome."
+            )
+        elif surface == "wireframe":
+            constraints.append(
+                "Create a low-fidelity wireframe using neutral styling, explicit layout regions, and clear interaction placeholders."
+            )
         if output_format.lower() != "html":
             constraints.append(f"Respect the requested output format: {output_format}.")
         return constraints

@@ -92,6 +92,58 @@ class DesignProductManagerTests(unittest.TestCase):
         self.assertEqual(brief.selection.task_skill, "simple-deck")
         self.assertIn("interaction_model", brief.design_brief["content_requirements"])
 
+    def test_prepare_pricing_page_brief_uses_specific_schema(self) -> None:
+        manager = DesignProductManager()
+
+        brief = manager.prepare_brief(prompt="做一个 AI CRM pricing page，包含三档套餐和企业版预约演示。")
+
+        self.assertEqual(brief.selection.brief_schema_id, "brief_elements.pricing_page")
+        self.assertEqual(brief.selection.surface, "landing_page")
+        self.assertEqual(brief.selection.task_skill, "pricing-page")
+        self.assertIn("feature_comparison", brief.design_brief["content_requirements"])
+
+    def test_prepare_docs_page_brief_uses_specific_schema(self) -> None:
+        manager = DesignProductManager()
+
+        brief = manager.prepare_brief(prompt="做一个 developer docs page，介绍 API quickstart 和配置示例。")
+
+        self.assertEqual(brief.selection.brief_schema_id, "brief_elements.docs_page")
+        self.assertEqual(brief.selection.surface, "docs_page")
+        self.assertEqual(brief.selection.task_skill, "docs-page")
+        self.assertEqual(brief.selection.device_frame, "browser-chrome")
+        self.assertIn("information_architecture", brief.design_brief["content_requirements"])
+
+    def test_prepare_kanban_board_brief_uses_specific_schema(self) -> None:
+        manager = DesignProductManager()
+
+        brief = manager.prepare_brief(prompt="做一个内容生产 kanban board，展示待写作、待审核和已发布。")
+
+        self.assertEqual(brief.selection.brief_schema_id, "brief_elements.kanban_board")
+        self.assertEqual(brief.selection.surface, "dashboard")
+        self.assertEqual(brief.selection.task_skill, "kanban-board")
+        self.assertIn("status_transitions", brief.design_brief["content_requirements"])
+
+    def test_prepare_magazine_poster_brief_uses_specific_schema(self) -> None:
+        manager = DesignProductManager()
+
+        brief = manager.prepare_brief(prompt="做一张 magazine poster，用于新品发布，主标题 FlowKit Launch。")
+
+        self.assertEqual(brief.selection.brief_schema_id, "brief_elements.magazine_poster")
+        self.assertEqual(brief.selection.surface, "poster")
+        self.assertEqual(brief.selection.task_skill, "magazine-poster")
+        self.assertIn("visual_subject", brief.design_brief["content_requirements"])
+
+    def test_prepare_wireframe_brief_uses_specific_schema(self) -> None:
+        manager = DesignProductManager()
+
+        brief = manager.prepare_brief(prompt="给习惯打卡 app 做一个 low fidelity wireframe。")
+
+        self.assertEqual(brief.selection.brief_schema_id, "brief_elements.wireframe_sketch")
+        self.assertEqual(brief.selection.surface, "wireframe")
+        self.assertEqual(brief.selection.task_skill, "wireframe-sketch")
+        self.assertEqual(brief.selection.device_frame, "browser-chrome")
+        self.assertIn("primary_flow", brief.design_brief["content_requirements"])
+
     def test_prepare_mobile_brief_uses_mobile_surface_and_frame(self) -> None:
         manager = DesignProductManager()
 

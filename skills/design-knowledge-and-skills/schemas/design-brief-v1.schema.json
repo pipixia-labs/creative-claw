@@ -1,0 +1,116 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "creative-claw.design-brief-v1",
+  "title": "Creative Claw Design Brief v1",
+  "description": "Stable handoff contract produced by DesignProductManager before invoking a bottom capability such as CodeGenerationExpert.",
+  "type": "object",
+  "additionalProperties": false,
+  "required": [
+    "schema_version",
+    "surface",
+    "scenario",
+    "source_brief_schema_id",
+    "user_prompt",
+    "primary_user",
+    "business_domain",
+    "goal",
+    "content_requirements",
+    "visual_direction",
+    "design_system",
+    "device_frame",
+    "interactions",
+    "output_format",
+    "constraints",
+    "assumptions"
+  ],
+  "properties": {
+    "schema_version": {
+      "const": "design-brief-v1"
+    },
+    "surface": {
+      "type": "string",
+      "minLength": 1,
+      "description": "Primary output surface, for example dashboard, landing_page, mobile_app, deck, poster, wireframe, or docs_page."
+    },
+    "scenario": {
+      "type": "array",
+      "items": {
+        "type": "string"
+      },
+      "description": "Scenario aliases copied from the selected brief element schema."
+    },
+    "source_brief_schema_id": {
+      "type": "string",
+      "pattern": "^brief_elements\\."
+    },
+    "user_prompt": {
+      "type": "string",
+      "minLength": 1
+    },
+    "primary_user": {
+      "type": "string"
+    },
+    "business_domain": {
+      "type": "string"
+    },
+    "goal": {
+      "type": "string",
+      "minLength": 1
+    },
+    "content_requirements": {
+      "type": "array",
+      "items": {
+        "type": "string"
+      },
+      "description": "Required design element field names from the selected brief element schema."
+    },
+    "visual_direction": {
+      "type": "string"
+    },
+    "design_system": {
+      "type": "string"
+    },
+    "device_frame": {
+      "type": "string"
+    },
+    "interactions": {
+      "type": "array",
+      "items": {
+        "type": "string"
+      }
+    },
+    "output_format": {
+      "type": "string",
+      "minLength": 1
+    },
+    "constraints": {
+      "type": "object",
+      "additionalProperties": true,
+      "required": [
+        "output_contract",
+        "density",
+        "platform",
+        "task_skill"
+      ],
+      "properties": {
+        "output_contract": {
+          "type": "string"
+        },
+        "density": {
+          "type": "string"
+        },
+        "platform": {
+          "type": "string"
+        },
+        "task_skill": {
+          "type": "string"
+        }
+      }
+    },
+    "assumptions": {
+      "type": "object",
+      "additionalProperties": true,
+      "description": "Explicit defaults and inferred choices used when the user skipped clarification."
+    }
+  }
+}

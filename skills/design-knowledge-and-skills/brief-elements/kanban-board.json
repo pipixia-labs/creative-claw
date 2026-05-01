@@ -1,0 +1,52 @@
+{
+  "id": "brief_elements.kanban_board",
+  "type": "brief_element_schema",
+  "title": "Kanban Board",
+  "description": "Key design elements for task boards, workflow pipelines, content operations boards, and team execution views.",
+  "surface": "dashboard",
+  "scenarios": ["kanban_board", "task_board", "workflow_board", "project_board", "看板", "任务看板"],
+  "required_fields": [
+    "workflow_domain",
+    "primary_user",
+    "columns",
+    "card_fields",
+    "prioritization_model",
+    "status_transitions",
+    "filters",
+    "collaboration_needs",
+    "empty_states"
+  ],
+  "optional_fields": [
+    "automation_rules",
+    "assignee_model",
+    "due_dates",
+    "swimlanes",
+    "bulk_actions",
+    "brand_context"
+  ],
+  "question_templates": [
+    {
+      "field": "workflow_domain",
+      "question": "这个看板管理什么流程：项目任务、内容生产、销售线索、客服工单、招聘，还是其他？"
+    },
+    {
+      "field": "columns",
+      "question": "需要哪些列？例如待处理、进行中、待审核、已完成、阻塞。"
+    },
+    {
+      "field": "card_fields",
+      "question": "每张卡片需要展示哪些信息：负责人、优先级、截止时间、标签、进度、指标？"
+    },
+    {
+      "field": "collaboration_needs",
+      "question": "是否需要评论、指派、拖拽、批量操作或团队视图？"
+    }
+  ],
+  "defaults": {
+    "platform": "desktop web",
+    "density": "medium",
+    "recommended_skill": "kanban-board",
+    "recommended_design_system_candidates": ["linear-app", "notion", "figma", "default"],
+    "output_contract": "standalone responsive HTML kanban board"
+  }
+}

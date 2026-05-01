@@ -21,6 +21,34 @@
       "license": "MIT"
     },
     {
+      "id": "schema.design_brief_v1",
+      "type": "contract_schema",
+      "title": "Creative Claw Design Brief v1",
+      "description": "Stable handoff contract produced by DesignProductManager before invoking a bottom capability such as CodeGenerationExpert.",
+      "path": "schemas/design-brief-v1.schema.json",
+      "triggers": [
+        "creative-claw.design-brief-v1",
+        "Creative Claw Design Brief v1"
+      ],
+      "runtimeEnabled": true,
+      "source": "creative-claw",
+      "license": "MIT"
+    },
+    {
+      "id": "schema.design_product_result_v1",
+      "type": "contract_schema",
+      "title": "Creative Claw Design Product Result v1",
+      "description": "Stable result contract returned by DesignProductManager through the Orchestrator run_design_product tool.",
+      "path": "schemas/design-product-result-v1.schema.json",
+      "triggers": [
+        "creative-claw.design-product-result-v1",
+        "Creative Claw Design Product Result v1"
+      ],
+      "runtimeEnabled": true,
+      "source": "creative-claw",
+      "license": "MIT"
+    },
+    {
       "id": "brief_elements.admin_console",
       "type": "brief_element_schema",
       "title": "Admin Console",
@@ -197,6 +225,66 @@
       "license": "MIT"
     },
     {
+      "id": "brief_elements.docs_page",
+      "type": "brief_element_schema",
+      "title": "Documentation Page",
+      "description": "Key design elements for product documentation, developer docs, API guides, and structured knowledge pages.",
+      "path": "brief-elements/docs-page.json",
+      "triggers": [
+        "docs_page",
+        "documentation",
+        "api_docs",
+        "developer_docs",
+        "knowledge_base",
+        "文档页",
+        "开发者文档"
+      ],
+      "scenario": [
+        "docs_page",
+        "documentation",
+        "api_docs",
+        "developer_docs",
+        "knowledge_base",
+        "文档页",
+        "开发者文档"
+      ],
+      "surface": "docs_page",
+      "requiredFields": [
+        "audience",
+        "documentation_goal",
+        "information_architecture",
+        "primary_topic",
+        "navigation_model",
+        "code_or_example_needs",
+        "search_or_filter_needs",
+        "content_density"
+      ],
+      "optionalFields": [
+        "versioning",
+        "api_reference",
+        "copy_source",
+        "brand_context",
+        "callouts",
+        "empty_states"
+      ],
+      "questionTemplatePath": "brief-elements/docs-page.json",
+      "defaults": {
+        "platform": "desktop web",
+        "density": "medium",
+        "recommended_skill": "docs-page",
+        "recommended_design_system_candidates": [
+          "mintlify",
+          "vercel",
+          "stripe",
+          "default"
+        ],
+        "output_contract": "standalone responsive HTML documentation page"
+      },
+      "runtimeEnabled": true,
+      "source": "creative-claw",
+      "license": "MIT"
+    },
+    {
       "id": "brief_elements.html_deck",
       "type": "brief_element_schema",
       "title": "HTML Deck",
@@ -257,23 +345,80 @@
       "license": "MIT"
     },
     {
+      "id": "brief_elements.kanban_board",
+      "type": "brief_element_schema",
+      "title": "Kanban Board",
+      "description": "Key design elements for task boards, workflow pipelines, content operations boards, and team execution views.",
+      "path": "brief-elements/kanban-board.json",
+      "triggers": [
+        "kanban_board",
+        "task_board",
+        "workflow_board",
+        "project_board",
+        "看板",
+        "任务看板"
+      ],
+      "scenario": [
+        "kanban_board",
+        "task_board",
+        "workflow_board",
+        "project_board",
+        "看板",
+        "任务看板"
+      ],
+      "surface": "dashboard",
+      "requiredFields": [
+        "workflow_domain",
+        "primary_user",
+        "columns",
+        "card_fields",
+        "prioritization_model",
+        "status_transitions",
+        "filters",
+        "collaboration_needs",
+        "empty_states"
+      ],
+      "optionalFields": [
+        "automation_rules",
+        "assignee_model",
+        "due_dates",
+        "swimlanes",
+        "bulk_actions",
+        "brand_context"
+      ],
+      "questionTemplatePath": "brief-elements/kanban-board.json",
+      "defaults": {
+        "platform": "desktop web",
+        "density": "medium",
+        "recommended_skill": "kanban-board",
+        "recommended_design_system_candidates": [
+          "linear-app",
+          "notion",
+          "figma",
+          "default"
+        ],
+        "output_contract": "standalone responsive HTML kanban board"
+      },
+      "runtimeEnabled": true,
+      "source": "creative-claw",
+      "license": "MIT"
+    },
+    {
       "id": "brief_elements.landing_page",
       "type": "brief_element_schema",
       "title": "SaaS / Marketing Landing Page",
-      "description": "Key design elements for SaaS landing pages, product marketing pages, and pricing-oriented pages.",
+      "description": "Key design elements for SaaS landing pages, product marketing pages, and homepage-style conversion pages.",
       "path": "brief-elements/landing-page.json",
       "triggers": [
         "landing_page",
         "saas_landing",
         "marketing_page",
-        "pricing_page",
         "homepage"
       ],
       "scenario": [
         "landing_page",
         "saas_landing",
         "marketing_page",
-        "pricing_page",
         "homepage"
       ],
       "surface": "landing_page",
@@ -318,6 +463,64 @@
           "default"
         ],
         "output_contract": "standalone responsive HTML landing page"
+      },
+      "runtimeEnabled": true,
+      "source": "creative-claw",
+      "license": "MIT"
+    },
+    {
+      "id": "brief_elements.magazine_poster",
+      "type": "brief_element_schema",
+      "title": "Magazine Poster",
+      "description": "Key design elements for editorial posters, launch posters, event visuals, and magazine-style static compositions.",
+      "path": "brief-elements/magazine-poster.json",
+      "triggers": [
+        "magazine_poster",
+        "editorial_poster",
+        "launch_poster",
+        "event_poster",
+        "海报",
+        "杂志海报"
+      ],
+      "scenario": [
+        "magazine_poster",
+        "editorial_poster",
+        "launch_poster",
+        "event_poster",
+        "海报",
+        "杂志海报"
+      ],
+      "surface": "poster",
+      "requiredFields": [
+        "poster_goal",
+        "audience",
+        "headline",
+        "supporting_copy",
+        "visual_subject",
+        "format_or_size",
+        "brand_context",
+        "call_to_action"
+      ],
+      "optionalFields": [
+        "date_or_event_info",
+        "sponsor_or_logo",
+        "image_assets",
+        "typography_direction",
+        "print_constraints",
+        "social_platform"
+      ],
+      "questionTemplatePath": "brief-elements/magazine-poster.json",
+      "defaults": {
+        "platform": "static visual",
+        "density": "medium",
+        "recommended_skill": "magazine-poster",
+        "recommended_design_system_candidates": [
+          "warm-editorial",
+          "wired",
+          "theverge",
+          "default"
+        ],
+        "output_contract": "standalone HTML poster composition"
       },
       "runtimeEnabled": true,
       "source": "creative-claw",
@@ -519,6 +722,67 @@
       "license": "MIT"
     },
     {
+      "id": "brief_elements.pricing_page",
+      "type": "brief_element_schema",
+      "title": "Pricing Page",
+      "description": "Key design elements for SaaS pricing pages, plan comparison, conversion decision support, and upgrade CTAs.",
+      "path": "brief-elements/pricing-page.json",
+      "triggers": [
+        "pricing_page",
+        "pricing_table",
+        "plans_page",
+        "subscription_pricing",
+        "定价页",
+        "价格页"
+      ],
+      "scenario": [
+        "pricing_page",
+        "pricing_table",
+        "plans_page",
+        "subscription_pricing",
+        "定价页",
+        "价格页"
+      ],
+      "surface": "landing_page",
+      "requiredFields": [
+        "product_category",
+        "target_customer",
+        "pricing_model",
+        "plans",
+        "feature_comparison",
+        "primary_conversion_action",
+        "trust_proof",
+        "billing_options",
+        "faq_topics"
+      ],
+      "optionalFields": [
+        "discount_rules",
+        "enterprise_contact_flow",
+        "trial_offer",
+        "competitor_context",
+        "currency",
+        "brand_context"
+      ],
+      "questionTemplatePath": "brief-elements/pricing-page.json",
+      "defaults": {
+        "platform": "desktop web",
+        "density": "medium",
+        "recommended_skill": "pricing-page",
+        "fallback_skill": "saas-landing",
+        "recommended_design_system_candidates": [
+          "stripe",
+          "linear-app",
+          "vercel",
+          "supabase",
+          "default"
+        ],
+        "output_contract": "standalone responsive HTML pricing page"
+      },
+      "runtimeEnabled": true,
+      "source": "creative-claw",
+      "license": "MIT"
+    },
+    {
       "id": "brief_elements.social_carousel",
       "type": "brief_element_schema",
       "title": "Social Carousel",
@@ -573,6 +837,63 @@
           "default"
         ],
         "output_contract": "standalone responsive HTML social carousel storyboard"
+      },
+      "runtimeEnabled": true,
+      "source": "creative-claw",
+      "license": "MIT"
+    },
+    {
+      "id": "brief_elements.wireframe_sketch",
+      "type": "brief_element_schema",
+      "title": "Wireframe Sketch",
+      "description": "Key design elements for low-fidelity wireframes, layout exploration, early product flows, and UX structure sketches.",
+      "path": "brief-elements/wireframe-sketch.json",
+      "triggers": [
+        "wireframe_sketch",
+        "wireframe",
+        "low_fidelity",
+        "ux_sketch",
+        "lofi_mockup",
+        "线框图",
+        "低保真"
+      ],
+      "scenario": [
+        "wireframe_sketch",
+        "wireframe",
+        "low_fidelity",
+        "ux_sketch",
+        "lofi_mockup",
+        "线框图",
+        "低保真"
+      ],
+      "surface": "wireframe",
+      "requiredFields": [
+        "product_context",
+        "target_user",
+        "primary_flow",
+        "screens_or_sections",
+        "information_hierarchy",
+        "interaction_points",
+        "layout_constraints"
+      ],
+      "optionalFields": [
+        "device_context",
+        "existing_reference",
+        "content_inventory",
+        "edge_cases",
+        "handoff_notes"
+      ],
+      "questionTemplatePath": "brief-elements/wireframe-sketch.json",
+      "defaults": {
+        "platform": "responsive web",
+        "density": "medium",
+        "recommended_skill": "wireframe-sketch",
+        "recommended_design_system_candidates": [
+          "default",
+          "figma",
+          "notion"
+        ],
+        "output_contract": "standalone low-fidelity HTML wireframe"
       },
       "runtimeEnabled": true,
       "source": "creative-claw",

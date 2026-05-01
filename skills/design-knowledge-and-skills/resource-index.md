@@ -4,7 +4,8 @@ This index summarizes the resources exposed by `design-knowledge-and-skills`. Us
 
 ## Counts
 
-- `brief_element_schema`: 9
+- `brief_element_schema`: 14
+- `contract_schema`: 2
 - `design_system`: 72
 - `device_frame`: 5
 - `index_skill`: 1
@@ -20,17 +21,27 @@ This index summarizes the resources exposed by `design-knowledge-and-skills`. Us
 6. Exclude resources marked `runtimeEnabled: false` or `referenceOnly: true` from execution context.
 7. Read only the selected resource files before building the design brief.
 
+## Contract Schemas
+
+- `schema.design_brief_v1`: Creative Claw Design Brief v1 -> `schemas/design-brief-v1.schema.json`
+- `schema.design_product_result_v1`: Creative Claw Design Product Result v1 -> `schemas/design-product-result-v1.schema.json`
+
 ## Brief Elements
 
 - `brief_elements.admin_console`: Admin Console -> `brief-elements/admin-console.json`
 - `brief_elements.dashboard`: Dashboard / Analytics Console -> `brief-elements/dashboard.json`
 - `brief_elements.deck`: Slide Deck -> `brief-elements/deck.json`
+- `brief_elements.docs_page`: Documentation Page -> `brief-elements/docs-page.json`
 - `brief_elements.html_deck`: HTML Deck -> `brief-elements/html-deck.json`
+- `brief_elements.kanban_board`: Kanban Board -> `brief-elements/kanban-board.json`
 - `brief_elements.landing_page`: SaaS / Marketing Landing Page -> `brief-elements/landing-page.json`
+- `brief_elements.magazine_poster`: Magazine Poster -> `brief-elements/magazine-poster.json`
 - `brief_elements.marketing_campaign_page`: Marketing Campaign Page -> `brief-elements/marketing-campaign-page.json`
 - `brief_elements.mobile_app`: Mobile App Screen / Prototype -> `brief-elements/mobile-app.json`
 - `brief_elements.operation_data_ui`: Operation Data UI -> `brief-elements/operation-data-ui.json`
+- `brief_elements.pricing_page`: Pricing Page -> `brief-elements/pricing-page.json`
 - `brief_elements.social_carousel`: Social Carousel -> `brief-elements/social-carousel.json`
+- `brief_elements.wireframe_sketch`: Wireframe Sketch -> `brief-elements/wireframe-sketch.json`
 
 ## Task Skills
 
