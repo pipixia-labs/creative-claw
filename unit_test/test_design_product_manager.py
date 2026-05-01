@@ -44,6 +44,34 @@ class DesignProductManagerTests(unittest.TestCase):
             brief.selection.context_files,
         )
 
+    def test_prepare_landing_brief_selects_landing_defaults(self) -> None:
+        manager = DesignProductManager()
+
+        brief = manager.prepare_brief(prompt="做一个 SaaS landing page，突出产品价值、客户案例和转化行动。")
+
+        self.assertEqual(brief.selection.surface, "landing_page")
+        self.assertEqual(brief.selection.task_skill, "saas-landing")
+        self.assertEqual(brief.selection.design_system, "stripe")
+        self.assertEqual(brief.selection.device_frame, "browser-chrome")
+        self.assertIn(
+            "skills/design-knowledge-and-skills/brief-elements/landing-page.json",
+            brief.selection.context_files,
+        )
+
+    def test_prepare_deck_brief_selects_deck_defaults(self) -> None:
+        manager = DesignProductManager()
+
+        brief = manager.prepare_brief(prompt="做一个 weekly update deck，包含进展、风险和下周计划。")
+
+        self.assertEqual(brief.selection.surface, "deck")
+        self.assertEqual(brief.selection.task_skill, "weekly-update")
+        self.assertEqual(brief.selection.design_system, "warm-editorial")
+        self.assertEqual(brief.selection.device_frame, "")
+        self.assertIn(
+            "skills/design-knowledge-and-skills/brief-elements/deck.json",
+            brief.selection.context_files,
+        )
+
     def test_prepare_brief_can_return_clarification_questions(self) -> None:
         manager = DesignProductManager()
 
