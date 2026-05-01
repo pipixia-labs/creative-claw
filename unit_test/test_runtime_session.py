@@ -158,6 +158,8 @@ class RuntimeSessionTests(unittest.IsolatedAsyncioTestCase):
         self.assertEqual(session.state["channel"], "cli")
         self.assertEqual(session.state["chat_id"], "terminal")
         self.assertEqual(session.state["sender_id"], "cli-user")
+        self.assertEqual(session.state["product_line"], "")
+        self.assertEqual(session.state["product_line_options"], {})
         self.assertEqual(session.state["current_parameters"], {})
         self.assertIsNone(session.state["current_output"])
         self.assertIsNone(session.state["last_expert_result"])
@@ -165,6 +167,34 @@ class RuntimeSessionTests(unittest.IsolatedAsyncioTestCase):
         self.assertEqual(session.state["input_files"], [])
         self.assertEqual(session.state["new_files"], [])
         self.assertEqual(session.state["final_file_paths"], [])
+
+    async def test_initial_state_persists_design_product_metadata(self) -> None:
+        runtime = CreativeClawRuntime()
+        inbound = InboundMessage(
+            channel="cli",
+            sender_id="cli-user",
+            chat_id="design",
+            text="做一个 dashboard",
+            metadata={
+                "product_line": "design",
+                "design": {
+                    "scenario": "dashboard",
+                    "allow_assumptions": False,
+                },
+            },
+        )
+
+        user_id, session_id = await runtime._ensure_session(inbound)
+        await runtime._set_initial_state(user_id, session_id, inbound)
+        session = await runtime.session_service.get_session(
+            app_name=SYS_CONFIG.app_name,
+            user_id=user_id,
+            session_id=session_id,
+        )
+
+        self.assertEqual(session.state["product_line"], "design")
+        self.assertEqual(session.state["product_line_options"]["design"]["scenario"], "dashboard")
+        self.assertFalse(session.state["product_line_options"]["design"]["allow_assumptions"])
 
     async def test_initial_state_persists_uploaded_files_in_history(self) -> None:
         runtime = CreativeClawRuntime()

@@ -118,6 +118,9 @@ class OrchestratorTests(unittest.TestCase):
         self.assertIn("creative-workflow-router", instruction)
         self.assertIn("creative-qc", instruction)
         self.assertIn("do not skip straight to `ImageGenerationAgent` or `VideoGenerationAgent`", instruction)
+        self.assertIn("Product line: design", instruction)
+        self.assertIn("run_design_product", instruction)
+        self.assertIn("Product line options", instruction)
 
     def test_agent_uses_structured_output_schema(self) -> None:
         orchestrator = Orchestrator(
@@ -388,6 +391,14 @@ class OrchestratorCallbackTests(unittest.IsolatedAsyncioTestCase):
                     ]
                 ],
                 "new_files": [],
+                "product_line": "design",
+                "product_line_options": {
+                    "product_line": "design",
+                    "design": {
+                        "scenario": "dashboard",
+                        "allow_assumptions": False,
+                    },
+                },
             }
         )
         llm_request = SimpleNamespace(contents=[])
@@ -402,6 +413,8 @@ class OrchestratorCallbackTests(unittest.IsolatedAsyncioTestCase):
         self.assertIn("step1_generation_output0.png", prompt_text)
         self.assertIn("Most recent available output files", prompt_text)
         self.assertIn("Delivery context: channel=cli; chat_id=terminal; sender_id=cli-user", prompt_text)
+        self.assertIn("Product line: design", prompt_text)
+        self.assertIn('"scenario": "dashboard"', prompt_text)
         self.assertIn("Final response contract", prompt_text)
         self.assertIn("reply_text", prompt_text)
         self.assertIn("final_file_paths", prompt_text)

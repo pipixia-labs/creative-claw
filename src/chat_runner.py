@@ -136,6 +136,7 @@ async def send_cli_chat_message(
     user_id: str,
     chat_id: str,
     attachment_paths: Sequence[str],
+    metadata: dict[str, object] | None = None,
     status_writer: Callable[[str], None] | None = None,
     warn: Callable[[str], None] | None = None,
 ) -> None:
@@ -151,6 +152,7 @@ async def send_cli_chat_message(
             chat_id=chat_id,
             text=prompt,
             attachments=build_cli_attachments(attachment_paths, warn=warn),
+            metadata=dict(metadata or {}),
         )
     )
 
@@ -161,6 +163,7 @@ async def run_cli_chat(
     chat_id: str,
     message: str | None = None,
     attachment_paths: Sequence[str] = (),
+    metadata: dict[str, object] | None = None,
     runtime: CreativeClawRuntime | None = None,
     status_writer: Callable[[str], None] | None = None,
     cli_writer: Callable[[str], None] | None = None,
@@ -185,6 +188,7 @@ async def run_cli_chat(
                 user_id=user_id,
                 chat_id=chat_id,
                 attachment_paths=attachment_paths,
+                metadata=metadata,
                 status_writer=writer,
                 warn=writer,
             )

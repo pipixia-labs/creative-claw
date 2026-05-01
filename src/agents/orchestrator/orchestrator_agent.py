@@ -164,6 +164,8 @@ async def orchestrator_before_model_callback(
     delivery_channel = str(state.get("channel", "")).strip()
     delivery_chat_id = str(state.get("chat_id", "")).strip()
     delivery_sender_id = str(state.get("sender_id", "")).strip()
+    product_line = str(state.get("product_line", "") or "").strip()
+    product_line_options = state.get("product_line_options") or {}
     uploaded = list(state.get("uploaded") or state.get("input_files") or state.get("input_artifacts") or [])
     uploaded_history = list(state.get("uploaded_history") or [])
     generated = list(state.get("generated") or [])
@@ -184,6 +186,14 @@ async def orchestrator_before_model_callback(
         if delivery_sender_id:
             delivery_parts.append(f"sender_id={delivery_sender_id}")
         summary_lines.append(f"# Delivery context: {'; '.join(delivery_parts)}")
+
+    if product_line:
+        summary_lines.append(f"# Product line: {product_line}")
+        if isinstance(product_line_options, dict) and product_line_options:
+            summary_lines.append(
+                "# Product line options:\n"
+                f"{json.dumps(product_line_options, ensure_ascii=False, indent=2)}"
+            )
 
     if uploaded:
         summary_lines.append("# Uploaded files in current turn:")
@@ -481,6 +491,8 @@ Creative workflow routing hints:
 - If no skill is needed because the user gave a clear final generation request, execute directly with the smallest suitable expert call.
 
 Design workflow routing hints:
+- If runtime context says `Product line: design`, call `run_design_product` as the primary execution path before considering lower-level tools.
+- When `Product line options` includes a `design` object, pass its scenario, allow_assumptions, design_system, task_skill, device_frame, output_format, and output_path values into `run_design_product`.
 - If the user asks for UI design, product design, dashboard, landing page, mobile app, deck, visual prototype, website mockup, or HTML design artifact, prefer `run_design_product`.
 - Use `run_design_product(allow_assumptions=false)` when the request is too vague and the user has not asked you to proceed directly; it returns scenario-specific questions from design-knowledge-and-skills.
 - Use `run_design_product(allow_assumptions=true)` when the user asks to proceed, accepts defaults, or has provided enough brief detail; it prepares resources and calls `CodeGenerationExpert`.

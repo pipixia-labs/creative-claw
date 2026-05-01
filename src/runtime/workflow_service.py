@@ -360,6 +360,8 @@ class CreativeClawRuntime:
         state_delta["channel"] = inbound.channel
         state_delta["chat_id"] = inbound.chat_id
         state_delta["sender_id"] = inbound.sender_id or user_id
+        state_delta["product_line"] = str(inbound.metadata.get("product_line", "") or "").strip()
+        state_delta["product_line_options"] = inbound.metadata
         state_delta["user_prompt"] = inbound.text
         state_delta["step"] = current_session.state.get("step", 0)
         state_delta["expert_step"] = current_session.state.get("expert_step", 0)
