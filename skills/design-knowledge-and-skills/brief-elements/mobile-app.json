@@ -1,0 +1,71 @@
+{
+  "id": "brief_elements.mobile_app",
+  "type": "brief_element_schema",
+  "title": "Mobile App Screen / Prototype",
+  "description": "Key design elements for mobile app screens, onboarding flows, and multi-screen mobile prototypes.",
+  "surface": "mobile_app",
+  "scenarios": ["mobile_app", "mobile_screen", "mobile_onboarding", "ios_app", "android_app", "app_prototype"],
+  "required_fields": [
+    "app_purpose",
+    "primary_user",
+    "platform",
+    "screen_count",
+    "key_screens",
+    "primary_flow",
+    "navigation_model",
+    "interaction_depth",
+    "visual_direction"
+  ],
+  "optional_fields": [
+    "brand_context",
+    "device_frame",
+    "content_samples",
+    "data_states",
+    "empty_states",
+    "accessibility_requirements",
+    "motion_requirements"
+  ],
+  "question_templates": [
+    {
+      "field": "app_purpose",
+      "question": "这个移动 app 主要解决什么问题？"
+    },
+    {
+      "field": "primary_user",
+      "question": "主要用户是谁？他们是在什么场景下打开这个 app？"
+    },
+    {
+      "field": "platform",
+      "question": "优先做 iOS、Android，还是通用移动端？"
+    },
+    {
+      "field": "screen_count",
+      "question": "需要几个屏幕：单个首页、3 屏流程，还是完整小型 prototype？"
+    },
+    {
+      "field": "key_screens",
+      "question": "必须包含哪些屏幕？例如 onboarding、首页、详情、支付、设置、个人页。"
+    },
+    {
+      "field": "primary_flow",
+      "question": "用户最核心的一条操作路径是什么？"
+    },
+    {
+      "field": "navigation_model",
+      "question": "导航更适合底部 tab、顶部分段、单页卡片流，还是步骤式流程？"
+    },
+    {
+      "field": "visual_direction",
+      "question": "视觉更偏工具型、生活方式、社交内容、游戏化，还是让系统推荐？"
+    }
+  ],
+  "defaults": {
+    "platform": "mobile",
+    "screen_count": 1,
+    "device_frame": "iphone-15-pro",
+    "interaction_depth": "static prototype",
+    "recommended_skill": "mobile-app",
+    "recommended_design_system_candidates": ["apple", "notion", "airbnb", "xiaohongshu", "default"],
+    "output_contract": "standalone mobile HTML prototype"
+  }
+}

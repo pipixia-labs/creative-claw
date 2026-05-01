@@ -1,0 +1,2239 @@
+{
+  "version": "design-v3-resource-manifest-1",
+  "generatedAt": "2026-05-01",
+  "selectionPolicy": {
+    "briefElementsFirst": true,
+    "maxPrimaryTaskSkills": 1,
+    "maxPrimaryDesignSystems": 1,
+    "useDefaultsWhenUserSkipsQuestions": true
+  },
+  "resources": [
+    {
+      "id": "skill.design-knowledge-and-skills",
+      "type": "index_skill",
+      "title": "Design Knowledge And Skills",
+      "description": "Top-level design resource index skill.",
+      "path": "SKILL.md",
+      "runtimeEnabled": true,
+      "source": "creative-claw",
+      "license": "MIT"
+    },
+    {
+      "id": "brief_elements.dashboard",
+      "type": "brief_element_schema",
+      "title": "Dashboard / Operation Data UI",
+      "description": "Key design elements for operational dashboards, analytics consoles, and internal data tools.",
+      "path": "brief-elements/dashboard.json",
+      "triggers": [
+        "dashboard",
+        "operation_data_ui",
+        "analytics_dashboard",
+        "admin_panel",
+        "bi_console"
+      ],
+      "scenario": [
+        "dashboard",
+        "operation_data_ui",
+        "analytics_dashboard",
+        "admin_panel",
+        "bi_console"
+      ],
+      "surface": "dashboard",
+      "requiredFields": [
+        "business_domain",
+        "primary_user",
+        "decision_goal",
+        "metrics",
+        "dimensions",
+        "time_range",
+        "interaction_requirements",
+        "density",
+        "platform"
+      ],
+      "optionalFields": [
+        "brand_context",
+        "visual_direction",
+        "data_freshness",
+        "alert_rules",
+        "export_requirements",
+        "empty_states",
+        "permission_model"
+      ],
+      "questionTemplatePath": "brief-elements/dashboard.json",
+      "defaults": {
+        "platform": "desktop web",
+        "density": "high",
+        "recommended_skill": "dashboard",
+        "recommended_design_system_candidates": [
+          "linear-app",
+          "vercel",
+          "stripe",
+          "figma",
+          "default"
+        ],
+        "output_contract": "standalone responsive HTML dashboard"
+      },
+      "runtimeEnabled": true,
+      "source": "creative-claw",
+      "license": "MIT"
+    },
+    {
+      "id": "brief_elements.deck",
+      "type": "brief_element_schema",
+      "title": "Slide Deck",
+      "description": "Key design elements for pitch decks, updates, readouts, workshops, and presentation-style HTML decks.",
+      "path": "brief-elements/deck.json",
+      "triggers": [
+        "deck",
+        "slide_deck",
+        "pitch_deck",
+        "weekly_update",
+        "presentation",
+        "readout"
+      ],
+      "scenario": [
+        "deck",
+        "slide_deck",
+        "pitch_deck",
+        "weekly_update",
+        "presentation",
+        "readout"
+      ],
+      "surface": "deck",
+      "requiredFields": [
+        "deck_purpose",
+        "audience",
+        "slide_count",
+        "narrative_arc",
+        "source_material",
+        "visual_direction",
+        "speaker_notes",
+        "aspect_ratio"
+      ],
+      "optionalFields": [
+        "brand_context",
+        "data_points",
+        "image_requirements",
+        "export_requirements",
+        "animation_requirements",
+        "presenter_context"
+      ],
+      "questionTemplatePath": "brief-elements/deck.json",
+      "defaults": {
+        "aspect_ratio": "16:9",
+        "speaker_notes": false,
+        "recommended_skill": "simple-deck",
+        "fallback_skill": "guizang-ppt",
+        "recommended_design_system_candidates": [
+          "warm-editorial",
+          "stripe",
+          "vercel",
+          "default"
+        ],
+        "output_contract": "standalone HTML slide deck"
+      },
+      "runtimeEnabled": true,
+      "source": "creative-claw",
+      "license": "MIT"
+    },
+    {
+      "id": "brief_elements.landing_page",
+      "type": "brief_element_schema",
+      "title": "SaaS / Marketing Landing Page",
+      "description": "Key design elements for SaaS landing pages, product marketing pages, and pricing-oriented pages.",
+      "path": "brief-elements/landing-page.json",
+      "triggers": [
+        "landing_page",
+        "saas_landing",
+        "marketing_page",
+        "pricing_page",
+        "homepage"
+      ],
+      "scenario": [
+        "landing_page",
+        "saas_landing",
+        "marketing_page",
+        "pricing_page",
+        "homepage"
+      ],
+      "surface": "landing_page",
+      "requiredFields": [
+        "product_name",
+        "target_audience",
+        "value_proposition",
+        "primary_cta",
+        "page_sections",
+        "proof_points",
+        "visual_direction",
+        "platform"
+      ],
+      "optionalFields": [
+        "brand_context",
+        "competitors",
+        "pricing_model",
+        "feature_list",
+        "customer_quotes",
+        "screenshots",
+        "conversion_goal",
+        "seo_keywords"
+      ],
+      "questionTemplatePath": "brief-elements/landing-page.json",
+      "defaults": {
+        "platform": "responsive web",
+        "page_sections": [
+          "hero",
+          "problem",
+          "features",
+          "workflow",
+          "proof",
+          "cta"
+        ],
+        "recommended_skill": "saas-landing",
+        "fallback_skill": "web-prototype",
+        "recommended_design_system_candidates": [
+          "stripe",
+          "linear-app",
+          "vercel",
+          "supabase",
+          "default"
+        ],
+        "output_contract": "standalone responsive HTML landing page"
+      },
+      "runtimeEnabled": true,
+      "source": "creative-claw",
+      "license": "MIT"
+    },
+    {
+      "id": "brief_elements.mobile_app",
+      "type": "brief_element_schema",
+      "title": "Mobile App Screen / Prototype",
+      "description": "Key design elements for mobile app screens, onboarding flows, and multi-screen mobile prototypes.",
+      "path": "brief-elements/mobile-app.json",
+      "triggers": [
+        "mobile_app",
+        "mobile_screen",
+        "mobile_onboarding",
+        "ios_app",
+        "android_app",
+        "app_prototype"
+      ],
+      "scenario": [
+        "mobile_app",
+        "mobile_screen",
+        "mobile_onboarding",
+        "ios_app",
+        "android_app",
+        "app_prototype"
+      ],
+      "surface": "mobile_app",
+      "requiredFields": [
+        "app_purpose",
+        "primary_user",
+        "platform",
+        "screen_count",
+        "key_screens",
+        "primary_flow",
+        "navigation_model",
+        "interaction_depth",
+        "visual_direction"
+      ],
+      "optionalFields": [
+        "brand_context",
+        "device_frame",
+        "content_samples",
+        "data_states",
+        "empty_states",
+        "accessibility_requirements",
+        "motion_requirements"
+      ],
+      "questionTemplatePath": "brief-elements/mobile-app.json",
+      "defaults": {
+        "platform": "mobile",
+        "screen_count": 1,
+        "device_frame": "iphone-15-pro",
+        "interaction_depth": "static prototype",
+        "recommended_skill": "mobile-app",
+        "recommended_design_system_candidates": [
+          "apple",
+          "notion",
+          "airbnb",
+          "xiaohongshu",
+          "default"
+        ],
+        "output_contract": "standalone mobile HTML prototype"
+      },
+      "runtimeEnabled": true,
+      "source": "creative-claw",
+      "license": "MIT"
+    },
+    {
+      "id": "task_skill.audio-jingle",
+      "type": "task_skill",
+      "title": "audio-jingle",
+      "description": "Audio generation skill — jingles, beds, voiceover, and sound effects. Routes music requests to Suno V5 / Udio / Lyria, speech to MiniMax TTS / FishAudio / ElevenLabs V3, and SFX to ElevenLabs SFX or AudioCraft. Output is one MP3/WAV file saved to the project folder.",
+      "path": "skills/audio-jingle/SKILL.md",
+      "triggers": [
+        "music",
+        "jingle",
+        "bed",
+        "voiceover",
+        "tts",
+        "sound effect",
+        "音乐",
+        "配音",
+        "音效"
+      ],
+      "scenario": "",
+      "platform": "",
+      "requiresDesignSystem": true,
+      "runtimeEnabled": true,
+      "source": "open-design",
+      "license": "recorded",
+      "notes": "Imported design task skill; verify nested assets before redistribution."
+    },
+    {
+      "id": "task_skill.blog-post",
+      "type": "task_skill",
+      "title": "blog-post",
+      "description": "A long-form article / blog post — masthead, hero image placeholder, article body with figures and pull quotes, author byline, related posts. Use when the brief asks for \"blog\", \"article\", \"post\", \"essay\", or \"case study\".",
+      "path": "skills/blog-post/SKILL.md",
+      "triggers": [
+        "blog",
+        "blog post",
+        "article",
+        "essay",
+        "case study",
+        "newsletter",
+        "博客",
+        "文章"
+      ],
+      "scenario": "",
+      "platform": "",
+      "requiresDesignSystem": true,
+      "runtimeEnabled": true,
+      "source": "open-design",
+      "license": "recorded",
+      "notes": "Imported design task skill; verify nested assets before redistribution."
+    },
+    {
+      "id": "task_skill.critique",
+      "type": "task_skill",
+      "title": "critique",
+      "description": "Run a 5-dimension expert design review on any HTML artifact in the project — Philosophy / Visual hierarchy / Detail / Functionality / Innovation, each scored 0–10. Outputs a single self-contained HTML report with a radar chart, evidence-backed scores, and three lists: Keep / Fix / Quick-wins. Use when the brief asks for a \"design review\", \"design critique\", \"5 维度评审\", \"design audit\", or \"what's wrong with my design\".",
+      "path": "skills/critique/SKILL.md",
+      "triggers": [
+        "critique",
+        "design review",
+        "design audit",
+        "5 维度评审",
+        "5-dim review",
+        "audit my design",
+        "review my deck",
+        "review my landing page",
+        "评审",
+        "复盘"
+      ],
+      "scenario": "",
+      "platform": "",
+      "requiresDesignSystem": true,
+      "runtimeEnabled": true,
+      "source": "open-design",
+      "license": "recorded",
+      "notes": "Imported design task skill; verify nested assets before redistribution."
+    },
+    {
+      "id": "task_skill.dashboard",
+      "type": "task_skill",
+      "title": "dashboard",
+      "description": "Admin / analytics dashboard in a single HTML file. Fixed left sidebar, top bar with user/search, main grid of KPI cards and one or two charts. Use when the brief asks for a \"dashboard\", \"admin\", \"analytics\", or \"control panel\" screen.",
+      "path": "skills/dashboard/SKILL.md",
+      "triggers": [
+        "dashboard",
+        "admin panel",
+        "analytics",
+        "control panel",
+        "后台",
+        "管理后台"
+      ],
+      "scenario": "",
+      "platform": "",
+      "requiresDesignSystem": true,
+      "runtimeEnabled": true,
+      "source": "open-design",
+      "license": "recorded",
+      "notes": "Imported design task skill; verify nested assets before redistribution."
+    },
+    {
+      "id": "task_skill.dating-web",
+      "type": "task_skill",
+      "title": "dating-web",
+      "description": "A consumer-feeling dating / matchmaking dashboard — left rail navigation, ticker bar of community signals, headline KPIs, a 30-day mutual-matches bar chart, and a match-rate trend block. Editorial typography, restrained accent. Use when the brief asks for a \"dating site\", \"matchmaking\", \"community dashboard\", \"social network dashboard\", or any consumer product where the data is the story.",
+      "path": "skills/dating-web/SKILL.md",
+      "triggers": [
+        "dating app",
+        "dating site",
+        "matchmaking",
+        "social dashboard",
+        "community dashboard",
+        "consumer dashboard",
+        "约会应用",
+        "婚恋"
+      ],
+      "scenario": "",
+      "platform": "",
+      "requiresDesignSystem": true,
+      "runtimeEnabled": true,
+      "source": "open-design",
+      "license": "recorded",
+      "notes": "Imported design task skill; verify nested assets before redistribution."
+    },
+    {
+      "id": "task_skill.digital-eguide",
+      "type": "task_skill",
+      "title": "digital-eguide",
+      "description": "A two-spread digital e-guide preview — page 1 is a cover (display title, author, \"What's inside\" stats, table of contents teaser); page 2 is a spread (lesson body with pull-quote and a step list). Lifestyle / creator brand tone. Use when the brief asks for an \"e-guide\", \"digital guide\", \"lookbook\", \"lead magnet\", \"creator guide\", \"playbook\", \"PDF guide\", or \"电子指南\".",
+      "path": "skills/digital-eguide/SKILL.md",
+      "triggers": [
+        "e-guide",
+        "digital guide",
+        "lead magnet",
+        "lookbook",
+        "creator guide",
+        "playbook",
+        "pdf guide",
+        "ebook",
+        "电子指南",
+        "电子书"
+      ],
+      "scenario": "",
+      "platform": "",
+      "requiresDesignSystem": true,
+      "runtimeEnabled": true,
+      "source": "open-design",
+      "license": "recorded",
+      "notes": "Imported design task skill; verify nested assets before redistribution."
+    },
+    {
+      "id": "task_skill.docs-page",
+      "type": "task_skill",
+      "title": "docs-page",
+      "description": "A documentation page — left nav, scrollable article body, right-rail table of contents. Use when the brief mentions \"docs\", \"documentation\", \"guide\", \"API reference\", or \"tutorial\".",
+      "path": "skills/docs-page/SKILL.md",
+      "triggers": [
+        "docs",
+        "documentation",
+        "guide",
+        "tutorial",
+        "api reference",
+        "文档"
+      ],
+      "scenario": "",
+      "platform": "",
+      "requiresDesignSystem": true,
+      "runtimeEnabled": true,
+      "source": "open-design",
+      "license": "recorded",
+      "notes": "Imported design task skill; verify nested assets before redistribution."
+    },
+    {
+      "id": "task_skill.email-marketing",
+      "type": "task_skill",
+      "title": "email-marketing",
+      "description": "A brand product-launch email — masthead with wordmark, hero image block, headline lockup with skewed-italic accent, body copy, primary CTA, and a specifications grid. Pure HTML email layout (centered single column, table fallback). Use when the brief asks for an \"email\", \"newsletter blast\", \"MJML\", \"product launch email\", or \"email template\".",
+      "path": "skills/email-marketing/SKILL.md",
+      "triggers": [
+        "email",
+        "email template",
+        "newsletter",
+        "email blast",
+        "product launch email",
+        "mjml",
+        "邮件营销",
+        "邮件模板"
+      ],
+      "scenario": "",
+      "platform": "",
+      "requiresDesignSystem": true,
+      "runtimeEnabled": true,
+      "source": "open-design",
+      "license": "recorded",
+      "notes": "Imported design task skill; verify nested assets before redistribution."
+    },
+    {
+      "id": "task_skill.eng-runbook",
+      "type": "task_skill",
+      "title": "eng-runbook",
+      "description": "An engineering runbook — service overview, alerts table, dashboards links, common procedures with copy-pasteable commands, on-call rotation, and an incident-response checklist. Use when the brief mentions \"runbook\", \"ops doc\", \"on-call guide\", \"SRE doc\", or \"运维手册\".",
+      "path": "skills/eng-runbook/SKILL.md",
+      "triggers": [
+        "runbook",
+        "ops doc",
+        "on-call",
+        "sre doc",
+        "service runbook",
+        "运维手册"
+      ],
+      "scenario": "",
+      "platform": "",
+      "requiresDesignSystem": true,
+      "runtimeEnabled": true,
+      "source": "open-design",
+      "license": "recorded",
+      "notes": "Imported design task skill; verify nested assets before redistribution."
+    },
+    {
+      "id": "task_skill.finance-report",
+      "type": "task_skill",
+      "title": "finance-report",
+      "description": "Quarterly / monthly financial report — masthead with KPIs, revenue and burn charts, P&L summary table, top-line highlights, and an outlook paragraph. Use when the brief mentions \"financial report\", \"Q3 report\", \"MRR review\", \"P&L\", or \"财报\".",
+      "path": "skills/finance-report/SKILL.md",
+      "triggers": [
+        "financial report",
+        "finance report",
+        "quarterly report",
+        "p&l",
+        "mrr review",
+        "财报",
+        "财务报告"
+      ],
+      "scenario": "",
+      "platform": "",
+      "requiresDesignSystem": true,
+      "runtimeEnabled": true,
+      "source": "open-design",
+      "license": "recorded",
+      "notes": "Imported design task skill; verify nested assets before redistribution."
+    },
+    {
+      "id": "task_skill.gamified-app",
+      "type": "task_skill",
+      "title": "gamified-app",
+      "description": "A multi-frame gamified mobile-app prototype — three phone frames on a dark showcase stage. Frame 1: cover / poster, Frame 2: today's quests with XP ribbons and a level bar, Frame 3: quest detail. Vivid quest tiles, level ribbon, bottom tab bar. Use when the brief asks for a \"gamified app\", \"habit tracker\", \"RPG-style life app\", \"level-up app\", \"daily quests\", \"XP / streak app\", or \"ELI5-style explainer app\".",
+      "path": "skills/gamified-app/SKILL.md",
+      "triggers": [
+        "gamified app",
+        "habit tracker",
+        "rpg app",
+        "level up app",
+        "daily quests",
+        "xp app",
+        "streak app",
+        "life management app",
+        "游戏化",
+        "习惯打卡"
+      ],
+      "scenario": "",
+      "platform": "",
+      "requiresDesignSystem": true,
+      "runtimeEnabled": true,
+      "source": "open-design",
+      "license": "recorded",
+      "notes": "Imported design task skill; verify nested assets before redistribution."
+    },
+    {
+      "id": "task_skill.guizang-ppt",
+      "type": "task_skill",
+      "title": "magazine-web-ppt",
+      "description": "生成\"电子杂志 × 电子墨水\"风格的横向翻页网页 PPT（单 HTML 文件），含 WebGL 流体背景、衬线标题 + 非衬线正文、章节幕封、数据大字报、图片网格等模板。当用户需要制作分享 / 演讲 / 发布会风格的网页 PPT，或提到\"杂志风 PPT\"、\"horizontal swipe deck\"、\"editorial magazine\"、\"e-ink presentation\"时使用。",
+      "path": "skills/guizang-ppt/SKILL.md",
+      "triggers": [
+        "ppt",
+        "deck",
+        "slides",
+        "presentation",
+        "magazine",
+        "杂志",
+        "杂志风 PPT",
+        "horizontal swipe",
+        "horizontal swipe deck",
+        "editorial magazine",
+        "e-ink presentation",
+        "网页 PPT",
+        "发布会",
+        "分享 PPT"
+      ],
+      "scenario": "",
+      "platform": "",
+      "requiresDesignSystem": true,
+      "runtimeEnabled": true,
+      "source": "open-design / guizang-ppt-skill",
+      "license": "skill-specific",
+      "notes": "Check nested LICENSE before redistribution."
+    },
+    {
+      "id": "task_skill.hr-onboarding",
+      "type": "task_skill",
+      "title": "hr-onboarding",
+      "description": "A new-hire onboarding plan as a single page — first week schedule, buddy + manager intro, learning track, equipment checklist, and \"you're set when…\" outcomes. Use when the brief mentions \"onboarding\", \"new hire\", \"first week plan\", or \"入职\".",
+      "path": "skills/hr-onboarding/SKILL.md",
+      "triggers": [
+        "onboarding",
+        "new hire",
+        "first week",
+        "入职",
+        "新员工"
+      ],
+      "scenario": "",
+      "platform": "",
+      "requiresDesignSystem": true,
+      "runtimeEnabled": true,
+      "source": "open-design",
+      "license": "recorded",
+      "notes": "Imported design task skill; verify nested assets before redistribution."
+    },
+    {
+      "id": "task_skill.hyperframes",
+      "type": "task_skill",
+      "title": "hyperframes",
+      "description": "Create video compositions, animations, title cards, overlays, captions, voiceovers, audio-reactive visuals, and scene transitions in HyperFrames HTML. Use when asked to build any HTML-based video content, add captions or subtitles synced to audio, generate text-to-speech narration, create audio-reactive animation (beat sync, glow, pulse driven by music), add animated text highlighting (marker sweeps, hand-drawn circles, burst lines, scribble, sketchout), or add transitions between scenes (crossfades, wipes, reveals, shader transitions). Covers composition authoring, timing, media, and the full video production workflow. For CLI commands (init, lint, preview, render, transcribe, tts) see the hyperframes-cli skill.",
+      "path": "skills/hyperframes/SKILL.md",
+      "triggers": [
+        "hyperframes",
+        "html video",
+        "video composition",
+        "interactive video",
+        "captions",
+        "tts video",
+        "kinetic typography"
+      ],
+      "scenario": "",
+      "platform": "",
+      "requiresDesignSystem": true,
+      "runtimeEnabled": true,
+      "source": "open-design",
+      "license": "recorded",
+      "notes": "Imported design task skill; verify nested assets before redistribution."
+    },
+    {
+      "id": "task_skill.image-poster",
+      "type": "task_skill",
+      "title": "image-poster",
+      "description": "Single-image generation skill for posters, key art, and editorial illustrations. Defaults to gpt-image-2 but is provider-agnostic — the same workflow drives Flux, Imagen, or Midjourney via the active upstream tooling. Output is one or more PNG/JPEG files saved to the project folder.",
+      "path": "skills/image-poster/SKILL.md",
+      "triggers": [
+        "poster",
+        "key art",
+        "illustration",
+        "image",
+        "cover art",
+        "海报",
+        "插画"
+      ],
+      "scenario": "",
+      "platform": "",
+      "requiresDesignSystem": true,
+      "runtimeEnabled": true,
+      "source": "open-design",
+      "license": "recorded",
+      "notes": "Imported design task skill; verify nested assets before redistribution."
+    },
+    {
+      "id": "task_skill.invoice",
+      "type": "task_skill",
+      "title": "invoice",
+      "description": "A printable invoice page — sender + recipient block, line items table, tax breakdown, totals, and payment instructions. Use when the brief mentions \"invoice\", \"bill\", \"billing statement\", or \"发票\".",
+      "path": "skills/invoice/SKILL.md",
+      "triggers": [
+        "invoice",
+        "bill",
+        "billing statement",
+        "发票",
+        "账单"
+      ],
+      "scenario": "",
+      "platform": "",
+      "requiresDesignSystem": true,
+      "runtimeEnabled": true,
+      "source": "open-design",
+      "license": "recorded",
+      "notes": "Imported design task skill; verify nested assets before redistribution."
+    },
+    {
+      "id": "task_skill.kanban-board",
+      "type": "task_skill",
+      "title": "kanban-board",
+      "description": "Kanban / task board with columns (To do / In progress / In review / Done), draggable-looking cards, assignee avatars, swimlanes, and a top filter bar. Use when the brief mentions \"kanban\", \"task board\", \"sprint board\", \"trello\", \"看板\".",
+      "path": "skills/kanban-board/SKILL.md",
+      "triggers": [
+        "kanban",
+        "task board",
+        "sprint board",
+        "trello",
+        "jira board",
+        "看板"
+      ],
+      "scenario": "",
+      "platform": "",
+      "requiresDesignSystem": true,
+      "runtimeEnabled": true,
+      "source": "open-design",
+      "license": "recorded",
+      "notes": "Imported design task skill; verify nested assets before redistribution."
+    },
+    {
+      "id": "task_skill.magazine-poster",
+      "type": "task_skill",
+      "title": "magazine-poster",
+      "description": "An editorial-style poster — newsprint paper, dateline, oversized serif headline with a struck-through word and italic accent, a 2-column body block, and 6 numbered sections with annotated pull-quote captions. Reads like a Sunday-paper full-page essay or a thoughtful launch poster. Use when the brief asks for \"magazine poster\", \"editorial poster\", \"newsprint\", \"essay layout\", or \"manifesto\".",
+      "path": "skills/magazine-poster/SKILL.md",
+      "triggers": [
+        "magazine poster",
+        "editorial poster",
+        "newsprint",
+        "newspaper layout",
+        "essay",
+        "manifesto",
+        "long-form poster",
+        "杂志海报",
+        "报纸版式"
+      ],
+      "scenario": "",
+      "platform": "",
+      "requiresDesignSystem": true,
+      "runtimeEnabled": true,
+      "source": "open-design",
+      "license": "recorded",
+      "notes": "Imported design task skill; verify nested assets before redistribution."
+    },
+    {
+      "id": "task_skill.meeting-notes",
+      "type": "task_skill",
+      "title": "meeting-notes",
+      "description": "Meeting notes page — title bar with attendees, agenda checklist, decisions block, action items table with owners + dates, and a \"next meeting\" footer. Use when the brief mentions \"meeting notes\", \"minutes\", \"1:1 notes\", \"all-hands recap\", or \"会议纪要\".",
+      "path": "skills/meeting-notes/SKILL.md",
+      "triggers": [
+        "meeting notes",
+        "minutes",
+        "1:1 notes",
+        "all-hands recap",
+        "会议纪要"
+      ],
+      "scenario": "",
+      "platform": "",
+      "requiresDesignSystem": true,
+      "runtimeEnabled": true,
+      "source": "open-design",
+      "license": "recorded",
+      "notes": "Imported design task skill; verify nested assets before redistribution."
+    },
+    {
+      "id": "task_skill.mobile-app",
+      "type": "task_skill",
+      "title": "mobile-app",
+      "description": "A mobile-app screen rendered inside a pixel-accurate iPhone 15 Pro frame on the page. Built by copying the seed `assets/template.html` and pasting one screen archetype from `references/layouts.md`. Use when the brief asks for \"mobile app\", \"iOS app\", \"Android app\", \"phone screen\", or \"app UI\".",
+      "path": "skills/mobile-app/SKILL.md",
+      "triggers": [
+        "mobile app",
+        "ios app",
+        "android app",
+        "phone screen",
+        "app ui",
+        "app mockup",
+        "移动端",
+        "手机 app"
+      ],
+      "scenario": "",
+      "platform": "",
+      "requiresDesignSystem": true,
+      "runtimeEnabled": true,
+      "source": "open-design",
+      "license": "recorded",
+      "notes": "Imported design task skill; verify nested assets before redistribution."
+    },
+    {
+      "id": "task_skill.mobile-onboarding",
+      "type": "task_skill",
+      "title": "mobile-onboarding",
+      "description": "A multi-screen mobile onboarding flow rendered as three phone frames side by side — splash, value-prop, sign-in. Status bar, swipe dots, primary CTA. Use when the brief mentions \"mobile onboarding\", \"iOS onboarding\", \"phone signup\", or \"移动端引导\".",
+      "path": "skills/mobile-onboarding/SKILL.md",
+      "triggers": [
+        "mobile onboarding",
+        "ios onboarding",
+        "android onboarding",
+        "phone signup",
+        "app onboarding",
+        "移动端引导"
+      ],
+      "scenario": "",
+      "platform": "",
+      "requiresDesignSystem": true,
+      "runtimeEnabled": true,
+      "source": "open-design",
+      "license": "recorded",
+      "notes": "Imported design task skill; verify nested assets before redistribution."
+    },
+    {
+      "id": "task_skill.motion-frames",
+      "type": "task_skill",
+      "title": "motion-frames",
+      "description": "A single-frame motion-design composition with looping CSS animations — rotating type ring, animated globe, ticking timer, parallax labels. Renders as a hero video poster you can hand straight to HyperFrames or any keyframe-based exporter. Use when the brief asks for \"motion design\", \"animated hero\", \"loop\", \"video poster\", \"title card\", or pairs Open Claude Design with HyperFrames for a kinetic export.",
+      "path": "skills/motion-frames/SKILL.md",
+      "triggers": [
+        "motion design",
+        "motion graphic",
+        "animated hero",
+        "loop animation",
+        "video poster",
+        "title card",
+        "hyperframes",
+        "kinetic typography",
+        "动态设计",
+        "动效"
+      ],
+      "scenario": "",
+      "platform": "",
+      "requiresDesignSystem": true,
+      "runtimeEnabled": true,
+      "source": "open-design",
+      "license": "recorded",
+      "notes": "Imported design task skill; verify nested assets before redistribution."
+    },
+    {
+      "id": "task_skill.pm-spec",
+      "type": "task_skill",
+      "title": "pm-spec",
+      "description": "Product spec / PRD as a single page — problem, success metrics, scope, user stories, design notes, rollout plan, open questions. Use when the brief mentions \"PRD\", \"spec\", \"product spec\", \"feature brief\", or \"需求文档\".",
+      "path": "skills/pm-spec/SKILL.md",
+      "triggers": [
+        "prd",
+        "spec",
+        "product spec",
+        "feature brief",
+        "feature doc",
+        "需求文档"
+      ],
+      "scenario": "",
+      "platform": "",
+      "requiresDesignSystem": true,
+      "runtimeEnabled": true,
+      "source": "open-design",
+      "license": "recorded",
+      "notes": "Imported design task skill; verify nested assets before redistribution."
+    },
+    {
+      "id": "task_skill.pricing-page",
+      "type": "task_skill",
+      "title": "pricing-page",
+      "description": "A standalone pricing page — header, plan tiers, feature comparison table, and an FAQ. Use when the brief asks for \"pricing\", \"plans\", \"subscription tiers\", or a \"compare plans\" page.",
+      "path": "skills/pricing-page/SKILL.md",
+      "triggers": [
+        "pricing",
+        "pricing page",
+        "plans",
+        "subscription",
+        "compare plans",
+        "定价",
+        "套餐"
+      ],
+      "scenario": "",
+      "platform": "",
+      "requiresDesignSystem": true,
+      "runtimeEnabled": true,
+      "source": "open-design",
+      "license": "recorded",
+      "notes": "Imported design task skill; verify nested assets before redistribution."
+    },
+    {
+      "id": "task_skill.replit-deck",
+      "type": "task_skill",
+      "title": "replit-deck",
+      "description": "Single-file horizontal-swipe HTML deck in the style of Replit Slides's landing-page template gallery. Eight distinct themes (helix, holm, vance, bevel, world-dark, world-mint, atlas, bluehouse) — each a complete visual system (palette + type + accent) captured from replit.com/slides. Pick one theme, do not mix. For pitch decks, board reports, brand memos, campaign reveals — when the user explicitly wants \"Replit Slides style\".",
+      "path": "skills/replit-deck/SKILL.md",
+      "triggers": [
+        "replit deck",
+        "replit slides",
+        "replit 风格 ppt",
+        "replit style deck",
+        "helix deck",
+        "holm memo",
+        "atlas chapter",
+        "bluehouse",
+        "bevel campaign"
+      ],
+      "scenario": "",
+      "platform": "",
+      "requiresDesignSystem": true,
+      "runtimeEnabled": true,
+      "source": "open-design",
+      "license": "recorded",
+      "notes": "Imported design task skill; verify nested assets before redistribution."
+    },
+    {
+      "id": "task_skill.saas-landing",
+      "type": "task_skill",
+      "title": "saas-landing",
+      "description": "Single-page SaaS landing with hero, features, social proof, pricing, and CTA. Respects the active DESIGN.md color/typography/layout tokens. Trigger keywords: \"saas landing\", \"marketing page\", \"product landing\".",
+      "path": "skills/saas-landing/SKILL.md",
+      "triggers": [
+        "saas landing",
+        "marketing page",
+        "product landing"
+      ],
+      "scenario": "",
+      "platform": "",
+      "requiresDesignSystem": true,
+      "runtimeEnabled": true,
+      "source": "open-design",
+      "license": "recorded",
+      "notes": "Imported design task skill; verify nested assets before redistribution."
+    },
+    {
+      "id": "task_skill.simple-deck",
+      "type": "task_skill",
+      "title": "simple-deck",
+      "description": "Single-file horizontal-swipe HTML deck. Built by copying the seed `assets/template.html` (which carries the proven 5-rule iframe nav script) and pasting slide layouts from `references/layouts.md`. Pitch decks, product overviews, study material — when you don't need the magazine aesthetic of `magazine-web-ppt`.",
+      "path": "skills/simple-deck/SKILL.md",
+      "triggers": [
+        "deck",
+        "slides",
+        "ppt",
+        "presentation",
+        "幻灯",
+        "ppt 模板"
+      ],
+      "scenario": "",
+      "platform": "",
+      "requiresDesignSystem": true,
+      "runtimeEnabled": true,
+      "source": "open-design",
+      "license": "recorded",
+      "notes": "Imported design task skill; verify nested assets before redistribution."
+    },
+    {
+      "id": "task_skill.social-carousel",
+      "type": "task_skill",
+      "title": "social-carousel",
+      "description": "A three-card social-media carousel laid out as 1080×1080 squares — three cinematic, on-brand panels with display headlines that connect across the series (\"onwards.\" → \"to the next one.\" → \"looking ahead.\"). Each card has a brand mark, a number / total, a caption, and a \"loop\" affordance. Use when the brief asks for a \"carousel post\", \"social carousel\", \"Instagram carousel\", \"LinkedIn series\", \"X thread cards\", or \"三连发\".",
+      "path": "skills/social-carousel/SKILL.md",
+      "triggers": [
+        "social carousel",
+        "carousel post",
+        "instagram carousel",
+        "linkedin carousel",
+        "x thread cards",
+        "social series",
+        "三连发",
+        "轮播图"
+      ],
+      "scenario": "",
+      "platform": "",
+      "requiresDesignSystem": true,
+      "runtimeEnabled": true,
+      "source": "open-design",
+      "license": "recorded",
+      "notes": "Imported design task skill; verify nested assets before redistribution."
+    },
+    {
+      "id": "task_skill.sprite-animation",
+      "type": "task_skill",
+      "title": "sprite-animation",
+      "description": "A pixel / sprite-style animated explainer slide — full-bleed cream stage, bold display year, animated pixel-art mascot (e.g. Hanafuda card, mushroom, or 8-bit console), kinetic Japanese display type, ticking timeline ribbon. Reads like a single frame of an educational motion video — looping CSS keyframes, no JS, ready to be screen-recorded into a vertical video. Use when the brief asks for a \"sprite animation\", \"pixel-art video\", \"8-bit explainer\", \"history of X explainer\", \"kinetic typography history\", \"Nintendo-style\", \"精灵图动画\", \"像素动画\", or \"复古动画\".",
+      "path": "skills/sprite-animation/SKILL.md",
+      "triggers": [
+        "sprite animation",
+        "pixel art animation",
+        "8-bit explainer",
+        "retro animation",
+        "kinetic typography",
+        "history explainer",
+        "nintendo style",
+        "精灵图",
+        "像素动画",
+        "复古动画"
+      ],
+      "scenario": "",
+      "platform": "",
+      "requiresDesignSystem": true,
+      "runtimeEnabled": true,
+      "source": "open-design",
+      "license": "recorded",
+      "notes": "Imported design task skill; verify nested assets before redistribution."
+    },
+    {
+      "id": "task_skill.team-okrs",
+      "type": "task_skill",
+      "title": "team-okrs",
+      "description": "OKR tracker page — quarter banner, three objectives with their key results as progress bars, owner avatars, status pills, and a \"this quarter at a glance\" sidebar. Use when the brief mentions \"OKRs\", \"key results\", \"objectives\", or \"目标\".",
+      "path": "skills/team-okrs/SKILL.md",
+      "triggers": [
+        "okr",
+        "okrs",
+        "key results",
+        "objectives",
+        "目标"
+      ],
+      "scenario": "",
+      "platform": "",
+      "requiresDesignSystem": true,
+      "runtimeEnabled": true,
+      "source": "open-design",
+      "license": "recorded",
+      "notes": "Imported design task skill; verify nested assets before redistribution."
+    },
+    {
+      "id": "task_skill.tweaks",
+      "type": "task_skill",
+      "title": "tweaks",
+      "description": "Wrap any HTML artifact with a side panel of live, parameterized controls — accent color, type scale, density, motion, theme — that rewrite CSS custom properties in real time and persist to localStorage. Lets the user explore variants of a design without re-prompting the agent. Use when the brief asks for \"variants\", \"side-by-side options\", \"tweak this\", \"let me adjust\", \"live knobs\", or \"实时调参\".",
+      "path": "skills/tweaks/SKILL.md",
+      "triggers": [
+        "tweaks",
+        "variants",
+        "tweak panel",
+        "live controls",
+        "adjust on the fly",
+        "实时调参",
+        "可调参数面板",
+        "side panel",
+        "knobs"
+      ],
+      "scenario": "",
+      "platform": "",
+      "requiresDesignSystem": true,
+      "runtimeEnabled": true,
+      "source": "open-design",
+      "license": "recorded",
+      "notes": "Imported design task skill; verify nested assets before redistribution."
+    },
+    {
+      "id": "task_skill.video-shortform",
+      "type": "task_skill",
+      "title": "video-shortform",
+      "description": "Short-form video generation skill — 3-10 second clips for product reveals, motion teasers, ambient loops. Defaults to Seedance 2 but works the same with Kling 3 / 4, Veo 3 or Sora 2. Output is one MP4 saved to the project folder. When the workspace also ships an interactive-video / hyperframes skill, prefer composing several short shots into a single timeline rather than one long monolithic clip.",
+      "path": "skills/video-shortform/SKILL.md",
+      "triggers": [
+        "video",
+        "clip",
+        "shortform",
+        "reel",
+        "短视频",
+        "动效"
+      ],
+      "scenario": "",
+      "platform": "",
+      "requiresDesignSystem": true,
+      "runtimeEnabled": true,
+      "source": "open-design",
+      "license": "recorded",
+      "notes": "Imported design task skill; verify nested assets before redistribution."
+    },
+    {
+      "id": "task_skill.web-prototype",
+      "type": "task_skill",
+      "title": "web-prototype",
+      "description": "General-purpose desktop web prototype. Single self-contained HTML file built by copying the seed `assets/template.html` and pasting section layouts from `references/layouts.md`. Default for any landing / marketing / docs / SaaS page when no more specific skill matches.",
+      "path": "skills/web-prototype/SKILL.md",
+      "triggers": [
+        "prototype",
+        "mockup",
+        "landing",
+        "single page",
+        "marketing page",
+        "homepage"
+      ],
+      "scenario": "",
+      "platform": "",
+      "requiresDesignSystem": true,
+      "runtimeEnabled": true,
+      "source": "open-design",
+      "license": "recorded",
+      "notes": "Imported design task skill; verify nested assets before redistribution."
+    },
+    {
+      "id": "task_skill.weekly-update",
+      "type": "task_skill",
+      "title": "weekly-update",
+      "description": "Single-file horizontal-swipe slide deck for a weekly team update — shipped, in flight, blocked, metrics, asks. 6–8 slides. Use when the brief mentions \"weekly update\", \"team update slides\", \"weekly status\", \"周报演示\".",
+      "path": "skills/weekly-update/SKILL.md",
+      "triggers": [
+        "weekly update",
+        "team update slides",
+        "weekly status",
+        "weekly review",
+        "周报演示"
+      ],
+      "scenario": "",
+      "platform": "",
+      "requiresDesignSystem": true,
+      "runtimeEnabled": true,
+      "source": "open-design",
+      "license": "recorded",
+      "notes": "Imported design task skill; verify nested assets before redistribution."
+    },
+    {
+      "id": "task_skill.wireframe-sketch",
+      "type": "task_skill",
+      "title": "wireframe-sketch",
+      "description": "A hand-drawn wireframe exploration — graph-paper background, marker / pencil tone, multiple tab labels for variants, sticky-note annotations, scribbled chart placeholders, hatched fills. Reads like a designer's whiteboard before any pixels are committed. Use when the brief asks for \"wireframe\", \"sketch wireframe\", \"hand-drawn\", \"lo-fi\", \"whiteboard\", \"草稿\", or \"手绘原型\".",
+      "path": "skills/wireframe-sketch/SKILL.md",
+      "triggers": [
+        "wireframe",
+        "sketch wireframe",
+        "lo-fi mockup",
+        "hand drawn",
+        "whiteboard sketch",
+        "low fidelity",
+        "手绘原型",
+        "草图",
+        "线框图"
+      ],
+      "scenario": "",
+      "platform": "",
+      "requiresDesignSystem": true,
+      "runtimeEnabled": true,
+      "source": "open-design",
+      "license": "recorded",
+      "notes": "Imported design task skill; verify nested assets before redistribution."
+    },
+    {
+      "id": "design_system.airbnb",
+      "type": "design_system",
+      "title": "Design System Inspired by Airbnb",
+      "description": "Travel marketplace. Warm coral accent, photography-driven, rounded UI.",
+      "path": "design-systems/airbnb/DESIGN.md",
+      "triggers": [
+        "airbnb",
+        "Design System Inspired by Airbnb"
+      ],
+      "category": "E-Commerce & Retail",
+      "runtimeEnabled": true,
+      "source": "VoltAgent/awesome-design-md via open-design",
+      "license": "MIT"
+    },
+    {
+      "id": "design_system.airtable",
+      "type": "design_system",
+      "title": "Design System Inspired by Airtable",
+      "description": "Spreadsheet-database hybrid. Colorful, friendly, structured data aesthetic.",
+      "path": "design-systems/airtable/DESIGN.md",
+      "triggers": [
+        "airtable",
+        "Design System Inspired by Airtable"
+      ],
+      "category": "Design & Creative",
+      "runtimeEnabled": true,
+      "source": "VoltAgent/awesome-design-md via open-design",
+      "license": "MIT"
+    },
+    {
+      "id": "design_system.apple",
+      "type": "design_system",
+      "title": "Design System Inspired by Apple",
+      "description": "Consumer electronics. Premium white space, SF Pro, cinematic imagery.",
+      "path": "design-systems/apple/DESIGN.md",
+      "triggers": [
+        "apple",
+        "Design System Inspired by Apple"
+      ],
+      "category": "Media & Consumer",
+      "runtimeEnabled": true,
+      "source": "VoltAgent/awesome-design-md via open-design",
+      "license": "MIT"
+    },
+    {
+      "id": "design_system.binance",
+      "type": "design_system",
+      "title": "Design System Inspired by Binance.US",
+      "description": "Crypto exchange. Bold yellow accent on monochrome, trading-floor urgency.",
+      "path": "design-systems/binance/DESIGN.md",
+      "triggers": [
+        "binance",
+        "Design System Inspired by Binance.US"
+      ],
+      "category": "Fintech & Crypto",
+      "runtimeEnabled": true,
+      "source": "VoltAgent/awesome-design-md via open-design",
+      "license": "MIT"
+    },
+    {
+      "id": "design_system.bmw",
+      "type": "design_system",
+      "title": "Design System Inspired by BMW",
+      "description": "Luxury automotive. Dark premium surfaces, precise German engineering aesthetic.",
+      "path": "design-systems/bmw/DESIGN.md",
+      "triggers": [
+        "bmw",
+        "Design System Inspired by BMW"
+      ],
+      "category": "Automotive",
+      "runtimeEnabled": true,
+      "source": "VoltAgent/awesome-design-md via open-design",
+      "license": "MIT"
+    },
+    {
+      "id": "design_system.bugatti",
+      "type": "design_system",
+      "title": "Design System Inspired by Bugatti",
+      "description": "Hypercar brand. Cinema-black canvas, monochrome austerity, monumental display type.",
+      "path": "design-systems/bugatti/DESIGN.md",
+      "triggers": [
+        "bugatti",
+        "Design System Inspired by Bugatti"
+      ],
+      "category": "Automotive",
+      "runtimeEnabled": true,
+      "source": "VoltAgent/awesome-design-md via open-design",
+      "license": "MIT"
+    },
+    {
+      "id": "design_system.cal",
+      "type": "design_system",
+      "title": "Design System Inspired by Cal.com",
+      "description": "Open-source scheduling. Clean neutral UI, developer-oriented simplicity.",
+      "path": "design-systems/cal/DESIGN.md",
+      "triggers": [
+        "cal",
+        "Design System Inspired by Cal.com"
+      ],
+      "category": "Productivity & SaaS",
+      "runtimeEnabled": true,
+      "source": "VoltAgent/awesome-design-md via open-design",
+      "license": "MIT"
+    },
+    {
+      "id": "design_system.claude",
+      "type": "design_system",
+      "title": "Design System Inspired by Claude (Anthropic)",
+      "description": "Anthropic's AI assistant. Warm terracotta accent, clean editorial layout.",
+      "path": "design-systems/claude/DESIGN.md",
+      "triggers": [
+        "claude",
+        "Design System Inspired by Claude (Anthropic)"
+      ],
+      "category": "AI & LLM",
+      "runtimeEnabled": true,
+      "source": "VoltAgent/awesome-design-md via open-design",
+      "license": "MIT"
+    },
+    {
+      "id": "design_system.clay",
+      "type": "design_system",
+      "title": "Design System Inspired by Clay",
+      "description": "Creative agency. Organic shapes, soft gradients, art-directed layout.",
+      "path": "design-systems/clay/DESIGN.md",
+      "triggers": [
+        "clay",
+        "Design System Inspired by Clay"
+      ],
+      "category": "Design & Creative",
+      "runtimeEnabled": true,
+      "source": "VoltAgent/awesome-design-md via open-design",
+      "license": "MIT"
+    },
+    {
+      "id": "design_system.clickhouse",
+      "type": "design_system",
+      "title": "Design System Inspired by ClickHouse",
+      "description": "Fast analytics database. Yellow-accented, technical documentation style.",
+      "path": "design-systems/clickhouse/DESIGN.md",
+      "triggers": [
+        "clickhouse",
+        "Design System Inspired by ClickHouse"
+      ],
+      "category": "Backend & Data",
+      "runtimeEnabled": true,
+      "source": "VoltAgent/awesome-design-md via open-design",
+      "license": "MIT"
+    },
+    {
+      "id": "design_system.cohere",
+      "type": "design_system",
+      "title": "Design System Inspired by Cohere",
+      "description": "Enterprise AI platform. Vibrant gradients, data-rich dashboard aesthetic.",
+      "path": "design-systems/cohere/DESIGN.md",
+      "triggers": [
+        "cohere",
+        "Design System Inspired by Cohere"
+      ],
+      "category": "AI & LLM",
+      "runtimeEnabled": true,
+      "source": "VoltAgent/awesome-design-md via open-design",
+      "license": "MIT"
+    },
+    {
+      "id": "design_system.coinbase",
+      "type": "design_system",
+      "title": "Design System Inspired by Coinbase",
+      "description": "Crypto exchange. Clean blue identity, trust-focused, institutional feel.",
+      "path": "design-systems/coinbase/DESIGN.md",
+      "triggers": [
+        "coinbase",
+        "Design System Inspired by Coinbase"
+      ],
+      "category": "Fintech & Crypto",
+      "runtimeEnabled": true,
+      "source": "VoltAgent/awesome-design-md via open-design",
+      "license": "MIT"
+    },
+    {
+      "id": "design_system.composio",
+      "type": "design_system",
+      "title": "Design System Inspired by Composio",
+      "description": "Tool integration platform. Modern dark with colorful integration icons.",
+      "path": "design-systems/composio/DESIGN.md",
+      "triggers": [
+        "composio",
+        "Design System Inspired by Composio"
+      ],
+      "category": "Backend & Data",
+      "runtimeEnabled": true,
+      "source": "VoltAgent/awesome-design-md via open-design",
+      "license": "MIT"
+    },
+    {
+      "id": "design_system.cursor",
+      "type": "design_system",
+      "title": "Design System Inspired by Cursor",
+      "description": "AI-first code editor. Sleek dark interface, gradient accents.",
+      "path": "design-systems/cursor/DESIGN.md",
+      "triggers": [
+        "cursor",
+        "Design System Inspired by Cursor"
+      ],
+      "category": "Developer Tools",
+      "runtimeEnabled": true,
+      "source": "VoltAgent/awesome-design-md via open-design",
+      "license": "MIT"
+    },
+    {
+      "id": "design_system.default",
+      "type": "design_system",
+      "title": "Neutral Modern",
+      "description": "A clean, product-oriented default. Use when the brief doesn't call for a",
+      "path": "design-systems/default/DESIGN.md",
+      "triggers": [
+        "default",
+        "Neutral Modern"
+      ],
+      "category": "Starter",
+      "runtimeEnabled": true,
+      "source": "open-design hand-authored starter",
+      "license": "recorded"
+    },
+    {
+      "id": "design_system.elevenlabs",
+      "type": "design_system",
+      "title": "Design System Inspired by ElevenLabs",
+      "description": "AI voice platform. Dark cinematic UI, audio-waveform aesthetics.",
+      "path": "design-systems/elevenlabs/DESIGN.md",
+      "triggers": [
+        "elevenlabs",
+        "Design System Inspired by ElevenLabs"
+      ],
+      "category": "AI & LLM",
+      "runtimeEnabled": true,
+      "source": "VoltAgent/awesome-design-md via open-design",
+      "license": "MIT"
+    },
+    {
+      "id": "design_system.expo",
+      "type": "design_system",
+      "title": "Design System Inspired by Expo",
+      "description": "React Native platform. Dark theme, tight letter-spacing, code-centric.",
+      "path": "design-systems/expo/DESIGN.md",
+      "triggers": [
+        "expo",
+        "Design System Inspired by Expo"
+      ],
+      "category": "Developer Tools",
+      "runtimeEnabled": true,
+      "source": "VoltAgent/awesome-design-md via open-design",
+      "license": "MIT"
+    },
+    {
+      "id": "design_system.ferrari",
+      "type": "design_system",
+      "title": "Design System Inspired by Ferrari",
+      "description": "Luxury automotive. Chiaroscuro editorial, Ferrari Red accents, cinematic black.",
+      "path": "design-systems/ferrari/DESIGN.md",
+      "triggers": [
+        "ferrari",
+        "Design System Inspired by Ferrari"
+      ],
+      "category": "Automotive",
+      "runtimeEnabled": true,
+      "source": "VoltAgent/awesome-design-md via open-design",
+      "license": "MIT"
+    },
+    {
+      "id": "design_system.figma",
+      "type": "design_system",
+      "title": "Design System Inspired by Figma",
+      "description": "Collaborative design tool. Vibrant multi-color, playful yet professional.",
+      "path": "design-systems/figma/DESIGN.md",
+      "triggers": [
+        "figma",
+        "Design System Inspired by Figma"
+      ],
+      "category": "Design & Creative",
+      "runtimeEnabled": true,
+      "source": "VoltAgent/awesome-design-md via open-design",
+      "license": "MIT"
+    },
+    {
+      "id": "design_system.framer",
+      "type": "design_system",
+      "title": "Design System Inspired by Framer",
+      "description": "Website builder. Bold black and blue, motion-first, design-forward.",
+      "path": "design-systems/framer/DESIGN.md",
+      "triggers": [
+        "framer",
+        "Design System Inspired by Framer"
+      ],
+      "category": "Design & Creative",
+      "runtimeEnabled": true,
+      "source": "VoltAgent/awesome-design-md via open-design",
+      "license": "MIT"
+    },
+    {
+      "id": "design_system.hashicorp",
+      "type": "design_system",
+      "title": "Design System Inspired by HashiCorp",
+      "description": "Infrastructure automation. Enterprise-clean, black and white.",
+      "path": "design-systems/hashicorp/DESIGN.md",
+      "triggers": [
+        "hashicorp",
+        "Design System Inspired by HashiCorp"
+      ],
+      "category": "Backend & Data",
+      "runtimeEnabled": true,
+      "source": "VoltAgent/awesome-design-md via open-design",
+      "license": "MIT"
+    },
+    {
+      "id": "design_system.ibm",
+      "type": "design_system",
+      "title": "Design System Inspired by IBM",
+      "description": "Enterprise technology. Carbon design system, structured blue palette.",
+      "path": "design-systems/ibm/DESIGN.md",
+      "triggers": [
+        "ibm",
+        "Design System Inspired by IBM"
+      ],
+      "category": "Media & Consumer",
+      "runtimeEnabled": true,
+      "source": "VoltAgent/awesome-design-md via open-design",
+      "license": "MIT"
+    },
+    {
+      "id": "design_system.intercom",
+      "type": "design_system",
+      "title": "Design System Inspired by Intercom",
+      "description": "Customer messaging. Friendly blue palette, conversational UI patterns.",
+      "path": "design-systems/intercom/DESIGN.md",
+      "triggers": [
+        "intercom",
+        "Design System Inspired by Intercom"
+      ],
+      "category": "Productivity & SaaS",
+      "runtimeEnabled": true,
+      "source": "VoltAgent/awesome-design-md via open-design",
+      "license": "MIT"
+    },
+    {
+      "id": "design_system.kraken",
+      "type": "design_system",
+      "title": "Design System Inspired by Kraken",
+      "description": "Crypto trading. Purple-accented dark UI, data-dense dashboards.",
+      "path": "design-systems/kraken/DESIGN.md",
+      "triggers": [
+        "kraken",
+        "Design System Inspired by Kraken"
+      ],
+      "category": "Fintech & Crypto",
+      "runtimeEnabled": true,
+      "source": "VoltAgent/awesome-design-md via open-design",
+      "license": "MIT"
+    },
+    {
+      "id": "design_system.lamborghini",
+      "type": "design_system",
+      "title": "Design System Inspired by Lamborghini",
+      "description": "Supercar brand. True black surfaces, gold accents, dramatic uppercase typography.",
+      "path": "design-systems/lamborghini/DESIGN.md",
+      "triggers": [
+        "lamborghini",
+        "Design System Inspired by Lamborghini"
+      ],
+      "category": "Automotive",
+      "runtimeEnabled": true,
+      "source": "VoltAgent/awesome-design-md via open-design",
+      "license": "MIT"
+    },
+    {
+      "id": "design_system.linear-app",
+      "type": "design_system",
+      "title": "Design System Inspired by Linear",
+      "description": "Project management. Ultra-minimal, precise, purple accent.",
+      "path": "design-systems/linear-app/DESIGN.md",
+      "triggers": [
+        "linear-app",
+        "Design System Inspired by Linear"
+      ],
+      "category": "Productivity & SaaS",
+      "runtimeEnabled": true,
+      "source": "VoltAgent/awesome-design-md via open-design",
+      "license": "MIT"
+    },
+    {
+      "id": "design_system.lovable",
+      "type": "design_system",
+      "title": "Design System Inspired by Lovable",
+      "description": "AI full-stack builder. Playful gradients, friendly dev aesthetic.",
+      "path": "design-systems/lovable/DESIGN.md",
+      "triggers": [
+        "lovable",
+        "Design System Inspired by Lovable"
+      ],
+      "category": "Developer Tools",
+      "runtimeEnabled": true,
+      "source": "VoltAgent/awesome-design-md via open-design",
+      "license": "MIT"
+    },
+    {
+      "id": "design_system.mastercard",
+      "type": "design_system",
+      "title": "Design System Inspired by Mastercard",
+      "description": "Global payments network. Warm cream canvas, orbital pill shapes, editorial warmth.",
+      "path": "design-systems/mastercard/DESIGN.md",
+      "triggers": [
+        "mastercard",
+        "Design System Inspired by Mastercard"
+      ],
+      "category": "Fintech & Crypto",
+      "runtimeEnabled": true,
+      "source": "VoltAgent/awesome-design-md via open-design",
+      "license": "MIT"
+    },
+    {
+      "id": "design_system.meta",
+      "type": "design_system",
+      "title": "Design System Inspired by Meta (Store)",
+      "description": "Tech retail store. Photography-first, binary light/dark surfaces, Meta Blue CTAs.",
+      "path": "design-systems/meta/DESIGN.md",
+      "triggers": [
+        "meta",
+        "Design System Inspired by Meta (Store)"
+      ],
+      "category": "E-Commerce & Retail",
+      "runtimeEnabled": true,
+      "source": "VoltAgent/awesome-design-md via open-design",
+      "license": "MIT"
+    },
+    {
+      "id": "design_system.minimax",
+      "type": "design_system",
+      "title": "Design System Inspired by MiniMax",
+      "description": "AI model provider. Bold dark interface with neon accents.",
+      "path": "design-systems/minimax/DESIGN.md",
+      "triggers": [
+        "minimax",
+        "Design System Inspired by MiniMax"
+      ],
+      "category": "AI & LLM",
+      "runtimeEnabled": true,
+      "source": "VoltAgent/awesome-design-md via open-design",
+      "license": "MIT"
+    },
+    {
+      "id": "design_system.mintlify",
+      "type": "design_system",
+      "title": "Design System Inspired by Mintlify",
+      "description": "Documentation platform. Clean, green-accented, reading-optimized.",
+      "path": "design-systems/mintlify/DESIGN.md",
+      "triggers": [
+        "mintlify",
+        "Design System Inspired by Mintlify"
+      ],
+      "category": "Productivity & SaaS",
+      "runtimeEnabled": true,
+      "source": "VoltAgent/awesome-design-md via open-design",
+      "license": "MIT"
+    },
+    {
+      "id": "design_system.miro",
+      "type": "design_system",
+      "title": "Design System Inspired by Miro",
+      "description": "Visual collaboration. Bright yellow accent, infinite canvas aesthetic.",
+      "path": "design-systems/miro/DESIGN.md",
+      "triggers": [
+        "miro",
+        "Design System Inspired by Miro"
+      ],
+      "category": "Design & Creative",
+      "runtimeEnabled": true,
+      "source": "VoltAgent/awesome-design-md via open-design",
+      "license": "MIT"
+    },
+    {
+      "id": "design_system.mistral-ai",
+      "type": "design_system",
+      "title": "Design System Inspired by Mistral AI",
+      "description": "Open-weight LLM provider. French-engineered minimalism, purple-toned.",
+      "path": "design-systems/mistral-ai/DESIGN.md",
+      "triggers": [
+        "mistral-ai",
+        "Design System Inspired by Mistral AI"
+      ],
+      "category": "AI & LLM",
+      "runtimeEnabled": true,
+      "source": "VoltAgent/awesome-design-md via open-design",
+      "license": "MIT"
+    },
+    {
+      "id": "design_system.mongodb",
+      "type": "design_system",
+      "title": "Design System Inspired by MongoDB",
+      "description": "Document database. Green leaf branding, developer documentation focus.",
+      "path": "design-systems/mongodb/DESIGN.md",
+      "triggers": [
+        "mongodb",
+        "Design System Inspired by MongoDB"
+      ],
+      "category": "Backend & Data",
+      "runtimeEnabled": true,
+      "source": "VoltAgent/awesome-design-md via open-design",
+      "license": "MIT"
+    },
+    {
+      "id": "design_system.nike",
+      "type": "design_system",
+      "title": "Design System Inspired by Nike",
+      "description": "Athletic retail. Monochrome UI, massive uppercase type, full-bleed photography.",
+      "path": "design-systems/nike/DESIGN.md",
+      "triggers": [
+        "nike",
+        "Design System Inspired by Nike"
+      ],
+      "category": "E-Commerce & Retail",
+      "runtimeEnabled": true,
+      "source": "VoltAgent/awesome-design-md via open-design",
+      "license": "MIT"
+    },
+    {
+      "id": "design_system.notion",
+      "type": "design_system",
+      "title": "Design System Inspired by Notion",
+      "description": "All-in-one workspace. Warm minimalism, serif headings, soft surfaces.",
+      "path": "design-systems/notion/DESIGN.md",
+      "triggers": [
+        "notion",
+        "Design System Inspired by Notion"
+      ],
+      "category": "Productivity & SaaS",
+      "runtimeEnabled": true,
+      "source": "VoltAgent/awesome-design-md via open-design",
+      "license": "MIT"
+    },
+    {
+      "id": "design_system.nvidia",
+      "type": "design_system",
+      "title": "Design System Inspired by NVIDIA",
+      "description": "GPU computing. Green-black energy, technical power aesthetic.",
+      "path": "design-systems/nvidia/DESIGN.md",
+      "triggers": [
+        "nvidia",
+        "Design System Inspired by NVIDIA"
+      ],
+      "category": "Media & Consumer",
+      "runtimeEnabled": true,
+      "source": "VoltAgent/awesome-design-md via open-design",
+      "license": "MIT"
+    },
+    {
+      "id": "design_system.ollama",
+      "type": "design_system",
+      "title": "Design System Inspired by Ollama",
+      "description": "Run LLMs locally. Terminal-first, monochrome simplicity.",
+      "path": "design-systems/ollama/DESIGN.md",
+      "triggers": [
+        "ollama",
+        "Design System Inspired by Ollama"
+      ],
+      "category": "AI & LLM",
+      "runtimeEnabled": true,
+      "source": "VoltAgent/awesome-design-md via open-design",
+      "license": "MIT"
+    },
+    {
+      "id": "design_system.opencode-ai",
+      "type": "design_system",
+      "title": "Design System Inspired by OpenCode",
+      "description": "AI coding platform. Developer-centric dark theme.",
+      "path": "design-systems/opencode-ai/DESIGN.md",
+      "triggers": [
+        "opencode-ai",
+        "Design System Inspired by OpenCode"
+      ],
+      "category": "AI & LLM",
+      "runtimeEnabled": true,
+      "source": "VoltAgent/awesome-design-md via open-design",
+      "license": "MIT"
+    },
+    {
+      "id": "design_system.pinterest",
+      "type": "design_system",
+      "title": "Design System Inspired by Pinterest",
+      "description": "Visual discovery. Red accent, masonry grid, image-first.",
+      "path": "design-systems/pinterest/DESIGN.md",
+      "triggers": [
+        "pinterest",
+        "Design System Inspired by Pinterest"
+      ],
+      "category": "Media & Consumer",
+      "runtimeEnabled": true,
+      "source": "VoltAgent/awesome-design-md via open-design",
+      "license": "MIT"
+    },
+    {
+      "id": "design_system.playstation",
+      "type": "design_system",
+      "title": "Design System Inspired by PlayStation",
+      "description": "Gaming console retail. Three-surface channel layout, quiet-authority display type, cyan hover-scale.",
+      "path": "design-systems/playstation/DESIGN.md",
+      "triggers": [
+        "playstation",
+        "Design System Inspired by PlayStation"
+      ],
+      "category": "Media & Consumer",
+      "runtimeEnabled": true,
+      "source": "VoltAgent/awesome-design-md via open-design",
+      "license": "MIT"
+    },
+    {
+      "id": "design_system.posthog",
+      "type": "design_system",
+      "title": "Design System Inspired by PostHog",
+      "description": "Product analytics. Playful hedgehog branding, developer-friendly dark UI.",
+      "path": "design-systems/posthog/DESIGN.md",
+      "triggers": [
+        "posthog",
+        "Design System Inspired by PostHog"
+      ],
+      "category": "Backend & Data",
+      "runtimeEnabled": true,
+      "source": "VoltAgent/awesome-design-md via open-design",
+      "license": "MIT"
+    },
+    {
+      "id": "design_system.raycast",
+      "type": "design_system",
+      "title": "Design System Inspired by Raycast",
+      "description": "Productivity launcher. Sleek dark chrome, vibrant gradient accents.",
+      "path": "design-systems/raycast/DESIGN.md",
+      "triggers": [
+        "raycast",
+        "Design System Inspired by Raycast"
+      ],
+      "category": "Developer Tools",
+      "runtimeEnabled": true,
+      "source": "VoltAgent/awesome-design-md via open-design",
+      "license": "MIT"
+    },
+    {
+      "id": "design_system.renault",
+      "type": "design_system",
+      "title": "Design System Inspired by Renault",
+      "description": "French automotive. Vibrant aurora gradients, NouvelR typography, bold energy.",
+      "path": "design-systems/renault/DESIGN.md",
+      "triggers": [
+        "renault",
+        "Design System Inspired by Renault"
+      ],
+      "category": "Automotive",
+      "runtimeEnabled": true,
+      "source": "VoltAgent/awesome-design-md via open-design",
+      "license": "MIT"
+    },
+    {
+      "id": "design_system.replicate",
+      "type": "design_system",
+      "title": "Design System Inspired by Replicate",
+      "description": "Run ML models via API. Clean white canvas, code-forward.",
+      "path": "design-systems/replicate/DESIGN.md",
+      "triggers": [
+        "replicate",
+        "Design System Inspired by Replicate"
+      ],
+      "category": "AI & LLM",
+      "runtimeEnabled": true,
+      "source": "VoltAgent/awesome-design-md via open-design",
+      "license": "MIT"
+    },
+    {
+      "id": "design_system.resend",
+      "type": "design_system",
+      "title": "Design System Inspired by Resend",
+      "description": "Email API. Minimal dark theme, monospace accents.",
+      "path": "design-systems/resend/DESIGN.md",
+      "triggers": [
+        "resend",
+        "Design System Inspired by Resend"
+      ],
+      "category": "Productivity & SaaS",
+      "runtimeEnabled": true,
+      "source": "VoltAgent/awesome-design-md via open-design",
+      "license": "MIT"
+    },
+    {
+      "id": "design_system.revolut",
+      "type": "design_system",
+      "title": "Design System Inspired by Revolut",
+      "description": "Digital banking. Sleek dark interface, gradient cards, fintech precision.",
+      "path": "design-systems/revolut/DESIGN.md",
+      "triggers": [
+        "revolut",
+        "Design System Inspired by Revolut"
+      ],
+      "category": "Fintech & Crypto",
+      "runtimeEnabled": true,
+      "source": "VoltAgent/awesome-design-md via open-design",
+      "license": "MIT"
+    },
+    {
+      "id": "design_system.runwayml",
+      "type": "design_system",
+      "title": "Design System Inspired by Runway",
+      "description": "AI video generation. Cinematic dark UI, media-rich layout.",
+      "path": "design-systems/runwayml/DESIGN.md",
+      "triggers": [
+        "runwayml",
+        "Design System Inspired by Runway"
+      ],
+      "category": "AI & LLM",
+      "runtimeEnabled": true,
+      "source": "VoltAgent/awesome-design-md via open-design",
+      "license": "MIT"
+    },
+    {
+      "id": "design_system.sanity",
+      "type": "design_system",
+      "title": "Design System Inspired by Sanity",
+      "description": "Headless CMS. Red accent, content-first editorial layout.",
+      "path": "design-systems/sanity/DESIGN.md",
+      "triggers": [
+        "sanity",
+        "Design System Inspired by Sanity"
+      ],
+      "category": "Backend & Data",
+      "runtimeEnabled": true,
+      "source": "VoltAgent/awesome-design-md via open-design",
+      "license": "MIT"
+    },
+    {
+      "id": "design_system.sentry",
+      "type": "design_system",
+      "title": "Design System Inspired by Sentry",
+      "description": "Error monitoring. Dark dashboard, data-dense, pink-purple accent.",
+      "path": "design-systems/sentry/DESIGN.md",
+      "triggers": [
+        "sentry",
+        "Design System Inspired by Sentry"
+      ],
+      "category": "Backend & Data",
+      "runtimeEnabled": true,
+      "source": "VoltAgent/awesome-design-md via open-design",
+      "license": "MIT"
+    },
+    {
+      "id": "design_system.shopify",
+      "type": "design_system",
+      "title": "Design System Inspired by Shopify",
+      "description": "E-commerce platform. Dark-first cinematic, neon green accent, ultra-light type.",
+      "path": "design-systems/shopify/DESIGN.md",
+      "triggers": [
+        "shopify",
+        "Design System Inspired by Shopify"
+      ],
+      "category": "E-Commerce & Retail",
+      "runtimeEnabled": true,
+      "source": "VoltAgent/awesome-design-md via open-design",
+      "license": "MIT"
+    },
+    {
+      "id": "design_system.spacex",
+      "type": "design_system",
+      "title": "Design System Inspired by SpaceX",
+      "description": "Space technology. Stark black and white, full-bleed imagery, futuristic.",
+      "path": "design-systems/spacex/DESIGN.md",
+      "triggers": [
+        "spacex",
+        "Design System Inspired by SpaceX"
+      ],
+      "category": "Media & Consumer",
+      "runtimeEnabled": true,
+      "source": "VoltAgent/awesome-design-md via open-design",
+      "license": "MIT"
+    },
+    {
+      "id": "design_system.spotify",
+      "type": "design_system",
+      "title": "Design System Inspired by Spotify",
+      "description": "Music streaming. Vibrant green on dark, bold type, album-art-driven.",
+      "path": "design-systems/spotify/DESIGN.md",
+      "triggers": [
+        "spotify",
+        "Design System Inspired by Spotify"
+      ],
+      "category": "Media & Consumer",
+      "runtimeEnabled": true,
+      "source": "VoltAgent/awesome-design-md via open-design",
+      "license": "MIT"
+    },
+    {
+      "id": "design_system.starbucks",
+      "type": "design_system",
+      "title": "Design System Inspired by Starbucks",
+      "description": "Global coffee retail brand. Four-tier green system, warm cream canvas, full-pill buttons.",
+      "path": "design-systems/starbucks/DESIGN.md",
+      "triggers": [
+        "starbucks",
+        "Design System Inspired by Starbucks"
+      ],
+      "category": "E-Commerce & Retail",
+      "runtimeEnabled": true,
+      "source": "VoltAgent/awesome-design-md via open-design",
+      "license": "MIT"
+    },
+    {
+      "id": "design_system.stripe",
+      "type": "design_system",
+      "title": "Design System Inspired by Stripe",
+      "description": "Payment infrastructure. Signature purple gradients, weight-300 elegance.",
+      "path": "design-systems/stripe/DESIGN.md",
+      "triggers": [
+        "stripe",
+        "Design System Inspired by Stripe"
+      ],
+      "category": "Fintech & Crypto",
+      "runtimeEnabled": true,
+      "source": "VoltAgent/awesome-design-md via open-design",
+      "license": "MIT"
+    },
+    {
+      "id": "design_system.supabase",
+      "type": "design_system",
+      "title": "Design System Inspired by Supabase",
+      "description": "Open-source Firebase alternative. Dark emerald theme, code-first.",
+      "path": "design-systems/supabase/DESIGN.md",
+      "triggers": [
+        "supabase",
+        "Design System Inspired by Supabase"
+      ],
+      "category": "Backend & Data",
+      "runtimeEnabled": true,
+      "source": "VoltAgent/awesome-design-md via open-design",
+      "license": "MIT"
+    },
+    {
+      "id": "design_system.superhuman",
+      "type": "design_system",
+      "title": "Design System Inspired by Superhuman",
+      "description": "Fast email client. Premium dark UI, keyboard-first, purple glow.",
+      "path": "design-systems/superhuman/DESIGN.md",
+      "triggers": [
+        "superhuman",
+        "Design System Inspired by Superhuman"
+      ],
+      "category": "Developer Tools",
+      "runtimeEnabled": true,
+      "source": "VoltAgent/awesome-design-md via open-design",
+      "license": "MIT"
+    },
+    {
+      "id": "design_system.tesla",
+      "type": "design_system",
+      "title": "Design System Inspired by Tesla",
+      "description": "Electric automotive. Radical subtraction, full-viewport photography, near-zero UI.",
+      "path": "design-systems/tesla/DESIGN.md",
+      "triggers": [
+        "tesla",
+        "Design System Inspired by Tesla"
+      ],
+      "category": "Automotive",
+      "runtimeEnabled": true,
+      "source": "VoltAgent/awesome-design-md via open-design",
+      "license": "MIT"
+    },
+    {
+      "id": "design_system.theverge",
+      "type": "design_system",
+      "title": "Design System Inspired by The Verge",
+      "description": "Tech editorial media. Acid-mint and ultraviolet accents, Manuka display, rave-flyer story tiles.",
+      "path": "design-systems/theverge/DESIGN.md",
+      "triggers": [
+        "theverge",
+        "Design System Inspired by The Verge"
+      ],
+      "category": "Media & Consumer",
+      "runtimeEnabled": true,
+      "source": "VoltAgent/awesome-design-md via open-design",
+      "license": "MIT"
+    },
+    {
+      "id": "design_system.together-ai",
+      "type": "design_system",
+      "title": "Design System Inspired by Together AI",
+      "description": "Open-source AI infrastructure. Technical, blueprint-style design.",
+      "path": "design-systems/together-ai/DESIGN.md",
+      "triggers": [
+        "together-ai",
+        "Design System Inspired by Together AI"
+      ],
+      "category": "AI & LLM",
+      "runtimeEnabled": true,
+      "source": "VoltAgent/awesome-design-md via open-design",
+      "license": "MIT"
+    },
+    {
+      "id": "design_system.uber",
+      "type": "design_system",
+      "title": "Design System Inspired by Uber",
+      "description": "Mobility platform. Bold black and white, tight type, urban energy.",
+      "path": "design-systems/uber/DESIGN.md",
+      "triggers": [
+        "uber",
+        "Design System Inspired by Uber"
+      ],
+      "category": "Media & Consumer",
+      "runtimeEnabled": true,
+      "source": "VoltAgent/awesome-design-md via open-design",
+      "license": "MIT"
+    },
+    {
+      "id": "design_system.vercel",
+      "type": "design_system",
+      "title": "Design System Inspired by Vercel",
+      "description": "Frontend deployment. Black and white precision, Geist font.",
+      "path": "design-systems/vercel/DESIGN.md",
+      "triggers": [
+        "vercel",
+        "Design System Inspired by Vercel"
+      ],
+      "category": "Developer Tools",
+      "runtimeEnabled": true,
+      "source": "VoltAgent/awesome-design-md via open-design",
+      "license": "MIT"
+    },
+    {
+      "id": "design_system.vodafone",
+      "type": "design_system",
+      "title": "Design System Inspired by Vodafone",
+      "description": "Global telecom brand. Monumental uppercase display, Vodafone Red chapter bands.",
+      "path": "design-systems/vodafone/DESIGN.md",
+      "triggers": [
+        "vodafone",
+        "Design System Inspired by Vodafone"
+      ],
+      "category": "Media & Consumer",
+      "runtimeEnabled": true,
+      "source": "VoltAgent/awesome-design-md via open-design",
+      "license": "MIT"
+    },
+    {
+      "id": "design_system.voltagent",
+      "type": "design_system",
+      "title": "Design System Inspired by VoltAgent",
+      "description": "AI agent framework. Void-black canvas, emerald accent, terminal-native.",
+      "path": "design-systems/voltagent/DESIGN.md",
+      "triggers": [
+        "voltagent",
+        "Design System Inspired by VoltAgent"
+      ],
+      "category": "AI & LLM",
+      "runtimeEnabled": true,
+      "source": "VoltAgent/awesome-design-md via open-design",
+      "license": "MIT"
+    },
+    {
+      "id": "design_system.warm-editorial",
+      "type": "design_system",
+      "title": "Warm Editorial",
+      "description": "A serif-led magazine aesthetic. Terracotta accent on warm off-white paper —",
+      "path": "design-systems/warm-editorial/DESIGN.md",
+      "triggers": [
+        "warm-editorial",
+        "Warm Editorial"
+      ],
+      "category": "Starter",
+      "runtimeEnabled": true,
+      "source": "open-design hand-authored starter",
+      "license": "recorded"
+    },
+    {
+      "id": "design_system.warp",
+      "type": "design_system",
+      "title": "Design System Inspired by Warp",
+      "description": "Modern terminal. Dark IDE-like interface, block-based command UI.",
+      "path": "design-systems/warp/DESIGN.md",
+      "triggers": [
+        "warp",
+        "Design System Inspired by Warp"
+      ],
+      "category": "Developer Tools",
+      "runtimeEnabled": true,
+      "source": "VoltAgent/awesome-design-md via open-design",
+      "license": "MIT"
+    },
+    {
+      "id": "design_system.webflow",
+      "type": "design_system",
+      "title": "Design System Inspired by Webflow",
+      "description": "Visual web builder. Blue-accented, polished marketing site aesthetic.",
+      "path": "design-systems/webflow/DESIGN.md",
+      "triggers": [
+        "webflow",
+        "Design System Inspired by Webflow"
+      ],
+      "category": "Design & Creative",
+      "runtimeEnabled": true,
+      "source": "VoltAgent/awesome-design-md via open-design",
+      "license": "MIT"
+    },
+    {
+      "id": "design_system.wired",
+      "type": "design_system",
+      "title": "Design System Inspired by WIRED",
+      "description": "Tech magazine. Paper-white broadsheet density, custom serif display, mono kickers, ink-blue links.",
+      "path": "design-systems/wired/DESIGN.md",
+      "triggers": [
+        "wired",
+        "Design System Inspired by WIRED"
+      ],
+      "category": "Media & Consumer",
+      "runtimeEnabled": true,
+      "source": "VoltAgent/awesome-design-md via open-design",
+      "license": "MIT"
+    },
+    {
+      "id": "design_system.wise",
+      "type": "design_system",
+      "title": "Design System Inspired by Wise",
+      "description": "Money transfer. Bright green accent, friendly and clear.",
+      "path": "design-systems/wise/DESIGN.md",
+      "triggers": [
+        "wise",
+        "Design System Inspired by Wise"
+      ],
+      "category": "Fintech & Crypto",
+      "runtimeEnabled": true,
+      "source": "VoltAgent/awesome-design-md via open-design",
+      "license": "MIT"
+    },
+    {
+      "id": "design_system.x-ai",
+      "type": "design_system",
+      "title": "Design System Inspired by xAI",
+      "description": "Elon Musk's AI lab. Stark monochrome, futuristic minimalism.",
+      "path": "design-systems/x-ai/DESIGN.md",
+      "triggers": [
+        "x-ai",
+        "Design System Inspired by xAI"
+      ],
+      "category": "AI & LLM",
+      "runtimeEnabled": true,
+      "source": "VoltAgent/awesome-design-md via open-design",
+      "license": "MIT"
+    },
+    {
+      "id": "design_system.xiaohongshu",
+      "type": "design_system",
+      "title": "Design System Inspired by Xiaohongshu",
+      "description": "Lifestyle UGC social platform. Singular brand red, generous radius, content-first.",
+      "path": "design-systems/xiaohongshu/DESIGN.md",
+      "triggers": [
+        "xiaohongshu",
+        "Design System Inspired by Xiaohongshu"
+      ],
+      "category": "Media & Consumer",
+      "runtimeEnabled": true,
+      "source": "VoltAgent/awesome-design-md via open-design",
+      "license": "MIT"
+    },
+    {
+      "id": "design_system.zapier",
+      "type": "design_system",
+      "title": "Design System Inspired by Zapier",
+      "description": "Automation platform. Warm orange, friendly illustration-driven.",
+      "path": "design-systems/zapier/DESIGN.md",
+      "triggers": [
+        "zapier",
+        "Design System Inspired by Zapier"
+      ],
+      "category": "Productivity & SaaS",
+      "runtimeEnabled": true,
+      "source": "VoltAgent/awesome-design-md via open-design",
+      "license": "MIT"
+    },
+    {
+      "id": "device_frame.android-pixel",
+      "type": "device_frame",
+      "title": "Android Pixel",
+      "description": "Reusable Android Pixel frame for design previews.",
+      "path": "assets/frames/android-pixel.html",
+      "triggers": [
+        "android-pixel",
+        "Android Pixel"
+      ],
+      "runtimeEnabled": true,
+      "source": "open-design",
+      "license": "recorded"
+    },
+    {
+      "id": "device_frame.browser-chrome",
+      "type": "device_frame",
+      "title": "Browser Chrome",
+      "description": "Reusable Browser Chrome frame for design previews.",
+      "path": "assets/frames/browser-chrome.html",
+      "triggers": [
+        "browser-chrome",
+        "Browser Chrome"
+      ],
+      "runtimeEnabled": true,
+      "source": "open-design",
+      "license": "recorded"
+    },
+    {
+      "id": "device_frame.ipad-pro",
+      "type": "device_frame",
+      "title": "Ipad Pro",
+      "description": "Reusable Ipad Pro frame for design previews.",
+      "path": "assets/frames/ipad-pro.html",
+      "triggers": [
+        "ipad-pro",
+        "Ipad Pro"
+      ],
+      "runtimeEnabled": true,
+      "source": "open-design",
+      "license": "recorded"
+    },
+    {
+      "id": "device_frame.iphone-15-pro",
+      "type": "device_frame",
+      "title": "Iphone 15 Pro",
+      "description": "Reusable Iphone 15 Pro frame for design previews.",
+      "path": "assets/frames/iphone-15-pro.html",
+      "triggers": [
+        "iphone-15-pro",
+        "Iphone 15 Pro"
+      ],
+      "runtimeEnabled": true,
+      "source": "open-design",
+      "license": "recorded"
+    },
+    {
+      "id": "device_frame.macbook",
+      "type": "device_frame",
+      "title": "Macbook",
+      "description": "Reusable Macbook frame for design previews.",
+      "path": "assets/frames/macbook.html",
+      "triggers": [
+        "macbook",
+        "Macbook"
+      ],
+      "runtimeEnabled": true,
+      "source": "open-design",
+      "license": "recorded"
+    }
+  ]
+}

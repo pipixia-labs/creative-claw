@@ -10,6 +10,7 @@ from typing import Any
 from google.adk.agents import BaseAgent
 
 from src.agents.experts.audio_basic_operations.audio_basic_operations_agent import AudioBasicOperationsAgent
+from src.agents.experts.code_generation.code_generation_expert import CodeGenerationExpert
 from src.agents.experts.image_basic_operations.image_basic_operations_agent import ImageBasicOperationsAgent
 from src.agents.experts.image_editing.image_editing_agent import ImageEditingAgent
 from src.agents.experts.image_generation.image_generation_agent import ImageGenerationAgent
@@ -169,6 +170,42 @@ _EXPERT_SPECS = {
         notes=(
             "Atomic text transformation only. "
             "Optional parameters: target_language, style, constraints."
+        ),
+    ),
+    "CodeGenerationExpert": ExpertSpec(
+        name="CodeGenerationExpert",
+        agent_factory=lambda: CodeGenerationExpert(name="CodeGenerationExpert"),
+        default_prompt_key="prompt",
+        supports_plain_prompt=True,
+        default_parameters={"language": "html"},
+        required_parameters=("prompt",),
+        required_parameter_groups=(RequiredParameterGroup(keys=("prompt",), description="prompt"),),
+        allowed_values={
+            "language": (
+                "html",
+                "css",
+                "javascript",
+                "js",
+                "typescript",
+                "ts",
+                "jsx",
+                "tsx",
+                "python",
+                "py",
+                "markdown",
+                "md",
+                "json",
+                "yaml",
+                "yml",
+                "toml",
+                "text",
+                "txt",
+            )
+        },
+        mirrored_output_keys=("code_generation_results",),
+        notes=(
+            "Generate exactly one code or text file. "
+            "Optional parameters: language, output_path, context_files, constraints."
         ),
     ),
     "ImageGroundingAgent": ExpertSpec(

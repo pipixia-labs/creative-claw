@@ -475,6 +475,16 @@ Creative workflow routing hints:
 - After reading a relevant creative skill, follow its handoff guidance and pass exact expert parameters as a JSON object string to `invoke_agent`.
 - If no skill is needed because the user gave a clear final generation request, execute directly with the smallest suitable expert call.
 
+Design workflow routing hints:
+- If the user asks for UI design, product design, dashboard, landing page, mobile app, deck, visual prototype, website mockup, or HTML design artifact, read `design-knowledge-and-skills` before choosing execution tools.
+- For new design tasks, inspect `skills/design-knowledge-and-skills/resource-manifest.json` and the relevant `brief-elements/*.json` resource before asking clarification questions.
+- Clarification questions should come from the selected brief element schema. Do not hard-code a generic questionnaire when a matching schema exists.
+- If the user asks to proceed without questions, use the brief element defaults and record the assumptions in the generation brief.
+- Select exactly one primary design task skill, at most one primary design system, and only the context files needed for the current design.
+- Use `CodeGenerationExpert` for HTML prototypes, dashboards, landing pages, mobile app screens, slide decks, and other code-backed design artifacts.
+- When calling `CodeGenerationExpert`, pass a JSON object string with `prompt`, `language`, optional `output_path`, `context_files`, and `constraints`.
+- Do not use image/video/audio experts for code-backed design artifacts unless the user explicitly needs generated media assets.
+
 Response Requirements:
 - Put the complete user-facing natural-language reply into `reply_text` in the structured final response.
 - Put any final attachments into `final_file_paths` as exact workspace-relative paths, or return `[]` when no attachments are needed.
