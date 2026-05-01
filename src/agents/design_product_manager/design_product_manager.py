@@ -12,6 +12,7 @@ from google.adk.agents import LlmAgent
 
 from conf.llm import build_llm
 from conf.path import PROJECT_PATH
+from src.agents.design_product_manager.validation import validate_design_artifacts
 
 _RESOURCE_ROOT = Path("skills/design-knowledge-and-skills")
 _MANIFEST_PATH = _RESOURCE_ROOT / "resource-manifest.json"
@@ -241,6 +242,68 @@ Your job is to turn a user's design request into one focused design production b
             code_generation_request=code_generation_request,
         )
 
+    def build_clarification_result(self, brief: DesignProductBrief) -> dict[str, Any]:
+        """Build a structured result when the design brief needs user input."""
+        brief_payload = brief.to_dict()
+        return {
+            "status": "needs_clarification",
+            "message": "Design brief needs user clarification before generation.",
+            "brief": brief_payload,
+            "resource_selection": brief_payload["selection"],
+            "questions": brief_payload["questions"],
+            "missing_fields": brief_payload["missing_fields"],
+            "design_issues": [
+                {
+                    "source": "brief",
+                    "severity": "info",
+                    "message": "Missing scenario-specific design elements should be answered before generation.",
+                }
+            ],
+            "next_action": "ask_user",
+            "code_generation": None,
+            "design_validation": [],
+            "output_files": [],
+        }
+
+    def build_generation_result(
+        self,
+        *,
+        brief: DesignProductBrief,
+        code_generation_result: dict[str, Any],
+        design_validation: list[dict[str, Any]],
+    ) -> dict[str, Any]:
+        """Interpret code-generation and artifact-validation results for the Design product line."""
+        brief_payload = brief.to_dict()
+        output_files = list(code_generation_result.get("output_files") or [])
+        design_issues = self._build_design_issues(
+            code_generation_result=code_generation_result,
+            design_validation=design_validation,
+        )
+        status, next_action = self._select_result_status_and_action(
+            code_generation_result=code_generation_result,
+            output_files=output_files,
+            design_issues=design_issues,
+        )
+        return {
+            "status": status,
+            "message": self._build_result_message(
+                status=status,
+                code_generation_result=code_generation_result,
+                design_issues=design_issues,
+            ),
+            "brief": brief_payload,
+            "resource_selection": brief_payload["selection"],
+            "code_generation": code_generation_result,
+            "design_validation": design_validation,
+            "design_issues": design_issues,
+            "output_files": output_files,
+            "next_action": next_action,
+        }
+
+    def validate_generated_artifacts(self, output_paths: list[str]) -> list[dict[str, Any]]:
+        """Run the current narrow artifact validation checks for generated design files."""
+        return validate_design_artifacts(output_paths)
+
     def _load_manifest(self) -> dict[str, Any]:
         """Load the design resource manifest once per manager instance."""
         if self._manifest is not None:
@@ -289,6 +352,93 @@ Your job is to turn a user's design request into one focused design production b
             ),
             brief_resources[0],
         )
+
+    @staticmethod
+    def _build_design_issues(
+        *,
+        code_generation_result: dict[str, Any],
+        design_validation: list[dict[str, Any]],
+    ) -> list[dict[str, Any]]:
+        """Return DesignProductManager-owned issues from bottom capability results."""
+        issues: list[dict[str, Any]] = []
+        if str(code_generation_result.get("status", "")).strip().lower() != "success":
+            issues.append(
+                {
+                    "source": "code_generation",
+                    "severity": "error",
+                    "message": str(code_generation_result.get("message", "") or "Code generation failed."),
+                    "error_type": str(code_generation_result.get("error_type", "") or ""),
+                    "retryable": bool(code_generation_result.get("retryable", False)),
+                }
+            )
+
+        for validation in design_validation:
+            path = str(validation.get("path", "") or "")
+            for message in validation.get("errors", []) or []:
+                issues.append(
+                    {
+                        "source": "design_validation",
+                        "severity": "error",
+                        "path": path,
+                        "message": str(message),
+                    }
+                )
+            for message in validation.get("warnings", []) or []:
+                issues.append(
+                    {
+                        "source": "design_validation",
+                        "severity": "warning",
+                        "path": path,
+                        "message": str(message),
+                    }
+                )
+        return issues
+
+    @staticmethod
+    def _select_result_status_and_action(
+        *,
+        code_generation_result: dict[str, Any],
+        output_files: list[dict[str, Any]],
+        design_issues: list[dict[str, Any]],
+    ) -> tuple[str, str]:
+        """Return product-line result status and recommended next action."""
+        code_status = str(code_generation_result.get("status", "")).strip().lower()
+        if code_status != "success":
+            if bool(code_generation_result.get("retryable", False)):
+                return "generation_failed", "user_can_retry_generation"
+            return "generation_failed", "inspect_generation_setup"
+        if not output_files:
+            return "generation_failed", "inspect_generation_result"
+
+        has_validation_error = any(
+            issue["source"] == "design_validation" and issue["severity"] == "error"
+            for issue in design_issues
+        )
+        if has_validation_error:
+            return "validation_failed", "user_can_request_regeneration"
+
+        has_warning = any(issue["severity"] == "warning" for issue in design_issues)
+        if has_warning:
+            return "warning", "review_validation_warnings"
+
+        return "success", "deliver_artifact"
+
+    @staticmethod
+    def _build_result_message(
+        *,
+        status: str,
+        code_generation_result: dict[str, Any],
+        design_issues: list[dict[str, Any]],
+    ) -> str:
+        """Build a concise product-line message from result status."""
+        if status == "success":
+            return str(code_generation_result.get("message", "") or "Design artifact generated.")
+        if status == "warning":
+            return "Design artifact generated with validation warnings."
+        if status == "validation_failed":
+            return "Design artifact was generated but failed basic artifact validation."
+        first_issue = design_issues[0]["message"] if design_issues else "Design generation failed."
+        return str(first_issue)
 
     def _select_task_skill(
         self,

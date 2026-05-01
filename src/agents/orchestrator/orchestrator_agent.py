@@ -18,7 +18,7 @@ from google.adk.tools.tool_context import ToolContext
 from google.adk.models import LlmRequest
 from google.genai.types import Content, Part
 
-from src.agents.design_product_manager import DesignProductManager, validate_design_artifacts
+from src.agents.design_product_manager import DesignProductManager
 from conf.agent import EXPERTS_LIST
 from conf.llm import build_llm, resolve_llm_model_name
 from conf.system import SYS_CONFIG
@@ -37,6 +37,7 @@ from src.runtime.expert_dispatcher import dispatch_expert_call
 from src.runtime.expert_registry import build_expert_contract_summary
 from src.runtime.tool_display import format_tool_args, stringify_value, summarize_tool_result
 from src.runtime.workspace import (
+    build_generated_output_path,
     build_workspace_file_record,
     load_local_file_part,
     looks_like_image,
@@ -98,6 +99,32 @@ _DISPLAY_TOOL_TITLES = {
     "list_session_files": "List Session Files",
     "run_design_product": "Run Design Product",
 }
+
+
+def _default_design_output_path(state: dict[str, Any], output_format: str) -> str:
+    """Return a parent-session-scoped default path for generated Design artifacts."""
+    normalized_format = str(output_format or "html").strip().lower().lstrip(".")
+    if not normalized_format or not normalized_format.replace("_", "").isalnum():
+        normalized_format = "html"
+    extension_by_format = {
+        "html": ".html",
+        "htm": ".html",
+        "javascript": ".js",
+        "js": ".js",
+        "typescript": ".ts",
+        "ts": ".ts",
+        "jsx": ".jsx",
+        "tsx": ".tsx",
+    }
+    output_path = build_generated_output_path(
+        session_id=str(state.get("sid", "") or "default"),
+        turn_index=int(state.get("turn_index", 0) or 0),
+        step=int(state.get("step", 0) or 0),
+        output_type="design",
+        index=0,
+        extension=extension_by_format.get(normalized_format, f".{normalized_format}"),
+    )
+    return workspace_relative_path(output_path)
 
 
 def _format_file_summary(file_info: dict[str, Any], *, index: int) -> str:
@@ -1328,24 +1355,38 @@ Expert parameter contracts:
             brief_payload = brief.to_dict()
             tool_context.state["design_product_brief"] = brief_payload
             if brief.needs_clarification:
-                return {
-                    "status": "needs_clarification",
-                    "message": "Design brief needs user clarification before generation.",
-                    "brief": brief_payload,
-                    "questions": brief_payload["questions"],
-                    "missing_fields": brief_payload["missing_fields"],
-                }
+                result = self.design_product_manager.build_clarification_result(brief)
+                tool_context.state["design_product_result"] = result
+                return result
 
             if "CodeGenerationExpert" not in self.expert_agents:
-                return {
-                    "status": "error",
-                    "message": "CodeGenerationExpert is not available for design product generation.",
-                    "brief": brief_payload,
-                }
+                result = self.design_product_manager.build_generation_result(
+                    brief=brief,
+                    code_generation_result={
+                        "status": "error",
+                        "message": "CodeGenerationExpert is not available for design product generation.",
+                        "error_type": "expert_unavailable",
+                        "retryable": False,
+                        "raw_error_summary": "CodeGenerationExpert is not registered.",
+                        "output_files": [],
+                    },
+                    design_validation=[],
+                )
+                tool_context.state["design_product_result"] = result
+                return result
+
+            code_generation_request = dict(brief.code_generation_request)
+            if not str(code_generation_request.get("output_path", "")).strip():
+                code_generation_request["output_path"] = _default_design_output_path(
+                    tool_context.state,
+                    str(code_generation_request.get("language", output_format) or output_format),
+                )
+                brief.code_generation_request["output_path"] = code_generation_request["output_path"]
+                tool_context.state["design_product_brief"] = brief.to_dict()
 
             invocation = await dispatch_expert_call(
                 agent_name="CodeGenerationExpert",
-                prompt=json.dumps(brief.code_generation_request, ensure_ascii=False),
+                prompt=json.dumps(code_generation_request, ensure_ascii=False),
                 tool_context=tool_context,
                 expert_agents=self.expert_agents,
                 app_name=self.app_name,
@@ -1357,15 +1398,12 @@ Expert parameter contracts:
                 for file_info in output_files
                 if isinstance(file_info, dict) and str(file_info.get("path", "")).strip()
             ]
-            design_validation = validate_design_artifacts(output_paths)
-            result = {
-                "status": invocation.tool_result.get("status", "error"),
-                "message": invocation.tool_result.get("message", ""),
-                "brief": brief_payload,
-                "code_generation": invocation.tool_result,
-                "output_files": output_files,
-                "design_validation": design_validation,
-            }
+            design_validation = self.design_product_manager.validate_generated_artifacts(output_paths)
+            result = self.design_product_manager.build_generation_result(
+                brief=brief,
+                code_generation_result=invocation.tool_result,
+                design_validation=design_validation,
+            )
             tool_context.state["design_product_result"] = result
             return result
 

@@ -85,10 +85,79 @@ class CodeGenerationExpertTests(unittest.IsolatedAsyncioTestCase):
 
         self.assertEqual(result["status"], "success")
         self.assertEqual(result["output_path"], relative_output_path)
+        self.assertEqual(result["error_type"], "")
+        self.assertFalse(result["retryable"])
         self.assertEqual(generated_content, "<!doctype html><html><body>Dashboard</body></html>")
         self.assertIn("single self-contained HTML", captured_request["text"])
         self.assertIn("brief-elements/dashboard.json", captured_request["text"])
         self.assertIn("operations dashboard", captured_request["text"])
+
+    async def test_code_generation_tool_reports_empty_model_response(self) -> None:
+        class _EmptyLlmAgent:
+            def __init__(self, **_kwargs) -> None:
+                pass
+
+            async def run_async(self, ctx):
+                yield _FakeEvent("")
+
+        with tempfile.TemporaryDirectory(dir=workspace_root()) as tmp_dir:
+            output_path = Path(tmp_dir) / "empty.html"
+            relative_output_path = workspace_relative_path(output_path)
+
+            with (
+                patch("src.agents.experts.code_generation.tool.LlmAgent", _EmptyLlmAgent),
+                patch("src.agents.experts.code_generation.tool.build_llm", return_value="fake-model"),
+                patch(
+                    "src.agents.experts.code_generation.tool.resolve_llm_model_name",
+                    return_value="fake-model",
+                ),
+            ):
+                result = await code_generation_tool(
+                    _build_ctx({"turn_index": 0, "step": 0}),
+                    prompt="Create an operations dashboard.",
+                    language="html",
+                    output_path=relative_output_path,
+                )
+
+        self.assertEqual(result["status"], "error")
+        self.assertEqual(result["error_type"], "empty_result")
+        self.assertTrue(result["retryable"])
+        self.assertEqual(result["raw_error_summary"], "empty model response")
+        self.assertFalse(output_path.exists())
+
+    async def test_code_generation_tool_reports_retryable_network_errors(self) -> None:
+        class _FailingLlmAgent:
+            def __init__(self, **_kwargs) -> None:
+                pass
+
+            async def run_async(self, ctx):
+                raise TimeoutError("network timeout")
+                yield
+
+        with tempfile.TemporaryDirectory(dir=workspace_root()) as tmp_dir:
+            output_path = Path(tmp_dir) / "network.html"
+            relative_output_path = workspace_relative_path(output_path)
+
+            with (
+                patch("src.agents.experts.code_generation.tool.LlmAgent", _FailingLlmAgent),
+                patch("src.agents.experts.code_generation.tool.build_llm", return_value="fake-model"),
+                patch(
+                    "src.agents.experts.code_generation.tool.resolve_llm_model_name",
+                    return_value="fake-model",
+                ),
+            ):
+                result = await code_generation_tool(
+                    _build_ctx({"turn_index": 0, "step": 0}),
+                    prompt="Create an operations dashboard.",
+                    language="html",
+                    output_path=relative_output_path,
+                )
+
+        self.assertEqual(result["status"], "error")
+        self.assertEqual(result["error_type"], "network_error")
+        self.assertTrue(result["retryable"])
+        self.assertIn("TimeoutError", result["raw_error_summary"])
+        self.assertFalse(output_path.exists())
 
     async def test_code_generation_expert_requires_prompt(self) -> None:
         agent = CodeGenerationExpert(name="CodeGenerationExpert")
@@ -99,6 +168,8 @@ class CodeGenerationExpertTests(unittest.IsolatedAsyncioTestCase):
         current_output = events[0].actions.state_delta["current_output"]
         self.assertEqual(current_output["status"], "error")
         self.assertIn("must include: prompt", current_output["message"])
+        self.assertEqual(current_output["error_type"], "invalid_parameters")
+        self.assertFalse(current_output["retryable"])
 
     async def test_code_generation_expert_emits_output_files(self) -> None:
         agent = CodeGenerationExpert(name="CodeGenerationExpert")
@@ -129,6 +200,9 @@ class CodeGenerationExpertTests(unittest.IsolatedAsyncioTestCase):
                     "language": "html",
                     "provider": "google_adk",
                     "model_name": "fake-model",
+                    "error_type": "",
+                    "retryable": False,
+                    "raw_error_summary": "",
                     "warnings": [],
                 }
             ),
@@ -138,6 +212,8 @@ class CodeGenerationExpertTests(unittest.IsolatedAsyncioTestCase):
         current_output = events[0].actions.state_delta["current_output"]
         self.assertEqual(current_output["status"], "success")
         self.assertEqual(current_output["output_files"][0]["path"], "generated/design/dashboard.html")
+        self.assertEqual(current_output["error_type"], "")
+        self.assertFalse(current_output["retryable"])
         self.assertEqual(events[0].actions.state_delta["code_generation_results"]["language"], "html")
 
 

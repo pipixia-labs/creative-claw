@@ -183,6 +183,18 @@ def _build_generation_request(
     return "\n".join(lines)
 
 
+def _classify_generation_exception(exc: Exception) -> tuple[str, bool]:
+    """Classify a code-generation exception into a stable caller-facing error type."""
+    text = f"{type(exc).__name__}: {exc}".lower()
+    if any(marker in text for marker in ("rate", "quota", "429", "overload", "unavailable", "503")):
+        return "api_overloaded", True
+    if any(marker in text for marker in ("timeout", "ssl", "connection", "network", "dns")):
+        return "network_error", True
+    if any(marker in text for marker in ("auth", "permission", "401", "403", "api key")):
+        return "auth_error", False
+    return "generation_error", True
+
+
 async def code_generation_tool(
     ctx: InvocationContext,
     *,
@@ -194,36 +206,38 @@ async def code_generation_tool(
 ) -> dict[str, Any]:
     """Generate one code file with the configured LLM and write it to workspace."""
     normalized_language = normalize_code_language(language)
-    output_file = _resolve_output_path(output_path, language=normalized_language, ctx=ctx)
-    relative_output_path = workspace_relative_path(output_file)
-    context_text, warnings = _read_context_files(context_files or [])
-    request_text = _build_generation_request(
-        prompt=prompt,
-        language=normalized_language,
-        output_path=relative_output_path,
-        context_text=context_text,
-        constraints=constraints or [],
-    )
-
-    def before_model_callback(
-        callback_context: CallbackContext,
-        llm_request: LlmRequest,
-    ) -> None:
-        """Inject the complete code-generation request into the LLM call."""
-        llm_request.contents.append(Content(role="user", parts=[Part(text=request_text)]))
-
-    llm = LlmAgent(
-        name="CodeGenerationToolAgent",
-        model=build_llm(),
-        instruction=(
-            "You are an expert software engineer. Generate exactly one requested file. "
-            "Return only the file contents."
-        ),
-        include_contents="none",
-        before_model_callback=before_model_callback,
-    )
-
+    relative_output_path = str(output_path or "").strip()
+    warnings: list[str] = []
     try:
+        output_file = _resolve_output_path(output_path, language=normalized_language, ctx=ctx)
+        relative_output_path = workspace_relative_path(output_file)
+        context_text, warnings = _read_context_files(context_files or [])
+        request_text = _build_generation_request(
+            prompt=prompt,
+            language=normalized_language,
+            output_path=relative_output_path,
+            context_text=context_text,
+            constraints=constraints or [],
+        )
+
+        def before_model_callback(
+            callback_context: CallbackContext,
+            llm_request: LlmRequest,
+        ) -> None:
+            """Inject the complete code-generation request into the LLM call."""
+            llm_request.contents.append(Content(role="user", parts=[Part(text=request_text)]))
+
+        llm = LlmAgent(
+            name="CodeGenerationToolAgent",
+            model=build_llm(),
+            instruction=(
+                "You are an expert software engineer. Generate exactly one requested file. "
+                "Return only the file contents."
+            ),
+            include_contents="none",
+            before_model_callback=before_model_callback,
+        )
+
         generated_text = ""
         async for event in llm.run_async(ctx):
             if event.is_final_response() and event.content and event.content.parts:
@@ -235,6 +249,11 @@ async def code_generation_tool(
             return {
                 "status": "error",
                 "message": "Code generation returned empty code.",
+                "error_type": "empty_result",
+                "retryable": True,
+                "raw_error_summary": "empty model response",
+                "output_path": relative_output_path,
+                "language": normalized_language,
                 "provider": "google_adk",
                 "model_name": resolve_llm_model_name(),
                 "warnings": warnings,
@@ -244,6 +263,9 @@ async def code_generation_tool(
         return {
             "status": "success",
             "message": f"Generated {normalized_language} code at {relative_output_path}.",
+            "error_type": "",
+            "retryable": False,
+            "raw_error_summary": "",
             "output_path": relative_output_path,
             "output_files": [
                 {
@@ -258,16 +280,21 @@ async def code_generation_tool(
             "warnings": warnings,
         }
     except Exception as exc:
+        error_type, retryable = _classify_generation_exception(exc)
+        raw_error_summary = f"{type(exc).__name__}: {exc}"
         logger.opt(exception=exc).error(
             "code generation failed: output_path={} language={} error_type={} error={!r}",
             relative_output_path,
             normalized_language,
-            type(exc).__name__,
+            error_type,
             exc,
         )
         return {
             "status": "error",
             "message": f"Code generation failed: {type(exc).__name__}: {exc}",
+            "error_type": error_type,
+            "retryable": retryable,
+            "raw_error_summary": raw_error_summary,
             "output_path": relative_output_path,
             "language": normalized_language,
             "provider": "google_adk",

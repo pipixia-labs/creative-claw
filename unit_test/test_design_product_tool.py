@@ -1,5 +1,5 @@
+import json
 import unittest
-from pathlib import Path
 from types import SimpleNamespace
 from unittest.mock import patch
 
@@ -8,7 +8,7 @@ from google.adk.sessions import InMemorySessionService
 
 from src.agents.experts.code_generation import CodeGenerationExpert
 from src.agents.orchestrator.orchestrator_agent import Orchestrator
-from src.runtime.workspace import build_workspace_file_record, workspace_relative_path, workspace_root
+from src.runtime.workspace import build_workspace_file_record, workspace_root
 
 
 class DesignProductToolTests(unittest.IsolatedAsyncioTestCase):
@@ -42,8 +42,12 @@ class DesignProductToolTests(unittest.IsolatedAsyncioTestCase):
 
         self.assertEqual(result["status"], "needs_clarification")
         self.assertTrue(result["questions"])
+        self.assertEqual(result["resource_selection"]["surface"], "dashboard")
+        self.assertEqual(result["next_action"], "ask_user")
+        self.assertEqual(result["design_issues"][0]["source"], "brief")
         dispatch.assert_not_called()
         self.assertIn("design_product_brief", tool_context.state)
+        self.assertEqual(tool_context.state["design_product_result"]["status"], "needs_clarification")
 
     async def test_run_design_product_calls_code_generation_and_records_output(self) -> None:
         orchestrator = Orchestrator(
@@ -52,9 +56,12 @@ class DesignProductToolTests(unittest.IsolatedAsyncioTestCase):
             expert_agents={"CodeGenerationExpert": CodeGenerationExpert(name="CodeGenerationExpert")},
         )
         tool_context = SimpleNamespace(state={"sid": "design-test", "turn_index": 1, "step": 0, "expert_step": 0})
+        captured_request: dict[str, object] = {}
 
         async def _fake_dispatch(**kwargs):
-            output_file = workspace_root() / "generated" / "design-test" / "turn1" / "dashboard.html"
+            request = json.loads(kwargs["prompt"])
+            captured_request.update(request)
+            output_file = workspace_root() / str(request["output_path"])
             output_file.parent.mkdir(parents=True, exist_ok=True)
             output_file.write_text(
                 """<!doctype html>
@@ -94,6 +101,11 @@ class DesignProductToolTests(unittest.IsolatedAsyncioTestCase):
                     "message": "Generated html code.",
                     "output_text": "",
                     "output_files": [record],
+                    "error_type": "",
+                    "retryable": False,
+                    "raw_error_summary": "",
+                    "language": "html",
+                    "output_path": record["path"],
                     "structured_data": {},
                     "parameters": {},
                 }
@@ -115,15 +127,61 @@ class DesignProductToolTests(unittest.IsolatedAsyncioTestCase):
         self.assertEqual(result["brief"]["selection"]["surface"], "dashboard")
         self.assertEqual(result["brief"]["selection"]["task_skill"], "dashboard")
         self.assertEqual(result["brief"]["selection"]["design_system"], "linear-app")
+        self.assertEqual(result["resource_selection"]["surface"], "dashboard")
+        self.assertEqual(result["next_action"], "deliver_artifact")
+        self.assertEqual(result["design_issues"], [])
         self.assertEqual(len(result["output_files"]), 1)
-        self.assertEqual(
-            result["output_files"][0]["path"],
-            workspace_relative_path(Path(workspace_root()) / "generated" / "design-test" / "turn1" / "dashboard.html"),
-        )
+        self.assertTrue(str(captured_request["output_path"]).startswith("generated/design-test/turn_1/"))
+        self.assertIn("_design_output0.html", str(captured_request["output_path"]))
+        self.assertEqual(result["output_files"][0]["path"], captured_request["output_path"])
         self.assertIn("design_product_result", tool_context.state)
         self.assertEqual(tool_context.state["new_files"][0]["path"], result["output_files"][0]["path"])
         self.assertEqual(result["design_validation"][0]["status"], "pass")
         self.assertTrue(result["design_validation"][0]["checks"]["parseable_html"])
+
+    async def test_run_design_product_reports_generation_failure_through_manager(self) -> None:
+        orchestrator = Orchestrator(
+            session_service=InMemorySessionService(),
+            artifact_service=InMemoryArtifactService(),
+            expert_agents={"CodeGenerationExpert": CodeGenerationExpert(name="CodeGenerationExpert")},
+        )
+        tool_context = SimpleNamespace(state={"sid": "design-test", "turn_index": 1, "step": 0, "expert_step": 0})
+
+        async def _fake_dispatch(**_kwargs):
+            return SimpleNamespace(
+                tool_result={
+                    "agent_name": "CodeGenerationExpert",
+                    "status": "error",
+                    "message": "Code generation failed: API overloaded.",
+                    "output_text": "",
+                    "output_files": [],
+                    "error_type": "api_overloaded",
+                    "retryable": True,
+                    "raw_error_summary": "ServiceUnavailable: overloaded",
+                    "language": "html",
+                    "output_path": "",
+                    "structured_data": {},
+                    "parameters": {},
+                }
+            )
+
+        with patch(
+            "src.agents.orchestrator.orchestrator_agent.dispatch_expert_call",
+            side_effect=_fake_dispatch,
+        ):
+            result = await orchestrator.run_design_product(
+                prompt="设计一个运营数据 dashboard。",
+                scenario="dashboard",
+                allow_assumptions=True,
+                tool_context=tool_context,
+            )
+
+        self.assertEqual(result["status"], "generation_failed")
+        self.assertEqual(result["next_action"], "user_can_retry_generation")
+        self.assertEqual(result["design_issues"][0]["source"], "code_generation")
+        self.assertEqual(result["design_issues"][0]["error_type"], "api_overloaded")
+        self.assertEqual(result["design_validation"], [])
+        self.assertEqual(tool_context.state["design_product_result"]["status"], "generation_failed")
 
 
 if __name__ == "__main__":

@@ -26,7 +26,16 @@ class CodeGenerationExpert(CreativeExpert):
         prompt = str(current_parameters.get("prompt", "")).strip()
         if not prompt:
             error_text = f"Missing parameters provided to {self.name}, must include: prompt"
-            current_output = {"status": "error", "message": error_text, "output_files": []}
+            current_output = _build_current_output(
+                {
+                    "status": "error",
+                    "message": error_text,
+                    "error_type": "invalid_parameters",
+                    "retryable": False,
+                    "raw_error_summary": error_text,
+                    "output_files": [],
+                }
+            )
             yield self.format_event(error_text, {"current_output": current_output})
             return
 
@@ -40,26 +49,11 @@ class CodeGenerationExpert(CreativeExpert):
         )
 
         if result["status"] == "error":
-            current_output = {
-                "status": "error",
-                "message": result["message"],
-                "output_files": [],
-                "warnings": result.get("warnings", []),
-            }
+            current_output = _build_current_output(result)
             yield self.format_event(result["message"], {"current_output": current_output})
             return
 
-        current_output = {
-            "status": "success",
-            "message": result["message"],
-            "output_text": result["message"],
-            "output_files": result.get("output_files", []),
-            "language": result.get("language", ""),
-            "output_path": result.get("output_path", ""),
-            "warnings": result.get("warnings", []),
-            "provider": result.get("provider", ""),
-            "model_name": result.get("model_name", ""),
-        }
+        current_output = _build_current_output(result)
         yield self.format_event(
             result["message"],
             {
@@ -67,6 +61,26 @@ class CodeGenerationExpert(CreativeExpert):
                 "code_generation_results": current_output,
             },
         )
+
+
+def _build_current_output(result: dict[str, Any]) -> dict[str, Any]:
+    """Return CodeGenerationExpert output in its stable capability contract."""
+    message = str(result.get("message", "") or "").strip()
+    status = str(result.get("status", "error") or "error").strip().lower()
+    return {
+        "status": status,
+        "message": message,
+        "output_text": message if status == "success" else "",
+        "output_files": list(result.get("output_files") or []),
+        "error_type": str(result.get("error_type", "") or "").strip(),
+        "retryable": bool(result.get("retryable", False)),
+        "raw_error_summary": str(result.get("raw_error_summary", "") or "").strip(),
+        "language": str(result.get("language", "") or "").strip(),
+        "output_path": str(result.get("output_path", "") or "").strip(),
+        "warnings": list(result.get("warnings") or []),
+        "provider": str(result.get("provider", "") or "").strip(),
+        "model_name": str(result.get("model_name", "") or "").strip(),
+    }
 
 
 def _as_string_list(value: Any) -> list[str]:

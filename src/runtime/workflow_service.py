@@ -4,23 +4,19 @@ from __future__ import annotations
 
 import json
 import uuid
-from typing import Any
 
 from google.adk.artifacts import InMemoryArtifactService
 from google.adk.events import Event, EventActions
 from google.adk.sessions import InMemorySessionService
 from google.genai.types import Content, Part
 
-from src.agents.design_product_manager import DesignProductBrief, DesignProductManager, validate_design_artifacts
 from conf.system import SYS_CONFIG
 from src.agents.orchestrator.orchestrator_agent import Orchestrator
 from src.logger import logger
-from src.runtime.expert_dispatcher import dispatch_expert_direct
 from src.runtime.expert_registry import build_expert_agents
 from src.runtime.models import InboundMessage, WorkflowEvent
 from src.runtime.step_events import reset_step_event_history, step_event_streaming_active
 from src.runtime.workspace import (
-    build_generated_output_path,
     build_workspace_file_record,
     generated_root,
     stage_attachment_into_workspace,
@@ -135,120 +131,6 @@ def _render_orchestration_history(history: list[dict[str, str]], limit: int = 8)
     return "\n\n".join(blocks)
 
 
-def _get_design_options(metadata: dict[str, Any]) -> dict[str, Any]:
-    """Return normalized Design product-line options from inbound metadata."""
-    design_options = metadata.get("design", {})
-    return dict(design_options) if isinstance(design_options, dict) else {}
-
-
-def _is_design_product_line(inbound: InboundMessage) -> bool:
-    """Return whether this inbound message targets the Design product line."""
-    return str(inbound.metadata.get("product_line", "") or "").strip().lower() == "design"
-
-
-def _build_design_intake_text(brief: DesignProductBrief) -> str:
-    """Render scenario-specific design questions as one final user-facing reply."""
-    lines = [
-        "我需要先确认这些设计要素，避免直接生成时方向跑偏：",
-        "",
-    ]
-    for index, item in enumerate(brief.questions, start=1):
-        lines.append(f"{index}. {item['question']}")
-
-    selection = brief.selection
-    lines.extend(
-        [
-            "",
-            "当前系统已初步识别：",
-            f"- 场景：{selection.surface}",
-            f"- task skill：{selection.task_skill}",
-            f"- design system：{selection.design_system}",
-        ]
-    )
-    if selection.device_frame:
-        lines.append(f"- device frame：{selection.device_frame}")
-    lines.append("")
-    lines.append("你可以逐条回答，也可以说“使用默认假设继续”。")
-    return "\n".join(lines)
-
-
-def _build_design_generation_text(result: dict[str, Any]) -> str:
-    """Render a concise final reply for deterministic Design generation."""
-    status = str(result.get("status", "") or "").strip()
-    message = str(result.get("message", "") or "").strip()
-    output_files = [item for item in result.get("output_files", []) if isinstance(item, dict)]
-    validations = [item for item in result.get("design_validation", []) if isinstance(item, dict)]
-
-    if status == "success":
-        lines = ["设计产物已生成。"]
-    else:
-        lines = ["设计产物生成未完成。"]
-    if message:
-        lines.append(message)
-
-    if output_files:
-        lines.append("")
-        lines.append("输出文件：")
-        for file_info in output_files:
-            file_path = str(file_info.get("path", "") or "").strip()
-            if file_path:
-                lines.append(f"- {file_path}")
-
-    if validations:
-        failed = [
-            validation
-            for validation in validations
-            if str(validation.get("status", "") or "").strip() in {"error", "warning"}
-        ]
-        if failed:
-            lines.append("")
-            lines.append("基础校验提示：")
-            for validation in failed:
-                validation_path = str(validation.get("path", "") or "").strip()
-                validation_status = str(validation.get("status", "") or "").strip()
-                errors = [str(item) for item in validation.get("errors", [])]
-                warnings = [str(item) for item in validation.get("warnings", [])]
-                detail = "; ".join(errors + warnings)
-                lines.append(f"- {validation_path}: {validation_status} {detail}".rstrip())
-        else:
-            lines.append("")
-            lines.append("基础 HTML 校验通过。")
-
-    return "\n".join(lines)
-
-
-def _default_design_output_path(
-    *,
-    session_id: str,
-    turn_index: int,
-    step: int,
-    output_format: str,
-) -> str:
-    """Return a parent-session-scoped default path for generated Design artifacts."""
-    normalized_format = str(output_format or "html").strip().lower().lstrip(".")
-    if not normalized_format or not normalized_format.replace("_", "").isalnum():
-        normalized_format = "html"
-    extension_by_format = {
-        "html": ".html",
-        "htm": ".html",
-        "javascript": ".js",
-        "js": ".js",
-        "typescript": ".ts",
-        "ts": ".ts",
-        "jsx": ".jsx",
-        "tsx": ".tsx",
-    }
-    output_path = build_generated_output_path(
-        session_id=session_id,
-        turn_index=turn_index,
-        step=step,
-        output_type="design",
-        index=0,
-        extension=extension_by_format.get(normalized_format, f".{normalized_format}"),
-    )
-    return workspace_relative_path(output_path)
-
-
 class CreativeClawRuntime:
     """Run Creative Claw workflow for normalized channel messages."""
 
@@ -321,16 +203,6 @@ class CreativeClawRuntime:
             )
             return
 
-        design_product_event = await self._maybe_run_design_product_line(
-            user_id,
-            session_id,
-            inbound,
-            turn_index=current_turn,
-        )
-        if design_product_event is not None:
-            yield design_product_event
-            return
-
         orchestrator_agent = Orchestrator(
             session_service=self.session_service,
             artifact_service=self.artifact_service,
@@ -395,151 +267,6 @@ class CreativeClawRuntime:
                 text=error_text,
                 metadata={"session_id": session_id, "turn_index": current_turn},
             )
-
-    async def _maybe_run_design_product_line(
-        self,
-        user_id: str,
-        session_id: str,
-        inbound: InboundMessage,
-        *,
-        turn_index: int,
-    ) -> WorkflowEvent | None:
-        """Run the Design product line deterministically when requested by metadata."""
-        if not _is_design_product_line(inbound):
-            return None
-
-        design_options = _get_design_options(inbound.metadata)
-        manager = DesignProductManager()
-        allow_assumptions = design_options.get("allow_assumptions") is not False
-        brief = manager.prepare_brief(
-            prompt=inbound.text,
-            scenario=str(design_options.get("scenario", "") or ""),
-            output_format=str(design_options.get("output_format", "html") or "html"),
-            allow_assumptions=allow_assumptions,
-            design_system=str(design_options.get("design_system", "") or ""),
-            task_skill=str(design_options.get("task_skill", "") or ""),
-            device_frame=str(design_options.get("device_frame", "") or ""),
-            output_path=str(design_options.get("output_path", "") or ""),
-        )
-
-        current_session = await self.session_service.get_session(
-            app_name=SYS_CONFIG.app_name,
-            user_id=user_id,
-            session_id=session_id,
-        )
-        if current_session is None:
-            return WorkflowEvent(
-                event_type="error",
-                text="Workflow ended without a valid session.",
-                metadata={"session_id": session_id, "turn_index": turn_index},
-            )
-
-        if brief.needs_clarification:
-            reply_text = _build_design_intake_text(brief)
-            await self.session_service.append_event(
-                current_session,
-                Event(
-                    author="design_product_manager",
-                    actions=EventActions(
-                        state_delta={
-                            "workflow_status": "finished",
-                            "design_product_brief": brief.to_dict(),
-                            "final_summary": reply_text,
-                            "final_response": reply_text,
-                            "final_file_paths": [],
-                            "last_output_message": reply_text,
-                        }
-                    ),
-                ),
-            )
-            return WorkflowEvent(
-                event_type="final",
-                text=reply_text,
-                metadata={
-                    "session_id": session_id,
-                    "turn_index": turn_index,
-                    "display_style": "final",
-                },
-            )
-
-        if "CodeGenerationExpert" not in self.expert_agents:
-            return WorkflowEvent(
-                event_type="error",
-                text="CodeGenerationExpert is not available for design product generation.",
-                metadata={"session_id": session_id, "turn_index": turn_index},
-            )
-
-        invocation = await dispatch_expert_direct(
-            agent_name="CodeGenerationExpert",
-            prompt=json.dumps(
-                self._build_design_code_generation_request(
-                    brief=brief,
-                    session_id=session_id,
-                    turn_index=turn_index,
-                    current_state=current_session.state,
-                ),
-                ensure_ascii=False,
-            ),
-            parent_state=dict(current_session.state),
-            user_id=user_id,
-            expert_agents=self.expert_agents,
-            app_name=SYS_CONFIG.app_name,
-            artifact_service=self.artifact_service,
-        )
-        output_files = invocation.tool_result.get("output_files", [])
-        output_paths = [
-            str(file_info.get("path", "")).strip()
-            for file_info in output_files
-            if isinstance(file_info, dict) and str(file_info.get("path", "")).strip()
-        ]
-        result = {
-            "status": invocation.tool_result.get("status", "error"),
-            "message": invocation.tool_result.get("message", ""),
-            "brief": brief.to_dict(),
-            "code_generation": invocation.tool_result,
-            "output_files": output_files,
-            "design_validation": validate_design_artifacts(output_paths),
-        }
-        reply_text = _build_design_generation_text(result)
-        state_delta = dict(invocation.state_delta)
-        state_delta.update(
-            {
-                "workflow_status": "finished",
-                "design_product_brief": brief.to_dict(),
-                "design_product_result": result,
-                "final_summary": reply_text,
-                "final_response": reply_text,
-                "final_file_paths": output_paths if result["status"] == "success" else [],
-                "last_output_message": reply_text,
-            }
-        )
-        await self.session_service.append_event(
-            current_session,
-            Event(
-                author="design_product_manager",
-                actions=EventActions(state_delta=state_delta),
-            ),
-        )
-        return await self._build_final_event(user_id, session_id, reply_text, turn_index=turn_index)
-
-    def _build_design_code_generation_request(
-        self,
-        *,
-        brief: DesignProductBrief,
-        session_id: str,
-        turn_index: int,
-        current_state: dict[str, Any],
-    ) -> dict[str, Any]:
-        """Build a CodeGenerationExpert request with a stable parent-session path."""
-        request = dict(brief.code_generation_request)
-        if not str(request.get("output_path", "") or "").strip():
-            request["output_path"] = _default_design_output_path(
-                session_id=session_id,
-                turn_index=turn_index,
-                step=int(current_state.get("step", 0) or 0),
-                output_format=str(request.get("language", "html") or "html"),
-            )
-        return request
 
     async def reset_session(self, inbound: InboundMessage) -> tuple[str, str]:
         """Force-create a fresh ADK session for the current channel conversation."""
