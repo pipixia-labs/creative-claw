@@ -30,77 +30,6 @@ def build_parser() -> argparse.ArgumentParser:
         help="Overwrite an existing conf.json with the default template.",
     )
 
-    design_parser = command_parsers.add_parser(
-        "design",
-        help="Run the Design product line from a CLI message.",
-    )
-    design_parser.add_argument(
-        "--user-id",
-        type=str,
-        default="cli-user",
-        help="Logical user ID for the Design CLI session.",
-    )
-    design_parser.add_argument(
-        "--chat-id",
-        type=str,
-        default="design",
-        help="Logical chat ID for the Design CLI session.",
-    )
-    design_parser.add_argument(
-        "--message",
-        type=str,
-        required=True,
-        help="Design request to send to the Design product line.",
-    )
-    design_parser.add_argument(
-        "--scenario",
-        type=str,
-        default="",
-        help="Optional design scenario hint, such as dashboard, landing_page, mobile_app, or deck.",
-    )
-    design_parser.add_argument(
-        "--ask-questions",
-        action="store_true",
-        help="Ask scenario-specific design questions instead of proceeding with default assumptions.",
-    )
-    design_parser.add_argument(
-        "--design-system",
-        type=str,
-        default="",
-        help="Optional design system override, such as linear-app, stripe, apple, or default.",
-    )
-    design_parser.add_argument(
-        "--task-skill",
-        type=str,
-        default="",
-        help="Optional task skill override, such as dashboard, saas-landing, or mobile-app.",
-    )
-    design_parser.add_argument(
-        "--device-frame",
-        type=str,
-        default="",
-        help="Optional device frame override, such as browser-chrome or iphone-15-pro.",
-    )
-    design_parser.add_argument(
-        "--output-format",
-        type=str,
-        default="html",
-        help="Output format for code-backed design artifacts. Defaults to html.",
-    )
-    design_parser.add_argument(
-        "--output-path",
-        type=str,
-        default="",
-        help="Optional workspace-relative output path for the generated artifact.",
-    )
-    design_parser.add_argument(
-        "--attachment",
-        action="append",
-        default=[],
-        metavar="PATH",
-        help="Attachment path for the Design request. Repeat this flag to send multiple files.",
-    )
-
     chat_parser = command_parsers.add_parser(
         "chat",
         help="Start one CreativeClaw chat channel.",
@@ -179,22 +108,6 @@ def collect_cli_attachment_paths(args: argparse.Namespace) -> list[str]:
     return list(getattr(args, "attachment", []) or [])
 
 
-def collect_design_product_metadata(args: argparse.Namespace) -> dict[str, object]:
-    """Build runtime metadata for the Design product-line CLI command."""
-    return {
-        "product_line": "design",
-        "design": {
-            "scenario": str(args.scenario or "").strip(),
-            "allow_assumptions": not bool(args.ask_questions),
-            "design_system": str(args.design_system or "").strip(),
-            "task_skill": str(args.task_skill or "").strip(),
-            "device_frame": str(args.device_frame or "").strip(),
-            "output_format": str(args.output_format or "html").strip() or "html",
-            "output_path": str(args.output_path or "").strip(),
-        },
-    }
-
-
 def build_web_channel_config(args: argparse.Namespace) -> WebChannelConfig:
     """Build the effective web channel config from defaults plus CLI overrides."""
     return CHANNEL_CONFIG.web.model_copy(
@@ -215,16 +128,6 @@ async def run_cli(args: argparse.Namespace) -> int:
         print(f"Runtime directory ready: {config_path.parent}")
         print(f"Config file {action}: {config_path}")
         print(f"Workspace ready: {workspace_path}")
-        return 0
-
-    if args.command == "design":
-        await run_cli_chat(
-            user_id=args.user_id,
-            chat_id=args.chat_id,
-            message=args.message,
-            attachment_paths=collect_cli_attachment_paths(args),
-            metadata=collect_design_product_metadata(args),
-        )
         return 0
 
     if args.command != "chat":

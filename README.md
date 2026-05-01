@@ -152,21 +152,10 @@ You can also send a single request directly:
 creative-claw chat cli --message "Generate a poster-style cat image"
 ```
 
-Run the Design product line directly:
+Design tasks also use the normal chat entrypoint:
 
 ```bash
-creative-claw design \
-  --scenario dashboard \
-  --message "Design an operations dashboard for DAU, conversion, retention, and channel ROI"
-```
-
-Ask the Design product line to collect missing design details first:
-
-```bash
-creative-claw design \
-  --scenario dashboard \
-  --ask-questions \
-  --message "Design an operations dashboard"
+creative-claw chat cli --message "Design an operations dashboard for DAU, conversion, retention, and channel ROI"
 ```
 
 Ask with an image attachment:

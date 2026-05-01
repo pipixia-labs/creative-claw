@@ -21,7 +21,6 @@ from src.chat_runner import (
 from src.creative_claw_cli import (
     build_parser,
     build_web_channel_config,
-    collect_design_product_metadata,
     collect_cli_attachment_paths,
     run_cli,
 )
@@ -65,54 +64,9 @@ class CreativeClawCliParserTests(unittest.TestCase):
         self.assertEqual(args.message, "hello")
         self.assertEqual(args.attachment, ["one.png", "two.png"])
 
-    def test_build_parser_parses_design_command(self) -> None:
-        args = build_parser().parse_args(
-            [
-                "design",
-                "--message",
-                "设计一个运营数据 dashboard",
-                "--scenario",
-                "dashboard",
-                "--ask-questions",
-                "--design-system",
-                "linear-app",
-                "--output-path",
-                "generated/manual/dashboard.html",
-                "--attachment",
-                "brief.md",
-            ]
-        )
-
-        self.assertEqual(args.command, "design")
-        self.assertEqual(args.message, "设计一个运营数据 dashboard")
-        self.assertEqual(args.scenario, "dashboard")
-        self.assertTrue(args.ask_questions)
-        self.assertEqual(args.design_system, "linear-app")
-        self.assertEqual(args.output_path, "generated/manual/dashboard.html")
-        self.assertEqual(args.attachment, ["brief.md"])
-
-    def test_collect_design_product_metadata_builds_design_options(self) -> None:
-        args = build_parser().parse_args(
-            [
-                "design",
-                "--message",
-                "做一个 mobile app",
-                "--scenario",
-                "mobile_app",
-                "--task-skill",
-                "mobile-app",
-                "--device-frame",
-                "iphone-15-pro",
-            ]
-        )
-
-        metadata = collect_design_product_metadata(args)
-
-        self.assertEqual(metadata["product_line"], "design")
-        self.assertEqual(metadata["design"]["scenario"], "mobile_app")
-        self.assertTrue(metadata["design"]["allow_assumptions"])
-        self.assertEqual(metadata["design"]["task_skill"], "mobile-app")
-        self.assertEqual(metadata["design"]["device_frame"], "iphone-15-pro")
+    def test_build_parser_rejects_removed_design_command(self) -> None:
+        with self.assertRaises(SystemExit):
+            build_parser().parse_args(["design", "--message", "做一个 dashboard"])
 
     def test_collect_cli_attachment_paths_uses_attachment_flags(self) -> None:
         args = argparse.Namespace(
@@ -183,34 +137,6 @@ class CreativeClawCliDispatchTests(unittest.IsolatedAsyncioTestCase):
             chat_id="terminal",
             message="hello",
             attachment_paths=["demo.png"],
-        )
-
-    async def test_run_cli_dispatches_design_command_with_metadata(self) -> None:
-        args = build_parser().parse_args(
-            ["design", "--message", "做一个 dashboard", "--scenario", "dashboard", "--ask-questions"]
-        )
-
-        with patch("src.creative_claw_cli.run_cli_chat", new=AsyncMock()) as mocked_run_cli_chat:
-            exit_code = await run_cli(args)
-
-        self.assertEqual(exit_code, 0)
-        mocked_run_cli_chat.assert_awaited_once_with(
-            user_id="cli-user",
-            chat_id="design",
-            message="做一个 dashboard",
-            attachment_paths=[],
-            metadata={
-                "product_line": "design",
-                "design": {
-                    "scenario": "dashboard",
-                    "allow_assumptions": False,
-                    "design_system": "",
-                    "task_skill": "",
-                    "device_frame": "",
-                    "output_format": "html",
-                    "output_path": "",
-                },
-            },
         )
 
     async def test_run_cli_dispatches_remote_channel_service(self) -> None:
