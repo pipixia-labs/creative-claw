@@ -20,6 +20,7 @@ from src.runtime.expert_registry import build_expert_agents
 from src.runtime.models import InboundMessage, WorkflowEvent
 from src.runtime.step_events import reset_step_event_history, step_event_streaming_active
 from src.runtime.workspace import (
+    build_generated_output_path,
     build_workspace_file_record,
     generated_root,
     stage_attachment_into_workspace,
@@ -214,6 +215,38 @@ def _build_design_generation_text(result: dict[str, Any]) -> str:
             lines.append("基础 HTML 校验通过。")
 
     return "\n".join(lines)
+
+
+def _default_design_output_path(
+    *,
+    session_id: str,
+    turn_index: int,
+    step: int,
+    output_format: str,
+) -> str:
+    """Return a parent-session-scoped default path for generated Design artifacts."""
+    normalized_format = str(output_format or "html").strip().lower().lstrip(".")
+    if not normalized_format or not normalized_format.replace("_", "").isalnum():
+        normalized_format = "html"
+    extension_by_format = {
+        "html": ".html",
+        "htm": ".html",
+        "javascript": ".js",
+        "js": ".js",
+        "typescript": ".ts",
+        "ts": ".ts",
+        "jsx": ".jsx",
+        "tsx": ".tsx",
+    }
+    output_path = build_generated_output_path(
+        session_id=session_id,
+        turn_index=turn_index,
+        step=step,
+        output_type="design",
+        index=0,
+        extension=extension_by_format.get(normalized_format, f".{normalized_format}"),
+    )
+    return workspace_relative_path(output_path)
 
 
 class CreativeClawRuntime:
@@ -438,7 +471,15 @@ class CreativeClawRuntime:
 
         invocation = await dispatch_expert_direct(
             agent_name="CodeGenerationExpert",
-            prompt=json.dumps(brief.code_generation_request, ensure_ascii=False),
+            prompt=json.dumps(
+                self._build_design_code_generation_request(
+                    brief=brief,
+                    session_id=session_id,
+                    turn_index=turn_index,
+                    current_state=current_session.state,
+                ),
+                ensure_ascii=False,
+            ),
             parent_state=dict(current_session.state),
             user_id=user_id,
             expert_agents=self.expert_agents,
@@ -480,6 +521,25 @@ class CreativeClawRuntime:
             ),
         )
         return await self._build_final_event(user_id, session_id, reply_text, turn_index=turn_index)
+
+    def _build_design_code_generation_request(
+        self,
+        *,
+        brief: DesignProductBrief,
+        session_id: str,
+        turn_index: int,
+        current_state: dict[str, Any],
+    ) -> dict[str, Any]:
+        """Build a CodeGenerationExpert request with a stable parent-session path."""
+        request = dict(brief.code_generation_request)
+        if not str(request.get("output_path", "") or "").strip():
+            request["output_path"] = _default_design_output_path(
+                session_id=session_id,
+                turn_index=turn_index,
+                step=int(current_state.get("step", 0) or 0),
+                output_format=str(request.get("language", "html") or "html"),
+            )
+        return request
 
     async def reset_session(self, inbound: InboundMessage) -> tuple[str, str]:
         """Force-create a fresh ADK session for the current channel conversation."""

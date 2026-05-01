@@ -1,3 +1,4 @@
+import json
 import tempfile
 import unittest
 from pathlib import Path
@@ -343,8 +344,11 @@ class RuntimeSessionTests(unittest.IsolatedAsyncioTestCase):
                 source="expert",
                 turn=1,
             )
+            captured_request: dict[str, str] = {}
 
             async def _fake_dispatch(**kwargs):
+                request_payload = json.loads(kwargs["prompt"])
+                captured_request["output_path"] = request_payload["output_path"]
                 tool_result = {
                     "agent_name": "CodeGenerationExpert",
                     "status": "success",
@@ -386,6 +390,8 @@ class RuntimeSessionTests(unittest.IsolatedAsyncioTestCase):
             self.assertEqual(events[-1].artifact_paths, [str(output_file.resolve())])
 
             session_id = events[-1].metadata["session_id"]
+            self.assertTrue(captured_request["output_path"].startswith(f"generated/{session_id}/turn_1/"))
+            self.assertTrue(captured_request["output_path"].endswith(".html"))
             session = await runtime.session_service.get_session(
                 app_name=SYS_CONFIG.app_name,
                 user_id="cli-user",
