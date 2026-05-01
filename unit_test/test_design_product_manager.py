@@ -284,6 +284,7 @@ class DesignProductManagerTests(unittest.TestCase):
                     "status": "error",
                     "errors": ["artifact file does not exist"],
                     "warnings": [],
+                    "checks": {"exists": False},
                 }
             ],
         )
@@ -309,6 +310,7 @@ class DesignProductManagerTests(unittest.TestCase):
                     "status": "warning",
                     "errors": [],
                     "warnings": ["non-blocking issue"],
+                    "checks": {"exists": True},
                 }
             ],
         )

@@ -1,0 +1,115 @@
+{
+  "eval_set_id": "creative_claw_design_product_live_eval",
+  "name": "CreativeClaw Design Product Live Routing Eval",
+  "description": "Live ADK eval cases that verify the Orchestrator routes design requests through run_design_product under real model calls.",
+  "eval_cases": [
+    {
+      "eval_id": "design_operation_data_ui_routes_to_design_product",
+      "conversation": [
+        {
+          "invocation_id": "inv_1",
+          "user_content": {
+            "parts": [
+              {
+                "text": "帮我设计一个运营数据 UI，先问我需要补充哪些关键信息。"
+              }
+            ]
+          },
+          "final_response": {
+            "role": "model",
+            "parts": [
+              {
+                "text": "我会通过设计产品线补齐这个运营数据 UI brief，并先向你确认业务对象、核心指标和交互需求。"
+              }
+            ]
+          },
+          "intermediate_data": {
+            "tool_uses": [
+              {
+                "name": "run_design_product",
+                "args": {
+                  "prompt": "帮我设计一个运营数据 UI，先问我需要补充哪些关键信息。",
+                  "scenario": "dashboard",
+                  "allow_assumptions": false,
+                  "design_system": "",
+                  "task_skill": "dashboard",
+                  "device_frame": "",
+                  "output_path": "",
+                  "output_format": "html"
+                }
+              }
+            ]
+          }
+        }
+      ],
+      "session_input": {
+        "app_name": "creative_claw_design_eval",
+        "user_id": "eval-user",
+        "state": {
+          "channel": "cli",
+          "chat_id": "eval-chat",
+          "sender_id": "eval-user",
+          "sid": "design-live-eval",
+          "turn_index": 1,
+          "step": 0,
+          "expert_step": 0,
+          "workflow_status": "running"
+        }
+      }
+    },
+    {
+      "eval_id": "design_mobile_wireframe_routes_to_design_product",
+      "conversation": [
+        {
+          "invocation_id": "inv_1",
+          "user_content": {
+            "parts": [
+              {
+                "text": "给习惯打卡 app 做一个低保真 wireframe，信息不够的话先问我。"
+              }
+            ]
+          },
+          "final_response": {
+            "role": "model",
+            "parts": [
+              {
+                "text": "我会用设计产品线处理这个低保真 wireframe，并先补齐主要流程、屏幕范围和交互边界。"
+              }
+            ]
+          },
+          "intermediate_data": {
+            "tool_uses": [
+              {
+                "name": "run_design_product",
+                "args": {
+                  "prompt": "给习惯打卡 app 做一个低保真 wireframe，信息不够的话先问我。",
+                  "scenario": "mobile app wireframe",
+                  "allow_assumptions": false,
+                  "design_system": "",
+                  "task_skill": "wireframe",
+                  "device_frame": "",
+                  "output_path": "",
+                  "output_format": "html"
+                }
+              }
+            ]
+          }
+        }
+      ],
+      "session_input": {
+        "app_name": "creative_claw_design_eval",
+        "user_id": "eval-user",
+        "state": {
+          "channel": "cli",
+          "chat_id": "eval-chat",
+          "sender_id": "eval-user",
+          "sid": "design-live-eval",
+          "turn_index": 1,
+          "step": 0,
+          "expert_step": 0,
+          "workflow_status": "running"
+        }
+      }
+    }
+  ]
+}

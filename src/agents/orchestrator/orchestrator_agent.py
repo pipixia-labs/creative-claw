@@ -523,6 +523,7 @@ Design workflow routing hints:
 - If the user asks for UI design, product design, dashboard, landing page, mobile app, deck, visual prototype, website mockup, or HTML design artifact, prefer `run_design_product`.
 - Use `run_design_product(allow_assumptions=false)` when the request is too vague and the user has not asked you to proceed directly; it returns scenario-specific questions from design-knowledge-and-skills.
 - Use `run_design_product(allow_assumptions=true)` when the user asks to proceed, accepts defaults, or has provided enough brief detail; it prepares resources and calls `CodeGenerationExpert`.
+- Use `browser_preview_validation=true` only when the user asks to validate the generated HTML in a browser; it runs optional Playwright checks after generation.
 - You may still read `design-knowledge-and-skills` directly when you need to explain or inspect available design resources.
 - For new design tasks, inspect `skills/design-knowledge-and-skills/resource-manifest.json` and the relevant `brief-elements/*.json` resource before asking clarification questions.
 - Clarification questions should come from the selected brief element schema. Do not hard-code a generic questionnaire when a matching schema exists.
@@ -1324,6 +1325,7 @@ Expert parameter contracts:
         task_skill: str = "",
         device_frame: str = "",
         output_path: str = "",
+        browser_preview_validation: bool = False,
         tool_context: ToolContext | None = None,
     ) -> dict[str, Any]:
         """Run the Design product line from resource selection through code generation."""
@@ -1398,7 +1400,10 @@ Expert parameter contracts:
                 for file_info in output_files
                 if isinstance(file_info, dict) and str(file_info.get("path", "")).strip()
             ]
-            design_validation = self.design_product_manager.validate_generated_artifacts(output_paths)
+            design_validation = self.design_product_manager.validate_generated_artifacts(
+                output_paths,
+                browser_preview=browser_preview_validation,
+            )
             result = self.design_product_manager.build_generation_result(
                 brief=brief,
                 code_generation_result=invocation.tool_result,
@@ -1420,6 +1425,7 @@ Expert parameter contracts:
                 "task_skill": task_skill,
                 "device_frame": device_frame,
                 "output_path": output_path,
+                "browser_preview_validation": browser_preview_validation,
             },
             runner=_runner,
         )

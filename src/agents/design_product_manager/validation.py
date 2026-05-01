@@ -2,13 +2,34 @@
 
 from __future__ import annotations
 
+import io
 import re
+from collections.abc import Callable
 from dataclasses import dataclass
 from html.parser import HTMLParser
 from pathlib import Path
 from typing import Any
 
 from src.runtime.workspace import resolve_workspace_path, workspace_relative_path
+
+_BROWSER_PREVIEW_TIMEOUT_MS = 8_000
+
+
+@dataclass(frozen=True, slots=True)
+class BrowserViewport:
+    """One browser viewport used for generated design preview checks."""
+
+    name: str
+    width: int
+    height: int
+
+
+DEFAULT_BROWSER_VIEWPORTS: tuple[BrowserViewport, ...] = (
+    BrowserViewport(name="desktop", width=1280, height=800),
+    BrowserViewport(name="mobile", width=390, height=844),
+)
+
+BrowserPreviewRunner = Callable[[Path, tuple[BrowserViewport, ...]], dict[str, Any]]
 
 
 @dataclass(slots=True)
@@ -85,7 +106,13 @@ class _VisibleTextParser(HTMLParser):
             self.text_parts.append(text)
 
 
-def validate_design_artifact(path: str | Path) -> DesignArtifactValidation:
+def validate_design_artifact(
+    path: str | Path,
+    *,
+    browser_preview: bool = False,
+    browser_viewports: tuple[BrowserViewport, ...] = DEFAULT_BROWSER_VIEWPORTS,
+    browser_preview_runner: BrowserPreviewRunner | None = None,
+) -> DesignArtifactValidation:
     """Validate existence, readability, and basic format of one design artifact."""
     errors: list[str] = []
     warnings: list[str] = []
@@ -154,6 +181,12 @@ def validate_design_artifact(path: str | Path) -> DesignArtifactValidation:
     preview_quality = _build_preview_quality(parser=parser, content=content, visible_text=visible_text)
     checks.update(preview_quality["checks"])
     warnings.extend(preview_quality["warnings"])
+    if browser_preview:
+        preview_runner = browser_preview_runner or _run_playwright_browser_preview
+        browser_quality = preview_runner(resolved, browser_viewports)
+        checks.update(dict(browser_quality.get("checks") or {}))
+        errors.extend(str(message) for message in browser_quality.get("errors", []) or [])
+        warnings.extend(str(message) for message in browser_quality.get("warnings", []) or [])
 
     required_checks = {
         "non_empty": "artifact is empty",
@@ -238,6 +271,158 @@ def _build_preview_quality(
     }
 
 
-def validate_design_artifacts(paths: list[str]) -> list[dict[str, Any]]:
+def _run_playwright_browser_preview(
+    path: Path,
+    viewports: tuple[BrowserViewport, ...],
+) -> dict[str, Any]:
+    """Run optional Playwright checks for one local HTML artifact."""
+    try:
+        from playwright.sync_api import Error as PlaywrightError
+        from playwright.sync_api import TimeoutError as PlaywrightTimeoutError
+        from playwright.sync_api import sync_playwright
+    except ImportError:
+        return {
+            "checks": {
+                "browser_preview_available": False,
+                "browser_preview_checked": False,
+            },
+            "errors": [],
+            "warnings": ["browser preview: Playwright is not installed; browser checks skipped"],
+        }
+
+    checks: dict[str, bool] = {
+        "browser_preview_available": True,
+        "browser_preview_checked": False,
+    }
+    errors: list[str] = []
+    warnings: list[str] = []
+    try:
+        with sync_playwright() as playwright:
+            browser = playwright.chromium.launch()
+            try:
+                for viewport in viewports:
+                    viewport_result = _check_browser_viewport(
+                        browser=browser,
+                        path=path,
+                        viewport=viewport,
+                    )
+                    checks.update(viewport_result["checks"])
+                    errors.extend(viewport_result["errors"])
+                    warnings.extend(viewport_result["warnings"])
+            finally:
+                browser.close()
+        checks["browser_preview_checked"] = True
+    except PlaywrightTimeoutError as exc:
+        checks["browser_preview_checked"] = False
+        errors.append(f"browser preview: timed out while opening artifact: {exc}")
+    except PlaywrightError as exc:
+        checks["browser_preview_checked"] = False
+        errors.append(f"browser preview: Playwright failed: {exc}")
+    return {
+        "checks": checks,
+        "errors": errors,
+        "warnings": warnings,
+    }
+
+
+def _check_browser_viewport(
+    *,
+    browser: Any,
+    path: Path,
+    viewport: BrowserViewport,
+) -> dict[str, Any]:
+    """Open one artifact viewport and return browser-rendered diagnostics."""
+    checks: dict[str, bool] = {}
+    errors: list[str] = []
+    warnings: list[str] = []
+    console_errors: list[str] = []
+    page_errors: list[str] = []
+    prefix = f"browser_{viewport.name}"
+    page = browser.new_page(viewport={"width": viewport.width, "height": viewport.height})
+    page.on(
+        "console",
+        lambda message: console_errors.append(message.text) if message.type == "error" else None,
+    )
+    page.on("pageerror", lambda error: page_errors.append(str(error)))
+    try:
+        response = page.goto(path.as_uri(), wait_until="networkidle", timeout=_BROWSER_PREVIEW_TIMEOUT_MS)
+        checks[f"{prefix}_opens"] = response is None or bool(getattr(response, "ok", False))
+        metrics = page.evaluate(
+            """() => {
+              const root = document.documentElement;
+              const body = document.body;
+              const elements = Array.from(body ? body.querySelectorAll("*") : []);
+              const maxRight = elements.reduce((value, element) => {
+                const rect = element.getBoundingClientRect();
+                return Math.max(value, rect.right);
+              }, 0);
+              return {
+                clientWidth: root ? root.clientWidth : 0,
+                scrollWidth: root ? root.scrollWidth : 0,
+                maxElementRight: maxRight,
+                textLength: body && body.innerText ? body.innerText.trim().length : 0
+              };
+            }"""
+        )
+        screenshot = page.screenshot(full_page=False)
+    finally:
+        page.close()
+
+    client_width = int(metrics.get("clientWidth", 0) or 0)
+    scroll_width = int(metrics.get("scrollWidth", 0) or 0)
+    max_element_right = float(metrics.get("maxElementRight", 0) or 0)
+    text_length = int(metrics.get("textLength", 0) or 0)
+    has_horizontal_overflow = scroll_width > client_width + 8 or max_element_right > client_width + 16
+    has_non_blank_render = text_length > 0 and _screenshot_has_visual_content(screenshot)
+
+    checks[f"{prefix}_no_console_errors"] = not console_errors and not page_errors
+    checks[f"{prefix}_no_horizontal_overflow"] = not has_horizontal_overflow
+    checks[f"{prefix}_non_blank_screenshot"] = has_non_blank_render
+    if not checks[f"{prefix}_opens"]:
+        errors.append(f"browser preview: {viewport.name} viewport did not open successfully")
+    if console_errors:
+        errors.append(f"browser preview: {viewport.name} console errors: {' | '.join(console_errors[:3])}")
+    if page_errors:
+        errors.append(f"browser preview: {viewport.name} page errors: {' | '.join(page_errors[:3])}")
+    if has_horizontal_overflow:
+        errors.append(
+            "browser preview: "
+            f"{viewport.name} has horizontal overflow "
+            f"(document {scroll_width}px, viewport {client_width}px)"
+        )
+    if not has_non_blank_render:
+        errors.append(f"browser preview: {viewport.name} screenshot appears blank")
+    return {
+        "checks": checks,
+        "errors": errors,
+        "warnings": warnings,
+    }
+
+
+def _screenshot_has_visual_content(screenshot: bytes) -> bool:
+    """Return whether a screenshot has enough pixel variance to be non-blank."""
+    try:
+        from PIL import Image, ImageStat
+
+        image = Image.open(io.BytesIO(screenshot)).convert("RGB").resize((32, 32))
+        extrema = ImageStat.Stat(image).extrema
+        return sum(high - low for low, high in extrema) > 12
+    except Exception:
+        return True
+
+
+def validate_design_artifacts(
+    paths: list[str],
+    *,
+    browser_preview: bool = False,
+    browser_preview_runner: BrowserPreviewRunner | None = None,
+) -> list[dict[str, Any]]:
     """Validate multiple generated design artifact paths."""
-    return [validate_design_artifact(path).to_dict() for path in paths]
+    return [
+        validate_design_artifact(
+            path,
+            browser_preview=browser_preview,
+            browser_preview_runner=browser_preview_runner,
+        ).to_dict()
+        for path in paths
+    ]

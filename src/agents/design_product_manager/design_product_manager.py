@@ -12,6 +12,10 @@ from google.adk.agents import LlmAgent
 
 from conf.llm import build_llm
 from conf.path import PROJECT_PATH
+from src.agents.design_product_manager.schema_validation import (
+    validate_design_brief_contract,
+    validate_design_result_contract,
+)
 from src.agents.design_product_manager.validation import validate_design_artifacts
 
 _RESOURCE_ROOT = Path("skills/design-knowledge-and-skills")
@@ -278,6 +282,7 @@ Turn a user's design request into one focused, resource-grounded production brie
             selected_device_frame=selected_device_frame,
             output_format=output_format,
         )
+        validate_design_brief_contract(design_brief, project_root=self.project_root)
         generation_prompt = self._build_generation_prompt(
             user_prompt=clean_prompt,
             surface=surface,
@@ -318,7 +323,7 @@ Turn a user's design request into one focused, resource-grounded production brie
     def build_clarification_result(self, brief: DesignProductBrief) -> dict[str, Any]:
         """Build a structured result when the design brief needs user input."""
         brief_payload = brief.to_dict()
-        return {
+        result = {
             "result_schema_version": DESIGN_RESULT_SCHEMA_VERSION,
             "status": "needs_clarification",
             "message": "Design brief needs user clarification before generation.",
@@ -338,6 +343,8 @@ Turn a user's design request into one focused, resource-grounded production brie
             "design_validation": [],
             "output_files": [],
         }
+        validate_design_result_contract(result, project_root=self.project_root)
+        return result
 
     def build_generation_result(
         self,
@@ -358,7 +365,7 @@ Turn a user's design request into one focused, resource-grounded production brie
             output_files=output_files,
             design_issues=design_issues,
         )
-        return {
+        result = {
             "result_schema_version": DESIGN_RESULT_SCHEMA_VERSION,
             "status": status,
             "message": self._build_result_message(
@@ -374,10 +381,17 @@ Turn a user's design request into one focused, resource-grounded production brie
             "output_files": output_files,
             "next_action": next_action,
         }
+        validate_design_result_contract(result, project_root=self.project_root)
+        return result
 
-    def validate_generated_artifacts(self, output_paths: list[str]) -> list[dict[str, Any]]:
+    def validate_generated_artifacts(
+        self,
+        output_paths: list[str],
+        *,
+        browser_preview: bool = False,
+    ) -> list[dict[str, Any]]:
         """Run the current narrow artifact validation checks for generated design files."""
-        return validate_design_artifacts(output_paths)
+        return validate_design_artifacts(output_paths, browser_preview=browser_preview)
 
     def _load_manifest(self) -> dict[str, Any]:
         """Load the design resource manifest once per manager instance."""

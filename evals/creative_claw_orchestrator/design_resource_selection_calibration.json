@@ -1,0 +1,174 @@
+{
+  "version": "creative-claw-design-resource-selection-calibration-v1",
+  "description": "Representative design requests used to calibrate DesignProductManager resource selection before and after live generation samples are collected.",
+  "cases": [
+    {
+      "id": "ops_revenue_command_center",
+      "prompt": "给跨境电商团队做一个运营收入指挥中心，重点看 GMV、订单、广告 ROI、退款率和渠道异常。",
+      "scenario": "operation_data_ui",
+      "expected": {
+        "surface": "dashboard",
+        "brief_schema_id": "brief_elements.operation_data_ui",
+        "task_skill": "dashboard",
+        "design_system": "linear-app",
+        "device_frame": "browser-chrome"
+      }
+    },
+    {
+      "id": "seller_review_admin_console",
+      "prompt": "做一个卖家审核后台 admin console，运营需要处理商家资料、风控状态和工单升级。",
+      "scenario": "admin_console",
+      "expected": {
+        "surface": "dashboard",
+        "brief_schema_id": "brief_elements.admin_console",
+        "task_skill": "dashboard",
+        "design_system": "linear-app",
+        "device_frame": "browser-chrome"
+      }
+    },
+    {
+      "id": "ai_crm_pricing_page",
+      "prompt": "设计 AI CRM 的 pricing page，三档套餐，突出免费试用、企业版预约演示和功能对比。",
+      "scenario": "pricing_page",
+      "expected": {
+        "surface": "landing_page",
+        "brief_schema_id": "brief_elements.pricing_page",
+        "task_skill": "pricing-page",
+        "design_system": "stripe",
+        "device_frame": "browser-chrome"
+      }
+    },
+    {
+      "id": "developer_docs_quickstart",
+      "prompt": "做一个 developer docs page，包含 API quickstart、认证方式、SDK 安装和错误码说明。",
+      "scenario": "docs_page",
+      "expected": {
+        "surface": "docs_page",
+        "brief_schema_id": "brief_elements.docs_page",
+        "task_skill": "docs-page",
+        "design_system": "mintlify",
+        "device_frame": "browser-chrome"
+      }
+    },
+    {
+      "id": "habit_app_mobile_onboarding",
+      "prompt": "给习惯打卡 app 做 mobile onboarding flow，三屏说明价值、权限请求和第一次打卡。",
+      "scenario": "mobile_onboarding",
+      "expected": {
+        "surface": "mobile_app",
+        "brief_schema_id": "brief_elements.mobile_onboarding",
+        "task_skill": "mobile-onboarding",
+        "design_system": "apple",
+        "device_frame": "iphone-15-pro"
+      }
+    },
+    {
+      "id": "weekly_product_update_deck",
+      "prompt": "做一个 weekly update deck，给产品团队汇报本周 wins、risks、metrics 和 next week plan。",
+      "scenario": "weekly_update",
+      "expected": {
+        "surface": "deck",
+        "brief_schema_id": "brief_elements.weekly_update",
+        "task_skill": "weekly-update",
+        "design_system": "warm-editorial",
+        "device_frame": ""
+      }
+    },
+    {
+      "id": "xiaohongshu_launch_carousel",
+      "prompt": "做一组小红书新品发布 social carousel，5 张卡片，第一张强标题，最后一张引导预约。",
+      "scenario": "social_carousel",
+      "expected": {
+        "surface": "social_carousel",
+        "brief_schema_id": "brief_elements.social_carousel",
+        "task_skill": "social-carousel",
+        "design_system": "xiaohongshu",
+        "device_frame": ""
+      }
+    },
+    {
+      "id": "launch_email_template",
+      "prompt": "做一个 product launch email template，面向已有客户，突出新功能、CTA 和退订页脚。",
+      "scenario": "email_marketing",
+      "expected": {
+        "surface": "email",
+        "brief_schema_id": "brief_elements.email_marketing",
+        "task_skill": "email-marketing",
+        "design_system": "stripe",
+        "device_frame": ""
+      }
+    },
+    {
+      "id": "quarterly_finance_report",
+      "prompt": "做一个季度 finance report 页面，展示收入、毛利、现金流、预算偏差和管理层摘要。",
+      "scenario": "finance_report",
+      "expected": {
+        "surface": "report",
+        "brief_schema_id": "brief_elements.finance_report",
+        "task_skill": "finance-report",
+        "design_system": "stripe",
+        "device_frame": ""
+      }
+    },
+    {
+      "id": "gamified_habit_tracker",
+      "prompt": "设计一个 gamified habit tracker app，包含任务、连胜、等级、奖励和每日反馈。",
+      "scenario": "gamified_app",
+      "expected": {
+        "surface": "mobile_app",
+        "brief_schema_id": "brief_elements.gamified_app",
+        "task_skill": "gamified-app",
+        "design_system": "apple",
+        "device_frame": "iphone-15-pro"
+      }
+    },
+    {
+      "id": "kinetic_typography_video",
+      "prompt": "做一个 kinetic typography 的 HTML video composition，适合 8 秒新品 teaser。",
+      "scenario": "hyperframes",
+      "expected": {
+        "surface": "video",
+        "brief_schema_id": "brief_elements.hyperframes",
+        "task_skill": "hyperframes",
+        "design_system": "default",
+        "device_frame": ""
+      }
+    },
+    {
+      "id": "invoice_billing_statement",
+      "prompt": "做一份 invoice billing statement，包含客户信息、明细、税费、付款状态和备注。",
+      "scenario": "invoice",
+      "expected": {
+        "surface": "document",
+        "brief_schema_id": "brief_elements.invoice",
+        "task_skill": "invoice",
+        "design_system": "stripe",
+        "device_frame": ""
+      }
+    },
+    {
+      "id": "live_tweak_panel",
+      "prompt": "做一个 live tweak panel，让用户调整主题色、密度、字号和动效强度。",
+      "scenario": "tweaks",
+      "expected": {
+        "surface": "interactive_tool",
+        "brief_schema_id": "brief_elements.tweaks",
+        "task_skill": "tweaks",
+        "design_system": "figma",
+        "device_frame": ""
+      }
+    },
+    {
+      "id": "shortform_video_reel",
+      "prompt": "做一个 15 秒 shortform video reel storyboard，用于介绍新品功能和 CTA。",
+      "scenario": "video_shortform",
+      "expected": {
+        "surface": "video",
+        "brief_schema_id": "brief_elements.video_shortform",
+        "task_skill": "video-shortform",
+        "design_system": "runwayml",
+        "device_frame": ""
+      }
+    }
+  ]
+}
