@@ -18,6 +18,7 @@ from google.adk.tools.tool_context import ToolContext
 from google.adk.models import LlmRequest
 from google.genai.types import Content, Part
 
+from src.agents.design_product_manager import DesignProductManager
 from conf.agent import EXPERTS_LIST
 from conf.llm import build_llm, resolve_llm_model_name
 from conf.system import SYS_CONFIG
@@ -95,6 +96,7 @@ _DISPLAY_TOOL_TITLES = {
     "list_skills": "List Skills",
     "read_skill": "Read Skill",
     "list_session_files": "List Session Files",
+    "run_design_product": "Run Design Product",
 }
 
 
@@ -343,6 +345,7 @@ class Orchestrator:
         self.sid = ""
         self.skill_registry = get_skill_registry()
         self.toolbox = BuiltinToolbox()
+        self.design_product_manager = DesignProductManager()
 
         model_name = resolve_llm_model_name(llm_model or SYS_CONFIG.llm_model)
         logger.info("OrchestratorAgent: using llm: {}", model_name)
@@ -383,6 +386,7 @@ class Orchestrator:
                 self.web_search,
                 self.web_fetch,
                 self.list_session_files,
+                self.run_design_product,
                 self.invoke_agent,
             ],
         )
@@ -416,11 +420,12 @@ You can use built-in tools, skills, `invoke_agent`, and your own reasoning to co
 You are the main agent, and expert agents are supporting capabilities invoked through `invoke_agent`.
 Prefer completing the task directly instead of describing an internal workflow.
 
-You can use four kinds of capabilities:
+You can use five kinds of capabilities:
 1. Skills from local markdown files
 2. Built-in local file tools inside the fixed workspace
 3. Built-in shell and web tools
-4. Existing expert agents through `invoke_agent(agent_name, prompt)`
+4. The Design product-line tool `run_design_product`
+5. Existing expert agents through `invoke_agent(agent_name, prompt)`
 
 Rules:
 - Treat yourself as the main conversational agent. Reply to the user's actual request, not to an internal workflow.
@@ -476,7 +481,10 @@ Creative workflow routing hints:
 - If no skill is needed because the user gave a clear final generation request, execute directly with the smallest suitable expert call.
 
 Design workflow routing hints:
-- If the user asks for UI design, product design, dashboard, landing page, mobile app, deck, visual prototype, website mockup, or HTML design artifact, read `design-knowledge-and-skills` before choosing execution tools.
+- If the user asks for UI design, product design, dashboard, landing page, mobile app, deck, visual prototype, website mockup, or HTML design artifact, prefer `run_design_product`.
+- Use `run_design_product(allow_assumptions=false)` when the request is too vague and the user has not asked you to proceed directly; it returns scenario-specific questions from design-knowledge-and-skills.
+- Use `run_design_product(allow_assumptions=true)` when the user asks to proceed, accepts defaults, or has provided enough brief detail; it prepares resources and calls `CodeGenerationExpert`.
+- You may still read `design-knowledge-and-skills` directly when you need to explain or inspect available design resources.
 - For new design tasks, inspect `skills/design-knowledge-and-skills/resource-manifest.json` and the relevant `brief-elements/*.json` resource before asking clarification questions.
 - Clarification questions should come from the selected brief element schema. Do not hard-code a generic questionnaire when a matching schema exists.
 - If the user asks to proceed without questions, use the brief element defaults and record the assumptions in the generation brief.
@@ -1266,6 +1274,97 @@ Expert parameter contracts:
             allowed = ", ".join(payload_by_section.keys())
             return f"Error: Unsupported section `{section}`. Allowed: {allowed}"
         return json.dumps(payload_by_section[normalized_section], ensure_ascii=False, indent=2)
+
+    async def run_design_product(
+        self,
+        prompt: str,
+        scenario: str = "",
+        output_format: str = "html",
+        allow_assumptions: bool = True,
+        design_system: str = "",
+        task_skill: str = "",
+        device_frame: str = "",
+        output_path: str = "",
+        tool_context: ToolContext | None = None,
+    ) -> dict[str, Any]:
+        """Run the Design product line from resource selection through code generation."""
+
+        async def _runner() -> dict[str, Any]:
+            if tool_context is None:
+                return {
+                    "status": "error",
+                    "message": "run_design_product requires tool context.",
+                }
+
+            try:
+                brief = self.design_product_manager.prepare_brief(
+                    prompt=prompt,
+                    scenario=scenario,
+                    output_format=output_format,
+                    allow_assumptions=allow_assumptions,
+                    design_system=design_system,
+                    task_skill=task_skill,
+                    device_frame=device_frame,
+                    output_path=output_path,
+                )
+            except Exception as exc:
+                return {
+                    "status": "error",
+                    "message": f"DesignProductManager failed to prepare the brief: {type(exc).__name__}: {exc}",
+                }
+
+            brief_payload = brief.to_dict()
+            tool_context.state["design_product_brief"] = brief_payload
+            if brief.needs_clarification:
+                return {
+                    "status": "needs_clarification",
+                    "message": "Design brief needs user clarification before generation.",
+                    "brief": brief_payload,
+                    "questions": brief_payload["questions"],
+                    "missing_fields": brief_payload["missing_fields"],
+                }
+
+            if "CodeGenerationExpert" not in self.expert_agents:
+                return {
+                    "status": "error",
+                    "message": "CodeGenerationExpert is not available for design product generation.",
+                    "brief": brief_payload,
+                }
+
+            invocation = await dispatch_expert_call(
+                agent_name="CodeGenerationExpert",
+                prompt=json.dumps(brief.code_generation_request, ensure_ascii=False),
+                tool_context=tool_context,
+                expert_agents=self.expert_agents,
+                app_name=self.app_name,
+                artifact_service=self.artifact_service,
+            )
+            result = {
+                "status": invocation.tool_result.get("status", "error"),
+                "message": invocation.tool_result.get("message", ""),
+                "brief": brief_payload,
+                "code_generation": invocation.tool_result,
+                "output_files": invocation.tool_result.get("output_files", []),
+            }
+            tool_context.state["design_product_result"] = result
+            return result
+
+        return await self._run_async_tool_with_events(
+            tool_context=tool_context,
+            tool_name="run_design_product",
+            stage="design_planning",
+            args={
+                "prompt": prompt,
+                "scenario": scenario,
+                "output_format": output_format,
+                "allow_assumptions": allow_assumptions,
+                "design_system": design_system,
+                "task_skill": task_skill,
+                "device_frame": device_frame,
+                "output_path": output_path,
+            },
+            runner=_runner,
+        )
 
     async def invoke_agent(
         self,

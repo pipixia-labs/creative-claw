@@ -43,6 +43,7 @@ _PROGRESS_STAGE_TITLES = {
     "audio_processing": "Processing Audio",
     "execution": "Running Command",
     "research": "Researching",
+    "design_planning": "Preparing Design Brief",
     "expert_execution": "Calling Expert Agent",
     "finalizing": "Finalizing Result",
 }
