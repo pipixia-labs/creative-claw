@@ -264,3 +264,9 @@ mmx auth status
 - [ ] 增加更多创意相关 skill
 - [x] 支持更多LLM provider
 - [ ] 支持更多 channel
+
+## 许可证
+
+CreativeClaw 项目代码使用 MIT License。详见 [LICENSE](LICENSE)。
+
+`skills/` 下内置的 skills、资源、字体和第三方材料可能带有各自的许可证文件，并继续受其原有条款约束。

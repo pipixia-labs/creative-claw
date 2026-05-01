@@ -277,3 +277,9 @@ In practice, you only need this skill when you explicitly want MiniMax-specific 
 - [ ] Add more creativity-related skills
 - [x] Support more LLM providers
 - [ ] Support more channels
+
+## License
+
+CreativeClaw project code is licensed under the MIT License. See [LICENSE](LICENSE).
+
+Bundled skills, assets, fonts, and third-party materials under `skills/` may include their own license files and remain governed by those terms.
