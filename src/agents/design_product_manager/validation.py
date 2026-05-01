@@ -33,13 +33,12 @@ class DesignArtifactValidation:
 
 
 class _VisibleTextParser(HTMLParser):
-    """Extract visible-ish text while tracking common HTML structure."""
+    """Extract visible-ish text while ignoring script and style content."""
 
     def __init__(self) -> None:
         super().__init__()
         self.tags: set[str] = set()
         self.text_parts: list[str] = []
-        self.external_refs: list[str] = []
         self._ignored_depth = 0
 
     def handle_starttag(self, tag: str, attrs: list[tuple[str, str | None]]) -> None:
@@ -47,9 +46,6 @@ class _VisibleTextParser(HTMLParser):
         self.tags.add(normalized_tag)
         if normalized_tag in {"script", "style"}:
             self._ignored_depth += 1
-        for name, value in attrs:
-            if name.lower() in {"src", "href"} and value and _is_external_reference(value):
-                self.external_refs.append(value)
 
     def handle_endtag(self, tag: str) -> None:
         if tag.lower() in {"script", "style"} and self._ignored_depth > 0:
@@ -64,7 +60,7 @@ class _VisibleTextParser(HTMLParser):
 
 
 def validate_design_artifact(path: str | Path) -> DesignArtifactValidation:
-    """Validate one generated HTML design artifact without launching a browser."""
+    """Validate existence, readability, and basic format of one design artifact."""
     errors: list[str] = []
     warnings: list[str] = []
     checks: dict[str, bool] = {}
@@ -108,10 +104,6 @@ def validate_design_artifact(path: str | Path) -> DesignArtifactValidation:
     checks["html_extension"] = resolved.suffix.lower() in {".html", ".htm"}
     checks["has_html_tag"] = "<html" in lower_content
     checks["has_body_tag"] = "<body" in lower_content
-    checks["has_viewport_meta"] = "name=\"viewport\"" in lower_content or "name='viewport'" in lower_content
-    checks["has_inline_style"] = "<style" in lower_content
-    checks["has_layout_css"] = any(token in lower_content for token in ("display: grid", "display:grid", "display: flex", "display:flex"))
-    checks["has_responsive_css"] = "@media" in lower_content or "clamp(" in lower_content or "minmax(" in lower_content
     checks["no_local_absolute_paths"] = not any(
         marker in content
         for marker in (
@@ -126,37 +118,26 @@ def validate_design_artifact(path: str | Path) -> DesignArtifactValidation:
     parser = _VisibleTextParser()
     try:
         parser.feed(content)
+        checks["parseable_html"] = True
     except Exception as exc:
-        warnings.append(f"HTML parser warning: {type(exc).__name__}: {exc}")
+        checks["parseable_html"] = False
+        errors.append(f"artifact is not parseable as HTML: {type(exc).__name__}: {exc}")
 
     visible_text = " ".join(parser.text_parts)
-    checks["has_visible_text"] = len(re.sub(r"\s+", "", visible_text)) >= 30
-    checks["has_main_or_section"] = bool({"main", "section", "article"} & parser.tags)
-    checks["no_external_runtime_refs"] = not parser.external_refs
+    checks["has_visible_text"] = bool(re.sub(r"\s+", "", visible_text))
 
     required_checks = {
         "non_empty": "artifact is empty",
         "html_extension": "artifact does not use an HTML extension",
         "has_html_tag": "artifact is missing an <html> tag",
         "has_body_tag": "artifact is missing a <body> tag",
-        "has_visible_text": "artifact has too little visible text",
+        "parseable_html": "artifact is not parseable as HTML",
+        "has_visible_text": "artifact has no visible text",
         "no_local_absolute_paths": "artifact contains local absolute path markers",
     }
     for check_name, message in required_checks.items():
         if not checks.get(check_name, False):
             errors.append(message)
-
-    recommended_checks = {
-        "has_viewport_meta": "missing viewport meta tag",
-        "has_inline_style": "missing inline <style> block",
-        "has_layout_css": "no obvious grid/flex layout CSS",
-        "has_responsive_css": "no obvious responsive CSS",
-        "has_main_or_section": "missing semantic main/section/article structure",
-        "no_external_runtime_refs": "external src/href references found",
-    }
-    for check_name, message in recommended_checks.items():
-        if not checks.get(check_name, False):
-            warnings.append(message)
 
     if errors:
         status = "error"
@@ -176,9 +157,3 @@ def validate_design_artifact(path: str | Path) -> DesignArtifactValidation:
 def validate_design_artifacts(paths: list[str]) -> list[dict[str, Any]]:
     """Validate multiple generated design artifact paths."""
     return [validate_design_artifact(path).to_dict() for path in paths]
-
-
-def _is_external_reference(value: str) -> bool:
-    """Return whether an HTML src/href value points to an external runtime dependency."""
-    lowered = value.strip().lower()
-    return lowered.startswith(("http://", "https://", "//"))

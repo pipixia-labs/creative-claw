@@ -123,7 +123,7 @@ class DesignProductToolTests(unittest.IsolatedAsyncioTestCase):
         self.assertIn("design_product_result", tool_context.state)
         self.assertEqual(tool_context.state["new_files"][0]["path"], result["output_files"][0]["path"])
         self.assertEqual(result["design_validation"][0]["status"], "pass")
-        self.assertTrue(result["design_validation"][0]["checks"]["has_viewport_meta"])
+        self.assertTrue(result["design_validation"][0]["checks"]["parseable_html"])
 
 
 if __name__ == "__main__":

@@ -34,8 +34,10 @@ class DesignArtifactValidationTests(unittest.TestCase):
 
         self.assertEqual(result["status"], "pass")
         self.assertEqual(result["errors"], [])
-        self.assertTrue(result["checks"]["has_viewport_meta"])
-        self.assertTrue(result["checks"]["has_layout_css"])
+        self.assertTrue(result["checks"]["exists"])
+        self.assertTrue(result["checks"]["parseable_html"])
+        self.assertTrue(result["checks"]["has_visible_text"])
+        self.assertNotIn("has_layout_css", result["checks"])
 
     def test_validate_design_artifact_errors_for_invalid_html(self) -> None:
         with tempfile.TemporaryDirectory(dir=workspace_root()) as tmpdir:
@@ -46,7 +48,7 @@ class DesignArtifactValidationTests(unittest.TestCase):
 
         self.assertEqual(result["status"], "error")
         self.assertIn("artifact is missing an <html> tag", result["errors"])
-        self.assertIn("artifact has too little visible text", result["errors"])
+        self.assertIn("artifact is missing a <body> tag", result["errors"])
 
     def test_validate_design_artifact_rejects_outside_workspace_path(self) -> None:
         result = validate_design_artifact("/tmp/outside-workspace.html").to_dict()
