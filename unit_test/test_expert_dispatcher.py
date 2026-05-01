@@ -10,6 +10,7 @@ from google.adk.sessions.state import State
 
 from src.runtime.expert_registry import build_expert_contract_summary
 from src.runtime.expert_dispatcher import (
+    dispatch_expert_direct,
     dispatch_expert_call,
     normalize_invoke_agent_parameters,
 )
@@ -262,6 +263,33 @@ class ExpertDispatcherTests(unittest.IsolatedAsyncioTestCase):
         self.assertEqual(parent_state["app:shared_setting"], "from-child")
         self.assertEqual(parent_state["custom_key"], "custom-value")
         self.assertEqual(result.tool_result["structured_data"]["custom_key"], "custom-value")
+
+    async def test_dispatch_expert_direct_returns_parent_state_delta(self) -> None:
+        artifact_service = InMemoryArtifactService()
+        parent_state = {
+            "step": 0,
+            "files_history": [],
+            "summary_history": [],
+            "text_history": [],
+            "message_history": [],
+            "expert_history": [],
+        }
+
+        result = await dispatch_expert_direct(
+            agent_name="KnowledgeAgent",
+            prompt='{"prompt":"analyze the request"}',
+            parent_state=parent_state,
+            user_id="user-1",
+            expert_agents={"KnowledgeAgent": _FakeExpertAgent(name="KnowledgeAgent")},
+            app_name="creative-claw-test",
+            artifact_service=artifact_service,
+        )
+
+        self.assertEqual(result.tool_result["status"], "success")
+        self.assertEqual(result.state_delta["current_output"]["message"], "expert finished")
+        self.assertEqual(result.state_delta["last_expert_result"]["agent_name"], "KnowledgeAgent")
+        self.assertEqual(result.state_delta["custom_key"], "custom-value")
+        self.assertNotIn("current_output", parent_state)
 
     async def test_dispatch_expert_call_filters_internal_parent_state_before_child_run(self) -> None:
         artifact_service = InMemoryArtifactService()

@@ -269,6 +269,84 @@ def _build_child_runner(
     return Runner(**runner_kwargs)
 
 
+def _build_direct_child_runner(
+    *,
+    agent: BaseAgent,
+    app_name: str,
+    session_service: InMemorySessionService,
+    artifact_service: BaseArtifactService,
+) -> Runner:
+    """Create one child expert runner for deterministic runtime dispatch."""
+    return Runner(
+        agent=agent,
+        app_name=app_name,
+        session_service=session_service,
+        artifact_service=artifact_service,
+        memory_service=InMemoryMemoryService(),
+    )
+
+
+async def _run_child_expert_session(
+    *,
+    agent_name: str,
+    normalized_parameters: dict[str, Any],
+    parent_state: dict[str, Any],
+    user_id: str,
+    app_name: str,
+    child_session_service: InMemorySessionService,
+    child_runner: Runner,
+) -> tuple[dict[str, Any], dict[str, Any]]:
+    """Run one child expert session and collect current output plus forwarded state."""
+    child_state = _filter_parent_state_for_child_session(parent_state)
+    child_state["current_parameters"] = normalized_parameters
+
+    child_session = await child_session_service.create_session(
+        app_name=app_name,
+        user_id=user_id,
+        state=child_state,
+    )
+
+    forwarded_state_delta: dict[str, Any] = {}
+    try:
+        async for event in child_runner.run_async(
+            user_id=child_session.user_id,
+            session_id=child_session.id,
+            new_message=Content(
+                role="user",
+                parts=[
+                    Part(
+                        text=(
+                            f"Execute delegated expert task for {agent_name}. "
+                            "Use the parameters stored in session current_parameters."
+                        )
+                    )
+                ],
+            ),
+        ):
+            if event.actions and event.actions.state_delta:
+                forwarded_state_delta.update(
+                    _extract_forwardable_state_delta(event.actions.state_delta)
+                )
+        final_child_session = await child_session_service.get_session(
+            app_name=app_name,
+            user_id=child_session.user_id,
+            session_id=child_session.id,
+        )
+        child_state = final_child_session.state if final_child_session is not None else child_state
+        current_output = child_state.get("current_output") or {
+            "status": "error",
+            "message": f"{agent_name} did not produce current_output.",
+        }
+    except Exception as exc:
+        current_output = {
+            "status": "error",
+            "message": f"{agent_name} execution failed: {type(exc).__name__}: {exc}",
+        }
+    finally:
+        await child_runner.close()
+    return current_output, forwarded_state_delta
+
+
 def _build_tool_result(
     *,
     agent_name: str,
@@ -393,9 +471,6 @@ async def dispatch_expert_call(
         state=parent_state,
     )
 
-    child_state = _filter_parent_state_for_child_session(parent_state)
-    child_state["current_parameters"] = normalized_parameters
-
     invocation_context = tool_context._invocation_context
     child_session_service = InMemorySessionService()
     child_artifact_service = _resolve_child_artifact_service(
@@ -410,51 +485,15 @@ async def dispatch_expert_call(
         invocation_context=invocation_context,
     )
 
-    child_session = await child_session_service.create_session(
-        app_name=app_name,
+    current_output, forwarded_state_delta = await _run_child_expert_session(
+        agent_name=agent_name,
+        normalized_parameters=normalized_parameters,
+        parent_state=parent_state,
         user_id=invocation_context.user_id,
-        state=child_state,
+        app_name=app_name,
+        child_session_service=child_session_service,
+        child_runner=child_runner,
     )
-
-    current_output: dict[str, Any]
-    forwarded_state_delta: dict[str, Any] = {}
-    try:
-        async for event in child_runner.run_async(
-            user_id=child_session.user_id,
-            session_id=child_session.id,
-            new_message=Content(
-                role="user",
-                parts=[
-                    Part(
-                        text=(
-                            f"Execute delegated expert task for {agent_name}. "
-                            "Use the parameters stored in session current_parameters."
-                        )
-                    )
-                ],
-            ),
-        ):
-            if event.actions and event.actions.state_delta:
-                forwarded_state_delta.update(
-                    _extract_forwardable_state_delta(event.actions.state_delta)
-                )
-        final_child_session = await child_session_service.get_session(
-            app_name=app_name,
-            user_id=child_session.user_id,
-            session_id=child_session.id,
-        )
-        child_state = final_child_session.state if final_child_session is not None else child_state
-        current_output = child_state.get("current_output") or {
-            "status": "error",
-            "message": f"{agent_name} did not produce current_output.",
-        }
-    except Exception as exc:
-        current_output = {
-            "status": "error",
-            "message": f"{agent_name} execution failed: {type(exc).__name__}: {exc}",
-        }
-    finally:
-        await child_runner.close()
 
     state_delta, tool_result = _build_state_delta(
         parent_state=parent_state,
@@ -465,6 +504,59 @@ async def dispatch_expert_call(
     )
     tool_context.state.update(state_delta)
 
+    return ExpertInvocationResult(
+        agent_name=agent_name,
+        normalized_parameters=normalized_parameters,
+        current_output=current_output,
+        state_delta=state_delta,
+        tool_result=tool_result,
+    )
+
+
+async def dispatch_expert_direct(
+    *,
+    agent_name: str,
+    prompt: str,
+    parent_state: dict[str, Any],
+    user_id: str,
+    expert_agents: dict[str, BaseAgent],
+    app_name: str,
+    artifact_service: InMemoryArtifactService,
+) -> ExpertInvocationResult:
+    """Run one expert outside an ADK tool context and return the parent state delta."""
+    if agent_name not in expert_agents:
+        raise ValueError(f"invoke_agent got an unknown expert: '{agent_name}'.")
+
+    normalized_parameters = normalize_invoke_agent_parameters(
+        agent_name=agent_name,
+        prompt=prompt,
+        state=parent_state,
+    )
+
+    child_session_service = InMemorySessionService()
+    child_runner = _build_direct_child_runner(
+        agent=expert_agents[agent_name],
+        app_name=app_name,
+        session_service=child_session_service,
+        artifact_service=artifact_service,
+    )
+    current_output, forwarded_state_delta = await _run_child_expert_session(
+        agent_name=agent_name,
+        normalized_parameters=normalized_parameters,
+        parent_state=parent_state,
+        user_id=user_id,
+        app_name=app_name,
+        child_session_service=child_session_service,
+        child_runner=child_runner,
+    )
+
+    state_delta, tool_result = _build_state_delta(
+        parent_state=parent_state,
+        forwarded_state_delta=forwarded_state_delta,
+        agent_name=agent_name,
+        normalized_parameters=normalized_parameters,
+        current_output=current_output,
+    )
     return ExpertInvocationResult(
         agent_name=agent_name,
         normalized_parameters=normalized_parameters,
