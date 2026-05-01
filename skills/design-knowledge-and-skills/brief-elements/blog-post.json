@@ -1,0 +1,23 @@
+{
+  "id": "brief_elements.blog_post",
+  "type": "brief_element_schema",
+  "title": "Blog Post",
+  "description": "Key design elements for blog posts, essays, case studies, and editorial article pages.",
+  "surface": "article",
+  "scenarios": ["blog_post", "article", "case_study", "newsletter_article", "essay", "博客", "文章", "案例文章"],
+  "required_fields": ["topic", "audience", "core_argument", "outline", "tone", "evidence_or_examples", "call_to_action"],
+  "optional_fields": ["seo_keywords", "author_context", "image_requirements", "reading_time", "brand_context", "distribution_channel"],
+  "question_templates": [
+    {"field": "topic", "question": "文章主题是什么？"},
+    {"field": "audience", "question": "主要读者是谁：用户、开发者、投资人、内部团队，还是潜在客户？"},
+    {"field": "core_argument", "question": "这篇文章最想说服读者相信什么？"},
+    {"field": "outline", "question": "是否已有大纲？没有的话我可以先按问题、洞察、方案、案例、CTA 来组织。"}
+  ],
+  "defaults": {
+    "platform": "responsive web",
+    "density": "medium",
+    "recommended_skill": "blog-post",
+    "recommended_design_system_candidates": ["warm-editorial", "notion", "stripe", "default"],
+    "output_contract": "standalone responsive HTML article page"
+  }
+}

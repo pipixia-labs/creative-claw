@@ -38,6 +38,30 @@ class DesignKnowledgeResourceTests(unittest.TestCase):
         self.assertIn("brief_elements.kanban_board", resource_ids)
         self.assertIn("brief_elements.magazine_poster", resource_ids)
         self.assertIn("brief_elements.wireframe_sketch", resource_ids)
+        self.assertIn("brief_elements.audio_jingle", resource_ids)
+        self.assertIn("brief_elements.blog_post", resource_ids)
+        self.assertIn("brief_elements.critique", resource_ids)
+        self.assertIn("brief_elements.dating_web", resource_ids)
+        self.assertIn("brief_elements.digital_eguide", resource_ids)
+        self.assertIn("brief_elements.email_marketing", resource_ids)
+        self.assertIn("brief_elements.eng_runbook", resource_ids)
+        self.assertIn("brief_elements.finance_report", resource_ids)
+        self.assertIn("brief_elements.gamified_app", resource_ids)
+        self.assertIn("brief_elements.guizang_ppt", resource_ids)
+        self.assertIn("brief_elements.hr_onboarding", resource_ids)
+        self.assertIn("brief_elements.hyperframes", resource_ids)
+        self.assertIn("brief_elements.image_poster", resource_ids)
+        self.assertIn("brief_elements.invoice", resource_ids)
+        self.assertIn("brief_elements.meeting_notes", resource_ids)
+        self.assertIn("brief_elements.mobile_onboarding", resource_ids)
+        self.assertIn("brief_elements.motion_frames", resource_ids)
+        self.assertIn("brief_elements.pm_spec", resource_ids)
+        self.assertIn("brief_elements.replit_deck", resource_ids)
+        self.assertIn("brief_elements.sprite_animation", resource_ids)
+        self.assertIn("brief_elements.team_okrs", resource_ids)
+        self.assertIn("brief_elements.tweaks", resource_ids)
+        self.assertIn("brief_elements.video_shortform", resource_ids)
+        self.assertIn("brief_elements.weekly_update", resource_ids)
         self.assertIn("task_skill.dashboard", resource_ids)
         self.assertIn("task_skill.saas-landing", resource_ids)
         self.assertIn("task_skill.social-carousel", resource_ids)
@@ -49,8 +73,27 @@ class DesignKnowledgeResourceTests(unittest.TestCase):
         )
         self.assertEqual(
             sum(1 for resource in resources if resource["type"] == "brief_element_schema"),
-            14,
+            38,
         )
+
+    def test_brief_elements_cover_all_current_task_skills(self) -> None:
+        manifest = json.loads((self._resource_root() / "resource-manifest.json").read_text(encoding="utf-8"))
+        task_skill_slugs = {
+            resource["id"].split(".", 1)[1]
+            for resource in manifest["resources"]
+            if resource["type"] == "task_skill"
+        }
+        covered_skill_slugs = set()
+        for resource in manifest["resources"]:
+            if resource["type"] != "brief_element_schema":
+                continue
+            defaults = resource.get("defaults") or {}
+            for key in ("recommended_skill", "fallback_skill"):
+                value = str(defaults.get(key) or "").strip()
+                if value:
+                    covered_skill_slugs.add(value)
+
+        self.assertEqual(task_skill_slugs - covered_skill_slugs, set())
 
     def test_contract_schemas_define_stable_versions(self) -> None:
         schema_dir = self._resource_root() / "schemas"

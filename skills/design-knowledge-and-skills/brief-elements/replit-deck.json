@@ -1,0 +1,25 @@
+{
+  "id": "brief_elements.replit_deck",
+  "type": "brief_element_schema",
+  "title": "Replit Deck",
+  "description": "Key design elements for Replit-inspired helix decks, product memos, launch chapters, and distinctive developer storytelling decks.",
+  "surface": "deck",
+  "scenarios": ["replit_deck", "replit_slides", "replit_style_deck", "helix_deck", "developer_story_deck", "replit风格PPT"],
+  "required_fields": ["deck_purpose", "audience", "story_mode", "slide_count", "source_material", "visual_motifs", "call_to_action"],
+  "optional_fields": ["code_examples", "product_screens", "chapter_names", "speaker_notes", "brand_context"],
+  "question_templates": [
+    {"field": "deck_purpose", "question": "这套 Replit 风格 deck 用于什么：产品发布、内部提案、投资人故事、开发者分享？"},
+    {"field": "story_mode", "question": "叙事更偏 helix chapter、founder memo、产品路线图，还是 campaign pitch？"},
+    {"field": "source_material", "question": "是否已有文案、代码片段、截图或章节结构？"},
+    {"field": "visual_motifs", "question": "是否要使用终端、代码、网格、粗边框、模块化卡片等视觉母题？"}
+  ],
+  "defaults": {
+    "platform": "browser presentation",
+    "density": "medium",
+    "aspect_ratio": "16:9",
+    "recommended_skill": "replit-deck",
+    "fallback_skill": "simple-deck",
+    "recommended_design_system_candidates": ["replit", "cursor", "vercel", "default"],
+    "output_contract": "single-file Replit-inspired HTML deck"
+  }
+}

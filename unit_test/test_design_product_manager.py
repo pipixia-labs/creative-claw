@@ -144,6 +144,42 @@ class DesignProductManagerTests(unittest.TestCase):
         self.assertEqual(brief.selection.device_frame, "browser-chrome")
         self.assertIn("primary_flow", brief.design_brief["content_requirements"])
 
+    def test_prepare_remaining_builtin_task_skill_scenarios(self) -> None:
+        manager = DesignProductManager()
+        cases = [
+            ("做一个 audio jingle 和 sonic logo。", "audio_jingle", "brief_elements.audio_jingle", "audio-jingle", "audio_goal"),
+            ("写一篇 blog post article，介绍产品案例。", "blog_post", "brief_elements.blog_post", "blog-post", "core_argument"),
+            ("做一次 design critique，review my landing page。", "critique", "brief_elements.critique", "critique", "review_goal"),
+            ("做一个 dating app matchmaking dashboard。", "dating_web", "brief_elements.dating_web", "dating-web", "matching_goal"),
+            ("做一份 digital guide ebook。", "digital_eguide", "brief_elements.digital_eguide", "digital-eguide", "learning_outcome"),
+            ("做一个 product launch email template。", "email_marketing", "brief_elements.email_marketing", "email-marketing", "campaign_goal"),
+            ("做一份 service runbook 给 on-call 使用。", "eng_runbook", "brief_elements.eng_runbook", "eng-runbook", "alert_types"),
+            ("做一个 quarterly finance report。", "finance_report", "brief_elements.finance_report", "finance-report", "core_metrics"),
+            ("做一个 gamified habit tracker app。", "gamified_app", "brief_elements.gamified_app", "gamified-app", "core_loop"),
+            ("做一个 magazine web PPT，用于发布会。", "guizang_ppt", "brief_elements.guizang_ppt", "guizang-ppt", "editorial_theme"),
+            ("做一个 new hire onboarding guide。", "hr_onboarding", "brief_elements.hr_onboarding", "hr-onboarding", "must_do_tasks"),
+            ("做一个 html video kinetic typography composition。", "hyperframes", "brief_elements.hyperframes", "hyperframes", "scene_outline"),
+            ("做一个 image poster key art。", "image_poster", "brief_elements.image_poster", "image-poster", "subject"),
+            ("做一个 invoice billing statement。", "invoice", "brief_elements.invoice", "invoice", "line_items"),
+            ("整理 meeting notes 和 action items。", "meeting_notes", "brief_elements.meeting_notes", "meeting-notes", "action_items"),
+            ("做一个 mobile onboarding flow。", "mobile_onboarding", "brief_elements.mobile_onboarding", "mobile-onboarding", "activation_goal"),
+            ("做一组 motion design title card frames。", "motion_frames", "brief_elements.motion_frames", "motion-frames", "frame_sequence"),
+            ("写一个 PM spec PRD。", "pm_spec", "brief_elements.pm_spec", "pm-spec", "problem_statement"),
+            ("做一个 replit deck。", "replit_deck", "brief_elements.replit_deck", "replit-deck", "story_mode"),
+            ("做一个 pixel art sprite animation。", "sprite_animation", "brief_elements.sprite_animation", "sprite-animation", "sprite_style"),
+            ("做一个 team OKRs 页面。", "team_okrs", "brief_elements.team_okrs", "team-okrs", "key_results"),
+            ("做一个 tweak panel 和 live controls。", "tweaks", "brief_elements.tweaks", "tweaks", "adjustable_parameters"),
+            ("做一个 shortform video reel。", "video_shortform", "brief_elements.video_shortform", "video-shortform", "story_beats"),
+            ("做一个 weekly update deck。", "weekly_update", "brief_elements.weekly_update", "weekly-update", "wins"),
+        ]
+
+        for prompt, scenario, expected_schema, expected_skill, expected_requirement in cases:
+            with self.subTest(scenario=scenario):
+                brief = manager.prepare_brief(prompt=prompt, scenario=scenario)
+                self.assertEqual(brief.selection.brief_schema_id, expected_schema)
+                self.assertEqual(brief.selection.task_skill, expected_skill)
+                self.assertIn(expected_requirement, brief.design_brief["content_requirements"])
+
     def test_prepare_mobile_brief_uses_mobile_surface_and_frame(self) -> None:
         manager = DesignProductManager()
 
@@ -174,10 +210,10 @@ class DesignProductManagerTests(unittest.TestCase):
     def test_prepare_deck_brief_selects_deck_defaults(self) -> None:
         manager = DesignProductManager()
 
-        brief = manager.prepare_brief(prompt="做一个 weekly update deck，包含进展、风险和下周计划。")
+        brief = manager.prepare_brief(prompt="做一个 pitch deck，包含问题、方案和路线图。")
 
         self.assertEqual(brief.selection.surface, "deck")
-        self.assertEqual(brief.selection.task_skill, "weekly-update")
+        self.assertEqual(brief.selection.task_skill, "simple-deck")
         self.assertEqual(brief.selection.design_system, "warm-editorial")
         self.assertEqual(brief.selection.device_frame, "")
         self.assertIn(

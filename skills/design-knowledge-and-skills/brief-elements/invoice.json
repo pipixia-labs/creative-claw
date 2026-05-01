@@ -1,0 +1,23 @@
+{
+  "id": "brief_elements.invoice",
+  "type": "brief_element_schema",
+  "title": "Invoice",
+  "description": "Key design elements for invoices, billing statements, receipts, and payment documents.",
+  "surface": "document",
+  "scenarios": ["invoice", "bill", "billing_statement", "receipt", "发票", "账单", "收据"],
+  "required_fields": ["issuer", "recipient", "line_items", "amounts", "tax_or_discount", "payment_terms", "invoice_status", "brand_context"],
+  "optional_fields": ["currency", "due_date", "payment_methods", "notes", "legal_footer", "export_format"],
+  "question_templates": [
+    {"field": "issuer", "question": "开票方或品牌名称是什么？"},
+    {"field": "recipient", "question": "收票方是谁？是否需要显示公司、地址、税号等字段？"},
+    {"field": "line_items", "question": "需要哪些项目行：名称、数量、单价、折扣、税率？"},
+    {"field": "payment_terms", "question": "付款条款是什么：到期日、付款方式、备注或逾期说明？"}
+  ],
+  "defaults": {
+    "platform": "document",
+    "density": "medium",
+    "recommended_skill": "invoice",
+    "recommended_design_system_candidates": ["stripe", "wise", "default"],
+    "output_contract": "standalone responsive HTML invoice"
+  }
+}

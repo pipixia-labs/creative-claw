@@ -1,0 +1,24 @@
+{
+  "id": "brief_elements.sprite_animation",
+  "type": "brief_element_schema",
+  "title": "Sprite Animation",
+  "description": "Key design elements for pixel art animations, retro explainers, sprite scenes, and 8-bit motion concepts.",
+  "surface": "animation",
+  "scenarios": ["sprite_animation", "pixel_art_animation", "retro_animation", "8_bit_explainer", "sprite_scene", "精灵图", "像素动画"],
+  "required_fields": ["animation_goal", "subject", "duration", "scene_sequence", "sprite_style", "color_palette", "output_ratio"],
+  "optional_fields": ["looping", "text_overlays", "sound_effects", "reference_games", "export_format"],
+  "question_templates": [
+    {"field": "animation_goal", "question": "这个像素动画要表达什么：教程、品牌故事、产品解释、历史短片，还是趣味动效？"},
+    {"field": "subject", "question": "主角或主体是什么？"},
+    {"field": "scene_sequence", "question": "动画分几个阶段？每个阶段发生什么？"},
+    {"field": "sprite_style", "question": "风格偏 8-bit、16-bit、掌机、街机、复古 RPG，还是极简像素？"}
+  ],
+  "defaults": {
+    "platform": "animation storyboard",
+    "density": "medium",
+    "recommended_skill": "sprite-animation",
+    "recommended_design_system_candidates": ["playstation", "default"],
+    "output_contract": "structured sprite animation storyboard or HTML animation concept",
+    "execution_mode": "code_or_video_expert"
+  }
+}

@@ -1,0 +1,24 @@
+{
+  "id": "brief_elements.audio_jingle",
+  "type": "brief_element_schema",
+  "title": "Audio Jingle",
+  "description": "Key design elements for short jingles, sonic logos, voiceover beds, and product sound cues.",
+  "surface": "audio",
+  "scenarios": ["audio_jingle", "sonic_logo", "voiceover_bed", "sound_effect", "jingle", "音频标识", "配乐", "音效"],
+  "required_fields": ["brand_or_product", "audio_goal", "duration", "mood", "instrumentation", "voiceover_needs", "usage_context"],
+  "optional_fields": ["reference_tracks", "language", "tempo", "sound_effects", "export_format", "brand_context"],
+  "question_templates": [
+    {"field": "brand_or_product", "question": "这个音频标识对应哪个品牌、产品或活动？"},
+    {"field": "audio_goal", "question": "音频目标是什么：品牌记忆点、开场提示、短视频配乐、按钮反馈，还是旁白底乐？"},
+    {"field": "duration", "question": "期望时长是多少：3 秒、5 秒、10 秒，还是更长？"},
+    {"field": "mood", "question": "情绪和气质是什么：科技、温暖、活泼、高级、复古，还是其他？"}
+  ],
+  "defaults": {
+    "platform": "audio",
+    "density": "low",
+    "recommended_skill": "audio-jingle",
+    "recommended_design_system_candidates": ["default"],
+    "output_contract": "structured audio generation brief for a short jingle or sound cue",
+    "execution_mode": "audio_expert"
+  }
+}

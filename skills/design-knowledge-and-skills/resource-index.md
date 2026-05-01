@@ -4,7 +4,7 @@ This index summarizes the resources exposed by `design-knowledge-and-skills`. Us
 
 ## Counts
 
-- `brief_element_schema`: 14
+- `brief_element_schema`: 38
 - `contract_schema`: 2
 - `design_system`: 72
 - `device_frame`: 5
@@ -29,18 +29,42 @@ This index summarizes the resources exposed by `design-knowledge-and-skills`. Us
 ## Brief Elements
 
 - `brief_elements.admin_console`: Admin Console -> `brief-elements/admin-console.json`
+- `brief_elements.audio_jingle`: Audio Jingle -> `brief-elements/audio-jingle.json`
+- `brief_elements.blog_post`: Blog Post -> `brief-elements/blog-post.json`
+- `brief_elements.critique`: Design Critique -> `brief-elements/critique.json`
 - `brief_elements.dashboard`: Dashboard / Analytics Console -> `brief-elements/dashboard.json`
+- `brief_elements.dating_web`: Dating Web -> `brief-elements/dating-web.json`
 - `brief_elements.deck`: Slide Deck -> `brief-elements/deck.json`
+- `brief_elements.digital_eguide`: Digital E-guide -> `brief-elements/digital-eguide.json`
 - `brief_elements.docs_page`: Documentation Page -> `brief-elements/docs-page.json`
+- `brief_elements.email_marketing`: Email Marketing -> `brief-elements/email-marketing.json`
+- `brief_elements.eng_runbook`: Engineering Runbook -> `brief-elements/eng-runbook.json`
+- `brief_elements.finance_report`: Finance Report -> `brief-elements/finance-report.json`
+- `brief_elements.gamified_app`: Gamified App -> `brief-elements/gamified-app.json`
+- `brief_elements.guizang_ppt`: Magazine Web PPT -> `brief-elements/guizang-ppt.json`
+- `brief_elements.hr_onboarding`: HR Onboarding -> `brief-elements/hr-onboarding.json`
 - `brief_elements.html_deck`: HTML Deck -> `brief-elements/html-deck.json`
+- `brief_elements.hyperframes`: Hyperframes -> `brief-elements/hyperframes.json`
+- `brief_elements.image_poster`: Image Poster -> `brief-elements/image-poster.json`
+- `brief_elements.invoice`: Invoice -> `brief-elements/invoice.json`
 - `brief_elements.kanban_board`: Kanban Board -> `brief-elements/kanban-board.json`
 - `brief_elements.landing_page`: SaaS / Marketing Landing Page -> `brief-elements/landing-page.json`
 - `brief_elements.magazine_poster`: Magazine Poster -> `brief-elements/magazine-poster.json`
 - `brief_elements.marketing_campaign_page`: Marketing Campaign Page -> `brief-elements/marketing-campaign-page.json`
+- `brief_elements.meeting_notes`: Meeting Notes -> `brief-elements/meeting-notes.json`
 - `brief_elements.mobile_app`: Mobile App Screen / Prototype -> `brief-elements/mobile-app.json`
+- `brief_elements.mobile_onboarding`: Mobile Onboarding -> `brief-elements/mobile-onboarding.json`
+- `brief_elements.motion_frames`: Motion Frames -> `brief-elements/motion-frames.json`
 - `brief_elements.operation_data_ui`: Operation Data UI -> `brief-elements/operation-data-ui.json`
+- `brief_elements.pm_spec`: PM Spec -> `brief-elements/pm-spec.json`
 - `brief_elements.pricing_page`: Pricing Page -> `brief-elements/pricing-page.json`
+- `brief_elements.replit_deck`: Replit Deck -> `brief-elements/replit-deck.json`
 - `brief_elements.social_carousel`: Social Carousel -> `brief-elements/social-carousel.json`
+- `brief_elements.sprite_animation`: Sprite Animation -> `brief-elements/sprite-animation.json`
+- `brief_elements.team_okrs`: Team OKRs -> `brief-elements/team-okrs.json`
+- `brief_elements.tweaks`: Tweaks -> `brief-elements/tweaks.json`
+- `brief_elements.video_shortform`: Shortform Video -> `brief-elements/video-shortform.json`
+- `brief_elements.weekly_update`: Weekly Update -> `brief-elements/weekly-update.json`
 - `brief_elements.wireframe_sketch`: Wireframe Sketch -> `brief-elements/wireframe-sketch.json`
 
 ## Task Skills

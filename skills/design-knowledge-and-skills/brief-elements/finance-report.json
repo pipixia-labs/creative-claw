@@ -1,0 +1,23 @@
+{
+  "id": "brief_elements.finance_report",
+  "type": "brief_element_schema",
+  "title": "Finance Report",
+  "description": "Key design elements for finance reports, quarterly reviews, P&L summaries, budget variance, and MRR reviews.",
+  "surface": "report",
+  "scenarios": ["finance_report", "financial_report", "quarterly_report", "p_and_l", "mrr_review", "财务报告", "财报"],
+  "required_fields": ["report_scope", "time_period", "audience", "core_metrics", "comparison_baseline", "narrative_summary", "tables_or_charts", "risks_or_actions"],
+  "optional_fields": ["currency", "business_unit", "forecast", "variance_drivers", "data_source", "export_format"],
+  "question_templates": [
+    {"field": "report_scope", "question": "报告对象是什么：公司、部门、项目、活动、产品线，还是客户账户？"},
+    {"field": "time_period", "question": "时间范围是什么：月度、季度、年度，还是自定义周期？"},
+    {"field": "core_metrics", "question": "核心财务指标有哪些：收入、成本、利润、现金流、预算偏差、MRR、ARR？"},
+    {"field": "audience", "question": "读者是谁：老板、财务团队、投资人、业务负责人，还是客户？"}
+  ],
+  "defaults": {
+    "platform": "responsive web",
+    "density": "high",
+    "recommended_skill": "finance-report",
+    "recommended_design_system_candidates": ["stripe", "linear-app", "wise", "default"],
+    "output_contract": "standalone responsive HTML finance report"
+  }
+}

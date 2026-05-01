@@ -1,0 +1,23 @@
+{
+  "id": "brief_elements.hr_onboarding",
+  "type": "brief_element_schema",
+  "title": "HR Onboarding",
+  "description": "Key design elements for new-hire onboarding pages, first-week checklists, employee guides, and HR welcome kits.",
+  "surface": "guide",
+  "scenarios": ["hr_onboarding", "new_hire_onboarding", "first_week", "employee_guide", "入职", "新员工"],
+  "required_fields": ["company_context", "new_hire_role", "onboarding_duration", "must_do_tasks", "people_to_meet", "tools_and_access", "success_outcomes"],
+  "optional_fields": ["culture_notes", "schedule", "faq", "policy_links", "manager_notes", "brand_context"],
+  "question_templates": [
+    {"field": "company_context", "question": "这是哪类公司或团队的新员工入职材料？"},
+    {"field": "new_hire_role", "question": "面向什么岗位或团队：工程、销售、运营、设计、通用员工？"},
+    {"field": "onboarding_duration", "question": "覆盖多长时间：第一天、第一周、30 天，还是完整试用期？"},
+    {"field": "must_do_tasks", "question": "新员工必须完成哪些任务：账号、培训、文档、会议、提交材料？"}
+  ],
+  "defaults": {
+    "platform": "internal docs",
+    "density": "medium",
+    "recommended_skill": "hr-onboarding",
+    "recommended_design_system_candidates": ["notion", "linear-app", "default"],
+    "output_contract": "standalone responsive HTML HR onboarding guide"
+  }
+}

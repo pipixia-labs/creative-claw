@@ -4,7 +4,7 @@
   "title": "Slide Deck",
   "description": "Key design elements for pitch decks, updates, readouts, workshops, and presentation-style HTML decks.",
   "surface": "deck",
-  "scenarios": ["deck", "slide_deck", "pitch_deck", "weekly_update", "presentation", "readout"],
+  "scenarios": ["deck", "slide_deck", "pitch_deck", "presentation", "readout"],
   "required_fields": [
     "deck_purpose",
     "audience",

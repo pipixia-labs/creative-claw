@@ -109,6 +109,180 @@
       "license": "MIT"
     },
     {
+      "id": "brief_elements.audio_jingle",
+      "type": "brief_element_schema",
+      "title": "Audio Jingle",
+      "description": "Key design elements for short jingles, sonic logos, voiceover beds, and product sound cues.",
+      "path": "brief-elements/audio-jingle.json",
+      "triggers": [
+        "audio_jingle",
+        "sonic_logo",
+        "voiceover_bed",
+        "sound_effect",
+        "jingle",
+        "音频标识",
+        "配乐",
+        "音效"
+      ],
+      "scenario": [
+        "audio_jingle",
+        "sonic_logo",
+        "voiceover_bed",
+        "sound_effect",
+        "jingle",
+        "音频标识",
+        "配乐",
+        "音效"
+      ],
+      "surface": "audio",
+      "requiredFields": [
+        "brand_or_product",
+        "audio_goal",
+        "duration",
+        "mood",
+        "instrumentation",
+        "voiceover_needs",
+        "usage_context"
+      ],
+      "optionalFields": [
+        "reference_tracks",
+        "language",
+        "tempo",
+        "sound_effects",
+        "export_format",
+        "brand_context"
+      ],
+      "questionTemplatePath": "brief-elements/audio-jingle.json",
+      "defaults": {
+        "platform": "audio",
+        "density": "low",
+        "recommended_skill": "audio-jingle",
+        "recommended_design_system_candidates": [
+          "default"
+        ],
+        "output_contract": "structured audio generation brief for a short jingle or sound cue",
+        "execution_mode": "audio_expert"
+      },
+      "runtimeEnabled": true,
+      "source": "creative-claw",
+      "license": "MIT"
+    },
+    {
+      "id": "brief_elements.blog_post",
+      "type": "brief_element_schema",
+      "title": "Blog Post",
+      "description": "Key design elements for blog posts, essays, case studies, and editorial article pages.",
+      "path": "brief-elements/blog-post.json",
+      "triggers": [
+        "blog_post",
+        "article",
+        "case_study",
+        "newsletter_article",
+        "essay",
+        "博客",
+        "文章",
+        "案例文章"
+      ],
+      "scenario": [
+        "blog_post",
+        "article",
+        "case_study",
+        "newsletter_article",
+        "essay",
+        "博客",
+        "文章",
+        "案例文章"
+      ],
+      "surface": "article",
+      "requiredFields": [
+        "topic",
+        "audience",
+        "core_argument",
+        "outline",
+        "tone",
+        "evidence_or_examples",
+        "call_to_action"
+      ],
+      "optionalFields": [
+        "seo_keywords",
+        "author_context",
+        "image_requirements",
+        "reading_time",
+        "brand_context",
+        "distribution_channel"
+      ],
+      "questionTemplatePath": "brief-elements/blog-post.json",
+      "defaults": {
+        "platform": "responsive web",
+        "density": "medium",
+        "recommended_skill": "blog-post",
+        "recommended_design_system_candidates": [
+          "warm-editorial",
+          "notion",
+          "stripe",
+          "default"
+        ],
+        "output_contract": "standalone responsive HTML article page"
+      },
+      "runtimeEnabled": true,
+      "source": "creative-claw",
+      "license": "MIT"
+    },
+    {
+      "id": "brief_elements.critique",
+      "type": "brief_element_schema",
+      "title": "Design Critique",
+      "description": "Key design elements for structured design review, UX critique, landing page audit, and deck review.",
+      "path": "brief-elements/critique.json",
+      "triggers": [
+        "critique",
+        "design_review",
+        "design_audit",
+        "landing_page_audit",
+        "deck_review",
+        "设计评审",
+        "设计复盘"
+      ],
+      "scenario": [
+        "critique",
+        "design_review",
+        "design_audit",
+        "landing_page_audit",
+        "deck_review",
+        "设计评审",
+        "设计复盘"
+      ],
+      "surface": "critique",
+      "requiredFields": [
+        "artifact_type",
+        "review_goal",
+        "target_audience",
+        "success_criteria",
+        "known_concerns",
+        "source_material"
+      ],
+      "optionalFields": [
+        "brand_context",
+        "competitor_reference",
+        "accessibility_focus",
+        "conversion_focus",
+        "output_format"
+      ],
+      "questionTemplatePath": "brief-elements/critique.json",
+      "defaults": {
+        "platform": "review",
+        "density": "medium",
+        "recommended_skill": "critique",
+        "recommended_design_system_candidates": [
+          "default"
+        ],
+        "output_contract": "structured design critique report with prioritized findings"
+      },
+      "runtimeEnabled": true,
+      "source": "creative-claw",
+      "license": "MIT"
+    },
+    {
       "id": "brief_elements.dashboard",
       "type": "brief_element_schema",
       "title": "Dashboard / Analytics Console",
@@ -166,6 +340,64 @@
       "license": "MIT"
     },
     {
+      "id": "brief_elements.dating_web",
+      "type": "brief_element_schema",
+      "title": "Dating Web",
+      "description": "Key design elements for dating, matchmaking, community, and consumer social dashboard experiences.",
+      "path": "brief-elements/dating-web.json",
+      "triggers": [
+        "dating_web",
+        "dating_app",
+        "matchmaking",
+        "social_dashboard",
+        "community_dashboard",
+        "约会应用",
+        "婚恋"
+      ],
+      "scenario": [
+        "dating_web",
+        "dating_app",
+        "matchmaking",
+        "social_dashboard",
+        "community_dashboard",
+        "约会应用",
+        "婚恋"
+      ],
+      "surface": "dashboard",
+      "requiredFields": [
+        "product_context",
+        "target_user",
+        "matching_goal",
+        "profile_data",
+        "trust_and_safety_needs",
+        "community_signals",
+        "primary_actions"
+      ],
+      "optionalFields": [
+        "monetization",
+        "moderation_model",
+        "privacy_requirements",
+        "visual_direction",
+        "device_context"
+      ],
+      "questionTemplatePath": "brief-elements/dating-web.json",
+      "defaults": {
+        "platform": "responsive web",
+        "density": "medium",
+        "recommended_skill": "dating-web",
+        "recommended_design_system_candidates": [
+          "airbnb",
+          "notion",
+          "xiaohongshu",
+          "default"
+        ],
+        "output_contract": "standalone responsive HTML dating or matchmaking interface"
+      },
+      "runtimeEnabled": true,
+      "source": "creative-claw",
+      "license": "MIT"
+    },
+    {
       "id": "brief_elements.deck",
       "type": "brief_element_schema",
       "title": "Slide Deck",
@@ -175,7 +407,6 @@
         "deck",
         "slide_deck",
         "pitch_deck",
-        "weekly_update",
         "presentation",
         "readout"
       ],
@@ -183,7 +414,6 @@
         "deck",
         "slide_deck",
         "pitch_deck",
-        "weekly_update",
         "presentation",
         "readout"
       ],
@@ -219,6 +449,66 @@
           "default"
         ],
         "output_contract": "standalone HTML slide deck"
+      },
+      "runtimeEnabled": true,
+      "source": "creative-claw",
+      "license": "MIT"
+    },
+    {
+      "id": "brief_elements.digital_eguide",
+      "type": "brief_element_schema",
+      "title": "Digital E-guide",
+      "description": "Key design elements for ebooks, lead magnets, playbooks, lookbooks, and digital guides.",
+      "path": "brief-elements/digital-eguide.json",
+      "triggers": [
+        "digital_eguide",
+        "ebook",
+        "playbook",
+        "lead_magnet",
+        "lookbook",
+        "digital_guide",
+        "电子书",
+        "电子指南"
+      ],
+      "scenario": [
+        "digital_eguide",
+        "ebook",
+        "playbook",
+        "lead_magnet",
+        "lookbook",
+        "digital_guide",
+        "电子书",
+        "电子指南"
+      ],
+      "surface": "guide",
+      "requiredFields": [
+        "guide_topic",
+        "audience",
+        "learning_outcome",
+        "chapter_outline",
+        "source_material",
+        "visual_direction",
+        "conversion_goal"
+      ],
+      "optionalFields": [
+        "worksheet_needs",
+        "examples",
+        "download_format",
+        "brand_context",
+        "image_requirements"
+      ],
+      "questionTemplatePath": "brief-elements/digital-eguide.json",
+      "defaults": {
+        "platform": "responsive web",
+        "density": "medium",
+        "recommended_skill": "digital-eguide",
+        "recommended_design_system_candidates": [
+          "warm-editorial",
+          "stripe",
+          "notion",
+          "default"
+        ],
+        "output_contract": "standalone responsive HTML digital guide"
       },
       "runtimeEnabled": true,
       "source": "creative-claw",
@@ -285,6 +575,360 @@
       "license": "MIT"
     },
     {
+      "id": "brief_elements.email_marketing",
+      "type": "brief_element_schema",
+      "title": "Email Marketing",
+      "description": "Key design elements for launch emails, newsletters, lifecycle emails, and marketing email templates.",
+      "path": "brief-elements/email-marketing.json",
+      "triggers": [
+        "email_marketing",
+        "email_template",
+        "newsletter",
+        "launch_email",
+        "lifecycle_email",
+        "邮件营销",
+        "邮件模板"
+      ],
+      "scenario": [
+        "email_marketing",
+        "email_template",
+        "newsletter",
+        "launch_email",
+        "lifecycle_email",
+        "邮件营销",
+        "邮件模板"
+      ],
+      "surface": "email",
+      "requiredFields": [
+        "campaign_goal",
+        "audience_segment",
+        "subject_line_direction",
+        "core_message",
+        "offer_or_cta",
+        "content_sections",
+        "brand_context"
+      ],
+      "optionalFields": [
+        "personalization",
+        "legal_footer",
+        "preview_text",
+        "mobile_constraints",
+        "utm_needs",
+        "image_policy"
+      ],
+      "questionTemplatePath": "brief-elements/email-marketing.json",
+      "defaults": {
+        "platform": "email",
+        "density": "medium",
+        "recommended_skill": "email-marketing",
+        "recommended_design_system_candidates": [
+          "stripe",
+          "superhuman",
+          "default"
+        ],
+        "output_contract": "responsive HTML email concept or MJML-ready template"
+      },
+      "runtimeEnabled": true,
+      "source": "creative-claw",
+      "license": "MIT"
+    },
+    {
+      "id": "brief_elements.eng_runbook",
+      "type": "brief_element_schema",
+      "title": "Engineering Runbook",
+      "description": "Key design elements for service runbooks, incident response docs, on-call guides, and operational engineering pages.",
+      "path": "brief-elements/eng-runbook.json",
+      "triggers": [
+        "eng_runbook",
+        "runbook",
+        "ops_doc",
+        "on_call",
+        "sre_doc",
+        "incident_runbook",
+        "运维手册"
+      ],
+      "scenario": [
+        "eng_runbook",
+        "runbook",
+        "ops_doc",
+        "on_call",
+        "sre_doc",
+        "incident_runbook",
+        "运维手册"
+      ],
+      "surface": "runbook",
+      "requiredFields": [
+        "service_name",
+        "audience",
+        "operational_goal",
+        "system_overview",
+        "alert_types",
+        "procedures",
+        "escalation_policy",
+        "dashboards_or_links"
+      ],
+      "optionalFields": [
+        "rollback_steps",
+        "common_commands",
+        "severity_levels",
+        "ownership",
+        "postmortem_template"
+      ],
+      "questionTemplatePath": "brief-elements/eng-runbook.json",
+      "defaults": {
+        "platform": "internal docs",
+        "density": "high",
+        "recommended_skill": "eng-runbook",
+        "recommended_design_system_candidates": [
+          "linear-app",
+          "mintlify",
+          "default"
+        ],
+        "output_contract": "standalone responsive HTML engineering runbook"
+      },
+      "runtimeEnabled": true,
+      "source": "creative-claw",
+      "license": "MIT"
+    },
+    {
+      "id": "brief_elements.finance_report",
+      "type": "brief_element_schema",
+      "title": "Finance Report",
+      "description": "Key design elements for finance reports, quarterly reviews, P&L summaries, budget variance, and MRR reviews.",
+      "path": "brief-elements/finance-report.json",
+      "triggers": [
+        "finance_report",
+        "financial_report",
+        "quarterly_report",
+        "p_and_l",
+        "mrr_review",
+        "财务报告",
+        "财报"
+      ],
+      "scenario": [
+        "finance_report",
+        "financial_report",
+        "quarterly_report",
+        "p_and_l",
+        "mrr_review",
+        "财务报告",
+        "财报"
+      ],
+      "surface": "report",
+      "requiredFields": [
+        "report_scope",
+        "time_period",
+        "audience",
+        "core_metrics",
+        "comparison_baseline",
+        "narrative_summary",
+        "tables_or_charts",
+        "risks_or_actions"
+      ],
+      "optionalFields": [
+        "currency",
+        "business_unit",
+        "forecast",
+        "variance_drivers",
+        "data_source",
+        "export_format"
+      ],
+      "questionTemplatePath": "brief-elements/finance-report.json",
+      "defaults": {
+        "platform": "responsive web",
+        "density": "high",
+        "recommended_skill": "finance-report",
+        "recommended_design_system_candidates": [
+          "stripe",
+          "linear-app",
+          "wise",
+          "default"
+        ],
+        "output_contract": "standalone responsive HTML finance report"
+      },
+      "runtimeEnabled": true,
+      "source": "creative-claw",
+      "license": "MIT"
+    },
+    {
+      "id": "brief_elements.gamified_app",
+      "type": "brief_element_schema",
+      "title": "Gamified App",
+      "description": "Key design elements for habit trackers, RPG productivity apps, streak systems, quests, and XP-based mobile experiences.",
+      "path": "brief-elements/gamified-app.json",
+      "triggers": [
+        "gamified_app",
+        "habit_tracker",
+        "rpg_app",
+        "daily_quests",
+        "streak_app",
+        "游戏化",
+        "习惯打卡"
+      ],
+      "scenario": [
+        "gamified_app",
+        "habit_tracker",
+        "rpg_app",
+        "daily_quests",
+        "streak_app",
+        "游戏化",
+        "习惯打卡"
+      ],
+      "surface": "mobile_app",
+      "requiredFields": [
+        "product_goal",
+        "target_user",
+        "core_loop",
+        "progression_system",
+        "rewards",
+        "daily_actions",
+        "screen_set",
+        "tone"
+      ],
+      "optionalFields": [
+        "avatar_system",
+        "social_features",
+        "notifications",
+        "monetization",
+        "accessibility_needs"
+      ],
+      "questionTemplatePath": "brief-elements/gamified-app.json",
+      "defaults": {
+        "platform": "mobile app",
+        "density": "medium",
+        "device_frame": "iphone-15-pro",
+        "recommended_skill": "gamified-app",
+        "recommended_design_system_candidates": [
+          "apple",
+          "airbnb",
+          "xiaohongshu",
+          "default"
+        ],
+        "output_contract": "standalone responsive HTML gamified mobile app prototype"
+      },
+      "runtimeEnabled": true,
+      "source": "creative-claw",
+      "license": "MIT"
+    },
+    {
+      "id": "brief_elements.guizang_ppt",
+      "type": "brief_element_schema",
+      "title": "Magazine Web PPT",
+      "description": "Key design elements for editorial magazine-style horizontal HTML presentations and e-ink slide narratives.",
+      "path": "brief-elements/guizang-ppt.json",
+      "triggers": [
+        "guizang_ppt",
+        "magazine_web_ppt",
+        "editorial_deck",
+        "e_ink_presentation",
+        "magazine_deck",
+        "杂志风PPT",
+        "网页PPT"
+      ],
+      "scenario": [
+        "guizang_ppt",
+        "magazine_web_ppt",
+        "editorial_deck",
+        "e_ink_presentation",
+        "magazine_deck",
+        "杂志风PPT",
+        "网页PPT"
+      ],
+      "surface": "deck",
+      "requiredFields": [
+        "deck_purpose",
+        "audience",
+        "narrative_arc",
+        "slide_count",
+        "editorial_theme",
+        "source_material",
+        "visual_mood",
+        "interaction_model"
+      ],
+      "optionalFields": [
+        "chapter_dividers",
+        "fluid_background",
+        "data_slides",
+        "image_grid",
+        "speaker_notes",
+        "brand_context"
+      ],
+      "questionTemplatePath": "brief-elements/guizang-ppt.json",
+      "defaults": {
+        "platform": "browser presentation",
+        "density": "medium",
+        "aspect_ratio": "16:9",
+        "recommended_skill": "guizang-ppt",
+        "fallback_skill": "simple-deck",
+        "recommended_design_system_candidates": [
+          "warm-editorial",
+          "wired",
+          "theverge",
+          "default"
+        ],
+        "output_contract": "single-file horizontal-swipe editorial HTML deck"
+      },
+      "runtimeEnabled": true,
+      "source": "creative-claw",
+      "license": "MIT"
+    },
+    {
+      "id": "brief_elements.hr_onboarding",
+      "type": "brief_element_schema",
+      "title": "HR Onboarding",
+      "description": "Key design elements for new-hire onboarding pages, first-week checklists, employee guides, and HR welcome kits.",
+      "path": "brief-elements/hr-onboarding.json",
+      "triggers": [
+        "hr_onboarding",
+        "new_hire_onboarding",
+        "first_week",
+        "employee_guide",
+        "入职",
+        "新员工"
+      ],
+      "scenario": [
+        "hr_onboarding",
+        "new_hire_onboarding",
+        "first_week",
+        "employee_guide",
+        "入职",
+        "新员工"
+      ],
+      "surface": "guide",
+      "requiredFields": [
+        "company_context",
+        "new_hire_role",
+        "onboarding_duration",
+        "must_do_tasks",
+        "people_to_meet",
+        "tools_and_access",
+        "success_outcomes"
+      ],
+      "optionalFields": [
+        "culture_notes",
+        "schedule",
+        "faq",
+        "policy_links",
+        "manager_notes",
+        "brand_context"
+      ],
+      "questionTemplatePath": "brief-elements/hr-onboarding.json",
+      "defaults": {
+        "platform": "internal docs",
+        "density": "medium",
+        "recommended_skill": "hr-onboarding",
+        "recommended_design_system_candidates": [
+          "notion",
+          "linear-app",
+          "default"
+        ],
+        "output_contract": "standalone responsive HTML HR onboarding guide"
+      },
+      "runtimeEnabled": true,
+      "source": "creative-claw",
+      "license": "MIT"
+    },
+    {
       "id": "brief_elements.html_deck",
       "type": "brief_element_schema",
       "title": "HTML Deck",
@@ -339,6 +983,184 @@
           "default"
         ],
         "output_contract": "standalone responsive HTML deck"
+      },
+      "runtimeEnabled": true,
+      "source": "creative-claw",
+      "license": "MIT"
+    },
+    {
+      "id": "brief_elements.hyperframes",
+      "type": "brief_element_schema",
+      "title": "Hyperframes",
+      "description": "Key design elements for HTML video compositions, kinetic typography, captioned scenes, and browser-rendered motion narratives.",
+      "path": "brief-elements/hyperframes.json",
+      "triggers": [
+        "hyperframes",
+        "html_video",
+        "video_composition",
+        "kinetic_typography",
+        "captioned_video",
+        "互动视频",
+        "字幕视频"
+      ],
+      "scenario": [
+        "hyperframes",
+        "html_video",
+        "video_composition",
+        "kinetic_typography",
+        "captioned_video",
+        "互动视频",
+        "字幕视频"
+      ],
+      "surface": "video",
+      "requiredFields": [
+        "video_goal",
+        "audience",
+        "duration",
+        "scene_outline",
+        "script_or_copy",
+        "motion_style",
+        "caption_needs",
+        "output_ratio"
+      ],
+      "optionalFields": [
+        "voiceover",
+        "music",
+        "brand_context",
+        "data_visuals",
+        "render_target",
+        "asset_sources"
+      ],
+      "questionTemplatePath": "brief-elements/hyperframes.json",
+      "defaults": {
+        "platform": "browser video composition",
+        "density": "medium",
+        "recommended_skill": "hyperframes",
+        "recommended_design_system_candidates": [
+          "default",
+          "vercel",
+          "runwayml"
+        ],
+        "output_contract": "HTML storyboard or browser-rendered video composition brief",
+        "execution_mode": "code_or_video_expert"
+      },
+      "runtimeEnabled": true,
+      "source": "creative-claw",
+      "license": "MIT"
+    },
+    {
+      "id": "brief_elements.image_poster",
+      "type": "brief_element_schema",
+      "title": "Image Poster",
+      "description": "Key design elements for bitmap poster generation, key art, cover art, and editorial illustrations.",
+      "path": "brief-elements/image-poster.json",
+      "triggers": [
+        "image_poster",
+        "key_art",
+        "cover_art",
+        "editorial_illustration",
+        "poster_image",
+        "插画",
+        "主视觉"
+      ],
+      "scenario": [
+        "image_poster",
+        "key_art",
+        "cover_art",
+        "editorial_illustration",
+        "poster_image",
+        "插画",
+        "主视觉"
+      ],
+      "surface": "image",
+      "requiredFields": [
+        "image_goal",
+        "subject",
+        "audience",
+        "format_or_ratio",
+        "visual_style",
+        "text_requirements",
+        "usage_context"
+      ],
+      "optionalFields": [
+        "reference_images",
+        "brand_context",
+        "negative_constraints",
+        "export_format",
+        "platform"
+      ],
+      "questionTemplatePath": "brief-elements/image-poster.json",
+      "defaults": {
+        "platform": "bitmap image",
+        "density": "medium",
+        "recommended_skill": "image-poster",
+        "recommended_design_system_candidates": [
+          "default",
+          "xiaohongshu",
+          "nike",
+          "warm-editorial"
+        ],
+        "output_contract": "structured image generation brief for poster/key art",
+        "execution_mode": "image_expert"
+      },
+      "runtimeEnabled": true,
+      "source": "creative-claw",
+      "license": "MIT"
+    },
+    {
+      "id": "brief_elements.invoice",
+      "type": "brief_element_schema",
+      "title": "Invoice",
+      "description": "Key design elements for invoices, billing statements, receipts, and payment documents.",
+      "path": "brief-elements/invoice.json",
+      "triggers": [
+        "invoice",
+        "bill",
+        "billing_statement",
+        "receipt",
+        "发票",
+        "账单",
+        "收据"
+      ],
+      "scenario": [
+        "invoice",
+        "bill",
+        "billing_statement",
+        "receipt",
+        "发票",
+        "账单",
+        "收据"
+      ],
+      "surface": "document",
+      "requiredFields": [
+        "issuer",
+        "recipient",
+        "line_items",
+        "amounts",
+        "tax_or_discount",
+        "payment_terms",
+        "invoice_status",
+        "brand_context"
+      ],
+      "optionalFields": [
+        "currency",
+        "due_date",
+        "payment_methods",
+        "notes",
+        "legal_footer",
+        "export_format"
+      ],
+      "questionTemplatePath": "brief-elements/invoice.json",
+      "defaults": {
+        "platform": "document",
+        "density": "medium",
+        "recommended_skill": "invoice",
+        "recommended_design_system_candidates": [
+          "stripe",
+          "wise",
+          "default"
+        ],
+        "output_contract": "standalone responsive HTML invoice"
       },
       "runtimeEnabled": true,
       "source": "creative-claw",
@@ -596,6 +1418,62 @@
       "license": "MIT"
     },
     {
+      "id": "brief_elements.meeting_notes",
+      "type": "brief_element_schema",
+      "title": "Meeting Notes",
+      "description": "Key design elements for meeting notes, recaps, decision logs, all-hands summaries, and 1:1 notes.",
+      "path": "brief-elements/meeting-notes.json",
+      "triggers": [
+        "meeting_notes",
+        "minutes",
+        "recap",
+        "decision_log",
+        "one_on_one_notes",
+        "会议纪要"
+      ],
+      "scenario": [
+        "meeting_notes",
+        "minutes",
+        "recap",
+        "decision_log",
+        "one_on_one_notes",
+        "会议纪要"
+      ],
+      "surface": "notes",
+      "requiredFields": [
+        "meeting_type",
+        "audience",
+        "agenda",
+        "key_decisions",
+        "action_items",
+        "owners",
+        "follow_up_date"
+      ],
+      "optionalFields": [
+        "attendees",
+        "discussion_summary",
+        "risks",
+        "links",
+        "sentiment",
+        "privacy_level"
+      ],
+      "questionTemplatePath": "brief-elements/meeting-notes.json",
+      "defaults": {
+        "platform": "internal docs",
+        "density": "medium",
+        "recommended_skill": "meeting-notes",
+        "recommended_design_system_candidates": [
+          "notion",
+          "linear-app",
+          "default"
+        ],
+        "output_contract": "structured meeting notes page"
+      },
+      "runtimeEnabled": true,
+      "source": "creative-claw",
+      "license": "MIT"
+    },
+    {
       "id": "brief_elements.mobile_app",
       "type": "brief_element_schema",
       "title": "Mobile App Screen / Prototype",
@@ -604,7 +1482,6 @@
       "triggers": [
         "mobile_app",
         "mobile_screen",
-        "mobile_onboarding",
         "ios_app",
         "android_app",
         "app_prototype"
@@ -612,7 +1489,6 @@
       "scenario": [
         "mobile_app",
         "mobile_screen",
-        "mobile_onboarding",
         "ios_app",
         "android_app",
         "app_prototype"
@@ -653,6 +1529,123 @@
           "default"
         ],
         "output_contract": "standalone mobile HTML prototype"
+      },
+      "runtimeEnabled": true,
+      "source": "creative-claw",
+      "license": "MIT"
+    },
+    {
+      "id": "brief_elements.mobile_onboarding",
+      "type": "brief_element_schema",
+      "title": "Mobile Onboarding",
+      "description": "Key design elements for mobile app onboarding, signup, activation, and first-run education flows.",
+      "path": "brief-elements/mobile-onboarding.json",
+      "triggers": [
+        "mobile_onboarding",
+        "ios_onboarding",
+        "android_onboarding",
+        "phone_signup",
+        "app_onboarding",
+        "移动端引导"
+      ],
+      "scenario": [
+        "mobile_onboarding",
+        "ios_onboarding",
+        "android_onboarding",
+        "phone_signup",
+        "app_onboarding",
+        "移动端引导"
+      ],
+      "surface": "mobile_app",
+      "requiredFields": [
+        "app_context",
+        "target_user",
+        "activation_goal",
+        "screen_count",
+        "value_messages",
+        "signup_or_auth",
+        "primary_cta",
+        "device_context"
+      ],
+      "optionalFields": [
+        "permission_prompts",
+        "progress_indicator",
+        "illustration_style",
+        "brand_context",
+        "skip_policy"
+      ],
+      "questionTemplatePath": "brief-elements/mobile-onboarding.json",
+      "defaults": {
+        "platform": "mobile app",
+        "density": "low",
+        "device_frame": "iphone-15-pro",
+        "recommended_skill": "mobile-onboarding",
+        "fallback_skill": "mobile-app",
+        "recommended_design_system_candidates": [
+          "apple",
+          "airbnb",
+          "notion",
+          "default"
+        ],
+        "output_contract": "standalone responsive HTML mobile onboarding flow"
+      },
+      "runtimeEnabled": true,
+      "source": "creative-claw",
+      "license": "MIT"
+    },
+    {
+      "id": "brief_elements.motion_frames",
+      "type": "brief_element_schema",
+      "title": "Motion Frames",
+      "description": "Key design elements for motion graphics, animated hero concepts, loop animations, and title card sequences.",
+      "path": "brief-elements/motion-frames.json",
+      "triggers": [
+        "motion_frames",
+        "motion_design",
+        "motion_graphic",
+        "animated_hero",
+        "loop_animation",
+        "动态设计",
+        "动效"
+      ],
+      "scenario": [
+        "motion_frames",
+        "motion_design",
+        "motion_graphic",
+        "animated_hero",
+        "loop_animation",
+        "动态设计",
+        "动效"
+      ],
+      "surface": "motion",
+      "requiredFields": [
+        "motion_goal",
+        "audience",
+        "duration",
+        "frame_sequence",
+        "visual_style",
+        "copy_or_labels",
+        "output_ratio"
+      ],
+      "optionalFields": [
+        "music_or_sound",
+        "brand_context",
+        "reference_motion",
+        "export_format",
+        "interaction_trigger"
+      ],
+      "questionTemplatePath": "brief-elements/motion-frames.json",
+      "defaults": {
+        "platform": "motion storyboard",
+        "density": "medium",
+        "recommended_skill": "motion-frames",
+        "recommended_design_system_candidates": [
+          "default",
+          "vercel",
+          "runwayml"
+        ],
+        "output_contract": "structured motion frame storyboard or HTML motion concept",
+        "execution_mode": "code_or_video_expert"
       },
       "runtimeEnabled": true,
       "source": "creative-claw",
@@ -722,6 +1715,65 @@
       "license": "MIT"
     },
     {
+      "id": "brief_elements.pm_spec",
+      "type": "brief_element_schema",
+      "title": "PM Spec",
+      "description": "Key design elements for product requirement docs, feature specs, PRDs, and product briefs.",
+      "path": "brief-elements/pm-spec.json",
+      "triggers": [
+        "pm_spec",
+        "prd",
+        "product_spec",
+        "feature_spec",
+        "feature_brief",
+        "需求文档",
+        "产品需求"
+      ],
+      "scenario": [
+        "pm_spec",
+        "prd",
+        "product_spec",
+        "feature_spec",
+        "feature_brief",
+        "需求文档",
+        "产品需求"
+      ],
+      "surface": "spec",
+      "requiredFields": [
+        "feature_name",
+        "problem_statement",
+        "target_users",
+        "goals",
+        "scope",
+        "user_flows",
+        "success_metrics",
+        "open_questions"
+      ],
+      "optionalFields": [
+        "non_goals",
+        "dependencies",
+        "launch_plan",
+        "analytics_events",
+        "edge_cases",
+        "design_links"
+      ],
+      "questionTemplatePath": "brief-elements/pm-spec.json",
+      "defaults": {
+        "platform": "product docs",
+        "density": "high",
+        "recommended_skill": "pm-spec",
+        "recommended_design_system_candidates": [
+          "notion",
+          "linear-app",
+          "default"
+        ],
+        "output_contract": "structured product specification document"
+      },
+      "runtimeEnabled": true,
+      "source": "creative-claw",
+      "license": "MIT"
+    },
+    {
       "id": "brief_elements.pricing_page",
       "type": "brief_element_schema",
       "title": "Pricing Page",
@@ -783,6 +1835,64 @@
       "license": "MIT"
     },
     {
+      "id": "brief_elements.replit_deck",
+      "type": "brief_element_schema",
+      "title": "Replit Deck",
+      "description": "Key design elements for Replit-inspired helix decks, product memos, launch chapters, and distinctive developer storytelling decks.",
+      "path": "brief-elements/replit-deck.json",
+      "triggers": [
+        "replit_deck",
+        "replit_slides",
+        "replit_style_deck",
+        "helix_deck",
+        "developer_story_deck",
+        "replit风格PPT"
+      ],
+      "scenario": [
+        "replit_deck",
+        "replit_slides",
+        "replit_style_deck",
+        "helix_deck",
+        "developer_story_deck",
+        "replit风格PPT"
+      ],
+      "surface": "deck",
+      "requiredFields": [
+        "deck_purpose",
+        "audience",
+        "story_mode",
+        "slide_count",
+        "source_material",
+        "visual_motifs",
+        "call_to_action"
+      ],
+      "optionalFields": [
+        "code_examples",
+        "product_screens",
+        "chapter_names",
+        "speaker_notes",
+        "brand_context"
+      ],
+      "questionTemplatePath": "brief-elements/replit-deck.json",
+      "defaults": {
+        "platform": "browser presentation",
+        "density": "medium",
+        "aspect_ratio": "16:9",
+        "recommended_skill": "replit-deck",
+        "fallback_skill": "simple-deck",
+        "recommended_design_system_candidates": [
+          "replit",
+          "cursor",
+          "vercel",
+          "default"
+        ],
+        "output_contract": "single-file Replit-inspired HTML deck"
+      },
+      "runtimeEnabled": true,
+      "source": "creative-claw",
+      "license": "MIT"
+    },
+    {
       "id": "brief_elements.social_carousel",
       "type": "brief_element_schema",
       "title": "Social Carousel",
@@ -837,6 +1947,297 @@
           "default"
         ],
         "output_contract": "standalone responsive HTML social carousel storyboard"
+      },
+      "runtimeEnabled": true,
+      "source": "creative-claw",
+      "license": "MIT"
+    },
+    {
+      "id": "brief_elements.sprite_animation",
+      "type": "brief_element_schema",
+      "title": "Sprite Animation",
+      "description": "Key design elements for pixel art animations, retro explainers, sprite scenes, and 8-bit motion concepts.",
+      "path": "brief-elements/sprite-animation.json",
+      "triggers": [
+        "sprite_animation",
+        "pixel_art_animation",
+        "retro_animation",
+        "8_bit_explainer",
+        "sprite_scene",
+        "精灵图",
+        "像素动画"
+      ],
+      "scenario": [
+        "sprite_animation",
+        "pixel_art_animation",
+        "retro_animation",
+        "8_bit_explainer",
+        "sprite_scene",
+        "精灵图",
+        "像素动画"
+      ],
+      "surface": "animation",
+      "requiredFields": [
+        "animation_goal",
+        "subject",
+        "duration",
+        "scene_sequence",
+        "sprite_style",
+        "color_palette",
+        "output_ratio"
+      ],
+      "optionalFields": [
+        "looping",
+        "text_overlays",
+        "sound_effects",
+        "reference_games",
+        "export_format"
+      ],
+      "questionTemplatePath": "brief-elements/sprite-animation.json",
+      "defaults": {
+        "platform": "animation storyboard",
+        "density": "medium",
+        "recommended_skill": "sprite-animation",
+        "recommended_design_system_candidates": [
+          "playstation",
+          "default"
+        ],
+        "output_contract": "structured sprite animation storyboard or HTML animation concept",
+        "execution_mode": "code_or_video_expert"
+      },
+      "runtimeEnabled": true,
+      "source": "creative-claw",
+      "license": "MIT"
+    },
+    {
+      "id": "brief_elements.team_okrs",
+      "type": "brief_element_schema",
+      "title": "Team OKRs",
+      "description": "Key design elements for team OKR dashboards, objective planning pages, and key result tracking views.",
+      "path": "brief-elements/team-okrs.json",
+      "triggers": [
+        "team_okrs",
+        "okr",
+        "okrs",
+        "objectives",
+        "key_results",
+        "目标",
+        "团队OKR"
+      ],
+      "scenario": [
+        "team_okrs",
+        "okr",
+        "okrs",
+        "objectives",
+        "key_results",
+        "目标",
+        "团队OKR"
+      ],
+      "surface": "planning",
+      "requiredFields": [
+        "team_context",
+        "period",
+        "objectives",
+        "key_results",
+        "owners",
+        "confidence_or_status",
+        "review_cadence"
+      ],
+      "optionalFields": [
+        "initiatives",
+        "risks",
+        "dependencies",
+        "scoring_model",
+        "stakeholders",
+        "history"
+      ],
+      "questionTemplatePath": "brief-elements/team-okrs.json",
+      "defaults": {
+        "platform": "responsive web",
+        "density": "medium",
+        "recommended_skill": "team-okrs",
+        "recommended_design_system_candidates": [
+          "linear-app",
+          "notion",
+          "default"
+        ],
+        "output_contract": "standalone responsive HTML OKR planning page"
+      },
+      "runtimeEnabled": true,
+      "source": "creative-claw",
+      "license": "MIT"
+    },
+    {
+      "id": "brief_elements.tweaks",
+      "type": "brief_element_schema",
+      "title": "Tweaks",
+      "description": "Key design elements for live tweak panels, variant exploration, adjustable controls, and design parameter playgrounds.",
+      "path": "brief-elements/tweaks.json",
+      "triggers": [
+        "tweaks",
+        "variants",
+        "tweak_panel",
+        "live_controls",
+        "parameter_panel",
+        "实时调参",
+        "可调参数面板"
+      ],
+      "scenario": [
+        "tweaks",
+        "variants",
+        "tweak_panel",
+        "live_controls",
+        "parameter_panel",
+        "实时调参",
+        "可调参数面板"
+      ],
+      "surface": "interactive_tool",
+      "requiredFields": [
+        "target_artifact",
+        "adjustable_parameters",
+        "user_goal",
+        "control_types",
+        "default_values",
+        "preview_behavior"
+      ],
+      "optionalFields": [
+        "presets",
+        "export_needs",
+        "constraints",
+        "state_persistence",
+        "brand_context"
+      ],
+      "questionTemplatePath": "brief-elements/tweaks.json",
+      "defaults": {
+        "platform": "interactive web tool",
+        "density": "high",
+        "recommended_skill": "tweaks",
+        "recommended_design_system_candidates": [
+          "figma",
+          "linear-app",
+          "default"
+        ],
+        "output_contract": "standalone HTML tweak panel or variant exploration tool"
+      },
+      "runtimeEnabled": true,
+      "source": "creative-claw",
+      "license": "MIT"
+    },
+    {
+      "id": "brief_elements.video_shortform",
+      "type": "brief_element_schema",
+      "title": "Shortform Video",
+      "description": "Key design elements for short videos, reels, product clips, launch teasers, and vertical social video briefs.",
+      "path": "brief-elements/video-shortform.json",
+      "triggers": [
+        "video_shortform",
+        "shortform_video",
+        "reel",
+        "product_clip",
+        "launch_teaser",
+        "短视频",
+        "竖屏视频"
+      ],
+      "scenario": [
+        "video_shortform",
+        "shortform_video",
+        "reel",
+        "product_clip",
+        "launch_teaser",
+        "短视频",
+        "竖屏视频"
+      ],
+      "surface": "video",
+      "requiredFields": [
+        "video_goal",
+        "audience",
+        "duration",
+        "platform",
+        "story_beats",
+        "visual_style",
+        "audio_or_voiceover",
+        "call_to_action"
+      ],
+      "optionalFields": [
+        "aspect_ratio",
+        "captions",
+        "reference_videos",
+        "brand_context",
+        "asset_sources",
+        "export_format"
+      ],
+      "questionTemplatePath": "brief-elements/video-shortform.json",
+      "defaults": {
+        "platform": "shortform video",
+        "density": "medium",
+        "aspect_ratio": "9:16",
+        "recommended_skill": "video-shortform",
+        "recommended_design_system_candidates": [
+          "runwayml",
+          "xiaohongshu",
+          "default"
+        ],
+        "output_contract": "structured shortform video brief or storyboard",
+        "execution_mode": "video_expert"
+      },
+      "runtimeEnabled": true,
+      "source": "creative-claw",
+      "license": "MIT"
+    },
+    {
+      "id": "brief_elements.weekly_update",
+      "type": "brief_element_schema",
+      "title": "Weekly Update",
+      "description": "Key design elements for weekly update decks, team status slides, project reviews, and lightweight leadership readouts.",
+      "path": "brief-elements/weekly-update.json",
+      "triggers": [
+        "weekly_update",
+        "team_update_slides",
+        "weekly_status",
+        "weekly_review",
+        "周报演示",
+        "周报"
+      ],
+      "scenario": [
+        "weekly_update",
+        "team_update_slides",
+        "weekly_status",
+        "weekly_review",
+        "周报演示",
+        "周报"
+      ],
+      "surface": "deck",
+      "requiredFields": [
+        "team_or_project",
+        "week_range",
+        "audience",
+        "wins",
+        "in_progress",
+        "risks_or_blockers",
+        "metrics",
+        "asks"
+      ],
+      "optionalFields": [
+        "next_week_plan",
+        "owner_updates",
+        "customer_notes",
+        "timeline",
+        "speaker_notes",
+        "brand_context"
+      ],
+      "questionTemplatePath": "brief-elements/weekly-update.json",
+      "defaults": {
+        "platform": "browser presentation",
+        "density": "medium",
+        "aspect_ratio": "16:9",
+        "recommended_skill": "weekly-update",
+        "fallback_skill": "simple-deck",
+        "recommended_design_system_candidates": [
+          "warm-editorial",
+          "linear-app",
+          "default"
+        ],
+        "output_contract": "single-file weekly update HTML deck"
       },
       "runtimeEnabled": true,
       "source": "creative-claw",

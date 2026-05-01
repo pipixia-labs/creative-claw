@@ -1,0 +1,25 @@
+{
+  "id": "brief_elements.guizang_ppt",
+  "type": "brief_element_schema",
+  "title": "Magazine Web PPT",
+  "description": "Key design elements for editorial magazine-style horizontal HTML presentations and e-ink slide narratives.",
+  "surface": "deck",
+  "scenarios": ["guizang_ppt", "magazine_web_ppt", "editorial_deck", "e_ink_presentation", "magazine_deck", "杂志风PPT", "网页PPT"],
+  "required_fields": ["deck_purpose", "audience", "narrative_arc", "slide_count", "editorial_theme", "source_material", "visual_mood", "interaction_model"],
+  "optional_fields": ["chapter_dividers", "fluid_background", "data_slides", "image_grid", "speaker_notes", "brand_context"],
+  "question_templates": [
+    {"field": "deck_purpose", "question": "这套杂志风 PPT 用于什么场景：发布会、分享、提案、复盘，还是作品集？"},
+    {"field": "narrative_arc", "question": "叙事主线是什么？例如问题、洞察、方案、证明、行动。"},
+    {"field": "editorial_theme", "question": "编辑视觉更偏电子墨水、商业杂志、科技发布会，还是文化刊物？"},
+    {"field": "source_material", "question": "是否已有文案、数据、图片或章节大纲？"}
+  ],
+  "defaults": {
+    "platform": "browser presentation",
+    "density": "medium",
+    "aspect_ratio": "16:9",
+    "recommended_skill": "guizang-ppt",
+    "fallback_skill": "simple-deck",
+    "recommended_design_system_candidates": ["warm-editorial", "wired", "theverge", "default"],
+    "output_contract": "single-file horizontal-swipe editorial HTML deck"
+  }
+}

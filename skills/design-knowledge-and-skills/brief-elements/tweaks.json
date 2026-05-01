@@ -1,0 +1,23 @@
+{
+  "id": "brief_elements.tweaks",
+  "type": "brief_element_schema",
+  "title": "Tweaks",
+  "description": "Key design elements for live tweak panels, variant exploration, adjustable controls, and design parameter playgrounds.",
+  "surface": "interactive_tool",
+  "scenarios": ["tweaks", "variants", "tweak_panel", "live_controls", "parameter_panel", "实时调参", "可调参数面板"],
+  "required_fields": ["target_artifact", "adjustable_parameters", "user_goal", "control_types", "default_values", "preview_behavior"],
+  "optional_fields": ["presets", "export_needs", "constraints", "state_persistence", "brand_context"],
+  "question_templates": [
+    {"field": "target_artifact", "question": "要给什么 artifact 增加可调参数：页面、海报、动画、组件，还是图表？"},
+    {"field": "adjustable_parameters", "question": "哪些参数需要可调：颜色、字体、密度、布局、数据、动效、文案？"},
+    {"field": "control_types", "question": "控件需要什么形式：滑块、开关、分段选择、颜色选择器、输入框？"},
+    {"field": "preview_behavior", "question": "调整后希望如何预览：实时刷新、生成变体、保存预设，还是导出配置？"}
+  ],
+  "defaults": {
+    "platform": "interactive web tool",
+    "density": "high",
+    "recommended_skill": "tweaks",
+    "recommended_design_system_candidates": ["figma", "linear-app", "default"],
+    "output_contract": "standalone HTML tweak panel or variant exploration tool"
+  }
+}

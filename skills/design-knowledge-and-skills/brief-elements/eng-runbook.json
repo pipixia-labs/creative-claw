@@ -1,0 +1,23 @@
+{
+  "id": "brief_elements.eng_runbook",
+  "type": "brief_element_schema",
+  "title": "Engineering Runbook",
+  "description": "Key design elements for service runbooks, incident response docs, on-call guides, and operational engineering pages.",
+  "surface": "runbook",
+  "scenarios": ["eng_runbook", "runbook", "ops_doc", "on_call", "sre_doc", "incident_runbook", "运维手册"],
+  "required_fields": ["service_name", "audience", "operational_goal", "system_overview", "alert_types", "procedures", "escalation_policy", "dashboards_or_links"],
+  "optional_fields": ["rollback_steps", "common_commands", "severity_levels", "ownership", "postmortem_template"],
+  "question_templates": [
+    {"field": "service_name", "question": "这份 runbook 对应哪个服务、系统或流程？"},
+    {"field": "alert_types", "question": "需要覆盖哪些告警或故障类型？"},
+    {"field": "procedures", "question": "有哪些标准处理步骤、排查命令或回滚流程？"},
+    {"field": "escalation_policy", "question": "升级路径是什么：谁负责、何时升级、联系渠道是什么？"}
+  ],
+  "defaults": {
+    "platform": "internal docs",
+    "density": "high",
+    "recommended_skill": "eng-runbook",
+    "recommended_design_system_candidates": ["linear-app", "mintlify", "default"],
+    "output_contract": "standalone responsive HTML engineering runbook"
+  }
+}

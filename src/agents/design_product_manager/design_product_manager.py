@@ -910,7 +910,12 @@ Turn a user's design request into one focused, resource-grounded production brie
         if normalized_candidate in normalized_text:
             return len(normalized_candidate)
         tokens = re.findall(r"[a-z0-9]+|[\u4e00-\u9fff]+", normalized_candidate)
-        if len(tokens) > 1 and all(token in normalized_text for token in tokens):
+        meaningful_tokens = [token for token in tokens if len(token) > 1 or re.search(r"[\u4e00-\u9fff]", token)]
+        text_tokens = set(re.findall(r"[a-z0-9]+|[\u4e00-\u9fff]+", normalized_text))
+        if len(meaningful_tokens) > 1 and all(
+            token in normalized_text if re.search(r"[\u4e00-\u9fff]", token) else token in text_tokens
+            for token in meaningful_tokens
+        ):
             return len(normalized_candidate) + 5
         return 0
 

@@ -4,7 +4,7 @@
   "title": "Mobile App Screen / Prototype",
   "description": "Key design elements for mobile app screens, onboarding flows, and multi-screen mobile prototypes.",
   "surface": "mobile_app",
-  "scenarios": ["mobile_app", "mobile_screen", "mobile_onboarding", "ios_app", "android_app", "app_prototype"],
+  "scenarios": ["mobile_app", "mobile_screen", "ios_app", "android_app", "app_prototype"],
   "required_fields": [
     "app_purpose",
     "primary_user",

@@ -76,21 +76,35 @@ The design brief is the handoff to `CodeGenerationExpert` or another bottom capa
 
 ## Current Scope
 
-This first version supports resource lookup and clarification for:
+This version supports resource lookup and clarification for all current built-in task skill families:
 
-- dashboard
-- operation data UI
-- admin console
-- pricing page
+- audio jingle
+- blog post
+- critique / design review
+- dashboard / operation data UI / admin console
+- dating web
+- digital e-guide
 - documentation page
+- email marketing
+- engineering runbook
+- finance report
+- gamified app
+- magazine web PPT / HTML deck / Replit deck / weekly update deck
+- HR onboarding
+- hyperframes
+- image poster / magazine poster
+- invoice
 - kanban board
-- SaaS landing page
-- marketing campaign page
-- mobile app screen or prototype
+- meeting notes
+- mobile app / mobile onboarding
+- motion frames
+- PM spec
+- pricing page / SaaS landing page / marketing campaign page
 - social carousel
-- magazine poster
+- sprite animation
+- team OKRs
+- tweaks
+- video shortform
 - wireframe sketch
-- slide deck
-- HTML deck
 
-Other scenarios can still use general task skills, but their clarification strategy should be added to `brief-elements` before relying on them heavily.
+Media-oriented scenarios can produce structured briefs and storyboards in the current Design path. Full image, audio, or video execution should be delegated to the corresponding bottom capability when the Orchestrator supports that route.
