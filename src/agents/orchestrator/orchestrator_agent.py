@@ -18,7 +18,7 @@ from google.adk.tools.tool_context import ToolContext
 from google.adk.models import LlmRequest
 from google.genai.types import Content, Part
 
-from src.agents.design_product_manager import DesignProductManager
+from src.agents.design_product_manager import DesignProductManager, validate_design_artifacts
 from conf.agent import EXPERTS_LIST
 from conf.llm import build_llm, resolve_llm_model_name
 from conf.system import SYS_CONFIG
@@ -1351,12 +1351,20 @@ Expert parameter contracts:
                 app_name=self.app_name,
                 artifact_service=self.artifact_service,
             )
+            output_files = invocation.tool_result.get("output_files", [])
+            output_paths = [
+                str(file_info.get("path", "")).strip()
+                for file_info in output_files
+                if isinstance(file_info, dict) and str(file_info.get("path", "")).strip()
+            ]
+            design_validation = validate_design_artifacts(output_paths)
             result = {
                 "status": invocation.tool_result.get("status", "error"),
                 "message": invocation.tool_result.get("message", ""),
                 "brief": brief_payload,
                 "code_generation": invocation.tool_result,
-                "output_files": invocation.tool_result.get("output_files", []),
+                "output_files": output_files,
+                "design_validation": design_validation,
             }
             tool_context.state["design_product_result"] = result
             return result

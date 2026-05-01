@@ -262,6 +262,43 @@ class RuntimeSessionTests(unittest.IsolatedAsyncioTestCase):
         self.assertEqual(events[-1].text, "The image is ready.")
         self.assertNotIn("Image generation is complete.", events[-1].text)
 
+    async def test_run_message_returns_design_questions_without_orchestrator(self) -> None:
+        runtime = CreativeClawRuntime()
+        inbound = InboundMessage(
+            channel="cli",
+            sender_id="cli-user",
+            chat_id="design",
+            text="做一个运营数据 dashboard",
+            metadata={
+                "product_line": "design",
+                "design": {
+                    "scenario": "dashboard",
+                    "allow_assumptions": False,
+                },
+            },
+        )
+
+        with patch("src.runtime.workflow_service.Orchestrator") as mocked_orchestrator:
+            events = [event async for event in runtime.run_message(inbound)]
+
+        mocked_orchestrator.assert_not_called()
+        self.assertEqual(events[0].event_type, "status")
+        self.assertEqual(events[-1].event_type, "final")
+        self.assertIn("我需要先确认这些设计要素", events[-1].text)
+        self.assertIn("这个数据 UI 面向什么业务", events[-1].text)
+        self.assertIn("task skill：dashboard", events[-1].text)
+
+        session_id = events[-1].metadata["session_id"]
+        session = await runtime.session_service.get_session(
+            app_name=SYS_CONFIG.app_name,
+            user_id="cli-user",
+            session_id=session_id,
+        )
+        self.assertEqual(session.state["workflow_status"], "finished")
+        self.assertEqual(session.state["final_file_paths"], [])
+        self.assertEqual(session.state["design_product_brief"]["selection"]["surface"], "dashboard")
+        self.assertTrue(session.state["design_product_brief"]["needs_clarification"])
+
     async def test_run_message_scopes_progress_metadata_by_turn_index(self) -> None:
         runtime = CreativeClawRuntime()
         inbound = InboundMessage(

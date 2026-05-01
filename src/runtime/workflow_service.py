@@ -4,12 +4,14 @@ from __future__ import annotations
 
 import json
 import uuid
+from typing import Any
 
 from google.adk.artifacts import InMemoryArtifactService
 from google.adk.events import Event, EventActions
 from google.adk.sessions import InMemorySessionService
 from google.genai.types import Content, Part
 
+from src.agents.design_product_manager import DesignProductBrief, DesignProductManager
 from conf.system import SYS_CONFIG
 from src.agents.orchestrator.orchestrator_agent import Orchestrator
 from src.logger import logger
@@ -131,6 +133,46 @@ def _render_orchestration_history(history: list[dict[str, str]], limit: int = 8)
     return "\n\n".join(blocks)
 
 
+def _get_design_options(metadata: dict[str, Any]) -> dict[str, Any]:
+    """Return normalized Design product-line options from inbound metadata."""
+    design_options = metadata.get("design", {})
+    return dict(design_options) if isinstance(design_options, dict) else {}
+
+
+def _should_run_design_intake(inbound: InboundMessage) -> bool:
+    """Return whether this request only needs deterministic design clarification."""
+    if str(inbound.metadata.get("product_line", "") or "").strip().lower() != "design":
+        return False
+    design_options = _get_design_options(inbound.metadata)
+    return design_options.get("allow_assumptions") is False
+
+
+def _build_design_intake_text(brief: DesignProductBrief) -> str:
+    """Render scenario-specific design questions as one final user-facing reply."""
+    lines = [
+        "我需要先确认这些设计要素，避免直接生成时方向跑偏：",
+        "",
+    ]
+    for index, item in enumerate(brief.questions, start=1):
+        lines.append(f"{index}. {item['question']}")
+
+    selection = brief.selection
+    lines.extend(
+        [
+            "",
+            "当前系统已初步识别：",
+            f"- 场景：{selection.surface}",
+            f"- task skill：{selection.task_skill}",
+            f"- design system：{selection.design_system}",
+        ]
+    )
+    if selection.device_frame:
+        lines.append(f"- device frame：{selection.device_frame}")
+    lines.append("")
+    lines.append("你可以逐条回答，也可以说“使用默认假设继续”。")
+    return "\n".join(lines)
+
+
 class CreativeClawRuntime:
     """Run Creative Claw workflow for normalized channel messages."""
 
@@ -203,6 +245,16 @@ class CreativeClawRuntime:
             )
             return
 
+        design_intake_event = await self._maybe_run_design_intake(
+            user_id,
+            session_id,
+            inbound,
+            turn_index=current_turn,
+        )
+        if design_intake_event is not None:
+            yield design_intake_event
+            return
+
         orchestrator_agent = Orchestrator(
             session_service=self.session_service,
             artifact_service=self.artifact_service,
@@ -267,6 +319,70 @@ class CreativeClawRuntime:
                 text=error_text,
                 metadata={"session_id": session_id, "turn_index": current_turn},
             )
+
+    async def _maybe_run_design_intake(
+        self,
+        user_id: str,
+        session_id: str,
+        inbound: InboundMessage,
+        *,
+        turn_index: int,
+    ) -> WorkflowEvent | None:
+        """Return design clarification directly for Design CLI ask-questions mode."""
+        if not _should_run_design_intake(inbound):
+            return None
+
+        design_options = _get_design_options(inbound.metadata)
+        manager = DesignProductManager()
+        brief = manager.prepare_brief(
+            prompt=inbound.text,
+            scenario=str(design_options.get("scenario", "") or ""),
+            output_format=str(design_options.get("output_format", "html") or "html"),
+            allow_assumptions=False,
+            design_system=str(design_options.get("design_system", "") or ""),
+            task_skill=str(design_options.get("task_skill", "") or ""),
+            device_frame=str(design_options.get("device_frame", "") or ""),
+            output_path=str(design_options.get("output_path", "") or ""),
+        )
+        reply_text = _build_design_intake_text(brief)
+
+        current_session = await self.session_service.get_session(
+            app_name=SYS_CONFIG.app_name,
+            user_id=user_id,
+            session_id=session_id,
+        )
+        if current_session is None:
+            return WorkflowEvent(
+                event_type="error",
+                text="Workflow ended without a valid session.",
+                metadata={"session_id": session_id, "turn_index": turn_index},
+            )
+
+        await self.session_service.append_event(
+            current_session,
+            Event(
+                author="design_product_manager",
+                actions=EventActions(
+                    state_delta={
+                        "workflow_status": "finished",
+                        "design_product_brief": brief.to_dict(),
+                        "final_summary": reply_text,
+                        "final_response": reply_text,
+                        "final_file_paths": [],
+                        "last_output_message": reply_text,
+                    }
+                ),
+            ),
+        )
+        return WorkflowEvent(
+            event_type="final",
+            text=reply_text,
+            metadata={
+                "session_id": session_id,
+                "turn_index": turn_index,
+                "display_style": "final",
+            },
+        )
 
     async def reset_session(self, inbound: InboundMessage) -> tuple[str, str]:
         """Force-create a fresh ADK session for the current channel conversation."""
