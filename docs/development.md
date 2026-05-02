@@ -294,7 +294,7 @@ Field notes:
 | --- | --- | --- |
 | `workspace` | Root directory for runtime files | Move generated content to another disk or shared mount |
 | `llm.provider` | Default text-provider name | Switch the orchestrator from OpenAI to Gemini, Anthropic, or another provider |
-| `llm.model` | Default model within the provider | Example: `gpt-5.4`, `gemini-2.5-flash`, `claude-sonnet-4-5` |
+| `llm.model` | Default model within the provider | Example: `gpt-5.4`, `gemini-2.5-flash`, `claude-sonnet-4-5`, `deepseek-v4-pro`, `deepseek-v4-flash` |
 | `providers.<name>.api_key` | Provider credential | Required by most hosted providers |
 | `providers.<name>.api_base` | Custom API endpoint | Needed for OpenAI-compatible gateways, self-hosted services, or Azure |
 | `providers.<name>.api_version` | Provider-specific API version | Mainly Azure OpenAI |
@@ -334,6 +334,25 @@ First-round text LLM providers:
 - `qianfan`
 - `azure_openai`
 - `custom`
+
+DeepSeek V4 models use the existing `deepseek` provider and remain backed by ADK `LiteLlm`.
+The runtime builds `LiteLlm(model="deepseek/deepseek-v4-pro", api_base="https://api.deepseek.com", ...)` or `LiteLlm(model="deepseek/deepseek-v4-flash", api_base="https://api.deepseek.com", ...)`.
+The default DeepSeek `api_base` is the official OpenAI-compatible endpoint `https://api.deepseek.com`; override `providers.deepseek.api_base` only if you use a proxy.
+
+```json
+{
+  "llm": {
+    "provider": "deepseek",
+    "model": "deepseek-v4-pro"
+  },
+  "providers": {
+    "deepseek": {
+      "api_key": "your_deepseek_api_key",
+      "api_base": "https://api.deepseek.com"
+    }
+  }
+}
+```
 
 Feature-specific extra service keys:
 

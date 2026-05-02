@@ -18,6 +18,9 @@ No more jumping back and forth between different tools.
 With CreativeClaw, you can keep iterating around a single idea and move from inspiration to final output in one flow.
 
 ## 📰 News
+ - 2026-05-01: Added design product, CodeGenerationExpert, orchestrator-aligned design flow.
+ - 2026-04-24: Released v0.2.0, refactored expert runtime, adopted expert cards as the single source of truth, and deduplicated basic media operation agents.
+ - 2026-04-22: Upgraded GPT image provider, refined video prompt rewrite contracts, and improved session/final-response handling.
  - 2026-04-21: Added Kling video provider integration, including text-to-video, image-to-video, multi-reference video generation, gateway probing, and updated docs.
  - 2026-04-20: Expanded Veo video generation support.
  - 2026-04-14: Added HY 3D support, merged image-to-prompt into image understanding, and introduced 5 new experts across text, video, speech, and music.
@@ -46,32 +49,39 @@ The following diagram shows the high-level architecture of CreativeClaw, includi
 ### 🧠 LLM
 
 -  `openai`, `anthropic`, `gemini`, `openrouter`, `deepseek`, `groq`, `zhipu`, `dashscope`, `vllm`, `ollama`, `moonshot`, `minimax`, `mistral`, `stepfun`, `siliconflow`, `volcengine`, `byteplus`, `qianfan`, `azure_openai`, `custom`
+- DeepSeek V4 is available through the `deepseek` provider with `deepseek-v4-pro` or `deepseek-v4-flash`. The runtime keeps the ADK `LiteLlm` path and sends requests as `deepseek/<model>` with `api_base` set to `https://api.deepseek.com` by default.
 
 ### 🖼️ Image Generation
 
-- Nano Banana Pro (Gemini 3.1 Flash Image Preview)
-- Seedream 5.0
-- GPT Image 2
+- Nano Banana Pro (`gemini-3.1-flash-image-preview`)
+- Seedream 5.0 (`doubao-seedream-5-0-260128`)
+- GPT Image 2 (`gpt-image-2`)
 
 ### 🎬 Video Generation
 
-- Seedance 1.0 Pro
-- Veo 3.1
-- Kling 3 (`multi_reference` currently uses Kling 1.6)
+- Seedance 2.0 (`doubao-seedance-2-0-260128`, default) and Seedance 2.0 fast (`doubao-seedance-2-0-fast-260128`)
+- Seedance 1.0 Pro (`doubao-seedance-1-0-pro-250528`, legacy-compatible)
+- Veo 3.1 (`veo-3.1-generate-preview`)
+- Kling 3 (`kling-v3`; `multi_reference` currently uses `kling-v1-6`)
 
 ### 📦 3D Generation
- - HY 3D 3.0
+
+- Hunyuan 3D Pro (`hy3d`, default provider, model `3.0` / `3.1`)
+- Seed3D (`seed3d`, model `doubao-seed3d-2-0-260328`)
+- Hyper3D (`hyper3d`, model `hyper3d-gen2-260112`)
+- Hitem3D (`hitem3d`, model `hitem3d-2-0-251223`)
 
 ### 🔊 Speech Synthesis
 
-- Volcengine streaming TTS API
+- ByteDance / Volcengine streaming TTS (`seed-tts-1.0` by default)
 
 ### 🎵 Music Generation
 
-- MiniMax Music Generation API
+- MiniMax Music Generation API (`music-2.5`)
 
 ### 🎤 Speech Recognition
- - Volcengine
+ - Volcengine BigASR Flash (`volc.bigasr.auc_turbo`)
+ - Volcengine subtitle generation and alignment (`vc.async.default`, `volc.ata.default`)
 
 
 ## 🚀 Quick Start
@@ -124,12 +134,18 @@ Notes:
 
 - This is enough to try the default CLI chat flow.
 - Image, video, search, and some provider-specific capabilities only need extra credentials when you actually use them.
+- `VideoGenerationAgent` provider `seedance` now defaults to `doubao-seedance-2-0-260128`. For faster generation use `model_name="doubao-seedance-2-0-fast-260128"` and keep `resolution` at `720p`; legacy `model_name="doubao-seedance-1-0-pro-250528"` remains accepted.
+- For exact dialogue or native generated audio with Seedance 2.0, use `provider="seedance"`, `generate_audio=true`, and `prompt_rewrite="off"` so quoted dialogue is preserved.
 - For `VideoGenerationAgent` with `provider="kling"`, prompt and image-guided routes now default to `kling-v3`, while `mode="multi_reference"` follows the official `kling-v1-6` schema.
 - If `services.kling_api_base` or `KLING_API_BASE` is not set explicitly, the built-in Kling provider probes the official Beijing and Singapore gateways and caches the first working base.
 - Kling image-guided routes validate the documented input constraints but do not auto-resize or auto-crop input images. If preprocessing is needed, do it first with local image tools before calling `VideoGenerationAgent`.
+- `3DGeneration` defaults to Tencent Cloud `hy3d` and also supports Volcengine Ark providers `seed3d`, `hyper3d`, and `hitem3d`. `hy3d` uses `services.tencentcloud_*`, while the Volcengine 3D providers use `services.ark_api_key` or `ARK_API_KEY`.
+- `seed3d` is image-to-3D only with exactly one image source, `hyper3d` supports prompt-only text-to-3D or 1-5 reference images, and `hitem3d` requires 1-4 externally accessible image URLs.
+- `SpeechSynthesisExpert` uses Volcengine streaming TTS with `seed-tts-1.0` by default. Users or the orchestrator may select a voice with `speaker`; the default voice is `zh_female_yingyujiaoyu_mars_bigtts`.
 - `SpeechRecognitionExpert` uses Volcengine speech services. Besides `VOLCENGINE_APPID` and `VOLCENGINE_ACCESS_TOKEN`, the current backend also needs these resource grants: `volc.bigasr.auc_turbo` for `task=asr`, `vc.async.default` for subtitle generation, and `volc.ata.default` for subtitle timing when `subtitle_text` / `audio_text` is provided. The activation entry is the [Volcengine speech console](https://console.volcengine.com/speech/app). Missing grants usually surface as `requested resource not granted` or `requested grant not found`.
 - Resolution order is: `conf.json` first; if an API key is empty in `conf.json`, runtime falls back to the matching environment variable.
 - The first-round text LLM providers include `openai`, `anthropic`, `gemini`, `openrouter`, `deepseek`, `groq`, `zhipu`, `dashscope`, `vllm`, `ollama`, `moonshot`, `minimax`, `mistral`, `stepfun`, `siliconflow`, `volcengine`, `byteplus`, `qianfan`, `azure_openai`, and `custom`.
+- To use DeepSeek V4 Pro or Flash, set `llm.provider` to `deepseek`, set `llm.model` to `deepseek-v4-pro` or `deepseek-v4-flash`, and provide `providers.deepseek.api_key` or `DEEPSEEK_API_KEY`.
 - For the full environment and credential matrix, the reference full template, and common field descriptions, see [docs/development.md](docs/development.md).
 
 ### 3. Start chatting
@@ -196,6 +212,29 @@ Inside the chat, use:
 
 - `/help`
 - `/new`
+
+## 🧰 Built-in Tools and Expert Tools
+
+The main LLM orchestrator can call these tool groups directly:
+
+- **Workspace file tools**: `list_dir`, `glob`, `grep`, `read_file`, `write_file`, `edit_file`.
+- **Deterministic media tools**: `image_crop`, `image_rotate`, `image_flip`, `image_info`, `image_resize`, `image_convert`, `video_info`, `video_extract_frame`, `video_trim`, `video_concat`, `video_convert`, `audio_info`, `audio_trim`, `audio_concat`, `audio_convert`.
+- **Runtime and web tools**: `exec_command`, `process_session`, `web_search`, `web_fetch`, `list_session_files`.
+- **Expert dispatch**: `invoke_agent` routes structured requests to expert agents such as `ImageGenerationAgent`, `ImageEditingAgent`, `ImageUnderstandingAgent`, `VideoGenerationAgent`, `SpeechRecognitionExpert`, `SpeechSynthesisExpert`, `MusicGenerationExpert`, and `3DGeneration`.
+
+`VideoGenerationAgent` currently exposes these provider-aware tool parameters:
+
+- Common controls: `provider`, `mode`, `prompt_rewrite`, `aspect_ratio`, `resolution`, `duration_seconds`, `negative_prompt`, `seed`, and optional `input_path` / `input_paths`.
+- `seedance`: modes `prompt`, `first_frame`, `first_frame_and_last_frame`, `reference_asset`, `reference_style`; model ids `doubao-seedance-2-0-260128`, `doubao-seedance-2-0-fast-260128`, `doubao-seedance-1-0-pro-250528`; extra controls `generate_audio` and `watermark`.
+- `veo`: modes `prompt`, `first_frame`, `first_frame_and_last_frame`, `reference_asset`, `reference_style`, `video_extension`; model id `veo-3.1-generate-preview`; extra control `person_generation`.
+- `kling`: modes `prompt`, `first_frame`, `first_frame_and_last_frame`, `multi_reference`; model ids `kling-v3` and `kling-v1-6` for `multi_reference`; extra control `kling_mode` (`std` or `pro`).
+
+`3DGeneration` currently exposes these provider-aware tool parameters:
+
+- `hy3d`: default provider; supports prompt-only, image-only, and `generate_type=sketch` prompt-plus-image input.
+- `seed3d`: Volcengine Ark image-to-3D provider; requires one `input_path` / `input_paths` or `image_url`; optional controls include `file_format` (`glb|obj|usd|usdz`) and `subdivision_level` (`low|medium|high`).
+- `hyper3d`: Volcengine Ark text/image-to-3D provider; supports English prompt-only or 1-5 reference images; optional controls include `file_format`, `mesh_mode`, `material`, `quality_override`, and `hd_texture`.
+- `hitem3d`: Volcengine Ark image-to-3D provider; requires 1-4 externally accessible `image_url` / `image_urls`; optional controls include `file_format`, `resolution`, `face_count`, `request_type`, and `multi_images_bit`.
 
 ## 🌐 Supported Channels
 

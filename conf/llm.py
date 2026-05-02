@@ -8,6 +8,8 @@ from google.adk.models import BaseLlm, Gemini, LiteLlm
 
 from conf.app_config import load_app_config
 
+DEEPSEEK_V4_MODEL_NAMES = ("deepseek-v4-pro", "deepseek-v4-flash")
+
 
 @dataclass(frozen=True, slots=True)
 class ProviderSpec:
@@ -18,6 +20,7 @@ class ProviderSpec:
     default_api_base: str = ""
     model_prefix: str = ""
     default_api_version: str = ""
+    known_models: tuple[str, ...] = ()
 
 
 PROVIDERS: dict[str, ProviderSpec] = {
@@ -41,6 +44,7 @@ PROVIDERS: dict[str, ProviderSpec] = {
         kind="litellm_prefix",
         model_prefix="deepseek",
         default_api_base="https://api.deepseek.com",
+        known_models=DEEPSEEK_V4_MODEL_NAMES,
     ),
     "groq": ProviderSpec(name="groq", kind="litellm_prefix", model_prefix="groq"),
     "zhipu": ProviderSpec(
@@ -172,3 +176,8 @@ def get_provider_spec(name: str) -> ProviderSpec:
     except KeyError as exc:  # pragma: no cover - defensive guard
         supported = ", ".join(sorted(PROVIDERS))
         raise ValueError(f"Unsupported LLM provider '{name}'. Supported providers: {supported}.") from exc
+
+
+def get_known_provider_models(name: str) -> tuple[str, ...]:
+    """Return explicitly documented model ids for one provider."""
+    return get_provider_spec(name).known_models

@@ -30,7 +30,8 @@ class ExpertCardTests(unittest.TestCase):
         self.assertIn("SRT/VTT", content)
         self.assertIn("SpeechRecognitionExpert", content)
         self.assertIn("veo-3.1-generate-preview", content)
-        self.assertIn("doubao-seedance-1-0-pro-250528", content)
+        self.assertIn("doubao-seedance-2-0-260128", content)
+        self.assertIn("doubao-seedance-2-0-fast-260128", content)
         self.assertIn("kling-v1-6", content)
         self.assertNotIn("/Users/", content)
 
@@ -42,7 +43,7 @@ class ExpertCardTests(unittest.TestCase):
 
         self.assertEqual(card.name, "VideoGenerationAgent")
         self.assertIn("Use this expert for text-to-video", description)
-        self.assertIn("Prefer `veo`", description)
+        self.assertIn("Prefer `seedance`", description)
         self.assertIn("does not return structured subtitle files", description)
         self.assertIn("'provider': 'seedance|veo|kling'", parameters)
         self.assertIn("'mode': 'video_extension'", parameters)
@@ -165,9 +166,11 @@ class ExpertCardTests(unittest.TestCase):
                 "Keep voiceover and spoken narration requests routed to `SpeechSynthesisExpert`",
             ],
             ("three_d_generation", "EXPERT.md"): [
-                "only supports provider `hy3d`",
+                "Provider `hy3d` remains the default",
                 "Tencent Cloud Hunyuan 3D Pro",
-                "supports at most one input image",
+                "doubao-seed3d-2-0-260328",
+                "hyper3d-gen2-260112",
+                "hitem3d-2-0-251223",
             ],
         }
 
@@ -206,7 +209,10 @@ class ExpertCardTests(unittest.TestCase):
         self.assertIn("audio_format", synthesis_agent.parameters)
         self.assertIn("code default model is `music-2.5`", music_agent.description)
         self.assertIn("instrumental", music_agent.parameters)
-        self.assertIn("only supports provider `hy3d`", three_d_agent.description)
+        self.assertIn("Provider `hy3d` remains the default", three_d_agent.description)
+        self.assertIn("provider': 'seed3d'", three_d_agent.parameters)
+        self.assertIn("provider': 'hyper3d'", three_d_agent.parameters)
+        self.assertIn("provider': 'hitem3d'", three_d_agent.parameters)
         self.assertIn("result_format", three_d_agent.parameters)
 
     def test_minimal_agent_roster_is_enriched_by_expert_cards(self) -> None:

@@ -29,21 +29,24 @@ from src.agents.experts.video_generation.capabilities import (
     VIDEO_GENERATION_KLING_MODEL_NAME,
     VIDEO_GENERATION_KLING_MULTI_REFERENCE_MODEL_NAME,
     VIDEO_GENERATION_PERSON_GENERATION_VALUES,
-    VIDEO_GENERATION_SEEDANCE_MODEL_NAME,
     VIDEO_GENERATION_VEO_MODEL_NAME,
     get_default_video_duration,
     get_default_video_resolution,
+    get_supported_video_input_count,
     normalize_provider_video_aspect_ratio,
     normalize_provider_video_duration,
     normalize_provider_video_mode,
     normalize_provider_video_resolution,
+    normalize_seedance_model_name,
+    normalize_seedance_video_duration,
+    normalize_seedance_video_resolution,
+    seedance_model_supports_audio,
 )
 from conf.api import API_CONFIG
 from conf.llm import build_llm
 from src.logger import logger
 from src.runtime.workspace import resolve_workspace_path
 
-_SEEDANCE_MODEL_NAME = VIDEO_GENERATION_SEEDANCE_MODEL_NAME
 _VEO_MODEL_NAME = VIDEO_GENERATION_VEO_MODEL_NAME
 _KLING_MODEL_NAME = VIDEO_GENERATION_KLING_MODEL_NAME
 _KLING_MULTI_REFERENCE_MODEL_NAME = VIDEO_GENERATION_KLING_MULTI_REFERENCE_MODEL_NAME
@@ -132,6 +135,19 @@ def normalize_video_seed(raw_value: Any) -> int | None:
     return value
 
 
+def normalize_seedance_seed(raw_value: Any) -> int | None:
+    """Parse one optional Seedance seed value."""
+    if raw_value is None or str(raw_value).strip() == "":
+        return None
+    try:
+        value = int(str(raw_value).strip())
+    except (TypeError, ValueError) as exc:
+        raise ValueError("seed must be an integer.") from exc
+    if value < -1 or value > 4_294_967_295:
+        raise ValueError("seed must be between -1 and 4294967295 for Seedance.")
+    return value
+
+
 def normalize_person_generation(raw_value: Any) -> str | None:
     """Return one supported Veo person generation value when provided."""
     if raw_value is None:
@@ -145,6 +161,15 @@ def normalize_person_generation(raw_value: Any) -> str | None:
             f"{sorted(VIDEO_GENERATION_PERSON_GENERATION_VALUES)}."
         )
     return value
+
+
+def _parse_bool(value: Any, *, default: bool = False) -> bool:
+    """Normalize one flexible boolean-like value."""
+    if value is None:
+        return default
+    if isinstance(value, bool):
+        return value
+    return str(value).strip().lower() in {"1", "true", "yes", "y", "on"}
 
 
 def _guess_image_mime_type(path: str) -> str:
@@ -184,19 +209,22 @@ def _read_workspace_video_as_genai_video(path: str) -> types.Video:
     return types.Video.from_file(location=str(resolve_workspace_path(path)))
 
 
-def _validate_mode_input_paths(mode: str, input_paths: list[str]) -> None:
+def _validate_mode_input_paths(provider: str, mode: str, input_paths: list[str]) -> None:
     """Validate mode-specific input count constraints before provider calls."""
     current_count = len(input_paths)
-    if mode == "first_frame" and current_count != 1:
-        raise ValueError("mode=first_frame requires exactly one input image.")
-    if mode == "first_frame_and_last_frame" and current_count != 2:
-        raise ValueError("mode=first_frame_and_last_frame requires exactly two input images.")
-    if mode == "multi_reference" and not 2 <= current_count <= 4:
-        raise ValueError("mode=multi_reference requires between two and four input images.")
-    if mode in {"reference_asset", "reference_style"} and not 1 <= current_count <= 3:
-        raise ValueError(f"mode={mode} requires between one and three input images.")
-    if mode == "video_extension" and current_count != 1:
-        raise ValueError("mode=video_extension requires exactly one input video.")
+    supported_count = get_supported_video_input_count(provider, mode=mode)
+    if supported_count is None:
+        if current_count:
+            raise ValueError(f"provider={provider} mode={mode} does not accept input files.")
+        return
+    min_count, max_count = supported_count
+    if not min_count <= current_count <= max_count:
+        if min_count == max_count:
+            noun = "video" if mode == "video_extension" else "image"
+            raise ValueError(f"provider={provider} mode={mode} requires exactly {min_count} input {noun}(s).")
+        raise ValueError(
+            f"provider={provider} mode={mode} requires between {min_count} and {max_count} input image(s)."
+        )
 
 
 def _validate_veo_constraints(
@@ -248,12 +276,14 @@ def _build_veo_config_kwargs(
     return config_kwargs
 
 
-def _validate_seedance_constraints(*, mode: str) -> None:
+def _validate_seedance_constraints(*, mode: str, model_name: str, generate_audio: bool) -> None:
     """Validate Seedance-specific mode support before API invocation."""
     if mode == "video_extension":
         raise ValueError("seedance does not support mode=video_extension.")
     if mode == "multi_reference":
         raise ValueError("seedance does not support mode=multi_reference.")
+    if generate_audio and not seedance_model_supports_audio(model_name):
+        raise ValueError("seedance generate_audio=true requires Seedance 2.0 or Seedance 2.0 fast.")
 
 
 def _validate_kling_constraints(*, mode: str, input_paths: list[str]) -> None:
@@ -660,6 +690,12 @@ async def seedance_video_generation_tool(
     input_paths: list[str] | None = None,
     mode: str = "prompt",
     aspect_ratio: str = "16:9",
+    model_name: str = "",
+    resolution: str = "",
+    duration_seconds: Any = None,
+    generate_audio: bool | None = None,
+    watermark: bool = False,
+    seed: Any = None,
 ) -> dict[str, Any]:
     """Generate one video via Seedance."""
     logger.info("calling seedance for video generation ...")
@@ -669,7 +705,7 @@ async def seedance_video_generation_tool(
             "status": "error",
             "message": "ARK_API_KEY is not set.",
             "provider": "seedance",
-            "model_name": _SEEDANCE_MODEL_NAME,
+            "model_name": normalize_seedance_model_name(model_name),
         }
 
     try:
@@ -679,21 +715,35 @@ async def seedance_video_generation_tool(
             "status": "error",
             "message": f"seedance SDK unavailable: {exc}",
             "provider": "seedance",
-            "model_name": _SEEDANCE_MODEL_NAME,
+            "model_name": normalize_seedance_model_name(model_name),
         }
 
     current_mode = str(mode or "").strip().lower() or "prompt"
     current_paths = input_paths or []
+    current_model = normalize_seedance_model_name(model_name)
     current_ratio = normalize_provider_video_aspect_ratio("seedance", aspect_ratio)
+    current_resolution = normalize_seedance_video_resolution(current_model, resolution)
+    current_duration = normalize_seedance_video_duration(current_model, duration_seconds)
+    current_generate_audio = (
+        seedance_model_supports_audio(current_model)
+        if generate_audio is None
+        else bool(generate_audio)
+    )
+    current_watermark = _parse_bool(watermark)
     try:
-        _validate_seedance_constraints(mode=current_mode)
-        _validate_mode_input_paths(current_mode, current_paths)
+        current_seed = normalize_seedance_seed(seed)
+        _validate_seedance_constraints(
+            mode=current_mode,
+            model_name=current_model,
+            generate_audio=current_generate_audio,
+        )
+        _validate_mode_input_paths("seedance", current_mode, current_paths)
     except ValueError as exc:
         return {
             "status": "error",
             "message": str(exc),
             "provider": "seedance",
-            "model_name": _SEEDANCE_MODEL_NAME,
+            "model_name": current_model,
         }
     image_urls = [_read_workspace_image_as_data_url(path) for path in current_paths]
 
@@ -716,17 +766,26 @@ async def seedance_video_generation_tool(
                 ]
             )
         elif current_mode in {"reference_asset", "reference_style"}:
-            reference_role = "subject" if current_mode == "reference_asset" else "style"
+            reference_role = "reference_image"
             for image_url in image_urls:
                 content.append(
                     {"type": "image_url", "image_url": {"url": image_url}, "role": reference_role}
                 )
 
-        create_result = client.content_generation.tasks.create(
-            model=_SEEDANCE_MODEL_NAME,
-            content=content,
-            ratio=current_ratio,
-        )
+        create_kwargs: dict[str, Any] = {
+            "model": current_model,
+            "content": content,
+            "ratio": current_ratio,
+            "resolution": current_resolution,
+            "duration": current_duration,
+            "watermark": current_watermark,
+        }
+        if seedance_model_supports_audio(current_model):
+            create_kwargs["generate_audio"] = current_generate_audio
+        if current_seed is not None:
+            create_kwargs["seed"] = current_seed
+
+        create_result = client.content_generation.tasks.create(**create_kwargs)
         task_id = create_result.id
 
         for _ in range(120):
@@ -739,7 +798,7 @@ async def seedance_video_generation_tool(
                         "status": "error",
                         "message": "seedance returned success without a video URL.",
                         "provider": "seedance",
-                        "model_name": _SEEDANCE_MODEL_NAME,
+                        "model_name": current_model,
                     }
                 import urllib.request
 
@@ -748,7 +807,8 @@ async def seedance_video_generation_tool(
                         "status": "success",
                         "message": response.read(),
                         "provider": "seedance",
-                        "model_name": _SEEDANCE_MODEL_NAME,
+                        "model_name": current_model,
+                        "generate_audio": current_generate_audio,
                     }
             if status == "failed":
                 error_obj = getattr(task_result, "error", None)
@@ -756,7 +816,7 @@ async def seedance_video_generation_tool(
                     "status": "error",
                     "message": f"seedance generation failed: {error_obj or 'unknown error'}",
                     "provider": "seedance",
-                    "model_name": _SEEDANCE_MODEL_NAME,
+                    "model_name": current_model,
                 }
             await asyncio.sleep(5)
 
@@ -764,7 +824,7 @@ async def seedance_video_generation_tool(
             "status": "error",
             "message": "seedance generation timed out while polling task status.",
             "provider": "seedance",
-            "model_name": _SEEDANCE_MODEL_NAME,
+            "model_name": current_model,
         }
     except Exception as exc:
         logger.opt(exception=exc).error(
@@ -776,7 +836,7 @@ async def seedance_video_generation_tool(
             "status": "error",
             "message": f"seedance exception: {exc}",
             "provider": "seedance",
-            "model_name": _SEEDANCE_MODEL_NAME,
+            "model_name": current_model,
         }
 
 
@@ -827,7 +887,7 @@ async def veo_video_generation_tool(
     try:
         current_person_generation = normalize_person_generation(person_generation)
         current_seed = normalize_video_seed(seed)
-        _validate_mode_input_paths(current_mode, current_paths)
+        _validate_mode_input_paths("veo", current_mode, current_paths)
         _validate_veo_constraints(
             mode=current_mode,
             resolution=current_resolution,
@@ -964,7 +1024,7 @@ async def kling_video_generation_tool(
     try:
         _validate_kling_constraints(mode=current_mode, input_paths=current_paths)
         if current_mode != "prompt":
-            _validate_mode_input_paths(current_mode, current_paths)
+            _validate_mode_input_paths("kling", current_mode, current_paths)
         current_model_name = _resolve_kling_model_name(model_name, mode=current_mode)
         if current_mode != "prompt":
             _validate_kling_input_images(mode=current_mode, input_paths=current_paths)

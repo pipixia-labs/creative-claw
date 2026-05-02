@@ -13,7 +13,12 @@ from conf.app_config import (
     load_app_config,
     save_app_config,
 )
-from conf.llm import build_llm, resolve_llm_model_name
+from conf.llm import (
+    DEEPSEEK_V4_MODEL_NAMES,
+    build_llm,
+    get_known_provider_models,
+    resolve_llm_model_name,
+)
 from conf.schema import CreativeClawConfig, ProviderConfig
 
 
@@ -47,6 +52,7 @@ class AppConfigTests(unittest.TestCase):
 
             self.assertEqual(config.providers.ollama.api_base, "http://localhost:11434/v1")
             self.assertEqual(config.providers.custom.api_base, "https://your-openai-compatible-endpoint/v1")
+            self.assertEqual(config.providers.deepseek.api_base, "https://api.deepseek.com")
             self.assertEqual(config.providers.azure_openai.api_base, "https://your-resource.openai.azure.com")
             self.assertEqual(config.providers.azure_openai.api_version, "2024-10-21")
 
@@ -162,6 +168,57 @@ class AppConfigTests(unittest.TestCase):
             self.assertIsInstance(llm, LiteLlm)
             self.assertEqual(llm.model, "openai/gpt-5.4")
             self.assertEqual(resolve_llm_model_name(), "openai/gpt-5.4")
+
+    def test_build_llm_uses_litellm_for_deepseek_v4_pro(self) -> None:
+        with tempfile.TemporaryDirectory() as tmp_dir, patch.dict(
+            os.environ,
+            {"CREATIVE_CLAW_HOME": tmp_dir},
+            clear=False,
+        ):
+            config = CreativeClawConfig(workspace=str(get_config_path().parent / "workspace"))
+            config.llm.provider = "deepseek"
+            config.llm.model = "deepseek-v4-pro"
+            config.providers.deepseek = ProviderConfig(api_key="deepseek-key")
+            save_app_config(config)
+            load_app_config(reload=True)
+
+            with patch("conf.llm.LiteLlm", return_value=object()) as mocked_litellm:
+                build_llm()
+
+            mocked_litellm.assert_called_once_with(
+                model="deepseek/deepseek-v4-pro",
+                api_key="deepseek-key",
+                api_base="https://api.deepseek.com",
+            )
+            self.assertEqual(resolve_llm_model_name(), "deepseek/deepseek-v4-pro")
+            self.assertIn("deepseek-v4-pro", DEEPSEEK_V4_MODEL_NAMES)
+
+    def test_build_llm_resolves_deepseek_v4_flash_reference(self) -> None:
+        with tempfile.TemporaryDirectory() as tmp_dir, patch.dict(
+            os.environ,
+            {"CREATIVE_CLAW_HOME": tmp_dir},
+            clear=False,
+        ):
+            config = CreativeClawConfig(workspace=str(get_config_path().parent / "workspace"))
+            config.llm.provider = "openai"
+            config.llm.model = "gpt-5.4"
+            config.providers.deepseek = ProviderConfig(api_key="deepseek-key")
+            save_app_config(config)
+            load_app_config(reload=True)
+
+            with patch("conf.llm.LiteLlm", return_value=object()) as mocked_litellm:
+                build_llm("deepseek/deepseek-v4-flash")
+
+            mocked_litellm.assert_called_once_with(
+                model="deepseek/deepseek-v4-flash",
+                api_key="deepseek-key",
+                api_base="https://api.deepseek.com",
+            )
+            self.assertEqual(
+                resolve_llm_model_name("deepseek/deepseek-v4-flash"),
+                "deepseek/deepseek-v4-flash",
+            )
+            self.assertIn("deepseek-v4-flash", get_known_provider_models("deepseek"))
 
     def test_build_llm_returns_gemini_for_gemini_provider(self) -> None:
         with tempfile.TemporaryDirectory() as tmp_dir, patch.dict(
