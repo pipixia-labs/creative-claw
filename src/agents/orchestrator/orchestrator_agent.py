@@ -166,6 +166,12 @@ def _format_turn_file_history(label: str, history: list[dict[str, Any]]) -> list
 
 def _latest_generated_files(state: dict[str, Any]) -> list[dict[str, Any]]:
     """Return the latest generated file batch from current-turn or historical state."""
+    final_files = _file_records_for_paths(list(state.get("final_file_paths") or []), state=state)
+    if final_files:
+        return final_files
+    new_files = _non_channel_files(list(state.get("new_files") or []))
+    if new_files:
+        return new_files
     generated = list(state.get("generated") or [])
     if generated:
         return generated
@@ -176,6 +182,61 @@ def _latest_generated_files(state: dict[str, Any]) -> list[dict[str, Any]]:
             return files
     files_history = list(state.get("files_history") or state.get("artifacts_history") or [])
     return _select_latest_non_channel_files(files_history)
+
+
+def _non_channel_files(file_group: list[dict[str, Any]]) -> list[dict[str, Any]]:
+    """Return generated/supporting files while excluding current-turn uploads."""
+    return [
+        file_info
+        for file_info in file_group
+        if isinstance(file_info, dict) and str(file_info.get("source", "")).strip() != "channel"
+    ]
+
+
+def _file_records_for_paths(paths: list[str], *, state: dict[str, Any]) -> list[dict[str, Any]]:
+    """Return current-session file records matching explicit workspace-relative paths."""
+    if not paths:
+        return []
+
+    records_by_path: dict[str, dict[str, Any]] = {}
+
+    def _normalize_path(path: str) -> str:
+        try:
+            return workspace_relative_path(path)
+        except Exception:
+            return str(path or "").strip()
+
+    def _index(file_group: list[dict[str, Any]]) -> None:
+        for file_info in file_group:
+            if not isinstance(file_info, dict):
+                continue
+            path = str(file_info.get("path", "") or "").strip()
+            if path:
+                records_by_path.setdefault(_normalize_path(path), file_info)
+
+    _index(list(state.get("new_files") or []))
+    _index(list(state.get("generated") or []))
+    _index(list(state.get("uploaded") or state.get("input_files") or []))
+    for file_group in list(state.get("files_history") or state.get("artifacts_history") or []):
+        if isinstance(file_group, list):
+            _index(list(file_group))
+    for entry in list(state.get("generated_history") or []):
+        if isinstance(entry, dict):
+            _index(list(entry.get("files") or []))
+
+    matched: list[dict[str, Any]] = []
+    seen_paths: set[str] = set()
+    for path in paths:
+        if not isinstance(path, str):
+            continue
+        normalized_path = _normalize_path(path)
+        if not normalized_path or normalized_path in seen_paths:
+            continue
+        record = records_by_path.get(normalized_path)
+        if record:
+            matched.append(record)
+            seen_paths.add(normalized_path)
+    return matched
 
 
 async def orchestrator_before_model_callback(
@@ -485,7 +546,8 @@ Rules:
 - `input_name` is legacy and should not be used unless compatibility fallback is absolutely required.
 - When using `ImageGenerationAgent`, you may pass optional `provider`, `aspect_ratio`, and `resolution`.
 - When using `ImageEditingAgent`, you may pass optional `provider`.
-- When using `VideoGenerationAgent`, you may pass optional `prompt_rewrite`, `provider`, `mode`, `aspect_ratio`, `resolution`, `duration_seconds`, `negative_prompt`, `person_generation`, `seed`, `model_name`, and `kling_mode`.
+- When using `VideoGenerationAgent`, you may pass optional `prompt_rewrite`, `provider`, `mode`, `aspect_ratio`, `resolution`, `duration_seconds`, `generate_audio`, `watermark`, `negative_prompt`, `person_generation`, `seed`, `model_name`, and `kling_mode`.
+- For exact dialogue or native generated audio with Seedance 2.0, set `provider="seedance"`, `generate_audio=true`, and `prompt_rewrite="off"` so quoted dialogue is preserved.
 {video_generation_routing_notes}
 - For provider `veo`, mode `video_extension` accepts one workspace video via `input_path` or `input_paths`.
 - For provider `kling`, use only `prompt`, `first_frame`, `first_frame_and_last_frame`, or `multi_reference`. `multi_reference` expects 2-4 workspace images through `input_paths`. If Kling input images do not meet the documented limits, inspect them with `image_info` and decide whether to preprocess them with `image_resize` or other local image tools first. The Kling expert does not auto-resize or auto-crop inputs. Do not route Kling calls to `reference_asset`, `reference_style`, or `video_extension`.

@@ -63,6 +63,8 @@ class OrchestratorTests(unittest.TestCase):
         self.assertIn("video_extension", instruction)
         self.assertIn("Seedance 2.0", instruction)
         self.assertIn("generate_audio=true", instruction)
+        self.assertIn("watermark", instruction)
+        self.assertIn('prompt_rewrite="off"', instruction)
         self.assertIn("native audio", instruction)
         self.assertIn("SRT/VTT", instruction)
         self.assertIn("SpeechRecognitionExpert", instruction)
@@ -106,7 +108,8 @@ class OrchestratorTests(unittest.TestCase):
         self.assertIn("AudioBasicOperations", instruction)
         self.assertIn("deterministic local video operations", instruction)
         self.assertIn("deterministic local audio operations", instruction)
-        self.assertIn("default resource id is `seed-tts-1.0`", instruction)
+        self.assertIn("default resource id is `seed-tts-2.0`", instruction)
+        self.assertIn("voice_name", instruction)
         self.assertIn("code default model is `music-2.5`", instruction)
         self.assertIn("Provider `hy3d` remains the default", instruction)
         self.assertIn("doubao-seed3d-2-0-260328", instruction)
@@ -195,6 +198,75 @@ class OrchestratorTests(unittest.TestCase):
 
         self.assertEqual(len(payload["latest_output_files"]), 1)
         self.assertEqual(payload["latest_output_files"][0]["path"], "generated/session/result.png")
+
+    def test_list_session_files_prefers_final_file_paths_for_latest_output(self) -> None:
+        orchestrator = Orchestrator(
+            session_service=InMemorySessionService(),
+            artifact_service=InMemoryArtifactService(),
+            expert_agents={},
+        )
+
+        with tempfile.TemporaryDirectory(dir=workspace_root()) as tmpdir:
+            html_path = Path(tmpdir) / "dashboard.html"
+            screenshot_path = Path(tmpdir) / "dashboard.png"
+            html_path.write_text("<html></html>", encoding="utf-8")
+            screenshot_path.write_bytes(b"fake-preview")
+            html_record = build_workspace_file_record(
+                html_path,
+                description="final dashboard html",
+                source="design_v2",
+            )
+            screenshot_record = build_workspace_file_record(
+                screenshot_path,
+                description="supporting preview screenshot",
+                source="design_v2_preview",
+            )
+            tool_context = SimpleNamespace(
+                state={
+                    "input_files": [],
+                    "generated": [html_record, screenshot_record],
+                    "new_files": [html_record, screenshot_record],
+                    "files_history": [[html_record, screenshot_record]],
+                    "final_file_paths": [workspace_relative_path(html_path)],
+                }
+            )
+
+            result = orchestrator.list_session_files(section="latest_output", tool_context=tool_context)
+
+        payload = json.loads(result)
+
+        self.assertEqual(len(payload["latest_output_files"]), 1)
+        self.assertEqual(payload["latest_output_files"][0]["path"], html_record["path"])
+
+    def test_list_session_files_prefers_new_non_channel_files_over_generated_history(self) -> None:
+        orchestrator = Orchestrator(
+            session_service=InMemorySessionService(),
+            artifact_service=InMemoryArtifactService(),
+            expert_agents={},
+        )
+        tool_context = SimpleNamespace(
+            state={
+                "input_files": [],
+                "new_files": [
+                    {"name": "upload.png", "path": "inbox/cli/upload.png", "source": "channel"},
+                    {"name": "new.html", "path": "generated/session/new.html", "source": "design_v2"},
+                ],
+                "generated": [
+                    {"name": "old.html", "path": "generated/session/old.html", "source": "design_v2"},
+                    {"name": "new.html", "path": "generated/session/new.html", "source": "design_v2"},
+                ],
+                "files_history": [
+                    [{"name": "old.html", "path": "generated/session/old.html", "source": "design_v2"}],
+                    [{"name": "new.html", "path": "generated/session/new.html", "source": "design_v2"}],
+                ],
+            }
+        )
+
+        result = orchestrator.list_session_files(section="latest_output", tool_context=tool_context)
+        payload = json.loads(result)
+
+        self.assertEqual(len(payload["latest_output_files"]), 1)
+        self.assertEqual(payload["latest_output_files"][0]["path"], "generated/session/new.html")
 
     def test_normalize_final_response_paths_accepts_tracked_relative_file(self) -> None:
         with tempfile.TemporaryDirectory(dir=workspace_root()) as tmpdir:

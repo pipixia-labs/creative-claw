@@ -73,7 +73,7 @@ The following diagram shows the high-level architecture of CreativeClaw, includi
 
 ### 🔊 Speech Synthesis
 
-- ByteDance / Volcengine streaming TTS (`seed-tts-1.0` by default)
+- ByteDance / Volcengine streaming TTS (`seed-tts-2.0` by default, with validated Seed TTS 2.0 voice selection)
 
 ### 🎵 Music Generation
 
@@ -141,7 +141,7 @@ Notes:
 - Kling image-guided routes validate the documented input constraints but do not auto-resize or auto-crop input images. If preprocessing is needed, do it first with local image tools before calling `VideoGenerationAgent`.
 - `3DGeneration` defaults to Tencent Cloud `hy3d` and also supports Volcengine Ark providers `seed3d`, `hyper3d`, and `hitem3d`. `hy3d` uses `services.tencentcloud_*`, while the Volcengine 3D providers use `services.ark_api_key` or `ARK_API_KEY`.
 - `seed3d` is image-to-3D only with exactly one image source, `hyper3d` supports prompt-only text-to-3D or 1-5 reference images, and `hitem3d` requires 1-4 externally accessible image URLs.
-- `SpeechSynthesisExpert` uses Volcengine streaming TTS with `seed-tts-1.0` by default. Users or the orchestrator may select a voice with `speaker`; the default voice is `zh_female_yingyujiaoyu_mars_bigtts`.
+- `SpeechSynthesisExpert` uses Volcengine streaming TTS with `seed-tts-2.0` by default. Users or the orchestrator may select Seed TTS 2.0 voices with `speaker`, `voice_type`, or `voice_name`; the default voice is Vivi 2.0 (`zh_female_vv_uranus_bigtts`).
 - `SpeechRecognitionExpert` uses Volcengine speech services. Besides `VOLCENGINE_APPID` and `VOLCENGINE_ACCESS_TOKEN`, the current backend also needs these resource grants: `volc.bigasr.auc_turbo` for `task=asr`, `vc.async.default` for subtitle generation, and `volc.ata.default` for subtitle timing when `subtitle_text` / `audio_text` is provided. The activation entry is the [Volcengine speech console](https://console.volcengine.com/speech/app). Missing grants usually surface as `requested resource not granted` or `requested grant not found`.
 - Resolution order is: `conf.json` first; if an API key is empty in `conf.json`, runtime falls back to the matching environment variable.
 - The first-round text LLM providers include `openai`, `anthropic`, `gemini`, `openrouter`, `deepseek`, `groq`, `zhipu`, `dashscope`, `vllm`, `ollama`, `moonshot`, `minimax`, `mistral`, `stepfun`, `siliconflow`, `volcengine`, `byteplus`, `qianfan`, `azure_openai`, and `custom`.

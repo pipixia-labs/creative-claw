@@ -219,12 +219,21 @@ Use when:
 Recommended parameters:
 
 ```json
-{"text":"Hello from Creative Claw."}
+{"text":"Hello from Creative Claw.","voice_name":"Vivi 2.0"}
 ```
 
 ```json
-{"ssml":"<speak>Hello<break time=\"500ms\"/>world</speak>","speaker":"zh_female_yingyujiaoyu_mars_bigtts"}
+{"text":"这是一段产品视频解说。","voice_name":"解说小明 2.0","audio_format":"mp3"}
 ```
+
+```json
+{"ssml":"<speak>Hello<break time=\"500ms\"/>world</speak>","resource_id":"seed-tts-1.0","speaker":"zh_female_yingyujiaoyu_mars_bigtts"}
+```
+
+Notes:
+
+- The default TTS resource is `seed-tts-2.0`; use `voice_name`, `voice_type`, or `speaker` for validated Seed TTS 2.0 voices.
+- Pass `resource_id="seed-tts-1.0"` only for legacy speaker ids that are not in the Seed TTS 2.0 catalog.
 
 ### `MusicGenerationExpert`
 
