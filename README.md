@@ -18,6 +18,7 @@ No more jumping back and forth between different tools.
 With CreativeClaw, you can keep iterating around a single idea and move from inspiration to final output in one flow.
 
 ## 📰 News
+ - 2026-05-02: Released v0.3.0 with design product flow, DeepSeek V4 LiteLLM routing, Seedance 2.0 video generation, expanded 3D providers, and new DashScope image/video models.
  - 2026-05-02: Added DashScope media routes for Wan 2.7 / HappyHorse 1.0 video generation and Wan/Qwen/Z-Image text-to-image models.
  - 2026-05-01: Added design product, CodeGenerationExpert, orchestrator-aligned design flow.
  - 2026-04-24: Released v0.2.0, refactored expert runtime, adopted expert cards as the single source of truth, and deduplicated basic media operation agents.
