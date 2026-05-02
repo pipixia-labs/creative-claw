@@ -13,6 +13,7 @@ from src.agents.experts.base import CreativeExpert
 from src.agents.experts.video_generation.capabilities import (
     get_default_video_duration,
     get_default_video_resolution,
+    normalize_dashscope_video_model_name,
     normalize_provider_video_aspect_ratio,
     normalize_provider_video_duration,
     normalize_provider_video_mode,
@@ -89,10 +90,18 @@ class VideoGenerationAgent(CreativeExpert):
         if isinstance(input_paths, str):
             input_paths = [input_paths]
         input_paths = [str(path).strip() for path in input_paths if str(path).strip()]
+        input_urls = current_parameters.get(
+            "image_urls",
+            current_parameters.get("image_url", current_parameters.get("input_urls", current_parameters.get("input_url", []))),
+        )
+        if isinstance(input_urls, str):
+            input_urls = [input_urls]
+        input_urls = [str(url).strip() for url in input_urls if str(url).strip()]
 
         provider = normalize_video_provider(current_parameters.get("provider"))
         mode = normalize_provider_video_mode(provider, current_parameters.get("mode", "prompt"))
         seedance_model_name = normalize_seedance_model_name(current_parameters.get("model_name"))
+        dashscope_model_name = normalize_dashscope_video_model_name(current_parameters.get("model_name"), mode=mode)
         if provider == "kling":
             aspect_ratio = normalize_provider_video_aspect_ratio(
                 provider,
@@ -121,6 +130,24 @@ class VideoGenerationAgent(CreativeExpert):
                 seedance_model_name,
                 current_parameters.get("duration_seconds"),
             )
+        elif provider == "dashscope":
+            aspect_ratio = normalize_provider_video_aspect_ratio(
+                provider,
+                current_parameters.get("aspect_ratio", "16:9"),
+            )
+            resolution = normalize_provider_video_resolution(
+                provider,
+                current_parameters.get("resolution", get_default_video_resolution(provider)),
+            )
+            duration_seconds = int(
+                normalize_provider_video_duration(
+                    provider,
+                    current_parameters.get("duration_seconds", get_default_video_duration(provider) or 5),
+                    mode=mode,
+                )
+                or get_default_video_duration(provider)
+                or 5
+            )
         else:
             aspect_ratio = normalize_provider_video_aspect_ratio(
                 provider,
@@ -143,17 +170,20 @@ class VideoGenerationAgent(CreativeExpert):
         kling_model_name = str(current_parameters.get("model_name", "") or "").strip()
         kling_mode = video_tools.normalize_kling_mode(current_parameters.get("kling_mode", "std"))
         seedance_generate_audio = _parse_optional_bool(current_parameters.get("generate_audio"))
-        seedance_watermark = _parse_bool(current_parameters.get("watermark"), default=False)
+        watermark = _parse_bool(current_parameters.get("watermark"), default=False)
 
-        if not any(prompt_list) and not input_paths:
-            error_text = f"Missing parameters provided to {self.name}, must include prompt or input_path/input_paths."
+        if not any(prompt_list) and not input_paths and not input_urls:
+            error_text = (
+                f"Missing parameters provided to {self.name}, must include prompt, "
+                "input_path/input_paths, or image_url/image_urls."
+            )
             current_output = {"status": "error", "message": error_text}
             logger.error(error_text)
             yield self.format_event(error_text, {"current_output": current_output})
             return
 
-        if mode != "prompt" and not input_paths:
-            error_text = f"{self.name} requires input_path or input_paths when mode is {mode}."
+        if mode != "prompt" and not input_paths and not (provider == "dashscope" and input_urls):
+            error_text = f"{self.name} requires input_path/input_paths or image_url/image_urls when mode is {mode}."
             current_output = {"status": "error", "message": error_text}
             logger.error(error_text)
             yield self.format_event(error_text, {"current_output": current_output})
@@ -169,7 +199,8 @@ class VideoGenerationAgent(CreativeExpert):
                 if provider == "seedance"
                 else video_tools.normalize_video_seed(current_parameters.get("seed"))
             )
-            video_tools._validate_mode_input_paths(provider, mode, input_paths)
+            validation_inputs = [*input_paths, *input_urls] if provider == "dashscope" else input_paths
+            video_tools._validate_mode_input_paths(provider, mode, validation_inputs)
         except ValueError as exc:
             error_text = f"{self.name} got invalid parameters: {exc}"
             current_output = {"status": "error", "message": error_text}
@@ -212,6 +243,25 @@ class VideoGenerationAgent(CreativeExpert):
                 )
                 for prompt in normalized_prompts
             ]
+        elif provider == "dashscope":
+            explicit_prompt_extend = _parse_optional_bool(current_parameters.get("prompt_extend"))
+            prompt_extend = prompt_rewrite != "off" if explicit_prompt_extend is None else explicit_prompt_extend
+            generation_tasks = [
+                video_tools.dashscope_video_generation_tool(
+                    prompt,
+                    input_paths=input_paths,
+                    input_urls=input_urls,
+                    mode=mode,
+                    aspect_ratio=aspect_ratio,
+                    model_name=dashscope_model_name,
+                    resolution=resolution,
+                    duration_seconds=duration_seconds,
+                    prompt_extend=prompt_extend,
+                    watermark=watermark,
+                    seed=seed,
+                )
+                for prompt in normalized_prompts
+            ]
         else:
             generation_tasks = [
                 video_tools.seedance_video_generation_tool(
@@ -223,7 +273,7 @@ class VideoGenerationAgent(CreativeExpert):
                     resolution=resolution,
                     duration_seconds=duration_seconds,
                     generate_audio=seedance_generate_audio,
-                    watermark=seedance_watermark,
+                    watermark=watermark,
                     seed=seed,
                 )
                 for prompt in normalized_prompts

@@ -10,6 +10,21 @@ from src.agents.experts.image_generation import tool as generation_tools
 from src.runtime.workspace import build_workspace_file_record, save_binary_output
 
 
+def _parse_optional_bool(value) -> bool | None:
+    """Return a bool for explicit values and None when the parameter is absent."""
+    if value is None:
+        return None
+    if isinstance(value, bool):
+        return value
+    return str(value).strip().lower() in {"1", "true", "yes", "y", "on"}
+
+
+def _parse_bool(value, *, default: bool = False) -> bool:
+    """Return a bool for flexible user-provided values."""
+    parsed = _parse_optional_bool(value)
+    return default if parsed is None else parsed
+
+
 class ImageGenerationAgent(CreativeExpert):
     """A custom agent that orchestrates a sequence of agents to generate an image from text."""
 
@@ -53,6 +68,14 @@ class ImageGenerationAgent(CreativeExpert):
         resolution = str(current_parameters.get("resolution", "1K"))
         gpt_image_size = str(current_parameters.get("size", "1024x1024"))
         gpt_image_quality = str(current_parameters.get("quality", "high"))
+        dashscope_model_name = generation_tools.normalize_dashscope_image_model_name(
+            current_parameters.get("model_name")
+        )
+        dashscope_size = str(current_parameters.get("size", "") or "").strip()
+        dashscope_negative_prompt = str(current_parameters.get("negative_prompt", "") or "").strip()
+        dashscope_prompt_extend = _parse_optional_bool(current_parameters.get("prompt_extend"))
+        dashscope_watermark = _parse_bool(current_parameters.get("watermark"), default=False)
+        dashscope_thinking_mode = _parse_optional_bool(current_parameters.get("thinking_mode"))
 
         # prompt enhancement
         tasks = [generation_tools.prompt_enhancement_tool(ctx, prompt) for prompt in original_prompt]
@@ -74,6 +97,20 @@ class ImageGenerationAgent(CreativeExpert):
                     generation_tools.API_CONFIG.OPENAI_API_KEY or "",
                     size=gpt_image_size,
                     quality=gpt_image_quality,
+                )
+                for prompt in prompt_list
+            ]
+        elif provider == "dashscope":
+            tasks = [
+                generation_tools.dashscope_image_generation(
+                    prompt,
+                    model_name=dashscope_model_name,
+                    size=dashscope_size,
+                    resolution=resolution,
+                    negative_prompt=dashscope_negative_prompt,
+                    prompt_extend=dashscope_prompt_extend,
+                    watermark=dashscope_watermark,
+                    thinking_mode=dashscope_thinking_mode,
                 )
                 for prompt in prompt_list
             ]

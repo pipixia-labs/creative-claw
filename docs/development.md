@@ -148,6 +148,7 @@ How to fill it:
 - If you want Gemini image or VEO video support, fill `providers.gemini.api_key`.
 - If you want Anthropic text models, fill `providers.anthropic.api_key`.
 - If you want Seedream or Seedance, fill `services.ark_api_key`.
+- If you want DashScope image/video media models, fill `providers.dashscope.api_key`.
 - If you want image grounding or segmentation, fill `services.dds_api_key`.
 - If you want SearchAgent image search, fill `services.serper_api_key`.
 - If you want the built-in `web_search` tool, fill `services.brave_api_key`.
@@ -304,6 +305,7 @@ Field notes:
 | `providers.<name>.extra_headers` | Extra HTTP headers | Enterprise proxy or custom gateway integration |
 | `providers.ollama.api_base` | Local Ollama endpoint | Prefilled as `http://localhost:11434/v1` by `creative-claw init` |
 | `services.ark_api_key` | Volcengine Ark key | Seedream and Seedance paths |
+| `providers.dashscope.api_key` | DashScope key | DashScope text LLMs plus Wan/HappyHorse video and Wan/Qwen/Z-Image generation |
 | `services.dds_api_key` | DeepDataSpace key | Image grounding and image segmentation |
 | `services.serper_api_key` | Serper key | `SearchAgent` image mode |
 | `services.brave_api_key` | Brave search key | Built-in web search tool |
@@ -360,6 +362,7 @@ The default DeepSeek `api_base` is the official OpenAI-compatible endpoint `http
 Feature-specific extra service keys:
 
 - `services.ark_api_key`: Seedream image generation, image editing, and `VideoGenerationAgent` (`seedance`)
+- `providers.dashscope.api_key`: `ImageGenerationAgent` (`dashscope`) and `VideoGenerationAgent` (`dashscope`)
 - `services.kling_access_key` and `services.kling_secret_key`: `VideoGenerationAgent` (`kling`)
 - `services.kling_api_base`: optional Kling API base override; when omitted, the provider probes the official Beijing and Singapore gateways and caches the first working base
 - `services.dds_api_key`: `ImageGroundingAgent` and `ImageSegmentationAgent`
@@ -416,13 +419,41 @@ mmx auth login --api-key sk-xxxxx
 mmx auth status --output json --non-interactive
 ```
 
+## Image Generation Expert
+
+`ImageGenerationAgent` supports four providers:
+
+- `nano_banana`: default Gemini-backed provider, requires `providers.gemini.api_key`
+- `seedream`: Volcengine Ark provider, requires `services.ark_api_key`
+- `gpt_image`: OpenAI image provider, requires `providers.openai.api_key`
+- `dashscope`: Aliyun Model Studio provider, requires `providers.dashscope.api_key`
+
+Important `dashscope` image notes:
+
+- supported model ids are `wan2.7-image-pro`, `qwen-image-2.0-pro`, and `z-image-turbo`
+- choose the model with `model_name`
+- optional controls include `size`, `negative_prompt`, `prompt_extend`, `watermark`, and `thinking_mode`
+- `wan2.7-image-pro` uses an asynchronous DashScope image-generation task
+- `qwen-image-2.0-pro` and `z-image-turbo` use the DashScope multimodal generation endpoint
+
+Example `invoke_agent` payloads:
+
+```json
+{"prompt":"A cinematic cat poster","provider":"dashscope","model_name":"wan2.7-image-pro","size":"2K","watermark":false}
+```
+
+```json
+{"prompt":"A clean product hero image for a white ceramic teapot","provider":"dashscope","model_name":"qwen-image-2.0-pro","size":"2048*2048","negative_prompt":"blurry, distorted text"}
+```
+
 ## Video Generation Expert
 
-`VideoGenerationAgent` supports three providers:
+`VideoGenerationAgent` supports four providers:
 
 - `seedance`: default provider, requires `services.ark_api_key`
 - `veo`: Google VEO provider, requires `providers.gemini.api_key`
 - `kling`: Kling official video API, requires `services.kling_access_key` and `services.kling_secret_key`
+- `dashscope`: Aliyun Model Studio video API, requires `providers.dashscope.api_key`
 
 Supported modes:
 
@@ -455,6 +486,16 @@ Important `kling` notes:
 - Kling image-guided paths send workspace images as raw base64 strings to the official video API
 - when `KLING_API_BASE` is not set explicitly, the provider probes the official Beijing and Singapore gateways and caches the first working base
 
+Important `dashscope` video notes:
+
+- current CreativeClaw integration supports only `prompt`, `first_frame`, and `first_frame_and_last_frame`
+- text-to-video model ids are `wan2.7-t2v`, `wan2.7-t2v-2026-04-25`, and `happyhorse-1.0-t2v`
+- image-to-video model ids are `wan2.7-i2v`, `wan2.7-i2v-2026-04-25`, and `happyhorse-1.0-i2v`
+- `first_frame_and_last_frame` is supported through Wan 2.7 image-to-video models only
+- Wan 2.7 image-guided routes can use workspace image paths; `happyhorse-1.0-i2v` requires `image_url` or `image_urls`
+- video editing and reference-video models are intentionally not exposed in this iteration
+- optional DashScope controls include `model_name`, `resolution` (`720p|1080p`), `duration_seconds`, `aspect_ratio`, `prompt_extend`, `watermark`, and `seed`
+
 Example `invoke_agent` payloads:
 
 ```json
@@ -471,6 +512,14 @@ Example `invoke_agent` payloads:
 
 ```json
 {"input_path":"generated/session_1/clip.mp4","prompt":"Continue the motion naturally with wind and crowd ambience","provider":"veo","mode":"video_extension","resolution":"720p","duration_seconds":8,"negative_prompt":"glitches, abrupt cuts","seed":123}
+```
+
+```json
+{"prompt":"A cinematic dragon boat racing through neon rain","provider":"dashscope","mode":"prompt","model_name":"wan2.7-t2v","aspect_ratio":"16:9","resolution":"1080p","duration_seconds":5}
+```
+
+```json
+{"input_paths":["inbox/cli/session_1/first.png","inbox/cli/session_1/last.png"],"prompt":"Create a smooth transition between the two frames","provider":"dashscope","mode":"first_frame_and_last_frame","model_name":"wan2.7-i2v","resolution":"720p","duration_seconds":5}
 ```
 
 ## Deterministic Media Operations

@@ -4,7 +4,7 @@ from __future__ import annotations
 
 from typing import Any
 
-VIDEO_GENERATION_PROVIDERS = ("seedance", "veo", "kling")
+VIDEO_GENERATION_PROVIDERS = ("seedance", "veo", "kling", "dashscope")
 VIDEO_GENERATION_DEFAULT_PROVIDER = "seedance"
 VIDEO_GENERATION_DEFAULT_MODE = "prompt"
 VIDEO_GENERATION_DEFAULT_ASPECT_RATIO = "16:9"
@@ -23,6 +23,35 @@ VIDEO_GENERATION_SEEDANCE_MODEL_NAMES = (
 VIDEO_GENERATION_VEO_MODEL_NAME = "veo-3.1-generate-preview"
 VIDEO_GENERATION_KLING_MODEL_NAME = "kling-v3"
 VIDEO_GENERATION_KLING_MULTI_REFERENCE_MODEL_NAME = "kling-v1-6"
+VIDEO_GENERATION_DASHSCOPE_WAN_T2V_MODEL_NAME = "wan2.7-t2v"
+VIDEO_GENERATION_DASHSCOPE_WAN_T2V_SNAPSHOT_MODEL_NAME = "wan2.7-t2v-2026-04-25"
+VIDEO_GENERATION_DASHSCOPE_WAN_I2V_MODEL_NAME = "wan2.7-i2v"
+VIDEO_GENERATION_DASHSCOPE_WAN_I2V_SNAPSHOT_MODEL_NAME = "wan2.7-i2v-2026-04-25"
+VIDEO_GENERATION_DASHSCOPE_HAPPYHORSE_T2V_MODEL_NAME = "happyhorse-1.0-t2v"
+VIDEO_GENERATION_DASHSCOPE_HAPPYHORSE_I2V_MODEL_NAME = "happyhorse-1.0-i2v"
+VIDEO_GENERATION_DASHSCOPE_T2V_MODEL_NAMES = (
+    VIDEO_GENERATION_DASHSCOPE_WAN_T2V_MODEL_NAME,
+    VIDEO_GENERATION_DASHSCOPE_WAN_T2V_SNAPSHOT_MODEL_NAME,
+    VIDEO_GENERATION_DASHSCOPE_HAPPYHORSE_T2V_MODEL_NAME,
+)
+VIDEO_GENERATION_DASHSCOPE_I2V_MODEL_NAMES = (
+    VIDEO_GENERATION_DASHSCOPE_WAN_I2V_MODEL_NAME,
+    VIDEO_GENERATION_DASHSCOPE_WAN_I2V_SNAPSHOT_MODEL_NAME,
+    VIDEO_GENERATION_DASHSCOPE_HAPPYHORSE_I2V_MODEL_NAME,
+)
+VIDEO_GENERATION_DASHSCOPE_FLF_MODEL_NAMES = (
+    VIDEO_GENERATION_DASHSCOPE_WAN_I2V_MODEL_NAME,
+    VIDEO_GENERATION_DASHSCOPE_WAN_I2V_SNAPSHOT_MODEL_NAME,
+)
+VIDEO_GENERATION_DASHSCOPE_MODEL_NAMES = (
+    *VIDEO_GENERATION_DASHSCOPE_T2V_MODEL_NAMES,
+    *VIDEO_GENERATION_DASHSCOPE_I2V_MODEL_NAMES,
+)
+VIDEO_GENERATION_DASHSCOPE_DEFAULT_MODEL_BY_MODE = {
+    "prompt": VIDEO_GENERATION_DASHSCOPE_WAN_T2V_MODEL_NAME,
+    "first_frame": VIDEO_GENERATION_DASHSCOPE_WAN_I2V_MODEL_NAME,
+    "first_frame_and_last_frame": VIDEO_GENERATION_DASHSCOPE_WAN_I2V_MODEL_NAME,
+}
 
 _VIDEO_PROVIDER_MODEL_CAPABILITIES = {
     "seedance": {
@@ -50,6 +79,15 @@ _VIDEO_PROVIDER_MODEL_CAPABILITIES = {
         "summary": (
             "Current Creative Claw Kling integration does not expose native audio "
             "controls, so treat it as visual-only and do not promise subtitles."
+        ),
+    },
+    "dashscope": {
+        "model_name": VIDEO_GENERATION_DASHSCOPE_WAN_T2V_MODEL_NAME,
+        "native_audio_output": "supported",
+        "subtitle_file_output": "not_supported",
+        "summary": (
+            "DashScope Wan 2.7 and HappyHorse 1.0 video models can generate native "
+            "audio from prompt cues, but this integration does not return subtitle/SRT files."
         ),
     },
 }
@@ -125,6 +163,25 @@ _VIDEO_PROVIDER_CAPABILITIES = {
         },
         "default_duration_seconds": 5,
     },
+    "dashscope": {
+        "modes": (
+            "prompt",
+            "first_frame",
+            "first_frame_and_last_frame",
+        ),
+        "aspect_ratios": ("16:9", "9:16", "1:1", "4:3", "3:4"),
+        "resolutions": ("720p", "1080p"),
+        "default_resolution": "720p",
+        "durations_by_mode": {
+            "*": tuple(range(2, 16)),
+        },
+        "input_counts_by_mode": {
+            "prompt": (0, 0),
+            "first_frame": (1, 1),
+            "first_frame_and_last_frame": (2, 2),
+        },
+        "default_duration_seconds": 5,
+    },
 }
 
 VIDEO_GENERATION_MODES = tuple(
@@ -160,6 +217,39 @@ def normalize_seedance_model_name(raw_value: Any) -> str:
     """Return one supported Seedance model id or the default Seedance 2.0 model."""
     value = str(raw_value or "").strip()
     return value if value in VIDEO_GENERATION_SEEDANCE_MODEL_NAMES else VIDEO_GENERATION_SEEDANCE_MODEL_NAME
+
+
+def normalize_dashscope_video_model_name(
+    raw_value: Any,
+    *,
+    mode: str = VIDEO_GENERATION_DEFAULT_MODE,
+) -> str:
+    """Return one supported DashScope video model id for the selected mode."""
+    normalized_mode = str(mode or VIDEO_GENERATION_DEFAULT_MODE).strip().lower() or VIDEO_GENERATION_DEFAULT_MODE
+    value = str(raw_value or "").strip()
+    if value in get_supported_dashscope_video_model_names(mode=normalized_mode):
+        return value
+    return VIDEO_GENERATION_DASHSCOPE_DEFAULT_MODEL_BY_MODE.get(
+        normalized_mode,
+        VIDEO_GENERATION_DASHSCOPE_WAN_T2V_MODEL_NAME,
+    )
+
+
+def get_supported_dashscope_video_model_names(*, mode: str | None = None) -> tuple[str, ...]:
+    """Return DashScope model ids supported by the current integration."""
+    normalized_mode = str(mode or "").strip().lower()
+    if normalized_mode == "prompt":
+        return VIDEO_GENERATION_DASHSCOPE_T2V_MODEL_NAMES
+    if normalized_mode == "first_frame":
+        return VIDEO_GENERATION_DASHSCOPE_I2V_MODEL_NAMES
+    if normalized_mode == "first_frame_and_last_frame":
+        return VIDEO_GENERATION_DASHSCOPE_FLF_MODEL_NAMES
+    return VIDEO_GENERATION_DASHSCOPE_MODEL_NAMES
+
+
+def dashscope_video_model_supports_mode(model_name: str, mode: str) -> bool:
+    """Return whether a DashScope model id is compatible with one expert mode."""
+    return model_name in get_supported_dashscope_video_model_names(mode=mode)
 
 
 def seedance_model_supports_audio(model_name: str) -> bool:
@@ -209,6 +299,8 @@ def get_video_generation_model_name(
     current_mode = str(mode or VIDEO_GENERATION_DEFAULT_MODE).strip().lower()
     if current_provider == "kling" and current_mode == "multi_reference":
         return VIDEO_GENERATION_KLING_MULTI_REFERENCE_MODEL_NAME
+    if current_provider == "dashscope":
+        return normalize_dashscope_video_model_name("", mode=current_mode)
     return str(_VIDEO_PROVIDER_MODEL_CAPABILITIES[current_provider]["model_name"])
 
 
@@ -384,8 +476,23 @@ def validate_video_generation_parameters(parameters: dict[str, Any]) -> None:
                     "VideoGenerationAgent provider `seedance` does not support "
                     f"`model_name={model_name}`. Allowed values: {list(VIDEO_GENERATION_SEEDANCE_MODEL_NAMES)}."
                 )
+        elif provider == "dashscope":
+            if model_name not in VIDEO_GENERATION_DASHSCOPE_MODEL_NAMES:
+                raise ValueError(
+                    "VideoGenerationAgent provider `dashscope` does not support "
+                    f"`model_name={model_name}`. Allowed values: {list(VIDEO_GENERATION_DASHSCOPE_MODEL_NAMES)}."
+                )
+            if not dashscope_video_model_supports_mode(model_name, mode):
+                raise ValueError(
+                    "VideoGenerationAgent provider `dashscope` does not support "
+                    f"`model_name={model_name}` with `mode={mode}`. "
+                    f"Allowed values for this mode: {list(get_supported_dashscope_video_model_names(mode=mode))}."
+                )
         elif provider != "kling":
-            raise ValueError("VideoGenerationAgent parameter `model_name` is supported only for provider `seedance` or `kling`.")
+            raise ValueError(
+                "VideoGenerationAgent parameter `model_name` is supported only for provider "
+                "`seedance`, `kling`, or `dashscope`."
+            )
 
     if "resolution" in parameters and parameters.get("resolution") is not None:
         resolution = str(parameters.get("resolution") or "").strip().lower()
@@ -447,6 +554,7 @@ def build_video_generation_contract_notes() -> str:
     seedance_model_capabilities = get_video_generation_model_capabilities("seedance")
     veo_model_capabilities = get_video_generation_model_capabilities("veo")
     kling_model_capabilities = get_video_generation_model_capabilities("kling")
+    dashscope_model_capabilities = get_video_generation_model_capabilities("dashscope")
     provider_blocks = [
         (
             "provider `seedance` "
@@ -479,13 +587,29 @@ def build_video_generation_contract_notes() -> str:
             f"{[str(value) for value in get_supported_video_durations('kling', mode='multi_reference')]} "
             f"and the effective model is `{get_video_generation_model_name('kling', mode='multi_reference')}`."
         ),
+        (
+            "provider `dashscope` "
+            f"(default model `{get_video_generation_model_name('dashscope')}`): "
+            f"modes {list(get_supported_video_modes('dashscope'))}, "
+            f"aspect_ratio {list(get_supported_video_aspect_ratios('dashscope'))}, "
+            f"resolution {list(get_supported_video_resolutions('dashscope'))}, "
+            f"duration_seconds {[str(value) for value in get_supported_video_durations('dashscope')]}; "
+            f"{dashscope_model_capabilities['summary']}; "
+            "for `mode=prompt`, use one of "
+            f"{list(get_supported_dashscope_video_model_names(mode='prompt'))}; "
+            "for `mode=first_frame`, use one of "
+            f"{list(get_supported_dashscope_video_model_names(mode='first_frame'))}; "
+            "for `mode=first_frame_and_last_frame`, use one of "
+            f"{list(get_supported_dashscope_video_model_names(mode='first_frame_and_last_frame'))}. "
+            "Video edit and reference-video DashScope models are intentionally not exposed yet."
+        ),
     ]
     return (
         "Use prompt-only, image-guided, or video-extension generation with provider-aware parameters. "
         + " ".join(provider_blocks)
         + " Agent-only parameter `prompt_rewrite` accepts `auto` or `off` and controls local prompt rewriting. "
         + "Parameter `person_generation` applies only to `veo`; "
-        + "`kling_mode` applies only to `kling`; `model_name` applies to `seedance` or `kling`."
+        + "`kling_mode` applies only to `kling`; `model_name` applies to `seedance`, `kling`, or `dashscope`."
     )
 
 
@@ -515,6 +639,14 @@ def build_video_generation_routing_notes() -> str:
                 f"`model_name={get_video_generation_model_name('kling')}` for basic Kling routes and "
                 f"`model_name={get_video_generation_model_name('kling', mode='multi_reference')}` "
                 "for `multi_reference`."
+            ),
+            (
+                "- `VideoGenerationAgent` provider `dashscope` exposes Aliyun Wan 2.7 and HappyHorse 1.0 "
+                "only for `mode=prompt`, `mode=first_frame`, and `mode=first_frame_and_last_frame` now. "
+                "Use `model_name=wan2.7-t2v` or `happyhorse-1.0-t2v` for text-to-video; use "
+                "`model_name=wan2.7-i2v` or `happyhorse-1.0-i2v` for first-frame image-to-video; "
+                "use `model_name=wan2.7-i2v` for first/last-frame video. Do not route DashScope "
+                "video editing or reference-video requests yet."
             ),
         ]
     )

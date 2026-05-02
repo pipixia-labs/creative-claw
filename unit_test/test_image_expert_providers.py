@@ -158,6 +158,67 @@ class ImageExpertProviderTests(unittest.IsolatedAsyncioTestCase):
         seedream_mock.assert_not_called()
         nano_mock.assert_not_called()
 
+    async def test_image_generation_uses_dashscope_when_requested(self) -> None:
+        agent = ImageGenerationAgent(name="ImageGenerationAgent")
+        ctx = _build_ctx(
+            {
+                "current_parameters": {
+                    "prompt": "draw a cat",
+                    "provider": "dashscope",
+                    "model_name": "qwen-image-2.0-pro",
+                    "size": "2048*2048",
+                    "negative_prompt": "blur",
+                    "watermark": True,
+                },
+                "step": 0,
+            }
+        )
+
+        with (
+            patch(
+                "src.agents.experts.image_generation.image_generation_agent.generation_tools.prompt_enhancement_tool",
+                new=AsyncMock(return_value={"status": "success", "message": "enhanced cat"}),
+            ),
+            patch(
+                "src.agents.experts.image_generation.image_generation_agent.save_binary_output",
+                return_value=workspace_root() / "generated" / "session_1" / "step1_generation_output0.png",
+            ),
+            patch(
+                "src.agents.experts.image_generation.image_generation_agent.generation_tools.dashscope_image_generation",
+                new=AsyncMock(
+                    return_value=generation_tools.ImageGenerationResult(
+                        status="success",
+                        message=b"png-data",
+                        provider="dashscope",
+                        model_name="qwen-image-2.0-pro",
+                    )
+                ),
+            ) as dashscope_mock,
+            patch(
+                "src.agents.experts.image_generation.image_generation_agent.generation_tools.nano_banana_image_generation_tool",
+                new=AsyncMock(),
+            ) as nano_mock,
+            patch(
+                "src.agents.experts.image_generation.image_generation_agent.generation_tools.seedream_image_generation_tool",
+                new=AsyncMock(),
+            ) as seedream_mock,
+        ):
+            events = [event async for event in agent._run_async_impl(ctx)]
+
+        self.assertEqual(len(events), 1)
+        dashscope_mock.assert_awaited_once_with(
+            "enhanced cat",
+            model_name="qwen-image-2.0-pro",
+            size="2048*2048",
+            resolution="1K",
+            negative_prompt="blur",
+            prompt_extend=None,
+            watermark=True,
+            thinking_mode=None,
+        )
+        nano_mock.assert_not_called()
+        seedream_mock.assert_not_called()
+
     async def test_image_generation_reports_output_artifact_name_in_message(self) -> None:
         agent = ImageGenerationAgent(name="ImageGenerationAgent")
         ctx = _build_ctx({"current_parameters": {"prompt": "draw a cat"}, "step": 0})
@@ -310,6 +371,107 @@ class ImageExpertProviderTests(unittest.IsolatedAsyncioTestCase):
         self.assertEqual(result["status"], "success")
         self.assertEqual(result["provider"], "seedream")
         self.assertEqual(result["message"][0], b"edited-png")
+
+    async def test_dashscope_qwen_image_generation_uses_multimodal_endpoint(self) -> None:
+        submit_mock = AsyncMock(
+            return_value={
+                "output": {
+                    "choices": [
+                        {
+                            "message": {
+                                "content": [
+                                    {"image": "https://cdn.test/qwen.png"},
+                                ]
+                            }
+                        }
+                    ]
+                }
+            }
+        )
+
+        with (
+            patch.dict(os.environ, {"DASHSCOPE_API_KEY": "test-key"}, clear=False),
+            patch(
+                "src.agents.experts.image_generation.tool.asyncio.to_thread",
+                submit_mock,
+            ),
+        ):
+            submit_mock.side_effect = [
+                {
+                    "output": {
+                        "choices": [
+                            {
+                                "message": {
+                                    "content": [{"image": "https://cdn.test/qwen.png"}]
+                                }
+                            }
+                        ]
+                    }
+                },
+                b"png-data",
+            ]
+            result = await generation_tools.dashscope_image_generation(
+                "draw a cat",
+                model_name="qwen-image-2.0-pro",
+                size="2048*2048",
+                negative_prompt="blur",
+                watermark=True,
+            )
+
+        self.assertEqual(result.status, "success")
+        self.assertEqual(result.model_name, "qwen-image-2.0-pro")
+        submit_call = submit_mock.await_args_list[0]
+        self.assertEqual(
+            submit_call.kwargs["endpoint"],
+            "/services/aigc/multimodal-generation/generation",
+        )
+        self.assertEqual(
+            submit_call.kwargs["payload"]["parameters"],
+            {
+                "size": "2048*2048",
+                "n": 1,
+                "watermark": True,
+                "prompt_extend": True,
+                "negative_prompt": "blur",
+            },
+        )
+
+    async def test_dashscope_wan_image_generation_uses_async_endpoint(self) -> None:
+        submit_mock = AsyncMock()
+        submit_mock.side_effect = [
+            {"output": {"task_id": "task-1"}},
+            {"output": {"task_status": "SUCCEEDED", "results": [{"url": "https://cdn.test/wan.png"}]}},
+            b"png-data",
+        ]
+
+        with (
+            patch.dict(os.environ, {"DASHSCOPE_API_KEY": "test-key"}, clear=False),
+            patch(
+                "src.agents.experts.image_generation.tool.asyncio.to_thread",
+                submit_mock,
+            ),
+        ):
+            result = await generation_tools.dashscope_image_generation(
+                "draw a cat",
+                model_name="wan2.7-image-pro",
+                watermark=True,
+                thinking_mode=False,
+            )
+
+        self.assertEqual(result.status, "success")
+        self.assertEqual(result.model_name, "wan2.7-image-pro")
+        submit_call = submit_mock.await_args_list[0]
+        self.assertEqual(submit_call.kwargs["endpoint"], "/services/aigc/image-generation/generation")
+        self.assertEqual(submit_call.kwargs["headers"]["X-DashScope-Async"], "enable")
+        self.assertEqual(
+            submit_call.kwargs["payload"]["parameters"],
+            {
+                "size": "2K",
+                "n": 1,
+                "watermark": True,
+                "thinking_mode": False,
+            },
+        )
 
     async def test_gpt_image_generation_returns_binary_payload(self) -> None:
         image_payload = base64.b64encode(b"gpt-image-png").decode("utf-8")

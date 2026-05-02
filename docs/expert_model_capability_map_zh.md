@@ -19,7 +19,10 @@
 | `VideoUnderstandingExpert` | 运行时 `llm.model` | 通用多模态 LLM | 待补 | 待补 | 取决于 provider | 待补 |
 | `ImageGenerationAgent` | `gemini-3.1-flash-image-preview` | Gemini 3.1 Flash Image Preview | 待补 | 待补 | `GOOGLE_API_KEY` / `GEMINI_API_KEY` | 待补 |
 | `ImageGenerationAgent` | `doubao-seedream-5-0-260128` | Seedream 5.0 | 待补 | 待补 | `ARK_API_KEY` | 待补 |
-| `ImageGenerationAgent` | `gpt-image-1.5` | GPT Image 1.5 | 待补 | 待补 | `OPENAI_API_KEY` | 待补 |
+| `ImageGenerationAgent` | `gpt-image-2` | GPT Image 2 | 待补 | 待补 | `OPENAI_API_KEY` | 待补 |
+| `ImageGenerationAgent` | `wan2.7-image-pro` | DashScope Wan 2.7 Image Pro | 待补 | 待补 | `DASHSCOPE_API_KEY` | 待补 |
+| `ImageGenerationAgent` | `qwen-image-2.0-pro` | DashScope Qwen Image 2.0 Pro | 待补 | 待补 | `DASHSCOPE_API_KEY` | 待补 |
+| `ImageGenerationAgent` | `z-image-turbo` | DashScope Z-Image Turbo | 待补 | 待补 | `DASHSCOPE_API_KEY` | 待补 |
 | `ImageEditingAgent` | `gemini-3.1-flash-image-preview` | Gemini 3.1 Flash Image Preview | 待补 | 待补 | `GOOGLE_API_KEY` / `GEMINI_API_KEY` | 待补 |
 | `ImageEditingAgent` | `doubao-seedream-5-0-260128` | Seedream 5.0 | 待补 | 待补 | `ARK_API_KEY` | 待补 |
 | `ImageGroundingAgent` | `DINO-XSeek-1.0` | DINO-XSeek 1.0 | 待补 | 待补 | `DDS_API_KEY` | 待补 |
@@ -29,6 +32,9 @@
 | `VideoGenerationAgent` | `doubao-seedance-1-0-pro-250528` | Seedance 1.0 Pro | 待补 | 待补 | `ARK_API_KEY` | 待补 |
 | `VideoGenerationAgent` | `veo-3.1-generate-preview` | Veo 3.1 Generate Preview | 待补 | 待补 | `GOOGLE_API_KEY` / `GEMINI_API_KEY` | 待补 |
 | `VideoGenerationAgent` | `kling-v3` | Kling 3（文生/图生默认模型；`multi_reference` 当前走 `kling-v1-6`） | 待补 | 待补 | `KLING_ACCESS_KEY` + `KLING_SECRET_KEY` | 待补 |
+| `VideoGenerationAgent` | `wan2.7-t2v` / `wan2.7-t2v-2026-04-25` | DashScope Wan 2.7 文生视频 | 待补 | 待补 | `DASHSCOPE_API_KEY` | 待补 |
+| `VideoGenerationAgent` | `wan2.7-i2v` / `wan2.7-i2v-2026-04-25` | DashScope Wan 2.7 图生视频 / 首尾帧生视频 | 待补 | 待补 | `DASHSCOPE_API_KEY` | 待补 |
+| `VideoGenerationAgent` | `happyhorse-1.0-t2v` / `happyhorse-1.0-i2v` | DashScope HappyHorse 1.0 文生/图生视频 | 待补 | 待补 | `DASHSCOPE_API_KEY` | 待补 |
 | `SpeechRecognitionExpert` | `volc.bigasr.auc_turbo` | Volcengine BigASR Flash | 待补 | 待补 | `VOLCENGINE_APPID` + `VOLCENGINE_ACCESS_TOKEN` | 待补 |
 | `SpeechRecognitionExpert` | `vc.async.default` | Volcengine Subtitle Generation | 待补 | 待补 | `VOLCENGINE_APPID` + `VOLCENGINE_ACCESS_TOKEN` | 待补 |
 | `SpeechRecognitionExpert` | `volc.ata.default` | Volcengine Subtitle Alignment | 待补 | 待补 | `VOLCENGINE_APPID` + `VOLCENGINE_ACCESS_TOKEN` | 待补 |
@@ -75,7 +81,8 @@
 ## 3. 当前最需要注意的几个点
 
 - `ImageGenerationAgent`、`ImageEditingAgent`、`VideoGenerationAgent` 现在都应该按“一个 provider 一行”来看，不适合再合并成一个笼统描述。
-- `VideoGenerationAgent` 新增了 `kling` 候选 provider，但当前只开放这四种 mode：`prompt`、`first_frame`、`first_frame_and_last_frame`、`multi_reference`。
+- `VideoGenerationAgent` 新增了 `dashscope` 候选 provider；本轮只开放 `prompt`、`first_frame`、`first_frame_and_last_frame`，不开放视频编辑和参考视频。
+- `VideoGenerationAgent` 的 `kling` 候选 provider 当前只开放这四种 mode：`prompt`、`first_frame`、`first_frame_and_last_frame`、`multi_reference`。
 - `kling` 的基础文生/图生默认模型已切到 `kling-v3`；`multi_reference` 仍按官方独立接口走 `kling-v1-6`。
 - `kling` 当前不支持 `reference_asset`、`reference_style`、`video_extension` 这三个集成层 mode，主 agent 路由时要避开。
 - Kling 输入图像如果不满足官方限制，当前 expert 只会报错，不会自动 resize 或裁剪；需要时应先让主 agent 调 `image_info` / `image_resize` 等本地工具。

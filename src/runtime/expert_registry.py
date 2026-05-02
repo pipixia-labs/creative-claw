@@ -82,13 +82,16 @@ _EXPERT_SPECS = {
         required_parameters=("prompt",),
         required_parameter_groups=(RequiredParameterGroup(keys=("prompt",), description="prompt"),),
         allowed_values={
-            "provider": ("nano_banana", "seedream", "gpt_image"),
-            "size": ("1024x1024", "1024x1536", "1536x1024"),
+            "provider": ("nano_banana", "seedream", "gpt_image", "dashscope"),
+            "model_name": ("wan2.7-image-pro", "qwen-image-2.0-pro", "z-image-turbo"),
+            "size": ("1024x1024", "1024x1536", "1536x1024", "2K", "2048*2048", "1024*1536"),
             "quality": ("low", "medium", "high"),
         },
         notes=(
             "Use prompt; optional provider, aspect_ratio, resolution. "
-            "GPT Image 2 is available through provider `gpt_image` and supports optional size and quality."
+            "GPT Image 2 is available through provider `gpt_image` and supports optional size and quality. "
+            "DashScope image models are available through provider `dashscope` with model_name "
+            "`wan2.7-image-pro`, `qwen-image-2.0-pro`, or `z-image-turbo`."
         ),
     ),
     "ImageEditingAgent": ExpertSpec(
@@ -268,11 +271,11 @@ _EXPERT_SPECS = {
         agent_factory=lambda: VideoGenerationAgent(name="VideoGenerationAgent"),
         default_prompt_key="prompt",
         default_parameters=get_video_generation_default_parameters(),
-        required_parameters=("prompt or input_path/input_paths",),
+        required_parameters=("prompt or input_path/input_paths or image_url/image_urls",),
         required_parameter_groups=(
             RequiredParameterGroup(
-                keys=("prompt", "input_path", "input_paths"),
-                description="prompt or input_path/input_paths",
+                keys=("prompt", "input_path", "input_paths", "image_url", "image_urls"),
+                description="prompt, input_path/input_paths, or image_url/image_urls",
             ),
         ),
         allowed_values={

@@ -314,6 +314,76 @@ class VideoExpertProviderTests(unittest.IsolatedAsyncioTestCase):
         seedance_mock.assert_not_called()
         veo_mock.assert_not_called()
 
+    async def test_video_generation_uses_dashscope_when_requested(self) -> None:
+        agent = VideoGenerationAgent(name="VideoGenerationAgent")
+        ctx = _build_ctx(
+            {
+                "current_parameters": {
+                    "prompt": "A dragon boat racing through neon rain",
+                    "provider": "dashscope",
+                    "model_name": "happyhorse-1.0-t2v",
+                    "prompt_rewrite": "off",
+                    "duration_seconds": 6,
+                    "watermark": True,
+                },
+                "step": 0,
+            }
+        )
+
+        with (
+            patch(
+                "src.agents.experts.video_generation.video_generation_agent.video_tools.prompt_enhancement_tool",
+                new=AsyncMock(),
+            ) as enhancement_mock,
+            patch(
+                "src.agents.experts.video_generation.video_generation_agent.save_binary_output",
+                return_value=workspace_root() / "generated" / "session_1" / "step1_video_generation_output0.mp4",
+            ),
+            patch(
+                "src.agents.experts.video_generation.video_generation_agent.video_tools.dashscope_video_generation_tool",
+                new=AsyncMock(
+                    return_value={
+                        "status": "success",
+                        "message": b"video-data",
+                        "provider": "dashscope",
+                        "model_name": "happyhorse-1.0-t2v",
+                    }
+                ),
+            ) as dashscope_mock,
+            patch(
+                "src.agents.experts.video_generation.video_generation_agent.video_tools.seedance_video_generation_tool",
+                new=AsyncMock(),
+            ) as seedance_mock,
+            patch(
+                "src.agents.experts.video_generation.video_generation_agent.video_tools.veo_video_generation_tool",
+                new=AsyncMock(),
+            ) as veo_mock,
+            patch(
+                "src.agents.experts.video_generation.video_generation_agent.video_tools.kling_video_generation_tool",
+                new=AsyncMock(),
+            ) as kling_mock,
+        ):
+            events = [event async for event in agent._run_async_impl(ctx)]
+
+        self.assertEqual(len(events), 1)
+        enhancement_mock.assert_not_called()
+        dashscope_mock.assert_awaited_once_with(
+            "A dragon boat racing through neon rain",
+            input_paths=[],
+            input_urls=[],
+            mode="prompt",
+            aspect_ratio="16:9",
+            model_name="happyhorse-1.0-t2v",
+            resolution="720p",
+            duration_seconds=6,
+            prompt_extend=False,
+            watermark=True,
+            seed=None,
+        )
+        seedance_mock.assert_not_called()
+        veo_mock.assert_not_called()
+        kling_mock.assert_not_called()
+
     async def test_video_generation_reports_output_artifact_name_in_message(self) -> None:
         agent = VideoGenerationAgent(name="VideoGenerationAgent")
         ctx = _build_ctx({"current_parameters": {"prompt": "draw a cat video"}, "step": 0})
@@ -478,6 +548,115 @@ class VideoGenerationToolTests(unittest.IsolatedAsyncioTestCase):
                 "seed": -1,
             },
         )
+
+    async def test_dashscope_tool_builds_wan_text_to_video_payload(self) -> None:
+        submit_mock = MagicMock(return_value={"output": {"task_id": "task-1"}})
+        get_mock = MagicMock(return_value={"output": {"task_status": "SUCCEEDED", "video_url": "https://cdn.test/video.mp4"}})
+
+        with (
+            patch.dict(os.environ, {"DASHSCOPE_API_KEY": "test-key"}, clear=False),
+            patch(
+                "src.agents.experts.video_generation.tool._submit_dashscope_async_task_sync",
+                submit_mock,
+            ),
+            patch(
+                "src.agents.experts.video_generation.tool._get_dashscope_task_sync",
+                get_mock,
+            ),
+            patch(
+                "src.agents.experts.video_generation.tool._download_binary_sync",
+                return_value=b"video-data",
+            ) as download_mock,
+        ):
+            result = await video_tools.dashscope_video_generation_tool(
+                "A cinematic city skyline",
+                model_name="wan2.7-t2v",
+                aspect_ratio="9:16",
+                resolution="1080p",
+                duration_seconds=6,
+                prompt_extend=False,
+                watermark=True,
+                seed=42,
+            )
+
+        self.assertEqual(result["status"], "success")
+        self.assertEqual(result["model_name"], "wan2.7-t2v")
+        submit_mock.assert_called_once()
+        self.assertEqual(submit_mock.call_args.kwargs["endpoint"], "/services/aigc/video-generation/video-synthesis")
+        self.assertEqual(submit_mock.call_args.kwargs["headers"]["X-DashScope-Async"], "enable")
+        self.assertEqual(
+            submit_mock.call_args.kwargs["payload"],
+            {
+                "model": "wan2.7-t2v",
+                "input": {"prompt": "A cinematic city skyline"},
+                "parameters": {
+                    "resolution": "1080P",
+                    "duration": 6,
+                    "watermark": True,
+                    "ratio": "9:16",
+                    "prompt_extend": False,
+                    "seed": 42,
+                },
+            },
+        )
+        get_mock.assert_called_once_with(
+            task_id="task-1",
+            headers={
+                "Authorization": "Bearer test-key",
+                "Content-Type": "application/json",
+            },
+        )
+        download_mock.assert_called_once_with("https://cdn.test/video.mp4")
+
+    async def test_dashscope_tool_builds_wan_first_last_payload_from_workspace_images(self) -> None:
+        submit_mock = MagicMock(return_value={"output": {"task_id": "task-1"}})
+        get_mock = MagicMock(return_value={"output": {"task_status": "FAILED", "message": "mock failure"}})
+
+        with (
+            patch.dict(os.environ, {"DASHSCOPE_API_KEY": "test-key"}, clear=False),
+            patch(
+                "src.agents.experts.video_generation.tool._read_workspace_image_as_data_url",
+                side_effect=["data:image/png;base64,first", "data:image/png;base64,last"],
+            ),
+            patch(
+                "src.agents.experts.video_generation.tool._submit_dashscope_async_task_sync",
+                submit_mock,
+            ),
+            patch(
+                "src.agents.experts.video_generation.tool._get_dashscope_task_sync",
+                get_mock,
+            ),
+        ):
+            result = await video_tools.dashscope_video_generation_tool(
+                "Transition smoothly",
+                input_paths=["generated/first.png", "generated/last.png"],
+                mode="first_frame_and_last_frame",
+                model_name="wan2.7-i2v",
+                prompt_extend=True,
+            )
+
+        self.assertEqual(result["status"], "error")
+        submit_mock.assert_called_once()
+        self.assertEqual(
+            submit_mock.call_args.kwargs["payload"]["input"]["media"],
+            [
+                {"type": "first_frame", "url": "data:image/png;base64,first"},
+                {"type": "last_frame", "url": "data:image/png;base64,last"},
+            ],
+        )
+        self.assertEqual(submit_mock.call_args.kwargs["payload"]["parameters"]["prompt_extend"], True)
+
+    async def test_dashscope_happyhorse_i2v_rejects_local_workspace_images(self) -> None:
+        with patch.dict(os.environ, {"DASHSCOPE_API_KEY": "test-key"}, clear=False):
+            result = await video_tools.dashscope_video_generation_tool(
+                "Animate the product",
+                input_paths=["generated/product.png"],
+                mode="first_frame",
+                model_name="happyhorse-1.0-i2v",
+            )
+
+        self.assertEqual(result["status"], "error")
+        self.assertIn("requires image_url or image_urls", result["message"])
 
     async def test_veo_tool_uses_updated_preview_model(self) -> None:
         generate_videos_mock = AsyncMock(

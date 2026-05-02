@@ -1,9 +1,12 @@
 import os
 import asyncio
 import base64
+import time
+from collections.abc import Callable
 from dataclasses import dataclass
 from typing import Any, AsyncGenerator
 
+import requests
 from google.adk.agents.invocation_context import InvocationContext
 from google.adk.agents import LlmAgent
 from google.adk.agents.callback_context import CallbackContext
@@ -18,6 +21,20 @@ from conf.system import SYS_CONFIG
 from src.logger import logger
 
 _OPENAI_GPT_IMAGE_MODEL = "gpt-image-2"
+_DASHSCOPE_API_BASE = "https://dashscope.aliyuncs.com/api/v1"
+_DASHSCOPE_IMAGE_GENERATION_ENDPOINT = "/services/aigc/image-generation/generation"
+_DASHSCOPE_MULTIMODAL_GENERATION_ENDPOINT = "/services/aigc/multimodal-generation/generation"
+_DASHSCOPE_TASK_ENDPOINT_TEMPLATE = "/tasks/{task_id}"
+_DASHSCOPE_HTTP_RETRY_ATTEMPTS = 3
+_DASHSCOPE_HTTP_RETRY_DELAY_SECONDS = 1.0
+_DASHSCOPE_WAN_IMAGE_MODEL = "wan2.7-image-pro"
+_DASHSCOPE_QWEN_IMAGE_MODEL = "qwen-image-2.0-pro"
+_DASHSCOPE_Z_IMAGE_MODEL = "z-image-turbo"
+DASHSCOPE_IMAGE_MODEL_NAMES = (
+    _DASHSCOPE_WAN_IMAGE_MODEL,
+    _DASHSCOPE_QWEN_IMAGE_MODEL,
+    _DASHSCOPE_Z_IMAGE_MODEL,
+)
 
 
 @dataclass
@@ -29,6 +46,225 @@ class ImageGenerationResult:
     provider: str
     model_name: str
     usage: dict | None = None
+
+
+def normalize_dashscope_image_model_name(raw_value: Any) -> str:
+    """Return one supported DashScope image generation model name."""
+    value = str(raw_value or "").strip()
+    return value if value in DASHSCOPE_IMAGE_MODEL_NAMES else _DASHSCOPE_WAN_IMAGE_MODEL
+
+
+def _get_dashscope_api_key() -> str:
+    """Return the configured DashScope API key."""
+    return os.environ.get("DASHSCOPE_API_KEY", "").strip() or str(API_CONFIG.DASHSCOPE_API_KEY).strip()
+
+
+def _build_dashscope_http_session() -> requests.Session:
+    """Build one DashScope HTTP session with deterministic environment behavior."""
+    session = requests.Session()
+    session.trust_env = False
+    return session
+
+
+def _build_dashscope_headers(api_key: str, *, async_task: bool = False) -> dict[str, str]:
+    """Build headers for DashScope image API requests."""
+    headers = {
+        "Authorization": f"Bearer {api_key}",
+        "Content-Type": "application/json",
+    }
+    if async_task:
+        headers["X-DashScope-Async"] = "enable"
+    return headers
+
+
+def _run_dashscope_retryable_http_call(
+    request_call: Callable[[], requests.Response],
+    *,
+    action: str,
+) -> requests.Response:
+    """Run one retryable DashScope HTTP call."""
+    for attempt in range(1, _DASHSCOPE_HTTP_RETRY_ATTEMPTS + 1):
+        try:
+            return request_call()
+        except (
+            requests.exceptions.ConnectionError,
+            requests.exceptions.SSLError,
+            requests.exceptions.Timeout,
+        ) as exc:
+            if attempt >= _DASHSCOPE_HTTP_RETRY_ATTEMPTS:
+                raise
+            logger.warning(
+                "dashscope image {} failed on attempt {}/{} with {}, retrying ...",
+                action,
+                attempt,
+                _DASHSCOPE_HTTP_RETRY_ATTEMPTS,
+                type(exc).__name__,
+            )
+            time.sleep(_DASHSCOPE_HTTP_RETRY_DELAY_SECONDS * attempt)
+    raise RuntimeError(f"unreachable retry path for dashscope image {action}")
+
+
+def _decode_dashscope_json_response(response: requests.Response) -> dict[str, Any]:
+    """Decode one DashScope JSON response and surface API errors clearly."""
+    try:
+        response.raise_for_status()
+    except requests.HTTPError as exc:
+        response_text = response.text.strip()
+        if response_text:
+            raise ValueError(f"DashScope API HTTP {response.status_code}: {response_text}") from exc
+        raise
+    payload = response.json()
+    if not isinstance(payload, dict):
+        raise ValueError("DashScope response is not a JSON object.")
+    code = str(payload.get("code", "") or "").strip()
+    if code and code.lower() not in {"success", "ok", "0", "200"}:
+        message = payload.get("message") or payload.get("msg") or "unknown error"
+        raise ValueError(f"DashScope API error: {message}")
+    return payload
+
+
+def _submit_dashscope_generation_sync(
+    *,
+    endpoint: str,
+    headers: dict[str, str],
+    payload: dict[str, Any],
+) -> dict[str, Any]:
+    """Submit one DashScope image generation request."""
+    with _build_dashscope_http_session() as session:
+        response = session.post(
+            f"{_DASHSCOPE_API_BASE}{endpoint}",
+            headers=headers,
+            json=payload,
+            timeout=60,
+        )
+    return _decode_dashscope_json_response(response)
+
+
+def _get_dashscope_task_sync(*, task_id: str, headers: dict[str, str]) -> dict[str, Any]:
+    """Fetch one DashScope asynchronous image task status."""
+    endpoint = _DASHSCOPE_TASK_ENDPOINT_TEMPLATE.format(task_id=task_id)
+    with _build_dashscope_http_session() as session:
+        response = _run_dashscope_retryable_http_call(
+            lambda: session.get(
+                f"{_DASHSCOPE_API_BASE}{endpoint}",
+                headers=headers,
+                timeout=60,
+            ),
+            action="task polling",
+        )
+    return _decode_dashscope_json_response(response)
+
+
+def _download_dashscope_binary_sync(url: str) -> bytes:
+    """Download one DashScope image result."""
+    with _build_dashscope_http_session() as session:
+        response = _run_dashscope_retryable_http_call(
+            lambda: session.get(url, timeout=120),
+            action="binary download",
+        )
+        response.raise_for_status()
+        return response.content
+
+
+def _extract_dashscope_task_id(payload: dict[str, Any]) -> str:
+    """Extract one DashScope task id from a create-task response."""
+    output = payload.get("output", {})
+    task_id = str(output.get("task_id", "") if isinstance(output, dict) else "").strip()
+    if not task_id:
+        raise ValueError("DashScope create-task response did not include output.task_id.")
+    return task_id
+
+
+def _extract_dashscope_task_status(payload: dict[str, Any]) -> str:
+    """Extract one normalized DashScope task status."""
+    output = payload.get("output", {})
+    return str(output.get("task_status", "") if isinstance(output, dict) else "").strip().upper()
+
+
+def _extract_dashscope_image_url(payload: dict[str, Any]) -> str:
+    """Extract the first generated image URL from a DashScope response."""
+    output = payload.get("output", {})
+    if not isinstance(output, dict):
+        raise ValueError("DashScope image output is not a JSON object.")
+
+    results = output.get("results", [])
+    if isinstance(results, list) and results:
+        first_result = results[0] if isinstance(results[0], dict) else {}
+        url = str(first_result.get("url", "") or first_result.get("image_url", "") or "").strip()
+        if url:
+            return url
+
+    choices = output.get("choices", [])
+    if isinstance(choices, list) and choices:
+        message = choices[0].get("message", {}) if isinstance(choices[0], dict) else {}
+        content = message.get("content", []) if isinstance(message, dict) else []
+        if isinstance(content, list):
+            for item in content:
+                if not isinstance(item, dict):
+                    continue
+                url = str(item.get("image", "") or item.get("image_url", "") or item.get("url", "") or "").strip()
+                if url:
+                    return url
+
+    url = str(output.get("url", "") or output.get("image_url", "") or "").strip()
+    if url:
+        return url
+    raise ValueError("DashScope image response did not include a downloadable image URL.")
+
+
+def _normalize_dashscope_image_size(model_name: str, raw_size: Any, raw_resolution: Any) -> str:
+    """Return one DashScope-compatible image size or resolution value."""
+    size = str(raw_size or "").strip()
+    resolution = str(raw_resolution or "").strip()
+    value = size or resolution
+    if value:
+        return value.replace("x", "*")
+    if model_name == _DASHSCOPE_WAN_IMAGE_MODEL:
+        return "2K"
+    if model_name == _DASHSCOPE_QWEN_IMAGE_MODEL:
+        return "2048*2048"
+    return "1024*1536"
+
+
+def _build_dashscope_image_payload(
+    *,
+    prompt: str,
+    model_name: str,
+    size: str,
+    negative_prompt: str,
+    prompt_extend: bool | None,
+    watermark: bool,
+    thinking_mode: bool | None,
+) -> dict[str, Any]:
+    """Build one DashScope text-to-image request payload."""
+    parameters: dict[str, Any] = {
+        "size": size,
+        "n": 1,
+    }
+    if model_name == _DASHSCOPE_WAN_IMAGE_MODEL:
+        parameters["watermark"] = bool(watermark)
+        if thinking_mode is not None:
+            parameters["thinking_mode"] = bool(thinking_mode)
+    elif model_name == _DASHSCOPE_QWEN_IMAGE_MODEL:
+        parameters["watermark"] = bool(watermark)
+        parameters["prompt_extend"] = True if prompt_extend is None else bool(prompt_extend)
+        if negative_prompt:
+            parameters["negative_prompt"] = negative_prompt
+    else:
+        parameters["prompt_extend"] = False if prompt_extend is None else bool(prompt_extend)
+
+    return {
+        "model": model_name,
+        "input": {
+            "messages": [
+                {
+                    "role": "user",
+                    "content": [{"text": prompt}],
+                }
+            ]
+        },
+        "parameters": parameters,
+    }
 
 
 async def prompt_enhancement_tool(ctx: InvocationContext, prompt: str) -> dict[str, str]:
@@ -287,6 +523,111 @@ async def gpt_image_generation(
             )
 
     return await asyncio.to_thread(_generate)
+
+
+async def dashscope_image_generation(
+    prompt: str,
+    *,
+    model_name: str = "",
+    size: str = "",
+    resolution: str = "",
+    negative_prompt: str = "",
+    prompt_extend: bool | None = None,
+    watermark: bool = False,
+    thinking_mode: bool | None = None,
+) -> ImageGenerationResult:
+    """Generate one image with DashScope text-to-image models."""
+    api_key = _get_dashscope_api_key()
+    current_model = normalize_dashscope_image_model_name(model_name)
+    if not api_key:
+        return ImageGenerationResult(
+            status="error",
+            message="DASHSCOPE_API_KEY is not set.",
+            provider="dashscope",
+            model_name=current_model,
+        )
+
+    try:
+        current_size = _normalize_dashscope_image_size(current_model, size, resolution)
+        payload = _build_dashscope_image_payload(
+            prompt=prompt,
+            model_name=current_model,
+            size=current_size,
+            negative_prompt=str(negative_prompt or "").strip(),
+            prompt_extend=prompt_extend,
+            watermark=watermark,
+            thinking_mode=thinking_mode,
+        )
+        headers = _build_dashscope_headers(api_key, async_task=current_model == _DASHSCOPE_WAN_IMAGE_MODEL)
+
+        if current_model == _DASHSCOPE_WAN_IMAGE_MODEL:
+            create_payload = await asyncio.to_thread(
+                _submit_dashscope_generation_sync,
+                endpoint=_DASHSCOPE_IMAGE_GENERATION_ENDPOINT,
+                headers=headers,
+                payload=payload,
+            )
+            task_id = _extract_dashscope_task_id(create_payload)
+            poll_headers = _build_dashscope_headers(api_key)
+            success_statuses = {"SUCCEEDED", "SUCCESS", "COMPLETED"}
+            failure_statuses = {"FAILED", "UNKNOWN", "CANCELED", "CANCELLED"}
+            for _ in range(120):
+                task_payload = await asyncio.to_thread(
+                    _get_dashscope_task_sync,
+                    task_id=task_id,
+                    headers=poll_headers,
+                )
+                task_status = _extract_dashscope_task_status(task_payload)
+                if task_status in success_statuses:
+                    image_url = _extract_dashscope_image_url(task_payload)
+                    image_bytes = await asyncio.to_thread(_download_dashscope_binary_sync, image_url)
+                    return ImageGenerationResult(
+                        status="success",
+                        message=image_bytes,
+                        provider="dashscope",
+                        model_name=current_model,
+                    )
+                if task_status in failure_statuses:
+                    output = task_payload.get("output", {})
+                    error_message = output.get("message", "") if isinstance(output, dict) else ""
+                    raise ValueError(
+                        f"DashScope image generation failed with task_status={task_status}: "
+                        f"{error_message or 'unknown error'}"
+                    )
+                await asyncio.sleep(5)
+            return ImageGenerationResult(
+                status="error",
+                message="dashscope image generation timed out while polling task status.",
+                provider="dashscope",
+                model_name=current_model,
+            )
+
+        response_payload = await asyncio.to_thread(
+            _submit_dashscope_generation_sync,
+            endpoint=_DASHSCOPE_MULTIMODAL_GENERATION_ENDPOINT,
+            headers=headers,
+            payload=payload,
+        )
+        image_url = _extract_dashscope_image_url(response_payload)
+        image_bytes = await asyncio.to_thread(_download_dashscope_binary_sync, image_url)
+        return ImageGenerationResult(
+            status="success",
+            message=image_bytes,
+            provider="dashscope",
+            model_name=current_model,
+        )
+    except Exception as exc:
+        logger.opt(exception=exc).error(
+            "dashscope image generation failed: error_type={} error={!r}",
+            type(exc).__name__,
+            exc,
+        )
+        return ImageGenerationResult(
+            status="error",
+            message=f"dashscope exception: {exc}",
+            provider="dashscope",
+            model_name=current_model,
+        )
 
 
 async def nano_banana_image_generation_tool(

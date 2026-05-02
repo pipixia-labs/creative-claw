@@ -30,6 +30,7 @@ Recommended providers:
 - `nano_banana`: default choice for general text-to-image generation.
 - `seedream`: use when the user explicitly asks for Seedream or the task clearly needs that provider.
 - `gpt_image`: use when the user explicitly asks for GPT Image / OpenAI image generation, or when the task should follow OpenAI-native image parameters.
+- `dashscope`: use when the user asks for Aliyun Model Studio, Wan image, Qwen Image 2.0, or Z-Image generation.
 
 Recommended parameters:
 
@@ -43,6 +44,10 @@ Recommended parameters:
 
 ```json
 {"prompt":"a cinematic cat poster","provider":"gpt_image","size":"1536x1024","quality":"medium"}
+```
+
+```json
+{"prompt":"a cinematic cat poster","provider":"dashscope","model_name":"wan2.7-image-pro","size":"2K"}
 ```
 
 Do not use when:
@@ -171,9 +176,18 @@ Recommended parameters:
 {"input_path":"inbox/cli/first_frame.png","prompt":"animate this image","provider":"veo","mode":"first_frame"}
 ```
 
+```json
+{"prompt":"A cinematic dragon boat racing through neon rain","provider":"dashscope","mode":"prompt","model_name":"wan2.7-t2v","resolution":"1080p","duration_seconds":5}
+```
+
+```json
+{"input_path":"inbox/cli/first_frame.png","prompt":"animate this image","provider":"dashscope","mode":"first_frame","model_name":"wan2.7-i2v"}
+```
+
 Do not use when:
 
 - The task is only to generate still images.
+- The task requires DashScope video editing or reference-video generation; those routes are not exposed yet.
 
 ### `VideoUnderstandingExpert`
 

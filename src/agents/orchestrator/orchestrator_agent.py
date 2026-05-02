@@ -544,15 +544,15 @@ Rules:
 - For ordinary conversation, explanations, brainstorming, lightweight analysis, and tasks that built-in tools can complete, finish directly instead of delegating.
 - When planning expert parameters, pass workspace file paths with `input_path` or `input_paths` instead of artifact names.
 - `input_name` is legacy and should not be used unless compatibility fallback is absolutely required.
-- When using `ImageGenerationAgent`, you may pass optional `provider`, `aspect_ratio`, and `resolution`.
+- When using `ImageGenerationAgent`, you may pass optional `provider`, `aspect_ratio`, `resolution`, `model_name`, `size`, `negative_prompt`, `prompt_extend`, `watermark`, and `thinking_mode`.
 - When using `ImageEditingAgent`, you may pass optional `provider`.
-- When using `VideoGenerationAgent`, you may pass optional `prompt_rewrite`, `provider`, `mode`, `aspect_ratio`, `resolution`, `duration_seconds`, `generate_audio`, `watermark`, `negative_prompt`, `person_generation`, `seed`, `model_name`, and `kling_mode`.
+- When using `VideoGenerationAgent`, you may pass optional `prompt_rewrite`, `provider`, `mode`, `aspect_ratio`, `resolution`, `duration_seconds`, `generate_audio`, `watermark`, `negative_prompt`, `person_generation`, `seed`, `model_name`, `kling_mode`, `prompt_extend`, `image_url`, and `image_urls`.
 - For exact dialogue or native generated audio with Seedance 2.0, set `provider="seedance"`, `generate_audio=true`, and `prompt_rewrite="off"` so quoted dialogue is preserved.
 {video_generation_routing_notes}
 - For provider `veo`, mode `video_extension` accepts one workspace video via `input_path` or `input_paths`.
 - For provider `kling`, use only `prompt`, `first_frame`, `first_frame_and_last_frame`, or `multi_reference`. `multi_reference` expects 2-4 workspace images through `input_paths`. If Kling input images do not meet the documented limits, inspect them with `image_info` and decide whether to preprocess them with `image_resize` or other local image tools first. The Kling expert does not auto-resize or auto-crop inputs. Do not route Kling calls to `reference_asset`, `reference_style`, or `video_extension`.
 - For cutout, local edit, inpaint-style masking, or region-targeted image workflows, prefer calling `ImageSegmentationAgent` first, then read `current_output.results[0].mask_path` from the expert result and reuse that workspace path in the next step.
-- Default image provider is `nano_banana` unless the user or task clearly requires `seedream`.
+- Default image provider is `nano_banana` unless the user or task clearly requires `seedream`, `gpt_image`, or DashScope image models. For DashScope image generation, set `provider="dashscope"` and choose `model_name="wan2.7-image-pro"`, `model_name="qwen-image-2.0-pro"`, or `model_name="z-image-turbo"`.
 - When the user refers to a previously generated image or file without re-uploading it, inspect the workspace file history and use the most recent relevant workspace path.
 - Prefer files already listed in the current session file history. Do not inspect or reuse files from unrelated session directories unless the user explicitly asks for cross-session access.
 - Use `list_session_files(section="latest_output")` or the current session file history whenever you need the exact workspace-relative paths for the final response attachments.

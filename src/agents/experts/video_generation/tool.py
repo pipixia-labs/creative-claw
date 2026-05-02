@@ -25,14 +25,17 @@ from google.genai.types import Content, Part
 from PIL import Image, UnidentifiedImageError
 
 from src.agents.experts.video_generation.capabilities import (
+    VIDEO_GENERATION_DASHSCOPE_HAPPYHORSE_I2V_MODEL_NAME,
     VIDEO_GENERATION_KLING_MODE_VALUES,
     VIDEO_GENERATION_KLING_MODEL_NAME,
     VIDEO_GENERATION_KLING_MULTI_REFERENCE_MODEL_NAME,
     VIDEO_GENERATION_PERSON_GENERATION_VALUES,
     VIDEO_GENERATION_VEO_MODEL_NAME,
+    dashscope_video_model_supports_mode,
     get_default_video_duration,
     get_default_video_resolution,
     get_supported_video_input_count,
+    normalize_dashscope_video_model_name,
     normalize_provider_video_aspect_ratio,
     normalize_provider_video_duration,
     normalize_provider_video_mode,
@@ -69,6 +72,11 @@ _KLING_OMNI_ONLY_MODEL_NAMES = {
     "kling-video-o1",
     "kling-image-o1",
 }
+_DASHSCOPE_API_BASE = "https://dashscope.aliyuncs.com/api/v1"
+_DASHSCOPE_VIDEO_SYNTHESIS_ENDPOINT = "/services/aigc/video-generation/video-synthesis"
+_DASHSCOPE_TASK_ENDPOINT_TEMPLATE = "/tasks/{task_id}"
+_DASHSCOPE_HTTP_RETRY_ATTEMPTS = 3
+_DASHSCOPE_HTTP_RETRY_DELAY_SECONDS = 1.0
 _resolved_kling_api_base: str | None = None
 
 
@@ -631,6 +639,224 @@ def _extract_kling_video_url(payload: dict[str, Any]) -> str:
     return video_url
 
 
+def _get_dashscope_api_key() -> str:
+    """Return the configured DashScope API key."""
+    return os.environ.get("DASHSCOPE_API_KEY", "").strip() or str(API_CONFIG.DASHSCOPE_API_KEY).strip()
+
+
+def _build_dashscope_http_session() -> requests.Session:
+    """Build one DashScope HTTP session with deterministic environment behavior."""
+    session = requests.Session()
+    session.trust_env = False
+    return session
+
+
+def _build_dashscope_headers(api_key: str, *, async_task: bool = False) -> dict[str, str]:
+    """Build headers for DashScope media API requests."""
+    headers = {
+        "Authorization": f"Bearer {api_key}",
+        "Content-Type": "application/json",
+    }
+    if async_task:
+        headers["X-DashScope-Async"] = "enable"
+    return headers
+
+
+def _run_dashscope_retryable_http_call(
+    request_call: Callable[[], requests.Response],
+    *,
+    action: str,
+) -> requests.Response:
+    """Run one retryable DashScope HTTP call."""
+    for attempt in range(1, _DASHSCOPE_HTTP_RETRY_ATTEMPTS + 1):
+        try:
+            return request_call()
+        except (
+            requests.exceptions.ConnectionError,
+            requests.exceptions.SSLError,
+            requests.exceptions.Timeout,
+        ) as exc:
+            if attempt >= _DASHSCOPE_HTTP_RETRY_ATTEMPTS:
+                raise
+            logger.warning(
+                "dashscope {} failed on attempt {}/{} with {}, retrying ...",
+                action,
+                attempt,
+                _DASHSCOPE_HTTP_RETRY_ATTEMPTS,
+                type(exc).__name__,
+            )
+            time.sleep(_DASHSCOPE_HTTP_RETRY_DELAY_SECONDS * attempt)
+    raise RuntimeError(f"unreachable retry path for dashscope {action}")
+
+
+def _decode_dashscope_json_response(response: requests.Response) -> dict[str, Any]:
+    """Decode one DashScope JSON response and surface API errors clearly."""
+    try:
+        response.raise_for_status()
+    except requests.HTTPError as exc:
+        response_text = response.text.strip()
+        if response_text:
+            raise ValueError(f"DashScope API HTTP {response.status_code}: {response_text}") from exc
+        raise
+    payload = response.json()
+    if not isinstance(payload, dict):
+        raise ValueError("DashScope response is not a JSON object.")
+    code = str(payload.get("code", "") or "").strip()
+    if code and code.lower() not in {"success", "ok", "0", "200"}:
+        message = payload.get("message") or payload.get("msg") or "unknown error"
+        raise ValueError(f"DashScope API error: {message}")
+    return payload
+
+
+def _submit_dashscope_async_task_sync(
+    *,
+    endpoint: str,
+    headers: dict[str, str],
+    payload: dict[str, Any],
+) -> dict[str, Any]:
+    """Submit one DashScope asynchronous media request."""
+    with _build_dashscope_http_session() as session:
+        response = session.post(
+            f"{_DASHSCOPE_API_BASE}{endpoint}",
+            headers=headers,
+            json=payload,
+            timeout=60,
+        )
+    return _decode_dashscope_json_response(response)
+
+
+def _get_dashscope_task_sync(*, task_id: str, headers: dict[str, str]) -> dict[str, Any]:
+    """Fetch one DashScope asynchronous task status."""
+    endpoint = _DASHSCOPE_TASK_ENDPOINT_TEMPLATE.format(task_id=task_id)
+    with _build_dashscope_http_session() as session:
+        response = _run_dashscope_retryable_http_call(
+            lambda: session.get(
+                f"{_DASHSCOPE_API_BASE}{endpoint}",
+                headers=headers,
+                timeout=60,
+            ),
+            action="task polling",
+        )
+    return _decode_dashscope_json_response(response)
+
+
+def _extract_dashscope_task_id(payload: dict[str, Any]) -> str:
+    """Extract one DashScope task id from a create-task response."""
+    output = payload.get("output", {})
+    task_id = str(output.get("task_id", "") if isinstance(output, dict) else "").strip()
+    if not task_id:
+        raise ValueError("DashScope create-task response did not include output.task_id.")
+    return task_id
+
+
+def _extract_dashscope_task_status(payload: dict[str, Any]) -> str:
+    """Extract one normalized DashScope task status."""
+    output = payload.get("output", {})
+    return str(output.get("task_status", "") if isinstance(output, dict) else "").strip().upper()
+
+
+def _extract_dashscope_video_url(payload: dict[str, Any]) -> str:
+    """Extract the first returned video URL from a DashScope task payload."""
+    output = payload.get("output", {})
+    if not isinstance(output, dict):
+        raise ValueError("DashScope task output is not a JSON object.")
+    video_url = str(output.get("video_url", "") or "").strip()
+    if video_url:
+        return video_url
+    results = output.get("results", [])
+    if isinstance(results, list) and results:
+        first_result = results[0] if isinstance(results[0], dict) else {}
+        video_url = str(first_result.get("video_url", "") or first_result.get("url", "") or "").strip()
+        if video_url:
+            return video_url
+    raise ValueError("DashScope task result did not include a downloadable video URL.")
+
+
+def _normalize_dashscope_video_resolution(raw_value: Any) -> str:
+    """Return one DashScope video resolution value."""
+    value = str(raw_value or "").strip().lower()
+    if value in {"720p", "1080p"}:
+        return value.upper()
+    return "720P"
+
+
+def _dashscope_video_supports_local_images(model_name: str) -> bool:
+    """Return whether local workspace images can be sent as Base64 data URLs."""
+    return model_name != VIDEO_GENERATION_DASHSCOPE_HAPPYHORSE_I2V_MODEL_NAME
+
+
+def _build_dashscope_media_sources(
+    *,
+    model_name: str,
+    input_paths: list[str],
+    input_urls: list[str],
+) -> list[str]:
+    """Build ordered DashScope media sources from local paths and remote URLs."""
+    if input_paths and not _dashscope_video_supports_local_images(model_name):
+        raise ValueError(
+            "DashScope model happyhorse-1.0-i2v requires image_url or image_urls with HTTP(S)/OSS URLs; "
+            "local workspace image paths are not accepted by the official API."
+        )
+    local_sources = [_read_workspace_image_as_data_url(path) for path in input_paths]
+    return [*local_sources, *input_urls]
+
+
+def _build_dashscope_video_payload(
+    *,
+    prompt: str,
+    model_name: str,
+    mode: str,
+    input_paths: list[str],
+    input_urls: list[str],
+    aspect_ratio: str,
+    resolution: str,
+    duration_seconds: int,
+    prompt_extend: bool,
+    watermark: bool,
+    seed: int | None,
+) -> dict[str, Any]:
+    """Build one DashScope video-synthesis payload for the supported modes."""
+    if not dashscope_video_model_supports_mode(model_name, mode):
+        raise ValueError(
+            f"dashscope model_name={model_name} does not support mode={mode} in the current integration."
+        )
+
+    media_sources = _build_dashscope_media_sources(
+        model_name=model_name,
+        input_paths=input_paths,
+        input_urls=input_urls,
+    )
+
+    input_payload: dict[str, Any] = {}
+    if prompt.strip():
+        input_payload["prompt"] = prompt.strip()
+    if mode == "first_frame":
+        input_payload["media"] = [{"type": "first_frame", "url": media_sources[0]}]
+    elif mode == "first_frame_and_last_frame":
+        input_payload["media"] = [
+            {"type": "first_frame", "url": media_sources[0]},
+            {"type": "last_frame", "url": media_sources[1]},
+        ]
+
+    parameters: dict[str, Any] = {
+        "resolution": _normalize_dashscope_video_resolution(resolution),
+        "duration": duration_seconds,
+        "watermark": _parse_bool(watermark),
+    }
+    if mode == "prompt":
+        parameters["ratio"] = aspect_ratio
+    if model_name.startswith("wan2.7-"):
+        parameters["prompt_extend"] = bool(prompt_extend)
+    if seed is not None:
+        parameters["seed"] = seed
+
+    return {
+        "model": model_name,
+        "input": input_payload,
+        "parameters": parameters,
+    }
+
+
 async def prompt_enhancement_tool(ctx: InvocationContext, prompt: str) -> dict[str, str]:
     """Rewrite one video prompt into a more concrete generation prompt."""
     system_prompt = """
@@ -836,6 +1062,127 @@ async def seedance_video_generation_tool(
             "status": "error",
             "message": f"seedance exception: {exc}",
             "provider": "seedance",
+            "model_name": current_model,
+        }
+
+
+async def dashscope_video_generation_tool(
+    prompt: str,
+    *,
+    input_paths: list[str] | None = None,
+    input_urls: list[str] | None = None,
+    mode: str = "prompt",
+    aspect_ratio: str = "16:9",
+    model_name: str = "",
+    resolution: str = "720p",
+    duration_seconds: Any = None,
+    prompt_extend: bool = True,
+    watermark: bool = False,
+    seed: Any = None,
+) -> dict[str, Any]:
+    """Generate one video via DashScope Wan 2.7 or HappyHorse 1.0."""
+    logger.info("calling dashscope for video generation ...")
+    api_key = _get_dashscope_api_key()
+    current_mode = str(mode or "").strip().lower() or "prompt"
+    current_paths = input_paths or []
+    current_urls = input_urls or []
+    current_model = normalize_dashscope_video_model_name(model_name, mode=current_mode)
+    current_ratio = normalize_provider_video_aspect_ratio("dashscope", aspect_ratio)
+    current_resolution = normalize_provider_video_resolution(
+        "dashscope",
+        resolution or get_default_video_resolution("dashscope"),
+    )
+    current_duration = int(
+        normalize_provider_video_duration(
+            "dashscope",
+            duration_seconds,
+            mode=current_mode,
+        )
+        or get_default_video_duration("dashscope")
+        or 5
+    )
+
+    if not api_key:
+        return {
+            "status": "error",
+            "message": "DASHSCOPE_API_KEY is not set.",
+            "provider": "dashscope",
+            "model_name": current_model,
+        }
+
+    try:
+        _validate_mode_input_paths("dashscope", current_mode, [*current_paths, *current_urls])
+        if current_model.startswith("happyhorse-") and current_duration < 3:
+            raise ValueError("happyhorse-1.0 video models require duration_seconds between 3 and 15.")
+        current_seed = normalize_video_seed(seed)
+        if current_model.startswith("happyhorse-") and current_seed is not None and current_seed > 2_147_483_647:
+            raise ValueError("happyhorse-1.0 video models require seed between 0 and 2147483647.")
+        payload = _build_dashscope_video_payload(
+            prompt=prompt,
+            model_name=current_model,
+            mode=current_mode,
+            input_paths=current_paths,
+            input_urls=current_urls,
+            aspect_ratio=current_ratio,
+            resolution=current_resolution,
+            duration_seconds=current_duration,
+            prompt_extend=prompt_extend,
+            watermark=watermark,
+            seed=current_seed,
+        )
+
+        create_payload = await asyncio.to_thread(
+            _submit_dashscope_async_task_sync,
+            endpoint=_DASHSCOPE_VIDEO_SYNTHESIS_ENDPOINT,
+            headers=_build_dashscope_headers(api_key, async_task=True),
+            payload=payload,
+        )
+        task_id = _extract_dashscope_task_id(create_payload)
+        poll_headers = _build_dashscope_headers(api_key)
+        success_statuses = {"SUCCEEDED", "SUCCESS", "COMPLETED"}
+        failure_statuses = {"FAILED", "UNKNOWN", "CANCELED", "CANCELLED"}
+
+        for _ in range(120):
+            task_payload = await asyncio.to_thread(
+                _get_dashscope_task_sync,
+                task_id=task_id,
+                headers=poll_headers,
+            )
+            task_status = _extract_dashscope_task_status(task_payload)
+            if task_status in success_statuses:
+                video_url = _extract_dashscope_video_url(task_payload)
+                video_bytes = await asyncio.to_thread(_download_binary_sync, video_url)
+                return {
+                    "status": "success",
+                    "message": video_bytes,
+                    "provider": "dashscope",
+                    "model_name": current_model,
+                }
+            if task_status in failure_statuses:
+                output = task_payload.get("output", {})
+                error_message = output.get("message", "") if isinstance(output, dict) else ""
+                raise ValueError(
+                    f"DashScope generation failed with task_status={task_status}: "
+                    f"{error_message or 'unknown error'}"
+                )
+            await asyncio.sleep(5)
+
+        return {
+            "status": "error",
+            "message": "dashscope generation timed out while polling task status.",
+            "provider": "dashscope",
+            "model_name": current_model,
+        }
+    except Exception as exc:
+        logger.opt(exception=exc).error(
+            "dashscope video generation failed: error_type={} error={!r}",
+            type(exc).__name__,
+            exc,
+        )
+        return {
+            "status": "error",
+            "message": f"dashscope exception: {exc}",
+            "provider": "dashscope",
             "model_name": current_model,
         }
 

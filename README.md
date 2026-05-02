@@ -18,6 +18,7 @@ No more jumping back and forth between different tools.
 With CreativeClaw, you can keep iterating around a single idea and move from inspiration to final output in one flow.
 
 ## 📰 News
+ - 2026-05-02: Added DashScope media routes for Wan 2.7 / HappyHorse 1.0 video generation and Wan/Qwen/Z-Image text-to-image models.
  - 2026-05-01: Added design product, CodeGenerationExpert, orchestrator-aligned design flow.
  - 2026-04-24: Released v0.2.0, refactored expert runtime, adopted expert cards as the single source of truth, and deduplicated basic media operation agents.
  - 2026-04-22: Upgraded GPT image provider, refined video prompt rewrite contracts, and improved session/final-response handling.
@@ -56,6 +57,7 @@ The following diagram shows the high-level architecture of CreativeClaw, includi
 - Nano Banana Pro (`gemini-3.1-flash-image-preview`)
 - Seedream 5.0 (`doubao-seedream-5-0-260128`)
 - GPT Image 2 (`gpt-image-2`)
+- DashScope image models (`wan2.7-image-pro`, `qwen-image-2.0-pro`, `z-image-turbo`)
 
 ### 🎬 Video Generation
 
@@ -63,6 +65,8 @@ The following diagram shows the high-level architecture of CreativeClaw, includi
 - Seedance 1.0 Pro (`doubao-seedance-1-0-pro-250528`, legacy-compatible)
 - Veo 3.1 (`veo-3.1-generate-preview`)
 - Kling 3 (`kling-v3`; `multi_reference` currently uses `kling-v1-6`)
+- DashScope Wan 2.7 (`wan2.7-t2v`, `wan2.7-t2v-2026-04-25`, `wan2.7-i2v`, `wan2.7-i2v-2026-04-25`)
+- DashScope HappyHorse 1.0 (`happyhorse-1.0-t2v`, `happyhorse-1.0-i2v`)
 
 ### 📦 3D Generation
 
@@ -139,6 +143,8 @@ Notes:
 - For `VideoGenerationAgent` with `provider="kling"`, prompt and image-guided routes now default to `kling-v3`, while `mode="multi_reference"` follows the official `kling-v1-6` schema.
 - If `services.kling_api_base` or `KLING_API_BASE` is not set explicitly, the built-in Kling provider probes the official Beijing and Singapore gateways and caches the first working base.
 - Kling image-guided routes validate the documented input constraints but do not auto-resize or auto-crop input images. If preprocessing is needed, do it first with local image tools before calling `VideoGenerationAgent`.
+- DashScope media providers use `providers.dashscope.api_key` or `DASHSCOPE_API_KEY`. `VideoGenerationAgent` supports DashScope text-to-video, first-frame image-to-video, and first/last-frame image-to-video only; video editing and reference-video routes are intentionally not exposed yet.
+- `ImageGenerationAgent` provider `dashscope` supports `model_name="wan2.7-image-pro"`, `model_name="qwen-image-2.0-pro"`, and `model_name="z-image-turbo"`.
 - `3DGeneration` defaults to Tencent Cloud `hy3d` and also supports Volcengine Ark providers `seed3d`, `hyper3d`, and `hitem3d`. `hy3d` uses `services.tencentcloud_*`, while the Volcengine 3D providers use `services.ark_api_key` or `ARK_API_KEY`.
 - `seed3d` is image-to-3D only with exactly one image source, `hyper3d` supports prompt-only text-to-3D or 1-5 reference images, and `hitem3d` requires 1-4 externally accessible image URLs.
 - `SpeechSynthesisExpert` uses Volcengine streaming TTS with `seed-tts-2.0` by default. Users or the orchestrator may select Seed TTS 2.0 voices with `speaker`, `voice_type`, or `voice_name`; the default voice is Vivi 2.0 (`zh_female_vv_uranus_bigtts`).
@@ -228,6 +234,15 @@ The main LLM orchestrator can call these tool groups directly:
 - `seedance`: modes `prompt`, `first_frame`, `first_frame_and_last_frame`, `reference_asset`, `reference_style`; model ids `doubao-seedance-2-0-260128`, `doubao-seedance-2-0-fast-260128`, `doubao-seedance-1-0-pro-250528`; extra controls `generate_audio` and `watermark`.
 - `veo`: modes `prompt`, `first_frame`, `first_frame_and_last_frame`, `reference_asset`, `reference_style`, `video_extension`; model id `veo-3.1-generate-preview`; extra control `person_generation`.
 - `kling`: modes `prompt`, `first_frame`, `first_frame_and_last_frame`, `multi_reference`; model ids `kling-v3` and `kling-v1-6` for `multi_reference`; extra control `kling_mode` (`std` or `pro`).
+- `dashscope`: modes `prompt`, `first_frame`, `first_frame_and_last_frame`; text-to-video model ids `wan2.7-t2v`, `wan2.7-t2v-2026-04-25`, `happyhorse-1.0-t2v`; image-to-video model ids `wan2.7-i2v`, `wan2.7-i2v-2026-04-25`, `happyhorse-1.0-i2v`. HappyHorse image-to-video requires `image_url` / `image_urls`; Wan 2.7 image-guided routes can use local `input_path` / `input_paths`.
+
+`ImageGenerationAgent` currently exposes these provider-aware tool parameters:
+
+- Common controls: `provider`, `prompt`, `aspect_ratio`, `resolution`, `size`, `model_name`, `negative_prompt`, `prompt_extend`, `watermark`, and `thinking_mode`.
+- `nano_banana`: default Gemini-backed text-to-image provider; supports `aspect_ratio` and `resolution`.
+- `seedream`: Volcengine Seedream provider for text-to-image.
+- `gpt_image`: OpenAI GPT Image provider; supports `size` and `quality`.
+- `dashscope`: Aliyun Model Studio provider; supported model ids are `wan2.7-image-pro`, `qwen-image-2.0-pro`, and `z-image-turbo`.
 
 `3DGeneration` currently exposes these provider-aware tool parameters:
 

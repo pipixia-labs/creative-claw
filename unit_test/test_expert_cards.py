@@ -33,6 +33,8 @@ class ExpertCardTests(unittest.TestCase):
         self.assertIn("doubao-seedance-2-0-260128", content)
         self.assertIn("doubao-seedance-2-0-fast-260128", content)
         self.assertIn("kling-v1-6", content)
+        self.assertIn("wan2.7-t2v", content)
+        self.assertIn("happyhorse-1.0-t2v", content)
         self.assertNotIn("/Users/", content)
 
     def test_video_generation_expert_card_parses_to_prompt_description(self) -> None:
@@ -45,7 +47,7 @@ class ExpertCardTests(unittest.TestCase):
         self.assertIn("Use this expert for text-to-video", description)
         self.assertIn("Prefer `seedance`", description)
         self.assertIn("does not return structured subtitle files", description)
-        self.assertIn("'provider': 'seedance|veo|kling'", parameters)
+        self.assertIn("'provider': 'seedance|veo|kling|dashscope'", parameters)
         self.assertIn("'mode': 'video_extension'", parameters)
         self.assertNotIn("##", description)
 
@@ -194,14 +196,16 @@ class ExpertCardTests(unittest.TestCase):
         three_d_agent = next(agent for agent in expert_agents if agent.name == "3DGeneration")
 
         self.assertIn("text prompts only", generation_agent.description)
-        self.assertIn("'provider': 'nano_banana|seedream|gpt_image'", generation_agent.parameters)
+        self.assertIn("'provider': 'nano_banana|seedream|gpt_image|dashscope'", generation_agent.parameters)
+        self.assertIn("wan2.7-image-pro", generation_agent.parameters)
         self.assertIn("modify one or more existing workspace images", editing_agent.description)
         self.assertIn("'provider': 'nano_banana|seedream'", editing_agent.parameters)
         self.assertIn("Use mode `prompt`", understanding_agent.description)
         self.assertIn("description|style|ocr|all|prompt", understanding_agent.parameters)
         self.assertIn("Use this expert for text-to-video", video_agent.description)
         self.assertIn("does not return structured subtitle files", video_agent.description)
-        self.assertIn("'provider': 'seedance|veo|kling'", video_agent.parameters)
+        self.assertIn("'provider': 'seedance|veo|kling|dashscope'", video_agent.parameters)
+        self.assertIn("happyhorse-1.0-t2v", video_agent.parameters)
         self.assertIn("Use `task=subtitle`", recognition_agent.description)
         self.assertIn("subtitle_format", recognition_agent.parameters)
         self.assertIn("save a binary mask image file", segmentation_agent.description)
