@@ -9,6 +9,7 @@ from typing import Any
 
 from google.adk.agents import BaseAgent
 
+from src.agents.experts.anything_to_md.anything_to_md_expert import AnythingToMDExpert
 from src.agents.experts.audio_basic_operations.audio_basic_operations_agent import AudioBasicOperationsAgent
 from src.agents.experts.code_generation.code_generation_expert import CodeGenerationExpert
 from src.agents.experts.image_basic_operations.image_basic_operations_agent import ImageBasicOperationsAgent
@@ -210,6 +211,22 @@ _EXPERT_SPECS = {
         notes=(
             "Generate exactly one code or text file. "
             "Optional parameters: language, output_path, context_files, constraints."
+        ),
+    ),
+    "AnythingToMD": ExpertSpec(
+        name="AnythingToMD",
+        agent_factory=lambda: AnythingToMDExpert(name="AnythingToMD"),
+        default_prompt_key="input_path",
+        supports_plain_prompt=False,
+        required_parameters=("input_path or url",),
+        required_parameter_groups=(
+            RequiredParameterGroup(keys=("input_path", "url"), description="input_path or url"),
+        ),
+        mirrored_output_keys=("anything_to_md_results",),
+        notes=(
+            "Convert one workspace file or URL into Markdown. "
+            "Primary converter follows source_to_md-style logic; MarkItDown is an optional fallback. "
+            "Optional parameters: output_path, max_rows, max_cols."
         ),
     ),
     "ImageGroundingAgent": ExpertSpec(

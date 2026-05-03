@@ -9,6 +9,7 @@
         {"name": "ImageBasicOperations", "enable": true},
         {"name": "TextTransformExpert", "enable": true},
         {"name": "CodeGenerationExpert", "enable": true},
+        {"name": "AnythingToMD", "enable": true},
         {"name": "SearchAgent", "enable": true},
         {"name": "VideoGenerationAgent", "enable": true},
         {"name": "VideoUnderstandingExpert", "enable": true},

@@ -3,6 +3,12 @@ google-genai>=0.6.0
 pydantic>=2.7.0
 requests>=2.31.0
 pillow>=10.3.0
+PyMuPDF>=1.24.0
+python-pptx>=1.0.0
+openpyxl>=3.1.0
+mammoth>=1.8.0
+beautifulsoup4>=4.12.0
+markdownify>=0.13.0
 pycocotools>=2.0.8
 loguru>=0.7.2
 litellm>=1.0.0
@@ -15,6 +21,7 @@ lark-oapi>=1.4.13
 websockets>=12.0
 volcengine-python-sdk[ark]
 tencentcloud-sdk-python>=3.1.76
+markitdown>=0.1.0
 
 # Dev/Testing
 pytest>=8.2.0

@@ -59,6 +59,7 @@ class ExpertCardTests(unittest.TestCase):
         self.assertIn("ImageGenerationAgent", cards)
         self.assertIn("ImageEditingAgent", cards)
         self.assertIn("ImageUnderstandingAgent", cards)
+        self.assertIn("AnythingToMD", cards)
         self.assertIn("SpeechRecognitionExpert", cards)
 
     def test_all_enabled_experts_have_expert_cards(self) -> None:
@@ -141,6 +142,11 @@ class ExpertCardTests(unittest.TestCase):
                 "Serper image search",
                 "DuckDuckGo",
                 "does not judge truthfulness",
+            ],
+            ("anything_to_md", "EXPERT.md"): [
+                "convert one workspace source file or one web page into Markdown",
+                "MarkItDown is used only as a fallback",
+                "does not call an LLM",
             ],
             ("video_understanding", "EXPERT.md"): [
                 "analyze one or more workspace videos",
