@@ -18,16 +18,13 @@ No more jumping back and forth between different tools.
 With CreativeClaw, you can keep iterating around a single idea and move from inspiration to final output in one flow.
 
 ## 📰 News
- - 2026-05-02: Released v0.3.0 with design product flow, DeepSeek V4 LiteLLM routing, Seedance 2.0 video generation, expanded 3D providers, and new DashScope image/video models.
- - 2026-05-02: Added DashScope media routes for Wan 2.7 / HappyHorse 1.0 video generation and Wan/Qwen/Z-Image text-to-image models.
- - 2026-05-01: Added design product, CodeGenerationExpert, orchestrator-aligned design flow.
- - 2026-04-24: Released v0.2.0, refactored expert runtime, adopted expert cards as the single source of truth, and deduplicated basic media operation agents.
- - 2026-04-22: Upgraded GPT image provider, refined video prompt rewrite contracts, and improved session/final-response handling.
- - 2026-04-21: Added Kling video provider integration, including text-to-video, image-to-video, multi-reference video generation, gateway probing, and updated docs.
- - 2026-04-20: Expanded Veo video generation support.
- - 2026-04-14: Added HY 3D support, merged image-to-prompt into image understanding, and introduced 5 new experts across text, video, speech, and music.
- - 2026-04-13: Expanded support to 20 LLM providers and added image segmentation.
- - 2026-04-12: Released v0.1.1, introducing basic image and video operations across Web, CLI, and Feishu chat.
+ - 2026-05-02: Released v0.3.0 with DeepSeek V4, Seedance 2.0, Seed TTS 2.0 multi-voice support, DashScope media models, and expanded 3D providers.
+ - 2026-05-01: Added design product flow and CodeGenerationExpert routing.
+ - 2026-04-24: Released v0.2.0 with expert runtime refactor, expert cards, and deduplicated basic media agents.
+ - 2026-04-21: Added Kling video generation, including text-to-video, image-to-video, and multi-reference workflows.
+ - 2026-04-14: Added HY 3D and expanded the built-in media expert set.
+ - 2026-04-13: Expanded LLM provider coverage and added image segmentation.
+ - 2026-04-12: Released v0.1.1 with core image/video workflows across Web, CLI, and Feishu.
 
 
 ## ✨ Key Features of CreativeClaw
