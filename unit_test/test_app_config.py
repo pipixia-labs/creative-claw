@@ -2,6 +2,7 @@ import json
 import os
 import tempfile
 import unittest
+from pathlib import Path
 from unittest.mock import patch
 
 from google.adk.models import Gemini, LiteLlm
@@ -23,6 +24,15 @@ from conf.schema import CreativeClawConfig, ProviderConfig
 
 
 class AppConfigTests(unittest.TestCase):
+    def setUp(self) -> None:
+        self.dotenv_patch = patch.dict(
+            os.environ,
+            {"CREATIVE_CLAW_DOTENV_PATH": str(Path(tempfile.gettempdir()) / "creative-claw-test-missing.env")},
+            clear=False,
+        )
+        self.dotenv_patch.start()
+        self.addCleanup(self.dotenv_patch.stop)
+
     def test_initialize_runtime_config_creates_conf_and_workspace(self) -> None:
         with tempfile.TemporaryDirectory() as tmp_dir, patch.dict(
             os.environ,
@@ -149,6 +159,75 @@ class AppConfigTests(unittest.TestCase):
             loaded = load_app_config(reload=True)
 
             self.assertEqual(loaded.providers.openai.api_key, "conf-openai-key")
+
+    def test_load_app_config_loads_dotenv_before_environment_fallbacks(self) -> None:
+        with tempfile.TemporaryDirectory() as tmp_dir, tempfile.TemporaryDirectory() as dotenv_dir:
+            dotenv_path = Path(dotenv_dir) / ".env"
+            dotenv_path.write_text(
+                "\n".join(
+                    [
+                        'OPENAI_API_KEY="dotenv-openai-key"',
+                        'DOC2X_API_KEY="dotenv-doc2x-key"',
+                        "SERPER_API_KEY=dotenv-serper-key # local search key",
+                        "",
+                    ]
+                ),
+                encoding="utf-8",
+            )
+            with patch.dict(
+                os.environ,
+                {
+                    "CREATIVE_CLAW_HOME": tmp_dir,
+                    "CREATIVE_CLAW_DOTENV_PATH": str(dotenv_path),
+                },
+                clear=True,
+            ):
+                config = CreativeClawConfig(
+                    workspace=str((get_config_path().parent / "workspace").resolve()),
+                )
+                save_app_config(config)
+
+                loaded = load_app_config(reload=True)
+
+                self.assertEqual(loaded.providers.openai.api_key, "dotenv-openai-key")
+                self.assertEqual(loaded.services.serper_api_key, "dotenv-serper-key")
+                self.assertEqual(os.environ["OPENAI_API_KEY"], "dotenv-openai-key")
+                self.assertEqual(os.environ["SERPER_API_KEY"], "dotenv-serper-key")
+                self.assertEqual(os.environ["DOC2X_API_KEY"], "dotenv-doc2x-key")
+
+    def test_load_app_config_does_not_override_existing_environment_with_dotenv(self) -> None:
+        with tempfile.TemporaryDirectory() as tmp_dir, tempfile.TemporaryDirectory() as dotenv_dir:
+            dotenv_path = Path(dotenv_dir) / ".env"
+            dotenv_path.write_text(
+                "\n".join(
+                    [
+                        "OPENAI_API_KEY=dotenv-openai-key",
+                        "DOC2X_API_KEY=dotenv-doc2x-key",
+                        "",
+                    ]
+                ),
+                encoding="utf-8",
+            )
+            with patch.dict(
+                os.environ,
+                {
+                    "CREATIVE_CLAW_HOME": tmp_dir,
+                    "CREATIVE_CLAW_DOTENV_PATH": str(dotenv_path),
+                    "OPENAI_API_KEY": "shell-openai-key",
+                    "DOC2X_API_KEY": "shell-doc2x-key",
+                },
+                clear=True,
+            ):
+                config = CreativeClawConfig(
+                    workspace=str((get_config_path().parent / "workspace").resolve()),
+                )
+                save_app_config(config)
+
+                loaded = load_app_config(reload=True)
+
+                self.assertEqual(loaded.providers.openai.api_key, "shell-openai-key")
+                self.assertEqual(os.environ["OPENAI_API_KEY"], "shell-openai-key")
+                self.assertEqual(os.environ["DOC2X_API_KEY"], "shell-doc2x-key")
 
     def test_build_llm_returns_litellm_for_openai(self) -> None:
         with tempfile.TemporaryDirectory() as tmp_dir, patch.dict(

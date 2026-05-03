@@ -9,6 +9,7 @@ from pathlib import Path
 from conf.schema import CreativeClawConfig
 
 _CONFIG_HOME_ENV_VAR = "CREATIVE_CLAW_HOME"
+_DOTENV_PATH_ENV_VAR = "CREATIVE_CLAW_DOTENV_PATH"
 _CONFIG_FILE_NAME = "conf.json"
 
 _APP_CONFIG: CreativeClawConfig | None = None
@@ -23,6 +24,14 @@ def get_instance_root() -> Path:
 def get_config_path() -> Path:
     """Return the runtime config file path."""
     return get_instance_root() / _CONFIG_FILE_NAME
+
+
+def get_dotenv_path() -> Path:
+    """Return the repository-local dotenv file path."""
+    configured_path = os.getenv(_DOTENV_PATH_ENV_VAR, "").strip()
+    if configured_path:
+        return Path(configured_path).expanduser()
+    return Path(__file__).resolve().parent.parent / ".env"
 
 
 def get_logs_dir() -> Path:
@@ -43,6 +52,8 @@ def load_app_config(*, reload: bool = False) -> CreativeClawConfig:
 
     if _APP_CONFIG is not None and not reload:
         return _APP_CONFIG
+
+    load_project_dotenv()
 
     config_path = get_config_path()
     config = build_default_config()
@@ -69,6 +80,7 @@ def save_app_config(config: CreativeClawConfig) -> Path:
 
 def initialize_runtime_config(*, force: bool = False) -> tuple[Path, Path, bool]:
     """Create the instance directory, config file, and workspace if needed."""
+    load_project_dotenv()
     config = build_default_config()
     config_path = get_config_path()
     workspace_path = config.workspace_path
@@ -83,6 +95,93 @@ def initialize_runtime_config(*, force: bool = False) -> tuple[Path, Path, bool]
     else:
         load_app_config(reload=True)
     return config_path, workspace_path, created
+
+
+def load_project_dotenv(*, override: bool = False) -> Path | None:
+    """Load repository-local `.env` variables into the process environment.
+
+    Existing process variables win by default. This mirrors common dotenv behavior
+    and lets operators override repository-local defaults from the shell.
+    """
+    dotenv_path = get_dotenv_path()
+    if not dotenv_path.is_file():
+        return None
+
+    for raw_line in dotenv_path.read_text(encoding="utf-8").splitlines():
+        parsed = _parse_dotenv_line(raw_line)
+        if parsed is None:
+            continue
+        key, value = parsed
+        if not override and key in os.environ:
+            continue
+        os.environ[key] = value
+    return dotenv_path
+
+
+def _parse_dotenv_line(raw_line: str) -> tuple[str, str] | None:
+    """Parse one dotenv line into a key/value pair."""
+    line = raw_line.strip()
+    if not line or line.startswith("#"):
+        return None
+    if line.startswith("export "):
+        line = line[len("export ") :].lstrip()
+    if "=" not in line:
+        return None
+
+    key, raw_value = line.split("=", 1)
+    key = key.strip()
+    if not key:
+        return None
+    return key, _parse_dotenv_value(raw_value.strip())
+
+
+def _parse_dotenv_value(raw_value: str) -> str:
+    """Parse one dotenv value with basic quote and inline-comment support."""
+    if not raw_value:
+        return ""
+    quote = raw_value[0]
+    if quote in {"'", '"'}:
+        return _parse_quoted_dotenv_value(raw_value, quote)
+    return _strip_unquoted_dotenv_comment(raw_value).strip()
+
+
+def _parse_quoted_dotenv_value(raw_value: str, quote: str) -> str:
+    """Return a quoted dotenv value, ignoring trailing comments."""
+    characters: list[str] = []
+    escaped = False
+    for character in raw_value[1:]:
+        if escaped:
+            characters.append(_decode_dotenv_escape(character))
+            escaped = False
+            continue
+        if quote == '"' and character == "\\":
+            escaped = True
+            continue
+        if character == quote:
+            break
+        characters.append(character)
+    if escaped:
+        characters.append("\\")
+    return "".join(characters)
+
+
+def _decode_dotenv_escape(character: str) -> str:
+    """Decode the small escape set useful for environment values."""
+    return {
+        "n": "\n",
+        "r": "\r",
+        "t": "\t",
+        "\\": "\\",
+        '"': '"',
+    }.get(character, character)
+
+
+def _strip_unquoted_dotenv_comment(value: str) -> str:
+    """Strip comments that start at the beginning or after whitespace."""
+    for index, character in enumerate(value):
+        if character == "#" and (index == 0 or value[index - 1].isspace()):
+            return value[:index]
+    return value
 
 
 def sync_env_from_config(config: CreativeClawConfig) -> None:

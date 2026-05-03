@@ -4,8 +4,10 @@ from __future__ import annotations
 
 import base64
 import mimetypes
+import os
 import re
 import shutil
+import zipfile
 from dataclasses import dataclass
 from datetime import date, datetime, time
 from pathlib import Path
@@ -81,6 +83,8 @@ def convert_anything_to_markdown(parameters: dict[str, Any]) -> dict[str, Any]:
                 output_file,
                 max_rows=normalize_optional_int(parameters.get("max_rows"), "max_rows") or 0,
                 max_cols=normalize_optional_int(parameters.get("max_cols"), "max_cols") or 0,
+                doc2x_api_key=str(parameters.get("doc2x_api_key", "") or "").strip(),
+                doc2x_formula_level=parameters.get("doc2x_formula_level", parameters.get("formula_level")),
             )
         except Exception as exc:
             primary_error = f"{type(exc).__name__}: {exc}"
@@ -169,6 +173,8 @@ def _convert_file_primary(
     *,
     max_rows: int,
     max_cols: int,
+    doc2x_api_key: str,
+    doc2x_formula_level: Any,
 ) -> ConversionResult | None:
     """Run the source_to_md-style primary converter for one local file."""
     suffix = input_file.suffix.lower()
@@ -191,6 +197,14 @@ def _convert_file_primary(
             source_label=input_file.name,
         )
     if suffix == ".pdf":
+        doc2x_result = _convert_pdf_with_doc2x_v3(
+            input_file,
+            output_file,
+            api_key=doc2x_api_key,
+            formula_level=doc2x_formula_level,
+        )
+        if doc2x_result is not None:
+            return doc2x_result
         markdown = _convert_pdf(input_file, output_file)
         return ConversionResult(markdown=markdown, method="primary:pdf", source_label=input_file.name)
     if suffix == ".docx":
@@ -453,6 +467,94 @@ def _convert_pdf(input_file: Path, output_file: Path) -> str:
     if not asset_dir_used and asset_dir.exists():
         shutil.rmtree(asset_dir)
     return "\n".join(lines).strip()
+
+
+def _convert_pdf_with_doc2x_v3(
+    input_file: Path,
+    output_file: Path,
+    *,
+    api_key: str,
+    formula_level: Any,
+) -> ConversionResult | None:
+    """Convert PDF to Markdown with Doc2X v3 through the optional pdfdeal SDK."""
+    resolved_api_key = api_key or os.environ.get("DOC2X_API_KEY", "")
+    if not resolved_api_key:
+        return None
+    formula_level_value = normalize_optional_int(formula_level, "doc2x_formula_level")
+    try:
+        from pdfdeal import Doc2X
+    except Exception:
+        return None
+
+    output_dir = output_file.parent / f"{output_file.stem}_doc2x"
+    output_dir.mkdir(parents=True, exist_ok=True)
+    try:
+        client = Doc2X(apikey=resolved_api_key, debug=False, thread=1)
+        success, failed, has_error = client.pdf2file(
+            pdf_file=str(input_file),
+            output_path=str(output_dir),
+            output_names=[output_file.name],
+            output_format="md",
+            model="v3-2026",
+            formula_level=0 if formula_level_value is None else formula_level_value,
+        )
+    except Exception:
+        return None
+
+    if has_error or not success:
+        return None
+    markdown_path = _resolve_doc2x_markdown_path(success[0])
+    if markdown_path is None:
+        return None
+    markdown = markdown_path.read_text(encoding="utf-8", errors="replace").strip()
+    if not markdown:
+        return None
+    return ConversionResult(
+        markdown=markdown,
+        method="primary:doc2x_v3",
+        source_label=input_file.name,
+    )
+
+
+def _resolve_doc2x_markdown_path(result_path: Any) -> Path | None:
+    """Return a Markdown file path from pdfdeal output, extracting zip archives when needed."""
+    path = Path(str(result_path or "")).expanduser()
+    if not path.exists():
+        return None
+    if path.suffix.lower() in {".md", ".markdown"}:
+        return path
+    if path.suffix.lower() != ".zip":
+        return None
+
+    extract_dir = path.with_suffix("")
+    extract_dir.mkdir(parents=True, exist_ok=True)
+    try:
+        _extract_zip_safely(path, extract_dir)
+    except Exception:
+        return None
+    markdown_files = sorted(
+        [item for item in extract_dir.rglob("*") if item.is_file() and item.suffix.lower() in {".md", ".markdown"}],
+        key=lambda item: len(item.parts),
+    )
+    return markdown_files[0] if markdown_files else None
+
+
+def _extract_zip_safely(zip_path: Path, destination: Path) -> None:
+    """Extract a zip archive while rejecting absolute or parent-traversal paths."""
+    destination_root = destination.resolve()
+    with zipfile.ZipFile(zip_path) as archive:
+        for member in archive.infolist():
+            target = (destination / member.filename).resolve()
+            try:
+                target.relative_to(destination_root)
+            except ValueError:
+                continue
+            if member.is_dir():
+                target.mkdir(parents=True, exist_ok=True)
+                continue
+            target.parent.mkdir(parents=True, exist_ok=True)
+            with archive.open(member) as source, target.open("wb") as sink:
+                shutil.copyfileobj(source, sink)
 
 
 def _convert_docx(input_file: Path, output_file: Path) -> str:

@@ -54,7 +54,43 @@ Important:
 
 - runtime config now lives in `~/.creative-claw/conf.json`
 - the default workspace is `~/.creative-claw/workspace`
-- image, video, and channel credentials should be stored in `conf.json`, not in repository-local env files
+- repository-local `.env` is loaded at startup without overriding shell environment variables
+- image, video, and channel credentials should usually be stored in `conf.json`; `.env` is useful for local-only optional integrations such as `DOC2X_API_KEY`
+
+### Optional PDF to Markdown: Doc2X v3
+
+`AnythingToMD` uses Doc2X v3 as the first PDF-to-Markdown path when `pdfdeal` and a Doc2X API key are available. If either is missing, or if Doc2X returns an error, the expert falls back to the local PyMuPDF converter and then MarkItDown.
+
+Install `pdfdeal` from source:
+
+```bash
+git clone https://github.com/NoEdgeAI/pdfdeal.git
+cd pdfdeal
+pip install .
+```
+
+Then expose your Doc2X API key to the CreativeClaw runtime in the repository-local `.env` file or in your shell:
+
+```bash
+DOC2X_API_KEY="your-doc2x-api-key"
+```
+
+The expert calls:
+
+```python
+from pdfdeal import Doc2X
+
+client = Doc2X(apikey="Your API key", debug=True)
+success, failed, flag = client.pdf2file(
+    pdf_file="path/to/file.pdf",
+    output_path="./Output",
+    output_format="md",
+    model="v3-2026",
+    formula_level=0,
+)
+```
+
+`formula_level` can also be passed to `AnythingToMD` as `formula_level` or `doc2x_formula_level`: `0` keeps formulas, `1` converts inline formulas to text, and `2` converts all formulas to text.
 
 ## Runtime Config
 
@@ -183,6 +219,7 @@ Speech synthesis, recognition, and subtitle service grants:
 
 Credential resolution rule:
 
+- repository-local `.env` is loaded first, without overriding variables already set in the shell
 - `conf.json` is the primary source of truth
 - if an API key field in `conf.json` is an empty string, runtime falls back to the matching environment variable
 - this fallback applies to key-like secret fields, not to general settings such as `workspace` or `api_base`
@@ -197,7 +234,7 @@ Current provider env-fallback coverage:
 Common environment variables:
 
 - text providers: `OPENAI_API_KEY`, `ANTHROPIC_API_KEY`, `GOOGLE_API_KEY`, `GEMINI_API_KEY`, `GROQ_API_KEY`, `DEEPSEEK_API_KEY`, `DASHSCOPE_API_KEY`, `ZAI_API_KEY`, `MOONSHOT_API_KEY`, `MINIMAX_API_KEY`, `MISTRAL_API_KEY`, `STEPFUN_API_KEY`, `QIANFAN_API_KEY`
-- service integrations: `ARK_API_KEY`, `DDS_API_KEY`, `SERPER_API_KEY`, `BRAVE_API_KEY`, `VOLCENGINE_APPID`, `VOLCENGINE_ACCESS_TOKEN`
+- service integrations: `ARK_API_KEY`, `DDS_API_KEY`, `SERPER_API_KEY`, `BRAVE_API_KEY`, `DOC2X_API_KEY`, `VOLCENGINE_APPID`, `VOLCENGINE_ACCESS_TOKEN`
 - Tencent Cloud 3D: `TENCENTCLOUD_SECRET_ID`, `TENCENTCLOUD_SECRET_KEY`, optional `TENCENTCLOUD_SESSION_TOKEN`, optional `TENCENTCLOUD_REGION`
 - channel credentials: `TELEGRAM_BOT_TOKEN`, `TELEGRAM_ALLOW_FROM`, `FEISHU_APP_ID`, `FEISHU_APP_SECRET`, `FEISHU_ENCRYPT_KEY`, `FEISHU_VERIFICATION_TOKEN`, `FEISHU_ALLOW_FROM`
 

@@ -1,5 +1,6 @@
 import tempfile
 import unittest
+import zipfile
 from pathlib import Path
 from types import SimpleNamespace
 from unittest.mock import patch
@@ -114,6 +115,69 @@ class AnythingToMDExpertTests(unittest.IsolatedAsyncioTestCase):
         self.assertIn("| Alpha | 10 |", current_output["output_text"])
         self.assertNotIn("Beta", current_output["output_text"])
         self.assertNotIn("Hidden", current_output["output_text"])
+
+    async def test_pdf_file_prefers_doc2x_v3_when_key_is_available(self) -> None:
+        captured_call = {}
+
+        class _FakeDoc2X:
+            def __init__(self, **kwargs):
+                captured_call["init"] = kwargs
+
+            def pdf2file(self, **kwargs):
+                captured_call["pdf2file"] = kwargs
+                output_path = Path(kwargs["output_path"])
+                output_path.mkdir(parents=True, exist_ok=True)
+                zip_path = output_path / "doc2x_md.zip"
+                with zipfile.ZipFile(zip_path, "w") as archive:
+                    archive.writestr("combined.md", "# Doc2X Markdown\n\nMerged PDF content")
+                return [str(zip_path)], [{"error": "", "path": ""}], False
+
+        agent = AnythingToMDExpert(name="AnythingToMD")
+        with tempfile.TemporaryDirectory(dir=workspace_root()) as tmp_dir:
+            source = Path(tmp_dir) / "source.pdf"
+            source.write_bytes(b"%PDF-1.4\n")
+            relative_source = workspace_relative_path(source)
+            ctx = _build_ctx(
+                {
+                    "current_parameters": {
+                        "input_path": relative_source,
+                        "formula_level": 1,
+                    }
+                }
+            )
+            with (
+                patch.dict("os.environ", {"DOC2X_API_KEY": "test-key"}, clear=True),
+                patch.dict("sys.modules", {"pdfdeal": SimpleNamespace(Doc2X=_FakeDoc2X)}),
+            ):
+                events = [event async for event in agent._run_async_impl(ctx)]
+
+        current_output = events[0].actions.state_delta["current_output"]
+        self.assertEqual(current_output["status"], "success")
+        self.assertEqual(current_output["results"]["method"], "primary:doc2x_v3")
+        self.assertIn("Merged PDF content", current_output["output_text"])
+        self.assertEqual(captured_call["init"]["apikey"], "test-key")
+        self.assertEqual(captured_call["pdf2file"]["model"], "v3-2026")
+        self.assertEqual(captured_call["pdf2file"]["output_format"], "md")
+        self.assertEqual(captured_call["pdf2file"]["formula_level"], 1)
+
+    def test_pdf_file_skips_doc2x_without_key_and_uses_local_pdf_converter(self) -> None:
+        with tempfile.TemporaryDirectory(dir=workspace_root()) as tmp_dir:
+            source = Path(tmp_dir) / "source.pdf"
+            source.write_bytes(b"%PDF-1.4\n")
+            relative_source = workspace_relative_path(source)
+            with (
+                patch.dict("os.environ", {}, clear=True),
+                patch(
+                    "src.agents.experts.anything_to_md.tool._convert_pdf",
+                    return_value="# Local PDF Markdown",
+                ) as local_pdf,
+            ):
+                result = convert_anything_to_markdown({"input_path": relative_source})
+
+        self.assertEqual(result["status"], "success")
+        self.assertEqual(result["results"]["method"], "primary:pdf")
+        self.assertIn("Local PDF Markdown", result["output_text"])
+        local_pdf.assert_called_once()
 
     def test_unsupported_file_can_fallback_to_markitdown(self) -> None:
         class _FakeResult:
