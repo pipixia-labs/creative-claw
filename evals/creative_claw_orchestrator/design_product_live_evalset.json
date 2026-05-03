@@ -28,14 +28,11 @@
               {
                 "name": "run_design_product",
                 "args": {
-                  "prompt": "帮我设计一个运营数据 UI，先问我需要补充哪些关键信息。",
-                  "scenario": "dashboard",
-                  "allow_assumptions": false,
-                  "design_system": "",
-                  "task_skill": "dashboard",
-                  "device_frame": "",
-                  "output_path": "",
-                  "output_format": "html"
+                  "task": "帮我设计一个运营数据 UI，先问我需要补充哪些关键信息。",
+                  "inputs": [],
+                  "output": {
+                    "format": "html"
+                  }
                 }
               }
             ]
@@ -82,14 +79,11 @@
               {
                 "name": "run_design_product",
                 "args": {
-                  "prompt": "给习惯打卡 app 做一个低保真 wireframe，信息不够的话先问我。",
-                  "scenario": "mobile app wireframe",
-                  "allow_assumptions": false,
-                  "design_system": "",
-                  "task_skill": "wireframe",
-                  "device_frame": "",
-                  "output_path": "",
-                  "output_format": "html"
+                  "task": "给习惯打卡 app 做一个低保真 wireframe，信息不够的话先问我。",
+                  "inputs": [],
+                  "output": {
+                    "format": "html"
+                  }
                 }
               }
             ]

@@ -66,10 +66,10 @@ class CodeGenerationExpertTests(unittest.IsolatedAsyncioTestCase):
             relative_output_path = workspace_relative_path(output_path)
 
             with (
-                patch("src.agents.experts.code_generation.tool.LlmAgent", _FakeLlmAgent),
-                patch("src.agents.experts.code_generation.tool.build_llm", return_value="fake-model"),
+                patch("src.runtime.code_artifacts.LlmAgent", _FakeLlmAgent),
+                patch("src.runtime.code_artifacts.build_llm", return_value="fake-model"),
                 patch(
-                    "src.agents.experts.code_generation.tool.resolve_llm_model_name",
+                    "src.runtime.code_artifacts.resolve_llm_model_name",
                     return_value="fake-model",
                 ),
             ):
@@ -105,10 +105,10 @@ class CodeGenerationExpertTests(unittest.IsolatedAsyncioTestCase):
             relative_output_path = workspace_relative_path(output_path)
 
             with (
-                patch("src.agents.experts.code_generation.tool.LlmAgent", _EmptyLlmAgent),
-                patch("src.agents.experts.code_generation.tool.build_llm", return_value="fake-model"),
+                patch("src.runtime.code_artifacts.LlmAgent", _EmptyLlmAgent),
+                patch("src.runtime.code_artifacts.build_llm", return_value="fake-model"),
                 patch(
-                    "src.agents.experts.code_generation.tool.resolve_llm_model_name",
+                    "src.runtime.code_artifacts.resolve_llm_model_name",
                     return_value="fake-model",
                 ),
             ):
@@ -139,10 +139,10 @@ class CodeGenerationExpertTests(unittest.IsolatedAsyncioTestCase):
             relative_output_path = workspace_relative_path(output_path)
 
             with (
-                patch("src.agents.experts.code_generation.tool.LlmAgent", _FailingLlmAgent),
-                patch("src.agents.experts.code_generation.tool.build_llm", return_value="fake-model"),
+                patch("src.runtime.code_artifacts.LlmAgent", _FailingLlmAgent),
+                patch("src.runtime.code_artifacts.build_llm", return_value="fake-model"),
                 patch(
-                    "src.agents.experts.code_generation.tool.resolve_llm_model_name",
+                    "src.runtime.code_artifacts.resolve_llm_model_name",
                     return_value="fake-model",
                 ),
             ):

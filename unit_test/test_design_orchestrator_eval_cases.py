@@ -23,8 +23,8 @@ class DesignOrchestratorEvalCaseTests(unittest.TestCase):
         for case in payload["cases"]:
             self.assertEqual(case["expected_tool"], "run_design_product", case["id"])
             self.assertIn("user_message", case)
-            self.assertIn("scenario", case["expected_arguments"])
-            self.assertIn("allow_assumptions", case["expected_arguments"])
+            self.assertIn("task", case["expected_arguments"])
+            self.assertIn("output", case["expected_arguments"])
             self.assertIn("brief_schema_id", case["expected_result"])
             self.assertTrue(case["assertions"], case["id"])
 
@@ -35,8 +35,7 @@ class DesignOrchestratorEvalCaseTests(unittest.TestCase):
         for case in payload["cases"]:
             brief = manager.prepare_brief(
                 prompt=case["user_message"],
-                scenario=case["expected_arguments"]["scenario"],
-                allow_assumptions=case["expected_arguments"]["allow_assumptions"],
+                allow_assumptions=True,
             )
 
             self.assertEqual(

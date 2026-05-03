@@ -9,6 +9,7 @@ from pathlib import Path
 from typing import Any
 
 from google.adk.agents import LlmAgent
+from google.adk.tools.tool_context import ToolContext
 
 from conf.llm import build_llm
 from conf.path import PROJECT_PATH
@@ -17,6 +18,8 @@ from src.agents.design_product_manager.schema_validation import (
     validate_design_result_contract,
 )
 from src.agents.design_product_manager.validation import validate_design_artifacts
+from src.runtime.code_artifacts import generate_code_artifact
+from src.runtime.workspace import build_workspace_file_record
 
 _RESOURCE_ROOT = Path("skills/design-knowledge-and-skills")
 _MANIFEST_PATH = _RESOURCE_ROOT / "resource-manifest.json"
@@ -133,7 +136,7 @@ class DesignResourceSelection:
 
 @dataclass(frozen=True, slots=True)
 class DesignProductBrief:
-    """Prepared design brief plus CodeGenerationExpert request."""
+    """Prepared design brief plus design artifact generation request."""
 
     user_prompt: str
     selection: DesignResourceSelection
@@ -205,13 +208,117 @@ Turn a user's design request into one focused, resource-grounded production brie
 - Do not use runtime-disabled or reference-only resources for execution context.
 
 # Capability orchestration
-- Use CodeGenerationExpert for code-backed design artifacts such as dashboards, landing pages, mobile prototypes, social carousels, and HTML decks.
-- Treat built-in tools as deterministic bottom capabilities for file inspection, validation, and future export work.
+- Own code-backed design artifacts such as dashboards, landing pages, mobile prototypes, social carousels, and HTML decks.
+- Use deterministic bottom capabilities for file inspection, generation, editing, validation, and future export work.
 
 # Result policy
 - Keep the final brief concrete enough for a coding agent to generate one runnable artifact.
-- Interpret CodeGenerationExpert and validation outputs into DesignProductManager statuses and next actions.
+- Interpret generation, editing, and validation outputs into DesignProductManager statuses and next actions.
 """.strip()
+
+    async def run(
+        self,
+        *,
+        task: str,
+        inputs: list[Any] | None = None,
+        output: dict[str, Any] | None = None,
+        tool_context: ToolContext | None = None,
+    ) -> dict[str, Any]:
+        """Run one autonomous design product task from request to result."""
+        if tool_context is None:
+            return {
+                "status": "error",
+                "message": "DesignProductManager requires tool context.",
+            }
+
+        clean_task = str(task or "").strip()
+        if not clean_task:
+            return {
+                "status": "error",
+                "message": "DesignProductManager requires a non-empty task.",
+            }
+
+        output_options = dict(output or {})
+        output_format = str(output_options.get("format") or output_options.get("output_format") or "html")
+        output_path = str(output_options.get("path") or output_options.get("output_path") or "")
+        allow_assumptions = self._should_allow_assumptions(
+            task=clean_task,
+            inputs=inputs or [],
+            output=output_options,
+        )
+
+        try:
+            brief = self.prepare_brief(
+                prompt=clean_task,
+                output_format=output_format,
+                allow_assumptions=allow_assumptions,
+                output_path=output_path,
+            )
+        except Exception as exc:
+            return {
+                "status": "error",
+                "message": f"DesignProductManager failed to prepare the brief: {type(exc).__name__}: {exc}",
+            }
+
+        tool_context.state["design_product_brief"] = brief.to_dict()
+        if brief.needs_clarification:
+            result = self.build_clarification_result(brief)
+            tool_context.state["design_product_result"] = result
+            return result
+
+        code_generation_result = await self.generate_design_artifact(
+            tool_context,
+            brief=brief,
+            inputs=inputs or [],
+            output=output_options,
+        )
+        output_paths = [
+            str(file_info.get("path", "")).strip()
+            for file_info in code_generation_result.get("output_files", []) or []
+            if isinstance(file_info, dict) and str(file_info.get("path", "")).strip()
+        ]
+        design_validation = self.validate_generated_artifacts(
+            output_paths,
+            browser_preview=bool(output_options.get("browser_preview_validation", False)),
+        )
+        result = self.build_generation_result(
+            brief=brief,
+            code_generation_result=code_generation_result,
+            design_validation=design_validation,
+        )
+        tool_context.state["design_product_result"] = result
+        return result
+
+    async def generate_design_artifact(
+        self,
+        runtime_context: Any,
+        *,
+        brief: DesignProductBrief,
+        inputs: list[Any] | None = None,
+        output: dict[str, Any] | None = None,
+    ) -> dict[str, Any]:
+        """Generate one code-backed design artifact for a prepared design brief."""
+        request = dict(brief.code_generation_request)
+        output_options = dict(output or {})
+        context_files = list(request.get("context_files") or [])
+        context_files.extend(self._input_context_files(inputs or []))
+        result = await generate_code_artifact(
+            runtime_context,
+            prompt=str(request.get("prompt", "") or ""),
+            language=str(request.get("language", "") or "html"),
+            output_path=str(output_options.get("path") or output_options.get("output_path") or request.get("output_path") or ""),
+            context_files=context_files,
+            constraints=[str(item) for item in request.get("constraints", []) or []],
+            output_type="design",
+            output_description="Design artifact generated by DesignProductManager.",
+            output_source="design_product_manager",
+        )
+        if str(result.get("status", "")).strip().lower() == "success":
+            result["output_files"] = self._record_output_files(
+                getattr(runtime_context, "state", {}),
+                list(result.get("output_files") or []),
+            )
+        return result
 
     def prepare_brief(
         self,
@@ -392,6 +499,108 @@ Turn a user's design request into one focused, resource-grounded production brie
     ) -> list[dict[str, Any]]:
         """Run the current narrow artifact validation checks for generated design files."""
         return validate_design_artifacts(output_paths, browser_preview=browser_preview)
+
+    @staticmethod
+    def _should_allow_assumptions(
+        *,
+        task: str,
+        inputs: list[Any],
+        output: dict[str, Any],
+    ) -> bool:
+        """Decide whether the task is concrete enough to proceed without clarification."""
+        explicit = output.get("allow_assumptions")
+        if isinstance(explicit, bool):
+            return explicit
+
+        normalized_task = DesignProductManager._normalize_match_text(task)
+        proceed_markers = (
+            "直接做",
+            "先做",
+            "不用问",
+            "不需要澄清",
+            "按默认",
+            "use defaults",
+            "make assumptions",
+            "proceed",
+        )
+        if any(marker in normalized_task for marker in proceed_markers):
+            return True
+        if inputs:
+            return True
+
+        concrete_markers = (
+            "展示",
+            "包含",
+            "用于",
+            "突出",
+            "dau",
+            "gmv",
+            "roi",
+            "conversion",
+            "retention",
+            "pricing",
+            "deck",
+            "landing",
+        )
+        if any(marker in normalized_task for marker in concrete_markers):
+            return True
+        return len(normalized_task) >= 40
+
+    @staticmethod
+    def _input_context_files(inputs: list[Any]) -> list[str]:
+        """Extract workspace file paths from concise DesignProductManager inputs."""
+        context_files: list[str] = []
+        for item in inputs:
+            if isinstance(item, str) and item.strip():
+                context_files.append(item.strip())
+                continue
+            if not isinstance(item, dict):
+                continue
+            for key in ("path", "input_path", "workspace_path"):
+                value = str(item.get(key, "") or "").strip()
+                if value:
+                    context_files.append(value)
+                    break
+        return context_files
+
+    @staticmethod
+    def _record_output_files(
+        state: Any,
+        output_files: list[dict[str, Any]],
+    ) -> list[dict[str, Any]]:
+        """Record DesignProductManager output files in session state."""
+        if not output_files:
+            return []
+
+        current_turn = int(state.get("turn_index", 0) or 0)
+        current_step = int(state.get("step", 0) or 0)
+        current_expert_step = int(state.get("expert_step", 0) or 0)
+        file_records: list[dict[str, Any]] = []
+        for file_info in output_files:
+            path = str(file_info.get("path", "") or "").strip()
+            if not path:
+                continue
+            file_records.append(
+                build_workspace_file_record(
+                    path,
+                    description=str(file_info.get("description", "") or "").strip(),
+                    source=str(file_info.get("source", "design_product_manager") or "design_product_manager"),
+                    turn=current_turn,
+                    step=current_step,
+                    expert_step=current_expert_step,
+                )
+            )
+        if not file_records:
+            return []
+
+        generated = list(state.get("generated") or [])
+        generated.extend(file_records)
+        state["generated"] = generated
+        history = list(state.get("files_history", []))
+        history.append(file_records)
+        state["new_files"] = file_records
+        state["files_history"] = history
+        return file_records
 
     def _load_manifest(self) -> dict[str, Any]:
         """Load the design resource manifest once per manager instance."""
@@ -643,7 +852,7 @@ Turn a user's design request into one focused, resource-grounded production brie
         device_frame: str,
         manifest: dict[str, Any],
     ) -> tuple[str, ...]:
-        """Build project-relative context file paths for CodeGenerationExpert."""
+        """Build project-relative context file paths for design artifact generation."""
         context_paths: list[str] = []
 
         def _append_resource_path(resource: dict[str, Any]) -> None:
@@ -753,7 +962,7 @@ Turn a user's design request into one focused, resource-grounded production brie
         questions: tuple[dict[str, str], ...],
         needs_clarification: bool,
     ) -> str:
-        """Build the final prompt passed to CodeGenerationExpert."""
+        """Build the final prompt for code-backed design artifact generation."""
         lines = [
             "Create one polished, production-quality design artifact for Creative Claw.",
             f"Design surface: {surface}",
@@ -837,7 +1046,7 @@ Turn a user's design request into one focused, resource-grounded production brie
 
     @staticmethod
     def _normalize_output_format(output_format: str) -> str:
-        """Normalize product output format for CodeGenerationExpert."""
+        """Normalize product output format for design artifact generation."""
         value = str(output_format or "html").strip().lower()
         if value in {"prototype", "web", "page", "dashboard", "landing"}:
             return "html"

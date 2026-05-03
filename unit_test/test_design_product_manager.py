@@ -5,6 +5,14 @@ from src.agents.design_product_manager.design_product_manager import DESIGN_BRIE
 
 
 class DesignProductManagerTests(unittest.TestCase):
+    def test_instruction_does_not_expose_code_generation_expert(self) -> None:
+        manager = DesignProductManager()
+
+        instruction = manager.build_instruction()
+
+        self.assertNotIn("CodeGenerationExpert", instruction)
+        self.assertIn("Own code-backed design artifacts", instruction)
+
     def test_prepare_dashboard_brief_selects_resource_defaults(self) -> None:
         manager = DesignProductManager()
 

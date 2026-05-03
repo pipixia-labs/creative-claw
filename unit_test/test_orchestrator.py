@@ -476,8 +476,7 @@ class OrchestratorCallbackTests(unittest.IsolatedAsyncioTestCase):
                 "product_line_options": {
                     "product_line": "design",
                     "design": {
-                        "scenario": "dashboard",
-                        "allow_assumptions": False,
+                        "output": {"format": "html"},
                     },
                 },
             }
@@ -495,7 +494,7 @@ class OrchestratorCallbackTests(unittest.IsolatedAsyncioTestCase):
         self.assertIn("Most recent available output files", prompt_text)
         self.assertIn("Delivery context: channel=cli; chat_id=terminal; sender_id=cli-user", prompt_text)
         self.assertIn("Product line: design", prompt_text)
-        self.assertIn('"scenario": "dashboard"', prompt_text)
+        self.assertIn('"format": "html"', prompt_text)
         self.assertIn("Final response contract", prompt_text)
         self.assertIn("reply_text", prompt_text)
         self.assertIn("final_file_paths", prompt_text)

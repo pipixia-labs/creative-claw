@@ -37,7 +37,6 @@ from src.runtime.expert_dispatcher import dispatch_expert_call
 from src.runtime.expert_registry import build_expert_contract_summary
 from src.runtime.tool_display import format_tool_args, stringify_value, summarize_tool_result
 from src.runtime.workspace import (
-    build_generated_output_path,
     build_workspace_file_record,
     load_local_file_part,
     looks_like_image,
@@ -99,32 +98,6 @@ _DISPLAY_TOOL_TITLES = {
     "list_session_files": "List Session Files",
     "run_design_product": "Run Design Product",
 }
-
-
-def _default_design_output_path(state: dict[str, Any], output_format: str) -> str:
-    """Return a parent-session-scoped default path for generated Design artifacts."""
-    normalized_format = str(output_format or "html").strip().lower().lstrip(".")
-    if not normalized_format or not normalized_format.replace("_", "").isalnum():
-        normalized_format = "html"
-    extension_by_format = {
-        "html": ".html",
-        "htm": ".html",
-        "javascript": ".js",
-        "js": ".js",
-        "typescript": ".ts",
-        "ts": ".ts",
-        "jsx": ".jsx",
-        "tsx": ".tsx",
-    }
-    output_path = build_generated_output_path(
-        session_id=str(state.get("sid", "") or "default"),
-        turn_index=int(state.get("turn_index", 0) or 0),
-        step=int(state.get("step", 0) or 0),
-        output_type="design",
-        index=0,
-        extension=extension_by_format.get(normalized_format, f".{normalized_format}"),
-    )
-    return workspace_relative_path(output_path)
 
 
 def _format_file_summary(file_info: dict[str, Any], *, index: int) -> str:
@@ -581,18 +554,13 @@ Creative workflow routing hints:
 
 Design workflow routing hints:
 - If runtime context says `Product line: design`, call `run_design_product` as the primary execution path before considering lower-level tools.
-- When `Product line options` includes a `design` object, pass its scenario, allow_assumptions, design_system, task_skill, device_frame, output_format, and output_path values into `run_design_product`.
+- When `Product line options` includes a `design` object, pass only the concise task, relevant inputs, and explicit output request into `run_design_product`.
 - If the user asks for UI design, product design, dashboard, landing page, mobile app, deck, visual prototype, website mockup, or HTML design artifact, prefer `run_design_product`.
-- Use `run_design_product(allow_assumptions=false)` when the request is too vague and the user has not asked you to proceed directly; it returns scenario-specific questions from design-knowledge-and-skills.
-- Use `run_design_product(allow_assumptions=true)` when the user asks to proceed, accepts defaults, or has provided enough brief detail; it prepares resources and calls `CodeGenerationExpert`.
-- Use `browser_preview_validation=true` only when the user asks to validate the generated HTML in a browser; it runs optional Playwright checks after generation.
+- DesignProductManager owns clarification, design system/resource selection, code artifact generation, editing, and validation.
+- If DesignProductManager returns `needs_clarification`, explain its questions to the user and pass the user's later answers back as a new concise task.
 - You may still read `design-knowledge-and-skills` directly when you need to explain or inspect available design resources.
-- For new design tasks, inspect `skills/design-knowledge-and-skills/resource-manifest.json` and the relevant `brief-elements/*.json` resource before asking clarification questions.
-- Clarification questions should come from the selected brief element schema. Do not hard-code a generic questionnaire when a matching schema exists.
-- If the user asks to proceed without questions, use the brief element defaults and record the assumptions in the generation brief.
-- Select exactly one primary design task skill, at most one primary design system, and only the context files needed for the current design.
-- Use `CodeGenerationExpert` for HTML prototypes, dashboards, landing pages, mobile app screens, slide decks, and other code-backed design artifacts.
-- When calling `CodeGenerationExpert`, pass a JSON object string with `prompt`, `language`, optional `output_path`, `context_files`, and `constraints`.
+- Do not choose scenario, design system, task skill, or device frame for DesignProductManager; it decides these internally.
+- Do not call lower-level code generation experts for design artifacts unless the user explicitly asks for non-design code generation.
 - Do not use image/video/audio experts for code-backed design artifacts unless the user explicitly needs generated media assets.
 
 Response Requirements:
@@ -1379,115 +1347,29 @@ Expert parameter contracts:
 
     async def run_design_product(
         self,
-        prompt: str,
-        scenario: str = "",
-        output_format: str = "html",
-        allow_assumptions: bool = True,
-        design_system: str = "",
-        task_skill: str = "",
-        device_frame: str = "",
-        output_path: str = "",
-        browser_preview_validation: bool = False,
+        task: str,
+        inputs: list[dict[str, Any]] | None = None,
+        output: dict[str, Any] | None = None,
         tool_context: ToolContext | None = None,
     ) -> dict[str, Any]:
-        """Run the Design product line from resource selection through code generation."""
+        """Hand one concise design product task to DesignProductManager."""
 
         async def _runner() -> dict[str, Any]:
-            if tool_context is None:
-                return {
-                    "status": "error",
-                    "message": "run_design_product requires tool context.",
-                }
-
-            try:
-                brief = self.design_product_manager.prepare_brief(
-                    prompt=prompt,
-                    scenario=scenario,
-                    output_format=output_format,
-                    allow_assumptions=allow_assumptions,
-                    design_system=design_system,
-                    task_skill=task_skill,
-                    device_frame=device_frame,
-                    output_path=output_path,
-                )
-            except Exception as exc:
-                return {
-                    "status": "error",
-                    "message": f"DesignProductManager failed to prepare the brief: {type(exc).__name__}: {exc}",
-                }
-
-            brief_payload = brief.to_dict()
-            tool_context.state["design_product_brief"] = brief_payload
-            if brief.needs_clarification:
-                result = self.design_product_manager.build_clarification_result(brief)
-                tool_context.state["design_product_result"] = result
-                return result
-
-            if "CodeGenerationExpert" not in self.expert_agents:
-                result = self.design_product_manager.build_generation_result(
-                    brief=brief,
-                    code_generation_result={
-                        "status": "error",
-                        "message": "CodeGenerationExpert is not available for design product generation.",
-                        "error_type": "expert_unavailable",
-                        "retryable": False,
-                        "raw_error_summary": "CodeGenerationExpert is not registered.",
-                        "output_files": [],
-                    },
-                    design_validation=[],
-                )
-                tool_context.state["design_product_result"] = result
-                return result
-
-            code_generation_request = dict(brief.code_generation_request)
-            if not str(code_generation_request.get("output_path", "")).strip():
-                code_generation_request["output_path"] = _default_design_output_path(
-                    tool_context.state,
-                    str(code_generation_request.get("language", output_format) or output_format),
-                )
-                brief.code_generation_request["output_path"] = code_generation_request["output_path"]
-                tool_context.state["design_product_brief"] = brief.to_dict()
-
-            invocation = await dispatch_expert_call(
-                agent_name="CodeGenerationExpert",
-                prompt=json.dumps(code_generation_request, ensure_ascii=False),
+            return await self.design_product_manager.run(
+                task=task,
+                inputs=inputs or [],
+                output=output or {},
                 tool_context=tool_context,
-                expert_agents=self.expert_agents,
-                app_name=self.app_name,
-                artifact_service=self.artifact_service,
             )
-            output_files = invocation.tool_result.get("output_files", [])
-            output_paths = [
-                str(file_info.get("path", "")).strip()
-                for file_info in output_files
-                if isinstance(file_info, dict) and str(file_info.get("path", "")).strip()
-            ]
-            design_validation = self.design_product_manager.validate_generated_artifacts(
-                output_paths,
-                browser_preview=browser_preview_validation,
-            )
-            result = self.design_product_manager.build_generation_result(
-                brief=brief,
-                code_generation_result=invocation.tool_result,
-                design_validation=design_validation,
-            )
-            tool_context.state["design_product_result"] = result
-            return result
 
         return await self._run_async_tool_with_events(
             tool_context=tool_context,
             tool_name="run_design_product",
             stage="design_planning",
             args={
-                "prompt": prompt,
-                "scenario": scenario,
-                "output_format": output_format,
-                "allow_assumptions": allow_assumptions,
-                "design_system": design_system,
-                "task_skill": task_skill,
-                "device_frame": device_frame,
-                "output_path": output_path,
-                "browser_preview_validation": browser_preview_validation,
+                "task": task,
+                "inputs": inputs or [],
+                "output": output or {},
             },
             runner=_runner,
         )

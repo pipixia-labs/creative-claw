@@ -9,9 +9,11 @@
       "user_message": "帮我设计一个运营数据 UI",
       "expected_tool": "run_design_product",
       "expected_arguments": {
-        "scenario": "operation_data_ui",
-        "allow_assumptions": false,
-        "output_format": "html"
+        "task": "帮我设计一个运营数据 UI",
+        "inputs": [],
+        "output": {
+          "format": "html"
+        }
       },
       "expected_result": {
         "status": "needs_clarification",
@@ -19,8 +21,8 @@
         "task_skill": "dashboard"
       },
       "assertions": [
-        "Orchestrator should not call CodeGenerationExpert directly.",
-        "Orchestrator should ask scenario-specific questions from design-knowledge-and-skills.",
+        "Orchestrator should not call lower-level code generation experts directly.",
+        "DesignProductManager should ask scenario-specific questions from design-knowledge-and-skills.",
         "The selected brief schema should be operation_data_ui rather than generic dashboard."
       ]
     },
@@ -29,9 +31,11 @@
       "user_message": "做一个 AI CRM 的 pricing page，三档套餐，突出免费试用和企业版预约演示，直接生成 HTML。",
       "expected_tool": "run_design_product",
       "expected_arguments": {
-        "scenario": "pricing_page",
-        "allow_assumptions": true,
-        "output_format": "html"
+        "task": "做一个 AI CRM 的 pricing page，三档套餐，突出免费试用和企业版预约演示，直接生成 HTML。",
+        "inputs": [],
+        "output": {
+          "format": "html"
+        }
       },
       "expected_result": {
         "status": "success_or_warning",
@@ -41,7 +45,7 @@
       "assertions": [
         "Orchestrator should prefer run_design_product for pricing page design.",
         "DesignProductManager should use the pricing_page brief element schema.",
-        "The handoff to CodeGenerationExpert should include design-brief-v1."
+        "The handoff to DesignProductManager should be concise and should not choose design internals."
       ]
     },
     {
@@ -49,9 +53,11 @@
       "user_message": "给习惯打卡 app 做一个低保真 wireframe",
       "expected_tool": "run_design_product",
       "expected_arguments": {
-        "scenario": "wireframe_sketch",
-        "allow_assumptions": false,
-        "output_format": "html"
+        "task": "给习惯打卡 app 做一个低保真 wireframe",
+        "inputs": [],
+        "output": {
+          "format": "html"
+        }
       },
       "expected_result": {
         "status": "needs_clarification",
@@ -69,9 +75,11 @@
       "user_message": "做一张新品发布的杂志风海报，主标题是 FlowKit Launch，竖版 4:5，直接做。",
       "expected_tool": "run_design_product",
       "expected_arguments": {
-        "scenario": "magazine_poster",
-        "allow_assumptions": true,
-        "output_format": "html"
+        "task": "做一张新品发布的杂志风海报，主标题是 FlowKit Launch，竖版 4:5，直接做。",
+        "inputs": [],
+        "output": {
+          "format": "html"
+        }
       },
       "expected_result": {
         "status": "success_or_warning",

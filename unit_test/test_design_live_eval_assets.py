@@ -18,8 +18,8 @@ class DesignLiveEvalAssetTests(unittest.TestCase):
                 invocation = case["conversation"][0]
                 tool_uses = invocation["intermediate_data"]["tool_uses"]
                 self.assertEqual(tool_uses[0]["name"], "run_design_product")
-                self.assertFalse(tool_uses[0]["args"]["allow_assumptions"])
-                self.assertEqual(tool_uses[0]["args"]["output_format"], "html")
+                self.assertIn("task", tool_uses[0]["args"])
+                self.assertEqual(tool_uses[0]["args"]["output"]["format"], "html")
 
     def test_live_eval_config_uses_tool_trajectory(self) -> None:
         config = json.loads((self._eval_root() / "adk_eval_config.json").read_text(encoding="utf-8"))
