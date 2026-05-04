@@ -109,65 +109,6 @@
       "license": "MIT"
     },
     {
-      "id": "brief_elements.audio_jingle",
-      "type": "brief_element_schema",
-      "title": "Audio Jingle",
-      "description": "Key design elements for short jingles, sonic logos, voiceover beds, and product sound cues.",
-      "path": "brief-elements/audio-jingle.json",
-      "triggers": [
-        "audio_jingle",
-        "sonic_logo",
-        "voiceover_bed",
-        "sound_effect",
-        "jingle",
-        "音频标识",
-        "配乐",
-        "音效"
-      ],
-      "scenario": [
-        "audio_jingle",
-        "sonic_logo",
-        "voiceover_bed",
-        "sound_effect",
-        "jingle",
-        "音频标识",
-        "配乐",
-        "音效"
-      ],
-      "surface": "audio",
-      "requiredFields": [
-        "brand_or_product",
-        "audio_goal",
-        "duration",
-        "mood",
-        "instrumentation",
-        "voiceover_needs",
-        "usage_context"
-      ],
-      "optionalFields": [
-        "reference_tracks",
-        "language",
-        "tempo",
-        "sound_effects",
-        "export_format",
-        "brand_context"
-      ],
-      "questionTemplatePath": "brief-elements/audio-jingle.json",
-      "defaults": {
-        "platform": "audio",
-        "density": "low",
-        "recommended_skill": "audio-jingle",
-        "recommended_design_system_candidates": [
-          "default"
-        ],
-        "output_contract": "structured audio generation brief for a short jingle or sound cue",
-        "execution_mode": "audio_expert"
-      },
-      "runtimeEnabled": true,
-      "source": "creative-claw",
-      "license": "MIT"
-    },
-    {
       "id": "brief_elements.blog_post",
       "type": "brief_element_schema",
       "title": "Blog Post",
@@ -939,7 +880,6 @@
         "web_deck",
         "browser_deck",
         "presentation_html",
-        "网页PPT",
         "HTML演示"
       ],
       "scenario": [
@@ -947,7 +887,6 @@
         "web_deck",
         "browser_deck",
         "presentation_html",
-        "网页PPT",
         "HTML演示"
       ],
       "surface": "deck",
@@ -2299,31 +2238,6 @@
       "runtimeEnabled": true,
       "source": "creative-claw",
       "license": "MIT"
-    },
-    {
-      "id": "task_skill.audio-jingle",
-      "type": "task_skill",
-      "title": "audio-jingle",
-      "description": "Audio generation skill — jingles, beds, voiceover, and sound effects. Routes music requests to Suno V5 / Udio / Lyria, speech to MiniMax TTS / FishAudio / ElevenLabs V3, and SFX to ElevenLabs SFX or AudioCraft. Output is one MP3/WAV file saved to the project folder.",
-      "path": "skills/audio-jingle/SKILL.md",
-      "triggers": [
-        "music",
-        "jingle",
-        "bed",
-        "voiceover",
-        "tts",
-        "sound effect",
-        "音乐",
-        "配音",
-        "音效"
-      ],
-      "scenario": "",
-      "platform": "",
-      "requiresDesignSystem": true,
-      "runtimeEnabled": true,
-      "source": "open-design",
-      "license": "recorded",
-      "notes": "Imported design task skill; verify nested assets before redistribution."
     },
     {
       "id": "task_skill.blog-post",

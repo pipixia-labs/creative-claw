@@ -120,6 +120,7 @@ _DEFAULT_FRAME_BY_SURFACE = {
     "mobile_app": "iphone-15-pro",
     "wireframe": "browser-chrome",
 }
+_WEAK_RESOURCE_MATCH_SCORE_THRESHOLD = 2
 
 
 @dataclass(frozen=True, slots=True)
@@ -613,7 +614,9 @@ Turn a user's design request into one focused, resource-grounded production brie
     def _load_resource_json(self, resource_path: str) -> dict[str, Any]:
         """Read one JSON resource under design-knowledge-and-skills."""
         path = (self.resource_root / resource_path).resolve()
-        path.relative_to(self.resource_root)
+        resource_root = self.resource_root.resolve()
+        if path != resource_root and resource_root not in path.parents:
+            raise ValueError(f"Resource path escapes resource root: {resource_path}")
         return json.loads(path.read_text(encoding="utf-8"))
 
     @staticmethod
@@ -638,6 +641,8 @@ Turn a user's design request into one focused, resource-grounded production brie
     ) -> dict[str, Any]:
         """Select the most relevant brief element schema."""
         brief_resources = self._resources_by_type(manifest, "brief_element_schema")
+        if not brief_resources:
+            raise RuntimeError("No runtime-enabled brief element schemas are available.")
         normalized_text = self._normalize_match_text(f"{scenario} {prompt}")
         matched_resource = self._best_matching_resource(brief_resources, normalized_text)
         if matched_resource:
@@ -829,7 +834,7 @@ Turn a user's design request into one focused, resource-grounded production brie
                 if not candidate_resource:
                     continue
                 candidate_score = self._resource_match_score(candidate_resource, normalized_text)
-                if candidate_score == matched_score or matched_score <= 2:
+                if candidate_score == matched_score or matched_score <= _WEAK_RESOURCE_MATCH_SCORE_THRESHOLD:
                     return candidate_slug
             return matched_slug
 
@@ -1072,11 +1077,6 @@ Turn a user's design request into one focused, resource-grounded production brie
         if "." in resource_id:
             return DesignProductManager._normalize_slug(resource_id.rsplit(".", 1)[-1])
         return DesignProductManager._normalize_slug(str(resource.get("title", "")))
-
-    @staticmethod
-    def _resource_matches(resource: dict[str, Any], normalized_text: str) -> bool:
-        """Return whether prompt text matches resource id, title, or triggers."""
-        return DesignProductManager._resource_match_score(resource, normalized_text) > 0
 
     @staticmethod
     def _best_matching_resource(
