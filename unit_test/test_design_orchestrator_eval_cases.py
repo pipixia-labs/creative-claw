@@ -2,7 +2,7 @@ import json
 import unittest
 from pathlib import Path
 
-from src.agents.design_product_manager import DesignProductManager
+from src.productions.design.design_product_manager import DesignProductManager
 
 
 class DesignOrchestratorEvalCaseTests(unittest.TestCase):

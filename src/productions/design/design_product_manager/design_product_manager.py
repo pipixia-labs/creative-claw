@@ -13,11 +13,11 @@ from google.adk.tools.tool_context import ToolContext
 
 from conf.llm import build_llm
 from conf.path import PROJECT_PATH
-from src.agents.design_product_manager.schema_validation import (
+from src.productions.design.design_product_manager.schema_validation import (
     validate_design_brief_contract,
     validate_design_result_contract,
 )
-from src.agents.design_product_manager.validation import validate_design_artifacts
+from src.productions.design.design_product_manager.validation import validate_design_artifacts
 from src.runtime.code_artifacts import generate_code_artifact
 from src.runtime.workspace import build_workspace_file_record
 

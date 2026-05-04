@@ -219,6 +219,7 @@ creative-claw chat cli \
 - **Workspace 文件工具**：`list_dir`、`glob`、`grep`、`read_file`、`write_file`、`edit_file`。
 - **确定性媒体工具**：`image_crop`、`image_rotate`、`image_flip`、`image_info`、`image_resize`、`image_convert`、`video_info`、`video_extract_frame`、`video_trim`、`video_concat`、`video_convert`、`audio_info`、`audio_trim`、`audio_concat`、`audio_convert`。
 - **运行时与 Web 工具**：`exec_command`、`process_session`、`web_search`、`web_fetch`、`list_session_files`。
+- **产品线工具**：`run_ppt_product` 处理 PPTX / PowerPoint 交付，`run_design_product` 处理 HTML、界面、网页和设计原型等非 PPTX 设计产物。
 - **Expert 调度**：`invoke_agent` 可以把结构化请求路由给 `ImageGenerationAgent`、`ImageEditingAgent`、`ImageUnderstandingAgent`、`VideoGenerationAgent`、`SpeechRecognitionExpert`、`SpeechSynthesisExpert`、`MusicGenerationExpert` 和 `3DGeneration` 等 expert。
 
 `VideoGenerationAgent` 当前支持这些 provider-aware 参数：
@@ -301,7 +302,7 @@ CreativeClaw 内置了一个基于 minimax-cli 的 skill：`skills/minimax-cli-s
 npm install -g mmx-cli
 # Authenticate
 mmx auth login --api-key sk-xxxxx
-mmx auth status 
+mmx auth status
 ```
 > Requires [Node.js](https://nodejs.org) 18+
 

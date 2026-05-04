@@ -1,7 +1,7 @@
 import unittest
 
-from src.agents.design_product_manager import DesignProductManager
-from src.agents.design_product_manager.design_product_manager import DESIGN_BRIEF_SCHEMA_VERSION
+from src.productions.design.design_product_manager import DesignProductManager
+from src.productions.design.design_product_manager.design_product_manager import DESIGN_BRIEF_SCHEMA_VERSION
 
 
 class DesignProductManagerTests(unittest.TestCase):

@@ -18,7 +18,6 @@ from google.adk.tools.tool_context import ToolContext
 from google.adk.models import LlmRequest
 from google.genai.types import Content, Part
 
-from src.agents.design_product_manager import DesignProductManager
 from conf.agent import EXPERTS_LIST
 from conf.llm import build_llm, resolve_llm_model_name
 from conf.system import SYS_CONFIG
@@ -28,13 +27,15 @@ from src.agents.orchestrator.final_response import (
     OrchestratorFinalResponse,
 )
 from src.logger import logger
+from src.productions.design.design_product_manager import DesignProductManager
+from src.productions.ppt.ppt_product_manager import PptProductManager
+from src.runtime.expert_dispatcher import dispatch_expert_call
+from src.runtime.expert_registry import build_expert_contract_summary
 from src.runtime.step_events import (
     CreativeClawStepEventPlugin,
     publish_orchestration_step_event,
     step_event_streaming_active,
 )
-from src.runtime.expert_dispatcher import dispatch_expert_call
-from src.runtime.expert_registry import build_expert_contract_summary
 from src.runtime.tool_display import format_tool_args, stringify_value, summarize_tool_result
 from src.runtime.workspace import (
     build_workspace_file_record,
@@ -96,6 +97,7 @@ _DISPLAY_TOOL_TITLES = {
     "list_skills": "List Skills",
     "read_skill": "Read Skill",
     "list_session_files": "List Session Files",
+    "run_ppt_product": "Run PPT Product",
     "run_design_product": "Run Design Product",
 }
 
@@ -416,6 +418,7 @@ class Orchestrator:
         self.sid = ""
         self.skill_registry = get_skill_registry()
         self.toolbox = BuiltinToolbox()
+        self.ppt_product_manager = PptProductManager()
         self.design_product_manager = DesignProductManager()
 
         model_name = resolve_llm_model_name(llm_model or SYS_CONFIG.llm_model)
@@ -457,6 +460,7 @@ class Orchestrator:
                 self.web_search,
                 self.web_fetch,
                 self.list_session_files,
+                self.run_ppt_product,
                 self.run_design_product,
                 self.invoke_agent,
             ],
@@ -491,12 +495,13 @@ You can use built-in tools, skills, `invoke_agent`, and your own reasoning to co
 You are the main agent, and expert agents are supporting capabilities invoked through `invoke_agent`.
 Prefer completing the task directly instead of describing an internal workflow.
 
-You can use five kinds of capabilities:
+You can use six kinds of capabilities:
 1. Skills from local markdown files
 2. Built-in local file tools inside the fixed workspace
 3. Built-in shell and web tools
-4. The Design product-line tool `run_design_product`
-5. Existing expert agents through `invoke_agent(agent_name, prompt)`
+4. The PPT product-line tool `run_ppt_product`
+5. The Design product-line tool `run_design_product`
+6. Existing expert agents through `invoke_agent(agent_name, prompt)`
 
 Rules:
 - Treat yourself as the main conversational agent. Reply to the user's actual request, not to an internal workflow.
@@ -552,10 +557,19 @@ Creative workflow routing hints:
 - After reading a relevant creative skill, follow its handoff guidance and pass exact expert parameters as a JSON object string to `invoke_agent`.
 - If no skill is needed because the user gave a clear final generation request, execute directly with the smallest suitable expert call.
 
+PPT workflow routing hints:
+- If runtime context says `Product line: ppt`, call `run_ppt_product` as the primary execution path before considering lower-level tools.
+- When `Product line options` includes a `ppt` object, pass only the concise task, relevant inputs, and explicit output request into `run_ppt_product`.
+- If the requested final deliverable is `.pptx`, PowerPoint, PPT, an editable slide deck, PPT template application, or PPTX editing, prefer `run_ppt_product` unless the user explicitly asks for a non-PPTX HTML deck or design prototype.
+- PPT is an independent product line optimized for slide generation. Do not route PPTX delivery through DesignProductManager.
+- The current PPT product priority is the HTML route first, then SVG and XML as later route pipelines.
+- PptProductManager owns PPT requirement normalization, route dispatch, route artifacts, PPTX validation, and delivery manifest registration.
+- Do not call HTML, SVG, or OOXML route-internal tools directly from the orchestrator.
+
 Design workflow routing hints:
 - If runtime context says `Product line: design`, call `run_design_product` as the primary execution path before considering lower-level tools.
 - When `Product line options` includes a `design` object, pass only the concise task, relevant inputs, and explicit output request into `run_design_product`.
-- If the user asks for UI design, product design, dashboard, landing page, mobile app, deck, visual prototype, website mockup, or HTML design artifact, prefer `run_design_product`.
+- If the user asks for UI design, product design, dashboard, landing page, mobile app, deck, visual prototype, website mockup, or HTML design artifact, prefer `run_design_product` only when the requested final deliverable is not a PPTX/PowerPoint file.
 - DesignProductManager owns clarification, design system/resource selection, code artifact generation, editing, and validation.
 - If DesignProductManager returns `needs_clarification`, explain its questions to the user and pass the user's later answers back as a new concise task.
 - You may still read `design-knowledge-and-skills` directly when you need to explain or inspect available design resources.
@@ -1344,6 +1358,38 @@ Expert parameter contracts:
             allowed = ", ".join(payload_by_section.keys())
             return f"Error: Unsupported section `{section}`. Allowed: {allowed}"
         return json.dumps(payload_by_section[normalized_section], ensure_ascii=False, indent=2)
+
+    async def run_ppt_product(
+        self,
+        task: str,
+        inputs: list[dict[str, Any]] | None = None,
+        output: dict[str, Any] | None = None,
+        tool_context: ToolContext | None = None,
+    ) -> dict[str, Any]:
+        """Hand one concise PPT product task to PptProductManager."""
+
+        async def _runner() -> dict[str, Any]:
+            return await self.ppt_product_manager.run_product_request(
+                task=task,
+                inputs=inputs or [],
+                output=output or {},
+                tool_context=tool_context,
+                expert_agents=self.expert_agents,
+                app_name=self.app_name,
+                artifact_service=self.artifact_service,
+            )
+
+        return await self._run_async_tool_with_events(
+            tool_context=tool_context,
+            tool_name="run_ppt_product",
+            stage="ppt_product_planning",
+            args={
+                "task": task,
+                "inputs": inputs or [],
+                "output": output or {},
+            },
+            runner=_runner,
+        )
 
     async def run_design_product(
         self,

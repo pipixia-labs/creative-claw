@@ -1,6 +1,6 @@
 import unittest
 
-from src.agents.design_product_manager import (
+from src.productions.design.design_product_manager import (
     DesignProductManager,
     DesignSchemaValidationError,
     validate_design_brief_contract,

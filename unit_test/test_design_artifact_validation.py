@@ -2,7 +2,7 @@ import tempfile
 import unittest
 from pathlib import Path
 
-from src.agents.design_product_manager import BrowserViewport, validate_design_artifact
+from src.productions.design.design_product_manager import BrowserViewport, validate_design_artifact
 from src.runtime.workspace import workspace_root
 
 

@@ -224,6 +224,7 @@ The main LLM orchestrator can call these tool groups directly:
 - **Workspace file tools**: `list_dir`, `glob`, `grep`, `read_file`, `write_file`, `edit_file`.
 - **Deterministic media tools**: `image_crop`, `image_rotate`, `image_flip`, `image_info`, `image_resize`, `image_convert`, `video_info`, `video_extract_frame`, `video_trim`, `video_concat`, `video_convert`, `audio_info`, `audio_trim`, `audio_concat`, `audio_convert`.
 - **Runtime and web tools**: `exec_command`, `process_session`, `web_search`, `web_fetch`, `list_session_files`.
+- **Product-line tools**: `run_ppt_product` handles PPTX / PowerPoint delivery, while `run_design_product` handles HTML, UI, web, and design prototype outputs when the final deliverable is not PPTX.
 - **Expert dispatch**: `invoke_agent` routes structured requests to expert agents such as `ImageGenerationAgent`, `ImageEditingAgent`, `ImageUnderstandingAgent`, `VideoGenerationAgent`, `SpeechRecognitionExpert`, `SpeechSynthesisExpert`, `MusicGenerationExpert`, and `3DGeneration`.
 
 `VideoGenerationAgent` currently exposes these provider-aware tool parameters:

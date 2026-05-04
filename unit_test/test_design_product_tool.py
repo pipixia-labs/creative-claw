@@ -30,7 +30,7 @@ class DesignProductToolTests(unittest.IsolatedAsyncioTestCase):
         )
         tool_context = SimpleNamespace(state={"sid": "design-test", "turn_index": 1, "step": 0, "expert_step": 0})
 
-        with patch("src.agents.design_product_manager.design_product_manager.generate_code_artifact") as generate:
+        with patch("src.productions.design.design_product_manager.design_product_manager.generate_code_artifact") as generate:
             result = await orchestrator.run_design_product(
                 task="做一个后台看板。",
                 tool_context=tool_context,
@@ -100,7 +100,7 @@ class DesignProductToolTests(unittest.IsolatedAsyncioTestCase):
             }
 
         with patch(
-            "src.agents.design_product_manager.design_product_manager.generate_code_artifact",
+            "src.productions.design.design_product_manager.design_product_manager.generate_code_artifact",
             side_effect=_fake_generate,
         ) as generate:
             result = await orchestrator.run_design_product(
@@ -151,7 +151,7 @@ class DesignProductToolTests(unittest.IsolatedAsyncioTestCase):
             }
 
         with patch(
-            "src.agents.design_product_manager.design_product_manager.generate_code_artifact",
+            "src.productions.design.design_product_manager.design_product_manager.generate_code_artifact",
             side_effect=_fake_generate,
         ):
             result = await orchestrator.run_design_product(

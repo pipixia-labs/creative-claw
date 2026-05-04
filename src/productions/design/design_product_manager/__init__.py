@@ -1,16 +1,16 @@
 """Design product manager agent and resource planning helpers."""
 
-from src.agents.design_product_manager.design_product_manager import (
+from src.productions.design.design_product_manager.design_product_manager import (
     DesignProductBrief,
     DesignProductManager,
     DesignResourceSelection,
 )
-from src.agents.design_product_manager.schema_validation import (
+from src.productions.design.design_product_manager.schema_validation import (
     DesignSchemaValidationError,
     validate_design_brief_contract,
     validate_design_result_contract,
 )
-from src.agents.design_product_manager.validation import (
+from src.productions.design.design_product_manager.validation import (
     BrowserViewport,
     DEFAULT_BROWSER_VIEWPORTS,
     DesignArtifactValidation,
