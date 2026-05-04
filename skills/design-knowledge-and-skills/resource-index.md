@@ -4,12 +4,12 @@ This index summarizes the resources exposed by `design-knowledge-and-skills`. Us
 
 ## Counts
 
-- `brief_element_schema`: 38
+- `brief_element_schema`: 37
 - `contract_schema`: 2
 - `design_system`: 72
 - `device_frame`: 5
 - `index_skill`: 1
-- `task_skill`: 35
+- `task_skill`: 34
 
 ## Selection Order
 
@@ -29,7 +29,6 @@ This index summarizes the resources exposed by `design-knowledge-and-skills`. Us
 ## Brief Elements
 
 - `brief_elements.admin_console`: Admin Console -> `brief-elements/admin-console.json`
-- `brief_elements.audio_jingle`: Audio Jingle -> `brief-elements/audio-jingle.json`
 - `brief_elements.blog_post`: Blog Post -> `brief-elements/blog-post.json`
 - `brief_elements.critique`: Design Critique -> `brief-elements/critique.json`
 - `brief_elements.dashboard`: Dashboard / Analytics Console -> `brief-elements/dashboard.json`
@@ -69,7 +68,6 @@ This index summarizes the resources exposed by `design-knowledge-and-skills`. Us
 
 ## Task Skills
 
-- `task_skill.audio-jingle`: audio-jingle -> `skills/audio-jingle/SKILL.md`
 - `task_skill.blog-post`: blog-post -> `skills/blog-post/SKILL.md`
 - `task_skill.critique`: critique -> `skills/critique/SKILL.md`
 - `task_skill.dashboard`: dashboard -> `skills/dashboard/SKILL.md`

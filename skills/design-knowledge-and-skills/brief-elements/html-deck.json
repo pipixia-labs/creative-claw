@@ -4,7 +4,7 @@
   "title": "HTML Deck",
   "description": "Key design elements for browser-native slide decks, presentation readouts, and horizontal HTML storytelling.",
   "surface": "deck",
-  "scenarios": ["html_deck", "web_deck", "browser_deck", "presentation_html", "网页PPT", "HTML演示"],
+  "scenarios": ["html_deck", "web_deck", "browser_deck", "presentation_html", "HTML演示"],
   "required_fields": [
     "deck_purpose",
     "audience",

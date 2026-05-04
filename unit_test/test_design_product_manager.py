@@ -1,4 +1,6 @@
+import json
 import unittest
+from pathlib import Path
 
 from src.productions.design.design_product_manager import DesignProductManager
 from src.productions.design.design_product_manager.design_product_manager import DESIGN_BRIEF_SCHEMA_VERSION
@@ -155,7 +157,6 @@ class DesignProductManagerTests(unittest.TestCase):
     def test_prepare_remaining_builtin_task_skill_scenarios(self) -> None:
         manager = DesignProductManager()
         cases = [
-            ("做一个 audio jingle 和 sonic logo。", "audio_jingle", "brief_elements.audio_jingle", "audio-jingle", "audio_goal"),
             ("写一篇 blog post article，介绍产品案例。", "blog_post", "brief_elements.blog_post", "blog-post", "core_argument"),
             ("做一次 design critique，review my landing page。", "critique", "brief_elements.critique", "critique", "review_goal"),
             ("做一个 dating app matchmaking dashboard。", "dating_web", "brief_elements.dating_web", "dating-web", "matching_goal"),
@@ -187,6 +188,40 @@ class DesignProductManagerTests(unittest.TestCase):
                 self.assertEqual(brief.selection.brief_schema_id, expected_schema)
                 self.assertEqual(brief.selection.task_skill, expected_skill)
                 self.assertIn(expected_requirement, brief.design_brief["content_requirements"])
+
+    def test_prepare_all_builtin_scenarios_use_existing_context_files(self) -> None:
+        manager = DesignProductManager()
+        project_root = Path(__file__).resolve().parents[1]
+        brief_root = project_root / "skills" / "design-knowledge-and-skills" / "brief-elements"
+
+        for path in sorted(brief_root.glob("*.json")):
+            brief_element = json.loads(path.read_text(encoding="utf-8"))
+            scenario = brief_element["id"].split(".", 1)[1]
+            with self.subTest(scenario=scenario):
+                brief = manager.prepare_brief(
+                    prompt=f"Create a design artifact for {brief_element['title']}.",
+                    scenario=scenario,
+                )
+                missing_context_files = [
+                    context_file
+                    for context_file in brief.selection.context_files
+                    if not (project_root / context_file).exists()
+                ]
+                self.assertEqual(missing_context_files, [])
+
+    def test_prepare_web_ppt_prefers_magazine_web_ppt_schema(self) -> None:
+        manager = DesignProductManager()
+
+        brief = manager.prepare_brief(prompt="做一个网页PPT，用于产品发布会。")
+
+        self.assertEqual(brief.selection.brief_schema_id, "brief_elements.guizang_ppt")
+        self.assertEqual(brief.selection.task_skill, "guizang-ppt")
+
+    def test_select_brief_resource_raises_clear_error_without_runtime_brief_elements(self) -> None:
+        manager = DesignProductManager()
+
+        with self.assertRaisesRegex(RuntimeError, "No runtime-enabled brief element schemas"):
+            manager._select_brief_resource({"resources": []}, prompt="做一个 dashboard。", scenario="")
 
     def test_prepare_mobile_brief_uses_mobile_surface_and_frame(self) -> None:
         manager = DesignProductManager()

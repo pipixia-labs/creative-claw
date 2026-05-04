@@ -10,9 +10,9 @@ from html.parser import HTMLParser
 from pathlib import Path
 from typing import Any
 
-from src.runtime.workspace import resolve_workspace_path, workspace_relative_path
+from src.runtime.workspace import resolve_workspace_path, workspace_relative_path, workspace_root
 
-_BROWSER_PREVIEW_TIMEOUT_MS = 8_000
+_BROWSER_PREVIEW_TIMEOUT_MS = 15_000
 
 
 @dataclass(frozen=True, slots=True)
@@ -157,16 +157,7 @@ def validate_design_artifact(
     checks["html_extension"] = resolved.suffix.lower() in {".html", ".htm"}
     checks["has_html_tag"] = "<html" in lower_content
     checks["has_body_tag"] = "<body" in lower_content
-    checks["no_local_absolute_paths"] = not any(
-        marker in content
-        for marker in (
-            "/Users/",
-            "creative_claw_opensource",
-            "pytorch_research",
-            "basic_networks",
-            "0_auto_agent",
-        )
-    )
+    checks["no_local_absolute_paths"] = not _contains_local_absolute_path_marker(content)
 
     parser = _VisibleTextParser()
     try:
@@ -225,7 +216,6 @@ def _build_preview_quality(
     """Return deterministic preview-quality signals for one HTML artifact."""
     lower_content = content.lower()
     style_text = "\n".join(parser.style_parts).lower()
-    script_text = "\n".join(parser.script_parts)
     visible_character_count = len(re.sub(r"\s+", "", visible_text))
     responsive_markers = (
         "@media",
@@ -248,11 +238,6 @@ def _build_preview_quality(
         ),
         "has_meaningful_content": visible_character_count >= 60,
         "no_external_runtime_assets": not parser.external_asset_refs,
-        "no_obvious_console_errors": not re.search(
-            r"(throw\s+new\s+error|console\.error|referenceerror|typeerror)",
-            script_text,
-            flags=re.IGNORECASE,
-        ),
     }
     warning_messages = {
         "has_viewport_meta": "preview quality: missing viewport meta tag",
@@ -261,7 +246,6 @@ def _build_preview_quality(
         "has_semantic_structure": "preview quality: missing semantic layout structure",
         "has_meaningful_content": "preview quality: visible content is too thin for preview validation",
         "no_external_runtime_assets": "preview quality: external runtime assets may be unavailable in local preview",
-        "no_obvious_console_errors": "preview quality: script contains obvious console/error marker",
     }
     warnings = [message for check, message in warning_messages.items() if not checks.get(check, False)]
     return {
@@ -339,10 +323,12 @@ def _check_browser_viewport(
     page_errors: list[str] = []
     prefix = f"browser_{viewport.name}"
     page = browser.new_page(viewport={"width": viewport.width, "height": viewport.height})
-    page.on(
-        "console",
-        lambda message: console_errors.append(message.text) if message.type == "error" else None,
-    )
+
+    def _record_console_error(message: Any) -> None:
+        if message.type == "error":
+            console_errors.append(message.text)
+
+    page.on("console", _record_console_error)
     page.on("pageerror", lambda error: page_errors.append(str(error)))
     try:
         response = page.goto(path.as_uri(), wait_until="networkidle", timeout=_BROWSER_PREVIEW_TIMEOUT_MS)
@@ -406,9 +392,21 @@ def _screenshot_has_visual_content(screenshot: bytes) -> bool:
 
         image = Image.open(io.BytesIO(screenshot)).convert("RGB").resize((32, 32))
         extrema = ImageStat.Stat(image).extrema
+        # Sum channel ranges; very small values usually mean a blank or single-color render.
         return sum(high - low for low, high in extrema) > 12
     except Exception:
         return True
+
+
+def _contains_local_absolute_path_marker(content: str) -> bool:
+    """Return whether generated content appears to leak local filesystem paths."""
+    workspace_marker = str(workspace_root())
+    if workspace_marker and workspace_marker in content:
+        return True
+    return bool(
+        re.search(r"(?<![A-Za-z0-9+.-])/(?:Users|home|tmp|private|var|Volumes)/", content)
+        or re.search(r"[A-Za-z]:\\", content)
+    )
 
 
 def validate_design_artifacts(
