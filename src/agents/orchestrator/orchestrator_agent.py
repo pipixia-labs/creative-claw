@@ -397,6 +397,26 @@ def _normalize_final_response_paths(paths: list[str], *, state: dict[str, Any]) 
     return normalized_paths
 
 
+def _select_fallback_final_response_paths(state: dict[str, Any]) -> list[str]:
+    """Return valid tracked attachment paths when the LLM final response path is invalid."""
+    explicit_paths = list(state.get("final_file_paths") or [])
+    if explicit_paths:
+        try:
+            return _normalize_final_response_paths(explicit_paths, state=state)
+        except ValueError:
+            pass
+
+    latest_file_group = _latest_generated_files(state)
+    latest_paths = [
+        str(file_info.get("path", "")).strip()
+        for file_info in latest_file_group
+        if isinstance(file_info, dict) and str(file_info.get("path", "")).strip()
+    ]
+    if not latest_paths:
+        return []
+    return _normalize_final_response_paths(latest_paths, state=state)
+
+
 class Orchestrator:
     """Plan one workflow step at a time with skills and builtin tools."""
 
@@ -559,7 +579,9 @@ Creative workflow routing hints:
 
 PPT workflow routing hints:
 - If runtime context says `Product line: ppt`, call `run_ppt_product` as the primary execution path before considering lower-level tools.
-- When `Product line options` includes a `ppt` object, pass only the concise task, relevant inputs, and explicit output request into `run_ppt_product`.
+- PPT product line does its own requirement normalization, content planning, and page planning. Pass the user's PPT task description directly into `run_ppt_product`; do not rewrite it into a slide outline, chapter plan, or inferred page list.
+- Pass `inputs` only for real user-provided task documents or assets, such as uploaded files, workspace paths, URLs, or reference images. Do not put your own inferred outline, slides, chapters, or page content into `inputs`.
+- Pass `output` only for explicit delivery constraints from the user, such as format, route, language, slide count, aspect ratio, template id, or editability.
 - If the requested final deliverable is `.pptx`, PowerPoint, PPT, an editable slide deck, PPT template application, or PPTX editing, prefer `run_ppt_product` unless the user explicitly asks for a non-PPTX HTML deck or design prototype.
 - PPT is an independent product line optimized for slide generation. Do not route PPTX delivery through DesignProductManager.
 - The current PPT product priority is the HTML route first, then SVG and XML as later route pipelines.
@@ -1362,11 +1384,11 @@ Expert parameter contracts:
     async def run_ppt_product(
         self,
         task: str,
-        inputs: list[dict[str, Any]] | None = None,
+        inputs: Any | None = None,
         output: dict[str, Any] | None = None,
         tool_context: ToolContext | None = None,
     ) -> dict[str, Any]:
-        """Hand one concise PPT product task to PptProductManager."""
+        """Hand the user's PPT task and real document inputs to PptProductManager."""
 
         async def _runner() -> dict[str, Any]:
             return await self.ppt_product_manager.run_product_request(
@@ -1514,10 +1536,22 @@ Expert parameter contracts:
         normalized_response = structured_response.reply_text.strip()
         if not normalized_response:
             raise ValueError("Structured final response must include a non-empty `reply_text`.")
-        normalized_final_paths = _normalize_final_response_paths(
-            structured_response.final_file_paths,
-            state=state,
-        )
+        try:
+            normalized_final_paths = _normalize_final_response_paths(
+                structured_response.final_file_paths,
+                state=state,
+            )
+        except ValueError as exc:
+            fallback_final_paths = _select_fallback_final_response_paths(state)
+            if not fallback_final_paths:
+                raise
+            logger.warning(
+                "Structured final response used invalid attachment paths for session {}; "
+                "falling back to tracked session outputs. error={}",
+                self.sid,
+                exc,
+            )
+            normalized_final_paths = fallback_final_paths
 
         self._append_step_event(
             state,

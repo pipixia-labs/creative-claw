@@ -35,6 +35,14 @@ DeckPageType = Literal[
     "appendix",
     "disclaimer",
 ]
+DeckPageAssetSourceKind = Literal[
+    "material_figure",
+    "user_upload",
+    "search",
+    "image_generation",
+    "placeholder",
+]
+DeckPageAssetStatus = Literal["pending", "ready", "failed"]
 
 
 def _clean_string(value: str) -> str:
@@ -151,6 +159,7 @@ class ConfirmedRequirement(BaseModel):
     """User-confirmed or system-normalized PPT product requirement."""
 
     route: PptRoute
+    request_brief: str = ""
     topic: str
     audience: str = ""
     scenario: str = ""
@@ -166,7 +175,7 @@ class ConfirmedRequirement(BaseModel):
     editability_requirement: EditabilityRequirement = Field(default_factory=EditabilityRequirement)
     confirmed_by_user: bool = False
 
-    @field_validator("topic", "audience", "scenario", "language", mode="before")
+    @field_validator("request_brief", "topic", "audience", "scenario", "language", mode="before")
     @classmethod
     def _strip_text(cls, value: Any) -> str:
         """Strip core requirement text fields."""
@@ -189,6 +198,46 @@ class DeckChapter(BaseModel):
     order: int = Field(default=1, ge=1)
 
 
+class DeckPageAsset(BaseModel):
+    """One planned or resolved visual asset for a slide."""
+
+    asset_id: str = ""
+    role: str = "supporting_visual"
+    semantic_position: str = "bottom_band"
+    source_kind: DeckPageAssetSourceKind = "placeholder"
+    status: DeckPageAssetStatus = "pending"
+    description: str = ""
+    alt: str = ""
+    path: str = ""
+    prompt: str = ""
+    search_query: str = ""
+    aspect_ratio: str = "16:9"
+    resolution: str = "1K"
+    placeholder_name: str = ""
+    provider: str = ""
+    warnings: list[str] = Field(default_factory=list)
+
+    @field_validator(
+        "asset_id",
+        "role",
+        "semantic_position",
+        "description",
+        "alt",
+        "path",
+        "prompt",
+        "search_query",
+        "aspect_ratio",
+        "resolution",
+        "placeholder_name",
+        "provider",
+        mode="before",
+    )
+    @classmethod
+    def _strip_text(cls, value: Any) -> str:
+        """Strip text-like asset metadata."""
+        return _clean_string(value)
+
+
 class DeckPagePlan(BaseModel):
     """Template-independent content plan for one slide."""
 
@@ -203,6 +252,7 @@ class DeckPagePlan(BaseModel):
     asset_roles: list[str] = Field(default_factory=list)
     asset_semantic_positions: list[str] = Field(default_factory=list)
     asset_source_preference: Literal["user", "search", "ai", "placeholder", "mixed"] = "placeholder"
+    assets: list[DeckPageAsset] = Field(default_factory=list)
     speaker_notes: str = ""
 
     @field_validator(

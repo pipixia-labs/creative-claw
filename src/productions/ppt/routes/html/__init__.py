@@ -1,6 +1,45 @@
 """HTML route for the PPT product line."""
 
-from src.productions.ppt.routes.html.route import build_html_route
+from src.productions.ppt.routes.html.route import (
+    HTML_DELIVERY_STAGE,
+    HTML_PAGE_GENERATION_CONTENT_PLAN_KEY,
+    HTML_PAGE_GENERATION_PAGES_KEY,
+    HTML_ROUTE_STAGE_SEQUENCE,
+    HtmlPageGenerationResult,
+    HtmlPptxOutputResult,
+    HtmlQualityDeliveryResult,
+    HtmlRoutePaths,
+    HtmlTemplatePreparationResult,
+    build_html_page_generation_agent,
+    build_html_route,
+    build_html_route_with_agent,
+    deliver_html_route_quality,
+    export_html_pptx,
+    generate_html_pages,
+    generate_html_pages_with_agent,
+    prepare_html_route_paths,
+    prepare_html_template,
+    save_html_route_pages,
+)
 
-__all__ = ["build_html_route"]
-
+__all__ = [
+    "HTML_DELIVERY_STAGE",
+    "HTML_PAGE_GENERATION_CONTENT_PLAN_KEY",
+    "HTML_PAGE_GENERATION_PAGES_KEY",
+    "HTML_ROUTE_STAGE_SEQUENCE",
+    "HtmlPageGenerationResult",
+    "HtmlPptxOutputResult",
+    "HtmlQualityDeliveryResult",
+    "HtmlRoutePaths",
+    "HtmlTemplatePreparationResult",
+    "build_html_page_generation_agent",
+    "build_html_route",
+    "build_html_route_with_agent",
+    "deliver_html_route_quality",
+    "export_html_pptx",
+    "generate_html_pages",
+    "generate_html_pages_with_agent",
+    "prepare_html_route_paths",
+    "prepare_html_template",
+    "save_html_route_pages",
+]

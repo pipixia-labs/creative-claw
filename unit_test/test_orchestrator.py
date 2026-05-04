@@ -132,6 +132,8 @@ class OrchestratorTests(unittest.TestCase):
         self.assertIn("run_ppt_product", instruction)
         self.assertIn("PPT workflow routing hints", instruction)
         self.assertIn("prefer `run_ppt_product`", instruction)
+        self.assertIn("do not rewrite it into a slide outline", instruction)
+        self.assertIn("Do not put your own inferred outline", instruction)
         self.assertIn("Do not route PPTX delivery through DesignProductManager", instruction)
         self.assertIn("run_design_product", instruction)
         self.assertIn("Product line options", instruction)
@@ -559,6 +561,65 @@ class OrchestratorCallbackTests(unittest.IsolatedAsyncioTestCase):
             session_id=orchestrator.sid,
         )
         self.assertEqual(session.state["final_response"], "Here is the final image.")
+        self.assertEqual(session.state["final_file_paths"], [relative_path])
+
+    async def test_run_until_done_falls_back_when_final_response_path_is_untracked(self) -> None:
+        session_service = InMemorySessionService()
+        artifact_service = InMemoryArtifactService()
+        orchestrator = Orchestrator(
+            session_service=session_service,
+            artifact_service=artifact_service,
+            expert_agents={},
+        )
+        orchestrator.uid = "user-1"
+        orchestrator.sid = "session-1"
+
+        with tempfile.TemporaryDirectory(dir=workspace_root()) as tmpdir:
+            pptx_path = Path(tmpdir) / "deck.pptx"
+            pptx_path.write_bytes(b"fake-pptx")
+            file_record = build_workspace_file_record(
+                pptx_path,
+                description="generated pptx",
+                source="ppt_product_manager",
+            )
+            relative_path = workspace_relative_path(pptx_path)
+
+            await session_service.create_session(
+                app_name=SYS_CONFIG.app_name,
+                user_id=orchestrator.uid,
+                session_id=orchestrator.sid,
+                state={
+                    "orchestration_events": [],
+                    "generated": [file_record],
+                    "generated_history": [],
+                    "uploaded": [],
+                    "uploaded_history": [],
+                    "files_history": [[file_record]],
+                    "final_file_paths": [relative_path],
+                    ORCHESTRATOR_FINAL_RESPONSE_OUTPUT_KEY: {
+                        "reply_text": "PPTX 已生成。",
+                        "final_file_paths": [
+                            "generated/ai_ppt_for_kids/ai_science_for_primary_students.pptx"
+                        ],
+                    },
+                },
+            )
+
+            with patch.object(
+                orchestrator,
+                "run_agent_and_log_events",
+                new=AsyncMock(return_value="raw final text"),
+            ):
+                result = await orchestrator.run_until_done()
+
+        self.assertEqual(result["final_response"], "PPTX 已生成。")
+        self.assertEqual(result["final_file_paths"], [relative_path])
+
+        session = await session_service.get_session(
+            app_name=SYS_CONFIG.app_name,
+            user_id=orchestrator.uid,
+            session_id=orchestrator.sid,
+        )
         self.assertEqual(session.state["final_file_paths"], [relative_path])
 
     async def test_run_until_done_requires_structured_final_response(self) -> None:

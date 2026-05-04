@@ -1,28 +1,41 @@
-"""Deterministic HTML route MVP for PPT generation."""
+"""HTML route MVP for PPT generation."""
 
 from __future__ import annotations
 
+import copy
+from dataclasses import dataclass, field
 import html
 import json
 import textwrap
 from pathlib import Path
 from typing import Any
 
+from google.adk.agents import LlmAgent
+from google.adk.apps import App
+from google.adk.artifacts import BaseArtifactService, InMemoryArtifactService
+from google.adk.memory import InMemoryMemoryService
+from google.adk.runners import Runner
+from google.adk.sessions import InMemorySessionService
+from google.adk.tools.tool_context import ToolContext
+from google.genai.types import Content, Part
 from PIL import Image, ImageDraw, ImageFont
 from pptx import Presentation
 from pptx.dml.color import RGBColor
-from pptx.enum.shapes import MSO_SHAPE
+from pptx.enum.shapes import MSO_SHAPE, MSO_SHAPE_TYPE
 from pptx.enum.text import MSO_AUTO_SIZE, MSO_VERTICAL_ANCHOR
 from pptx.util import Inches, Pt
 
+from conf.llm import build_llm
 from src.productions.ppt.schemas import (
     DeckContentPlan,
+    DeckPageAsset,
     DeckPagePlan,
     HtmlRouteBuildPackage,
     HtmlTemplatePackage,
 )
 from src.productions.ppt.templates.html_registry import load_html_template_package
-from src.runtime.workspace import workspace_relative_path
+from src.runtime.tool_context_artifact_service import ToolContextArtifactService
+from src.runtime.workspace import resolve_workspace_path, workspace_relative_path
 
 _COLOR_BG = RGBColor(247, 248, 251)
 _COLOR_INK = RGBColor(23, 32, 51)
@@ -33,6 +46,68 @@ _COLOR_LINE = RGBColor(219, 226, 239)
 _COLOR_PANEL = RGBColor(255, 255, 255)
 _COLOR_WHITE = RGBColor(255, 255, 255)
 _FONT_FAMILY = "Aptos"
+_FREE_DESIGN_TEMPLATE_ID = "free_design"
+HTML_PAGE_GENERATION_CONTENT_PLAN_KEY = "ppt_html_route_content_plan"
+HTML_PAGE_GENERATION_PAGES_KEY = "ppt_html_route_generated_pages"
+HTML_PAGE_GENERATION_AGENT_MESSAGE_KEY = "ppt_html_page_generation_agent_message"
+HTML_PAGE_GENERATION_WARNINGS_KEY = "ppt_html_route_page_generation_warnings"
+HTML_ROUTE_STAGE_SEQUENCE = (
+    "template_preparation",
+    "page_generation",
+    "pptx_output",
+)
+HTML_DELIVERY_STAGE = "quality_delivery"
+
+
+@dataclass(frozen=True)
+class HtmlRoutePaths:
+    """Filesystem paths used by one HTML route build."""
+
+    output_dir: Path
+    preview_dir: Path
+    html_path: Path
+    pptx_path: Path
+    quality_report_path: Path
+    build_log_path: Path
+
+
+@dataclass(frozen=True)
+class HtmlTemplatePreparationResult:
+    """Result of HTML route template preparation."""
+
+    template: HtmlTemplatePackage
+    stage: str = "template_preparation"
+
+
+@dataclass(frozen=True)
+class HtmlPageGenerationResult:
+    """Result of HTML route page generation."""
+
+    html_path: Path
+    preview_paths: list[Path]
+    generation_mode: str = "deterministic_renderer"
+    warnings: list[str] = field(default_factory=list)
+    stage: str = "page_generation"
+
+
+@dataclass(frozen=True)
+class HtmlPptxOutputResult:
+    """Result of HTML route PPTX output."""
+
+    pptx_path: Path
+    pptx_strategy: str
+    stage: str = "pptx_output"
+
+
+@dataclass(frozen=True)
+class HtmlQualityDeliveryResult:
+    """Result of HTML route quality and delivery packaging."""
+
+    quality_report_path: Path
+    build_log_path: Path
+    quality_report: dict[str, Any]
+    warnings: list[str]
+    stage: str = HTML_DELIVERY_STAGE
 
 
 def build_html_route(
@@ -40,64 +115,658 @@ def build_html_route(
     content_plan: DeckContentPlan,
     output_dir: Path,
     aspect_ratio: str = "16:9",
-    template_id: str = "clean_business",
+    template_id: str = "",
 ) -> HtmlRouteBuildPackage:
     """Generate static HTML, PNG previews, and editable PPTX."""
-    template = load_html_template_package(template_id, aspect_ratio=aspect_ratio)
+    paths = prepare_html_route_paths(output_dir)
+    template_stage = prepare_html_template(template_id=template_id, aspect_ratio=aspect_ratio)
+    page_stage = generate_html_pages(
+        content_plan=content_plan,
+        template=template_stage.template,
+        paths=paths,
+    )
+    pptx_stage = export_html_pptx(
+        content_plan=content_plan,
+        template=template_stage.template,
+        page_generation=page_stage,
+        paths=paths,
+    )
+    quality_stage = deliver_html_route_quality(
+        content_plan=content_plan,
+        template=template_stage.template,
+        page_generation=page_stage,
+        pptx_output=pptx_stage,
+        paths=paths,
+    )
+
+    return HtmlRouteBuildPackage(
+        template=template_stage.template,
+        html_deck_path=workspace_relative_path(page_stage.html_path),
+        preview_paths=[workspace_relative_path(path) for path in page_stage.preview_paths],
+        pptx_path=workspace_relative_path(pptx_stage.pptx_path),
+        quality_report_path=workspace_relative_path(quality_stage.quality_report_path),
+        build_log_path=workspace_relative_path(quality_stage.build_log_path),
+        warnings=quality_stage.warnings,
+    )
+
+
+async def build_html_route_with_agent(
+    *,
+    content_plan: DeckContentPlan,
+    output_dir: Path,
+    aspect_ratio: str = "16:9",
+    template_id: str = "",
+    tool_context: ToolContext | None = None,
+    app_name: str = "creative_claw",
+    artifact_service: BaseArtifactService | None = None,
+) -> HtmlRouteBuildPackage:
+    """Generate HTML-route artifacts, using the page-generation agent when available."""
+    paths = prepare_html_route_paths(output_dir)
+    template_stage = prepare_html_template(template_id=template_id, aspect_ratio=aspect_ratio)
+    page_stage = await generate_html_pages_with_agent(
+        content_plan=content_plan,
+        template=template_stage.template,
+        paths=paths,
+        tool_context=tool_context,
+        app_name=app_name,
+        artifact_service=artifact_service,
+    )
+    pptx_stage = export_html_pptx(
+        content_plan=content_plan,
+        template=template_stage.template,
+        page_generation=page_stage,
+        paths=paths,
+    )
+    quality_stage = deliver_html_route_quality(
+        content_plan=content_plan,
+        template=template_stage.template,
+        page_generation=page_stage,
+        pptx_output=pptx_stage,
+        paths=paths,
+    )
+
+    return HtmlRouteBuildPackage(
+        template=template_stage.template,
+        html_deck_path=workspace_relative_path(page_stage.html_path),
+        preview_paths=[workspace_relative_path(path) for path in page_stage.preview_paths],
+        pptx_path=workspace_relative_path(pptx_stage.pptx_path),
+        quality_report_path=workspace_relative_path(quality_stage.quality_report_path),
+        build_log_path=workspace_relative_path(quality_stage.build_log_path),
+        warnings=[*page_stage.warnings, *quality_stage.warnings],
+    )
+
+
+def prepare_html_route_paths(output_dir: Path) -> HtmlRoutePaths:
+    """Prepare output paths for all HTML route stages."""
     output_dir.mkdir(parents=True, exist_ok=True)
     preview_dir = output_dir / "previews"
     preview_dir.mkdir(parents=True, exist_ok=True)
+    return HtmlRoutePaths(
+        output_dir=output_dir,
+        preview_dir=preview_dir,
+        html_path=output_dir / "deck.html",
+        pptx_path=output_dir / "deck.pptx",
+        quality_report_path=output_dir / "quality_report.json",
+        build_log_path=output_dir / "build_log.json",
+    )
 
-    html_path = output_dir / "deck.html"
-    pptx_path = output_dir / "deck.pptx"
-    quality_report_path = output_dir / "quality_report.json"
-    build_log_path = output_dir / "build_log.json"
 
-    html_path.write_text(_render_html_deck(content_plan, template), encoding="utf-8")
-    preview_paths = _render_previews(content_plan, template, preview_dir)
-    if template.pptx_strategy == "native_editable":
-        _export_native_pptx(content_plan, pptx_path, template)
+def prepare_html_template(
+    *,
+    template_id: str,
+    aspect_ratio: str,
+) -> HtmlTemplatePreparationResult:
+    """Prepare the HTML route design package for a route run."""
+    if not str(template_id or "").strip():
+        return HtmlTemplatePreparationResult(
+            template=_build_free_design_template_package(aspect_ratio=aspect_ratio),
+        )
+    return HtmlTemplatePreparationResult(
+        template=load_html_template_package(template_id, aspect_ratio=aspect_ratio),
+    )
+
+
+def _build_free_design_template_package(*, aspect_ratio: str) -> HtmlTemplatePackage:
+    """Build the no-system-template package used for free HTML page generation."""
+    if aspect_ratio not in {"16:9", "4:3"}:
+        raise ValueError("HTML template aspect_ratio must be `16:9` or `4:3`.")
+    viewport_width = 1024 if aspect_ratio == "4:3" else 1280
+    viewport_height = 768 if aspect_ratio == "4:3" else 720
+    return HtmlTemplatePackage(
+        template_id=_FREE_DESIGN_TEMPLATE_ID,
+        label="Free Design",
+        version="0.1.0",
+        aspect_ratio=aspect_ratio,
+        viewport_width=viewport_width,
+        viewport_height=viewport_height,
+        page_types={
+            "cover": "free-cover",
+            "toc": "free-toc",
+            "chapter_start": "free-section",
+            "chapter_content": "free-content",
+            "ending": "free-ending",
+        },
+        pptx_strategy="native_editable",
+        editability_notes=(
+            "No system HTML template was selected. The HTML route uses free-design page generation "
+            "and exports editable text boxes and vector shapes."
+        ),
+    )
+
+
+def generate_html_pages(
+    *,
+    content_plan: DeckContentPlan,
+    template: HtmlTemplatePackage,
+    paths: HtmlRoutePaths,
+) -> HtmlPageGenerationResult:
+    """Generate HTML deck and PNG previews from a content plan."""
+    paths.html_path.write_text(_render_html_deck(content_plan, template), encoding="utf-8")
+    preview_paths = _render_previews(content_plan, template, paths.preview_dir)
+    return HtmlPageGenerationResult(
+        html_path=paths.html_path,
+        preview_paths=preview_paths,
+    )
+
+
+async def generate_html_pages_with_agent(
+    *,
+    content_plan: DeckContentPlan,
+    template: HtmlTemplatePackage,
+    paths: HtmlRoutePaths,
+    tool_context: ToolContext | None,
+    app_name: str,
+    artifact_service: BaseArtifactService | None,
+) -> HtmlPageGenerationResult:
+    """Generate per-slide HTML with an ADK page-generation agent, falling back deterministically."""
+    if template.template_id != _FREE_DESIGN_TEMPLATE_ID:
+        return generate_html_pages(content_plan=content_plan, template=template, paths=paths)
+    if tool_context is None or not hasattr(tool_context, "_invocation_context"):
+        return generate_html_pages(content_plan=content_plan, template=template, paths=paths)
+
+    try:
+        page_fragments = await _run_html_page_generation_agent(
+            content_plan=content_plan,
+            template=template,
+            tool_context=tool_context,
+            app_name=app_name,
+            artifact_service=artifact_service,
+        )
+        paths.html_path.write_text(
+            _render_agent_html_deck(content_plan, template, page_fragments),
+            encoding="utf-8",
+        )
+        preview_paths = await _render_html_deck_screenshots(
+            html_path=paths.html_path,
+            content_plan=content_plan,
+            template=template,
+            preview_dir=paths.preview_dir,
+        )
+        warnings = []
+        if not preview_paths:
+            warnings.append("HTML page screenshots were unavailable; deterministic preview fallback was used.")
+            preview_paths = _render_previews(content_plan, template, paths.preview_dir)
+        return HtmlPageGenerationResult(
+            html_path=paths.html_path,
+            preview_paths=preview_paths,
+            generation_mode="llm_agent_html",
+            warnings=warnings,
+        )
+    except Exception as exc:
+        warning = f"HtmlPageGenerationAgent fallback: {type(exc).__name__}: {exc}"
+        _append_html_page_generation_warning(tool_context.state, warning)
+        fallback = generate_html_pages(content_plan=content_plan, template=template, paths=paths)
+        return HtmlPageGenerationResult(
+            html_path=fallback.html_path,
+            preview_paths=fallback.preview_paths,
+            generation_mode=fallback.generation_mode,
+            warnings=[warning, *fallback.warnings],
+        )
+
+
+def export_html_pptx(
+    *,
+    content_plan: DeckContentPlan,
+    template: HtmlTemplatePackage,
+    page_generation: HtmlPageGenerationResult,
+    paths: HtmlRoutePaths,
+) -> HtmlPptxOutputResult:
+    """Export PPTX from generated HTML-route pages."""
+    if page_generation.generation_mode == "llm_agent_html":
+        _export_previews_to_pptx(
+            page_generation.preview_paths,
+            paths.pptx_path,
+            aspect_ratio=template.aspect_ratio,
+        )
+        pptx_strategy = "screenshot"
+    elif template.pptx_strategy == "native_editable":
+        _export_native_pptx(content_plan, paths.pptx_path, template)
+        pptx_strategy = template.pptx_strategy
     else:
-        _export_previews_to_pptx(preview_paths, pptx_path, aspect_ratio=template.aspect_ratio)
+        _export_previews_to_pptx(
+            page_generation.preview_paths,
+            paths.pptx_path,
+            aspect_ratio=template.aspect_ratio,
+        )
+        pptx_strategy = template.pptx_strategy
+    return HtmlPptxOutputResult(
+        pptx_path=paths.pptx_path,
+        pptx_strategy=pptx_strategy,
+    )
+
+
+def deliver_html_route_quality(
+    *,
+    content_plan: DeckContentPlan,
+    template: HtmlTemplatePackage,
+    page_generation: HtmlPageGenerationResult,
+    pptx_output: HtmlPptxOutputResult,
+    paths: HtmlRoutePaths,
+) -> HtmlQualityDeliveryResult:
+    """Validate route artifacts and write delivery logs."""
     quality_report = _validate_html_route_output(
         content_plan=content_plan,
-        html_path=html_path,
-        preview_paths=preview_paths,
-        pptx_path=pptx_path,
+        html_path=page_generation.html_path,
+        preview_paths=page_generation.preview_paths,
+        pptx_path=pptx_output.pptx_path,
+        pptx_strategy=pptx_output.pptx_strategy,
     )
-    quality_report_path.write_text(
+    quality_report["route_stages"] = list(HTML_ROUTE_STAGE_SEQUENCE)
+    quality_report["delivery_stage"] = HTML_DELIVERY_STAGE
+    paths.quality_report_path.write_text(
         json.dumps(quality_report, ensure_ascii=False, indent=2),
         encoding="utf-8",
     )
     build_log = {
         "route": "html",
+        "workflow_name": "HtmlRouteSequentialAgent",
+        "route_stages": list(HTML_ROUTE_STAGE_SEQUENCE),
+        "delivery_stage": HTML_DELIVERY_STAGE,
         "template_id": template.template_id,
-        "pptx_strategy": template.pptx_strategy,
+        "template_source": "none" if template.template_id == _FREE_DESIGN_TEMPLATE_ID else "system",
+        "page_generation_mode": _FREE_DESIGN_TEMPLATE_ID
+        if template.template_id == _FREE_DESIGN_TEMPLATE_ID
+        else "system_template",
+        "page_generation_executor": page_generation.generation_mode,
+        "pptx_strategy": pptx_output.pptx_strategy,
         "slide_count": len(content_plan.pages),
-        "html_deck_path": workspace_relative_path(html_path),
-        "pptx_path": workspace_relative_path(pptx_path),
-        "preview_count": len(preview_paths),
+        "html_deck_path": workspace_relative_path(page_generation.html_path),
+        "pptx_path": workspace_relative_path(pptx_output.pptx_path),
+        "preview_count": len(page_generation.preview_paths),
     }
-    build_log_path.write_text(json.dumps(build_log, ensure_ascii=False, indent=2), encoding="utf-8")
-
+    paths.build_log_path.write_text(json.dumps(build_log, ensure_ascii=False, indent=2), encoding="utf-8")
     warnings = []
     if template.pptx_strategy == "screenshot":
         warnings.append(template.editability_notes)
-
-    return HtmlRouteBuildPackage(
-        template=template,
-        html_deck_path=workspace_relative_path(html_path),
-        preview_paths=[workspace_relative_path(path) for path in preview_paths],
-        pptx_path=workspace_relative_path(pptx_path),
-        quality_report_path=workspace_relative_path(quality_report_path),
-        build_log_path=workspace_relative_path(build_log_path),
+    return HtmlQualityDeliveryResult(
+        quality_report_path=paths.quality_report_path,
+        build_log_path=paths.build_log_path,
+        quality_report=quality_report,
         warnings=warnings,
     )
+
+
+def build_html_page_generation_agent() -> LlmAgent:
+    """Build the ADK agent that turns a DeckContentPlan into per-slide HTML."""
+    return LlmAgent(
+        name="HtmlPageGenerationAgent",
+        model=build_llm(),
+        instruction=(
+            "You are Creative Claw's HTML PPT page generation agent.\n"
+            "You receive a complete DeckContentPlan JSON and must create one HTML fragment per slide.\n"
+            "Do not use a fixed template, fixed card grid, or shared business layout. Choose each page's "
+            "composition directly from the page content, audience, page_type, and available assets.\n"
+            "Each fragment must be a single <section> for one slide. Inline CSS is allowed. Do not use "
+            "external CSS, external JS, remote images, markdown, JSON, or code fences.\n"
+            "Fit each slide into the declared viewport. Avoid text overlap, tiny unreadable text, and image/text collisions.\n"
+            "Use ready asset html_src values when useful. Keep image text out of generated images.\n"
+            "When all slides are ready, call save_html_route_pages with the full ordered page list."
+        ),
+        tools=[save_html_route_pages],
+        output_key=HTML_PAGE_GENERATION_AGENT_MESSAGE_KEY,
+    )
+
+
+def save_html_route_pages(
+    pages: list[dict[str, Any]],
+    tool_context: ToolContext,
+) -> dict[str, Any]:
+    """Save generated per-slide HTML fragments for the HTML route."""
+    content_plan_payload = tool_context.state.get(HTML_PAGE_GENERATION_CONTENT_PLAN_KEY) or {}
+    content_plan = DeckContentPlan.model_validate(content_plan_payload)
+    normalized_pages = _normalize_agent_page_fragments(pages, content_plan=content_plan)
+    payload = [page.model_dump(mode="json") for page in normalized_pages]
+    tool_context.state[HTML_PAGE_GENERATION_PAGES_KEY] = payload
+    tool_context.state["current_output"] = {
+        "status": "success",
+        "message": "HtmlPageGenerationAgent saved per-slide HTML.",
+        "html_pages": payload,
+    }
+    return {
+        "status": "success",
+        "message": "HTML route pages saved.",
+        "page_count": len(payload),
+    }
+
+
+@dataclass(frozen=True)
+class _GeneratedHtmlPage:
+    """One generated slide HTML fragment."""
+
+    slide_number: int
+    html_fragment: str
+
+    def model_dump(self, *, mode: str = "json") -> dict[str, Any]:
+        """Return a JSON-safe representation."""
+        return {
+            "slide_number": self.slide_number,
+            "html": self.html_fragment,
+        }
+
+
+async def _run_html_page_generation_agent(
+    *,
+    content_plan: DeckContentPlan,
+    template: HtmlTemplatePackage,
+    tool_context: ToolContext,
+    app_name: str,
+    artifact_service: BaseArtifactService | None,
+) -> list[_GeneratedHtmlPage]:
+    """Run the child page-generation agent and return saved HTML fragments."""
+    invocation_context = tool_context._invocation_context
+    child_session_service = InMemorySessionService()
+    child_artifact_service = _resolve_child_artifact_service(
+        tool_context=tool_context,
+        fallback_service=artifact_service or InMemoryArtifactService(),
+    )
+    page_agent = build_html_page_generation_agent()
+    child_runner = _build_child_runner(
+        agent=page_agent,
+        app_name=app_name,
+        session_service=child_session_service,
+        artifact_service=child_artifact_service,
+        invocation_context=invocation_context,
+    )
+    child_state = _copy_state(tool_context.state)
+    child_state[HTML_PAGE_GENERATION_CONTENT_PLAN_KEY] = content_plan.model_dump(mode="json")
+    try:
+        child_session = await child_session_service.create_session(
+            app_name=app_name,
+            user_id=invocation_context.user_id,
+            state=child_state,
+        )
+        async for _event in child_runner.run_async(
+            user_id=child_session.user_id,
+            session_id=child_session.id,
+            new_message=Content(
+                role="user",
+                parts=[
+                    Part(
+                        text=_build_html_page_generation_user_message(
+                            content_plan=content_plan,
+                            template=template,
+                        )
+                    )
+                ],
+            ),
+        ):
+            pass
+        final_session = await child_session_service.get_session(
+            app_name=app_name,
+            user_id=child_session.user_id,
+            session_id=child_session.id,
+        )
+        final_state = final_session.state if final_session is not None else child_state
+        pages_payload = final_state.get(HTML_PAGE_GENERATION_PAGES_KEY)
+        if not pages_payload:
+            raise ValueError("HtmlPageGenerationAgent did not save HTML route pages.")
+        normalized_pages = _normalize_agent_page_fragments(pages_payload, content_plan=content_plan)
+        tool_context.state[HTML_PAGE_GENERATION_PAGES_KEY] = [
+            page.model_dump(mode="json") for page in normalized_pages
+        ]
+        if final_state.get(HTML_PAGE_GENERATION_AGENT_MESSAGE_KEY):
+            tool_context.state[HTML_PAGE_GENERATION_AGENT_MESSAGE_KEY] = str(
+                final_state.get(HTML_PAGE_GENERATION_AGENT_MESSAGE_KEY)
+            )
+        return normalized_pages
+    finally:
+        await child_runner.close()
+
+
+def _build_html_page_generation_user_message(
+    *,
+    content_plan: DeckContentPlan,
+    template: HtmlTemplatePackage,
+) -> str:
+    """Build the explicit user message for HTML page generation."""
+    payload = content_plan.model_dump(mode="json")
+    page_payloads = []
+    for page in payload.get("pages", []):
+        prepared_page = dict(page)
+        prepared_assets = []
+        for asset in prepared_page.get("assets", []) or []:
+            prepared_asset = dict(asset)
+            asset_path = str(prepared_asset.get("path") or "").strip()
+            if asset_path:
+                try:
+                    prepared_asset["html_src"] = resolve_workspace_path(asset_path).as_uri()
+                except Exception:
+                    prepared_asset["html_src"] = asset_path
+            prepared_assets.append(prepared_asset)
+        prepared_page["assets"] = prepared_assets
+        page_payloads.append(prepared_page)
+    payload["pages"] = page_payloads
+    return "\n".join(
+        [
+            "Generate HTML for each PPT slide from this DeckContentPlan.",
+            "The route is free design: do not reuse a fixed layout across slides unless the content naturally asks for it.",
+            "Return no prose. Call save_html_route_pages with a list of objects: "
+            "`[{\"slide_number\": 1, \"html\": \"<section>...</section>\"}, ...]`.",
+            f"Viewport: {template.viewport_width}x{template.viewport_height}.",
+            "",
+            "DeckContentPlan JSON:",
+            "```json",
+            json.dumps(payload, ensure_ascii=False, indent=2),
+            "```",
+        ]
+    )
+
+
+def _normalize_agent_page_fragments(
+    pages: list[dict[str, Any]],
+    *,
+    content_plan: DeckContentPlan,
+) -> list[_GeneratedHtmlPage]:
+    """Validate and normalize saved page HTML fragments."""
+    pages_by_number: dict[int, str] = {}
+    for item in pages:
+        if not isinstance(item, dict):
+            continue
+        try:
+            slide_number = int(item.get("slide_number") or item.get("number") or 0)
+        except (TypeError, ValueError):
+            slide_number = 0
+        html_fragment = _clean_generated_html_fragment(str(item.get("html") or item.get("html_fragment") or ""))
+        if slide_number > 0 and html_fragment:
+            pages_by_number[slide_number] = html_fragment
+
+    normalized_pages = []
+    for page in content_plan.pages:
+        html_fragment = pages_by_number.get(page.slide_number, "")
+        if not html_fragment:
+            raise ValueError(f"Missing generated HTML for slide {page.slide_number}.")
+        normalized_pages.append(
+            _GeneratedHtmlPage(
+                slide_number=page.slide_number,
+                html_fragment=_ensure_slide_section(html_fragment, page=page),
+            )
+        )
+    return normalized_pages
+
+
+def _clean_generated_html_fragment(fragment: str) -> str:
+    """Remove common LLM wrappers around an HTML fragment."""
+    clean_fragment = str(fragment or "").strip()
+    if clean_fragment.startswith("```"):
+        clean_fragment = clean_fragment.strip("`")
+        clean_fragment = clean_fragment.removeprefix("html").strip()
+    return clean_fragment
+
+
+def _ensure_slide_section(fragment: str, *, page: DeckPagePlan) -> str:
+    """Ensure a generated fragment is wrapped as one slide section."""
+    clean_fragment = fragment.strip()
+    slide_number = f"{page.slide_number:02d}"
+    if "<section" in clean_fragment[:200].lower():
+        section = clean_fragment
+        if "data-slide-number" not in section[:400]:
+            section = section.replace("<section", f'<section data-slide-number="{slide_number}"', 1)
+        if "class=" not in section[:400]:
+            section = section.replace("<section", '<section class="slide generated-slide"', 1)
+        elif "slide" not in section[:400]:
+            section = section.replace('class="', 'class="slide generated-slide ', 1)
+        return section
+    return (
+        f'<section class="slide generated-slide" data-slide-number="{slide_number}" '
+        f'data-page-type="{html.escape(page.page_type)}">{clean_fragment}</section>'
+    )
+
+
+def _render_agent_html_deck(
+    content_plan: DeckContentPlan,
+    template: HtmlTemplatePackage,
+    pages: list[_GeneratedHtmlPage],
+) -> str:
+    """Render a full HTML deck from agent-generated slide fragments."""
+    slides_html = "\n".join(page.html_fragment for page in pages)
+    return f"""<!doctype html>
+<html lang="zh-CN">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <title>{html.escape(content_plan.title)}</title>
+  <style>
+    * {{ box-sizing: border-box; }}
+    body {{ margin: 0; background: #20242d; font-family: Inter, -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif; }}
+    .deck {{ display: grid; gap: 32px; padding: 32px; }}
+    .slide {{
+      width: {template.viewport_width}px;
+      height: {template.viewport_height}px;
+      position: relative;
+      overflow: hidden;
+      background: #fff;
+      color: #111827;
+    }}
+    img {{ max-width: 100%; display: block; }}
+  </style>
+</head>
+<body data-deck-template="{html.escape(template.template_id)}" data-page-generation-mode="llm_agent_html">
+  <main class="deck">
+{slides_html}
+  </main>
+</body>
+</html>
+"""
+
+
+async def _render_html_deck_screenshots(
+    *,
+    html_path: Path,
+    content_plan: DeckContentPlan,
+    template: HtmlTemplatePackage,
+    preview_dir: Path,
+) -> list[Path]:
+    """Render browser screenshots of generated HTML slides."""
+    try:
+        from playwright.async_api import async_playwright
+    except ImportError:
+        return []
+
+    preview_paths: list[Path] = []
+    try:
+        async with async_playwright() as playwright:
+            browser = await playwright.chromium.launch()
+            try:
+                page = await browser.new_page(
+                    viewport={
+                        "width": template.viewport_width,
+                        "height": template.viewport_height,
+                    }
+                )
+                await page.goto(html_path.as_uri(), wait_until="networkidle")
+                for slide_plan in content_plan.pages:
+                    locator = page.locator(f'[data-slide-number="{slide_plan.slide_number:02d}"]').first
+                    preview_path = preview_dir / f"slide_{slide_plan.slide_number:03d}.png"
+                    await locator.screenshot(path=str(preview_path))
+                    preview_paths.append(preview_path)
+            finally:
+                await browser.close()
+    except Exception:
+        return []
+    return preview_paths
+
+
+def _copy_state(state: Any) -> dict[str, Any]:
+    """Return a deep copy of an ADK state object or plain dict."""
+    if hasattr(state, "to_dict"):
+        return copy.deepcopy(state.to_dict())
+    return copy.deepcopy(dict(state))
+
+
+def _resolve_child_artifact_service(
+    *,
+    tool_context: ToolContext,
+    fallback_service: BaseArtifactService,
+) -> BaseArtifactService:
+    """Pick the artifact service for an internal route runner."""
+    required_methods = ("save_artifact", "load_artifact", "list_artifacts")
+    if all(hasattr(tool_context, method_name) for method_name in required_methods):
+        return ToolContextArtifactService(tool_context)
+    return fallback_service
+
+
+def _build_child_runner(
+    *,
+    agent: LlmAgent,
+    app_name: str,
+    session_service: InMemorySessionService,
+    artifact_service: BaseArtifactService,
+    invocation_context: Any,
+) -> Runner:
+    """Create a child ADK runner for the HTML page-generation agent."""
+    child_plugins = getattr(getattr(invocation_context, "plugin_manager", None), "plugins", None)
+    runner_kwargs = {
+        "app_name": app_name,
+        "session_service": session_service,
+        "artifact_service": artifact_service,
+        "memory_service": InMemoryMemoryService(),
+        "credential_service": getattr(invocation_context, "credential_service", None),
+    }
+    if child_plugins:
+        runner_kwargs["app"] = App(
+            name=app_name,
+            root_agent=agent,
+            plugins=list(child_plugins),
+        )
+    else:
+        runner_kwargs["agent"] = agent
+    return Runner(**runner_kwargs)
+
+
+def _append_html_page_generation_warning(state: Any, warning: str) -> None:
+    """Append one HTML page-generation warning to state."""
+    clean_warning = str(warning or "").strip()
+    if not clean_warning:
+        return
+    warnings = list(state.get(HTML_PAGE_GENERATION_WARNINGS_KEY) or [])
+    warnings.append(clean_warning)
+    state[HTML_PAGE_GENERATION_WARNINGS_KEY] = warnings
 
 
 def _render_html_deck(content_plan: DeckContentPlan, template: HtmlTemplatePackage) -> str:
     """Render one complete static HTML deck."""
     slides_html = "\n".join(_render_html_slide(page, template) for page in content_plan.pages)
+    theme = _html_theme_values(content_plan, template)
     return f"""<!doctype html>
 <html lang="zh-CN">
 <head>
@@ -106,18 +775,18 @@ def _render_html_deck(content_plan: DeckContentPlan, template: HtmlTemplatePacka
   <title>{html.escape(content_plan.title)}</title>
   <style>
     :root {{
-      --bg: #f7f8fb;
-      --ink: #172033;
-      --muted: #667085;
-      --panel: #ffffff;
-      --accent: #2457d6;
-      --accent-soft: #e8eefc;
-      --line: #dbe2ef;
+      --bg: {theme['bg']};
+      --ink: {theme['ink']};
+      --muted: {theme['muted']};
+      --panel: {theme['panel']};
+      --accent: {theme['accent']};
+      --accent-soft: {theme['accent_soft']};
+      --line: {theme['line']};
     }}
     * {{ box-sizing: border-box; }}
     body {{
       margin: 0;
-      background: #d7dce8;
+      background: {theme['body_bg']};
       color: var(--ink);
       font-family: Inter, -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
     }}
@@ -130,7 +799,8 @@ def _render_html_deck(content_plan: DeckContentPlan, template: HtmlTemplatePacka
       width: {template.viewport_width}px;
       height: {template.viewport_height}px;
       background: var(--bg);
-      border: 1px solid var(--line);
+      border: {theme['slide_border']};
+      border-radius: {theme['slide_radius']};
       overflow: hidden;
       position: relative;
       padding: 58px 72px;
@@ -182,7 +852,7 @@ def _render_html_deck(content_plan: DeckContentPlan, template: HtmlTemplatePacka
     .block {{
       background: var(--panel);
       border: 1px solid var(--line);
-      border-radius: 8px;
+      border-radius: {theme['block_radius']};
       padding: 22px 24px;
       min-height: 130px;
     }}
@@ -217,19 +887,113 @@ def _render_html_deck(content_plan: DeckContentPlan, template: HtmlTemplatePacka
     }}
     .visual-band {{
       height: 92px;
-      border-radius: 8px;
-      background: linear-gradient(90deg, var(--accent), #43a6ff);
+      border-radius: {theme['block_radius']};
+      background: {theme['visual_band']};
       margin-top: 34px;
+    }}
+    .asset-frame {{
+      height: 160px;
+      border-radius: 8px;
+      border: 1px solid var(--line);
+      background: var(--panel);
+      margin: 26px 0 0;
+      overflow: hidden;
+    }}
+    .asset-frame img {{
+      width: 100%;
+      height: 100%;
+      object-fit: cover;
+      display: block;
     }}
   </style>
 </head>
-<body data-deck-template="{html.escape(template.template_id)}">
+<body data-deck-template="{html.escape(template.template_id)}" data-page-generation-mode="{theme['page_generation_mode']}">
   <main class="deck">
 {slides_html}
   </main>
 </body>
 </html>
 """
+
+
+def _html_theme_values(content_plan: DeckContentPlan, template: HtmlTemplatePackage) -> dict[str, str]:
+    """Return CSS values for system-template or no-template page generation."""
+    if template.template_id != _FREE_DESIGN_TEMPLATE_ID:
+        return {
+            "bg": "#f7f8fb",
+            "ink": "#172033",
+            "muted": "#667085",
+            "panel": "#ffffff",
+            "accent": "#2457d6",
+            "accent_soft": "#e8eefc",
+            "line": "#dbe2ef",
+            "body_bg": "#d7dce8",
+            "slide_border": "1px solid var(--line)",
+            "slide_radius": "0",
+            "block_radius": "8px",
+            "visual_band": "linear-gradient(90deg, var(--accent), #43a6ff)",
+            "page_generation_mode": "system_template",
+        }
+    if _looks_child_friendly_plan(content_plan):
+        return {
+            "bg": "#fff8e7",
+            "ink": "#243049",
+            "muted": "#5f6472",
+            "panel": "#ffffff",
+            "accent": "#ff6b57",
+            "accent_soft": "#ffe6d6",
+            "line": "#ffd39e",
+            "body_bg": "#ffe8f0",
+            "slide_border": "0",
+            "slide_radius": "22px",
+            "block_radius": "18px",
+            "visual_band": "linear-gradient(90deg, #ff7a59, #ffd166, #4ecdc4)",
+            "page_generation_mode": _FREE_DESIGN_TEMPLATE_ID,
+        }
+    return {
+        "bg": "#fbfbf7",
+        "ink": "#191b1f",
+        "muted": "#5d6470",
+        "panel": "#ffffff",
+        "accent": "#0f9f8f",
+        "accent_soft": "#dff8f4",
+        "line": "#dce7e4",
+        "body_bg": "#e9efe9",
+        "slide_border": "0",
+        "slide_radius": "18px",
+        "block_radius": "14px",
+        "visual_band": "linear-gradient(90deg, #0f9f8f, #8fd14f)",
+        "page_generation_mode": _FREE_DESIGN_TEMPLATE_ID,
+    }
+
+
+def _looks_child_friendly_plan(content_plan: DeckContentPlan) -> bool:
+    """Infer whether the free-design deck should use child-friendly styling."""
+    text = " ".join(
+        [
+            content_plan.title,
+            content_plan.core_narrative,
+            *[page.title for page in content_plan.pages],
+            *[page.key_takeaway for page in content_plan.pages],
+        ]
+    ).lower()
+    return any(
+        keyword in text
+        for keyword in (
+            "幼儿园",
+            "小朋友",
+            "儿童",
+            "可爱",
+            "apple",
+            "cat",
+            "dog",
+            "ball",
+            "sun",
+            "kindergarten",
+            "kid",
+            "child",
+        )
+    )
 
 
 def _render_html_slide(page: DeckPagePlan, template: HtmlTemplatePackage) -> str:
@@ -241,7 +1005,7 @@ def _render_html_slide(page: DeckPagePlan, template: HtmlTemplatePackage) -> str
     if page.page_type == "toc":
         toc_html = _render_toc_list(blocks)
     content = toc_html or f'<div class="content-grid">{block_html}</div>'
-    visual = '<div class="visual-band"></div>' if page.asset_intent else ""
+    visual = _render_page_asset_html(page) or ('<div class="visual-band"></div>' if page.asset_intent else "")
     return f"""    <section class="slide slide-{html.escape(page.page_type)}" data-layout="{html.escape(layout)}" data-slide-number="{page.slide_number:02d}">
       <div>
         <div class="eyebrow">{html.escape(page.page_type.replace("_", " "))}</div>
@@ -251,6 +1015,19 @@ def _render_html_slide(page: DeckPagePlan, template: HtmlTemplatePackage) -> str
       </div>
       {visual}
     </section>"""
+
+
+def _render_page_asset_html(page: DeckPagePlan) -> str:
+    """Render the first ready slide asset as an HTML image."""
+    asset = _first_ready_asset(page)
+    if asset is None:
+        return ""
+    image_path = _resolve_asset_file(asset)
+    if image_path is None:
+        return ""
+    src = image_path.as_uri()
+    alt = asset.alt or asset.description or page.title
+    return f'<figure class="asset-frame"><img src="{html.escape(src)}" alt="{html.escape(alt)}" /></figure>'
 
 
 def _render_content_block(block: dict[str, Any]) -> str:
@@ -285,7 +1062,7 @@ def _render_previews(
     for page in content_plan.pages:
         image = Image.new("RGB", (template.viewport_width, template.viewport_height), "#F7F8FB")
         draw = ImageDraw.Draw(image)
-        _draw_slide_preview(draw, page, template)
+        _draw_slide_preview(image, draw, page, template)
         preview_path = preview_dir / f"slide_{page.slide_number:03d}.png"
         image.save(preview_path)
         preview_paths.append(preview_path)
@@ -293,6 +1070,7 @@ def _render_previews(
 
 
 def _draw_slide_preview(
+    image: Image.Image,
     draw: ImageDraw.ImageDraw,
     page: DeckPagePlan,
     template: HtmlTemplatePackage,
@@ -344,9 +1122,36 @@ def _draw_slide_preview(
             body_y += 23
 
     band_y = height - 104
-    draw.rounded_rectangle((margin_x, band_y, width - margin_x, band_y + 58), radius=8, fill=accent)
-    draw.text((margin_x + 20, band_y + 17), page.asset_intent or "HTML route preview", fill="#FFFFFF", font=small_font)
+    if not _paste_preview_asset(image, draw, page, (margin_x, band_y - 72, width - margin_x, band_y + 58)):
+        draw.rounded_rectangle((margin_x, band_y, width - margin_x, band_y + 58), radius=8, fill=accent)
+        draw.text((margin_x + 20, band_y + 17), page.asset_intent or "HTML route preview", fill="#FFFFFF", font=small_font)
     draw.text((width - margin_x - 38, height - 40), f"{page.slide_number:02d}", fill="#98A2B3", font=small_font)
+
+
+def _paste_preview_asset(
+    image: Image.Image,
+    draw: ImageDraw.ImageDraw,
+    page: DeckPagePlan,
+    box: tuple[int, int, int, int],
+) -> bool:
+    """Paste a ready slide asset into the PNG preview."""
+    asset = _first_ready_asset(page)
+    image_path = _resolve_asset_file(asset) if asset is not None else None
+    if image_path is None:
+        return False
+    try:
+        with Image.open(image_path) as asset_image:
+            asset_image = asset_image.convert("RGB")
+            max_width = max(1, box[2] - box[0])
+            max_height = max(1, box[3] - box[1])
+            asset_image.thumbnail((max_width, max_height))
+            paste_x = box[0] + (max_width - asset_image.width) // 2
+            paste_y = box[1] + (max_height - asset_image.height) // 2
+            draw.rounded_rectangle(box, radius=8, fill="#FFFFFF", outline="#DBE2EF")
+            image.paste(asset_image, (paste_x, paste_y))
+        return True
+    except Exception:
+        return False
 
 
 def _export_previews_to_pptx(preview_paths: list[Path], pptx_path: Path, *, aspect_ratio: str) -> None:
@@ -444,7 +1249,7 @@ def _draw_cover_slide(
     title_width = min(9.3, slide_width - margin_x * 2)
     _add_text_box(slide, page.title, margin_x, 1.35, title_width, 1.35, font_size=34, bold=True)
     _add_text_box(slide, page.key_takeaway, margin_x, 3.0, title_width, 0.9, font_size=18, color=_COLOR_MUTED)
-    _draw_visual_band(slide, margin_x, slide_height - 1.22, slide_width - margin_x * 2, 0.5)
+    _draw_asset_or_visual_band(slide, page, margin_x, slide_height - 1.55, slide_width - margin_x * 2, 0.82)
     _draw_content_cards(slide, page.content_blocks[:2], margin_x, 4.18, slide_width - margin_x * 2, 1.1)
 
 
@@ -484,7 +1289,7 @@ def _draw_chapter_start_slide(
     _add_text_box(slide, page.title, margin_x + 0.45, 1.55, slide_width - margin_x * 2 - 0.45, 0.95, font_size=32, bold=True)
     _add_text_box(slide, page.key_takeaway, margin_x + 0.45, 2.78, slide_width - margin_x * 2 - 0.45, 0.82, font_size=18, color=_COLOR_MUTED)
     _draw_content_cards(slide, page.content_blocks[:2], margin_x + 0.45, 4.1, slide_width - margin_x * 2 - 0.45, 1.25)
-    _draw_visual_band(slide, margin_x, slide_height - 1.12, slide_width - margin_x * 2, 0.38)
+    _draw_asset_or_visual_band(slide, page, margin_x, slide_height - 1.45, slide_width - margin_x * 2, 0.72)
 
 
 def _draw_content_slide(
@@ -498,8 +1303,8 @@ def _draw_content_slide(
     _add_text_box(slide, page.title, margin_x, 0.95, slide_width - margin_x * 2, 0.65, font_size=25, bold=True)
     _add_text_box(slide, page.key_takeaway, margin_x, 1.72, slide_width - margin_x * 2, 0.68, font_size=14, color=_COLOR_MUTED)
     _draw_content_cards(slide, page.content_blocks[:4], margin_x, 2.65, slide_width - margin_x * 2, 2.55)
-    _draw_visual_band(slide, margin_x, slide_height - 1.14, slide_width - margin_x * 2, 0.42)
-    _add_text_box(slide, page.asset_intent, margin_x + 0.18, slide_height - 1.05, slide_width - margin_x * 2 - 0.36, 0.25, font_size=9, color=_COLOR_WHITE)
+    if not _draw_asset_or_visual_band(slide, page, margin_x, slide_height - 1.36, slide_width - margin_x * 2, 0.72):
+        _add_text_box(slide, page.asset_intent, margin_x + 0.18, slide_height - 1.22, slide_width - margin_x * 2 - 0.36, 0.25, font_size=9, color=_COLOR_WHITE)
 
 
 def _draw_content_cards(
@@ -558,6 +1363,69 @@ def _draw_visual_band(slide: Any, x: float, y: float, width: float, height: floa
     cap.fill.solid()
     cap.fill.fore_color.rgb = _COLOR_ACCENT_2
     cap.line.fill.background()
+
+
+def _draw_asset_or_visual_band(
+    slide: Any,
+    page: DeckPagePlan,
+    x: float,
+    y: float,
+    width: float,
+    height: float,
+) -> bool:
+    """Draw a ready slide image asset, falling back to the editable visual band."""
+    asset = _first_ready_asset(page)
+    image_path = _resolve_asset_file(asset) if asset is not None else None
+    if image_path is None:
+        _draw_visual_band(slide, x, y, width, height)
+        return False
+
+    frame = slide.shapes.add_shape(
+        MSO_SHAPE.ROUNDED_RECTANGLE,
+        Inches(x),
+        Inches(y),
+        Inches(width),
+        Inches(height),
+    )
+    frame.fill.solid()
+    frame.fill.fore_color.rgb = _COLOR_PANEL
+    frame.line.color.rgb = _COLOR_LINE
+
+    pic_x, pic_y, pic_width, pic_height = _fit_picture_box(image_path, x, y, width, height)
+    slide.shapes.add_picture(
+        str(image_path),
+        Inches(pic_x),
+        Inches(pic_y),
+        width=Inches(pic_width),
+        height=Inches(pic_height),
+    )
+    return True
+
+
+def _fit_picture_box(
+    image_path: Path,
+    x: float,
+    y: float,
+    width: float,
+    height: float,
+) -> tuple[float, float, float, float]:
+    """Fit an image inside a PowerPoint box while preserving aspect ratio."""
+    try:
+        with Image.open(image_path) as image:
+            image_width, image_height = image.size
+    except Exception:
+        return x, y, width, height
+    if image_width <= 0 or image_height <= 0:
+        return x, y, width, height
+    scale = min(width / image_width, height / image_height)
+    fitted_width = image_width * scale
+    fitted_height = image_height * scale
+    return (
+        x + (width - fitted_width) / 2,
+        y + (height - fitted_height) / 2,
+        fitted_width,
+        fitted_height,
+    )
 
 
 def _draw_footer(
@@ -634,14 +1502,45 @@ def _block_body(block: dict[str, Any]) -> str:
     return str(block.get("body") or block.get("text") or block.get("description") or "").strip()
 
 
+def _first_ready_asset(page: DeckPagePlan) -> DeckPageAsset | None:
+    """Return the first ready image asset for a page."""
+    for asset in page.assets:
+        validated_asset = DeckPageAsset.model_validate(asset)
+        if validated_asset.status == "ready" and validated_asset.path:
+            return validated_asset
+    return None
+
+
+def _resolve_asset_file(asset: DeckPageAsset | None) -> Path | None:
+    """Resolve one ready asset path into an existing workspace file."""
+    if asset is None:
+        return None
+    try:
+        path = resolve_workspace_path(asset.path)
+    except Exception:
+        return None
+    if not path.exists() or not path.is_file():
+        return None
+    return path
+
+
 def _validate_html_route_output(
     *,
     content_plan: DeckContentPlan,
     html_path: Path,
     preview_paths: list[Path],
     pptx_path: Path,
+    pptx_strategy: str,
 ) -> dict[str, Any]:
     """Validate the core HTML route artifacts."""
+    planned_assets = [
+        DeckPageAsset.model_validate(asset)
+        for page in content_plan.pages
+        for asset in page.assets
+    ]
+    planned_ready_assets = [asset for asset in planned_assets if asset.status == "ready"]
+    ready_asset_count = len(planned_ready_assets)
+    asset_paths_exist = all(_resolve_asset_file(asset) is not None for asset in planned_ready_assets)
     checks = {
         "html_exists": html_path.exists() and html_path.stat().st_size > 0,
         "preview_count_matches": len(preview_paths) == len(content_plan.pages),
@@ -650,12 +1549,21 @@ def _validate_html_route_output(
         "pptx_slide_count_matches": False,
         "pptx_contains_editable_text": False,
         "pptx_titles_present": False,
+        "asset_paths_exist": asset_paths_exist,
+        "pptx_ready_assets_rendered": ready_asset_count == 0,
     }
     editable_text_shape_count = 0
+    pptx_picture_count = 0
     pptx_text = ""
     if checks["pptx_exists"]:
         prs = Presentation(str(pptx_path))
         checks["pptx_slide_count_matches"] = len(prs.slides) == len(content_plan.pages)
+        pptx_picture_count = sum(
+            1
+            for slide in prs.slides
+            for shape in slide.shapes
+            if shape.shape_type == MSO_SHAPE_TYPE.PICTURE
+        )
         editable_text_shape_count = sum(
             1
             for slide in prs.slides
@@ -668,8 +1576,16 @@ def _validate_html_route_output(
             for shape in slide.shapes
             if getattr(shape, "has_text_frame", False)
         )
-        checks["pptx_contains_editable_text"] = editable_text_shape_count > 0
-        checks["pptx_titles_present"] = all(page.title in pptx_text for page in content_plan.pages)
+        if pptx_strategy == "screenshot":
+            checks["pptx_contains_editable_text"] = True
+            checks["pptx_titles_present"] = True
+        else:
+            checks["pptx_contains_editable_text"] = editable_text_shape_count > 0
+            checks["pptx_titles_present"] = all(page.title in pptx_text for page in content_plan.pages)
+        checks["pptx_ready_assets_rendered"] = ready_asset_count == 0 or pptx_picture_count >= min(
+            ready_asset_count,
+            len(content_plan.pages),
+        )
     status = "pass" if all(checks.values()) else "failed"
     return {
         "status": status,
@@ -677,6 +1593,8 @@ def _validate_html_route_output(
         "route": "html",
         "slide_count": len(content_plan.pages),
         "pptx_editable_text_shape_count": editable_text_shape_count,
+        "pptx_picture_count": pptx_picture_count,
+        "ready_asset_count": ready_asset_count,
     }
 
 

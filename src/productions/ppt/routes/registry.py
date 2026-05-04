@@ -59,7 +59,7 @@ def build_default_ppt_route_registry() -> dict[str, PptRouteRegistration]:
             workflow_name="HtmlRouteSequentialAgent",
             handler=_html_route_handler,
             implemented=True,
-            description="HTML route MVP: system template, HTML preview, PNG previews, native editable PPTX.",
+            description="HTML route MVP: no-template free design by default, optional system template, HTML preview, PNG previews, native editable PPTX.",
         ),
         "svg": PptRouteRegistration(
             route="svg",

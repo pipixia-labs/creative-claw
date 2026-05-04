@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 import json
+import inspect
 import re
 from pathlib import Path
 from typing import Any
@@ -15,6 +16,7 @@ from pydantic import PrivateAttr
 from conf.llm import build_llm
 from conf.path import PROJECT_PATH
 from src.productions.ppt.planning import PptContentPlanner
+from src.productions.ppt.routes.html import build_html_route_with_agent
 from src.productions.ppt.routes import PptRouteRegistration, build_default_ppt_route_registry
 from src.productions.ppt.schemas import (
     ConfirmedRequirement,
@@ -105,7 +107,7 @@ Own PPT and PowerPoint production end to end. If the requested final deliverable
 - Do not expose route-internal editing tools at the top product-manager layer.
 
 # Route policy
-- HTML route: first route to implement; system HTML templates only; export to PPTX with explicit editability caveats.
+- HTML route: first route to implement; when the user does not specify or upload a template, use no-template free design; use system HTML templates only when explicitly selected; export to PPTX with explicit editability caveats.
 - SVG route: later route for high-control SVG pages and SVG-to-PPTX.
 - XML route: later route for user-uploaded PPTX templates and native OOXML editing.
 
@@ -149,13 +151,15 @@ Return structured status, current phase, selected route, warnings, next actions,
         self,
         *,
         task: str,
-        inputs: list[Any] | None = None,
+        inputs: Any | None = None,
         output: dict[str, Any] | None = None,
         tool_context: ToolContext | None = None,
         expert_agents: dict[str, BaseAgent] | None = None,
         app_name: str = "creative_claw",
         artifact_service: InMemoryArtifactService | None = None,
         source_converter: Any | None = None,
+        content_plan_builder: Any | None = None,
+        asset_resolver: Any | None = None,
     ) -> dict[str, Any]:
         """Accept one PPT product task and return the current structured status."""
         if tool_context is None:
@@ -175,7 +179,8 @@ Return structured status, current phase, selected route, warnings, next actions,
 
         output_options = dict(output or {})
         try:
-            source_inputs = self._normalize_source_inputs(inputs or [])
+            raw_inputs = self._normalize_raw_inputs(inputs)
+            source_inputs = self._normalize_source_inputs(raw_inputs)
             source_converter = source_converter or self._build_source_converter(
                 tool_context=tool_context,
                 expert_agents=expert_agents or {},
@@ -194,10 +199,11 @@ Return structured status, current phase, selected route, warnings, next actions,
             tool_context.state["ppt_source_output_files"] = source_materials.output_files
             requirement = self.prepare_confirmed_requirement(
                 task=clean_task,
-                inputs=inputs or [],
+                inputs=raw_inputs,
                 output=output_options,
                 source_understanding=source_materials,
             )
+            tool_context.state[PPT_CONFIRMED_REQUIREMENT_STATE_KEY] = requirement.model_dump(mode="json")
             clarification_questions = self.validate_confirmed_requirement(requirement)
             route_registration = self._route_registry.get(requirement.route)
             if clarification_questions:
@@ -214,12 +220,23 @@ Return structured status, current phase, selected route, warnings, next actions,
             elif route_registration is None or not route_registration.implemented:
                 result = self._build_route_not_implemented_result(requirement, route_registration)
             else:
-                content_plan = self.build_initial_deck_content_plan(requirement)
+                content_plan = await self.build_deck_content_plan(
+                    requirement,
+                    tool_context=tool_context,
+                    app_name=app_name,
+                    artifact_service=artifact_service,
+                    expert_agents=expert_agents or {},
+                    content_plan_builder=content_plan_builder,
+                    asset_resolver=asset_resolver,
+                )
                 output_dir = self._build_route_output_dir(tool_context.state)
-                route_build = self._dispatch_ppt_route(
+                route_build = await self._dispatch_ppt_route(
                     requirement=requirement,
                     content_plan=content_plan,
                     output_dir=output_dir,
+                    tool_context=tool_context,
+                    app_name=app_name,
+                    artifact_service=artifact_service,
                 )
                 output_files = self._record_output_files(
                     tool_context.state,
@@ -262,6 +279,7 @@ Return structured status, current phase, selected route, warnings, next actions,
                     warnings=[
                         *list(route_build.warnings),
                         *list(requirement.source_understanding.extraction_warnings),
+                        *list(tool_context.state.get("ppt_content_planning_warnings") or []),
                     ],
                     next_actions=["Review the generated PPTX and previews; improve HTML template fidelity next."],
                 )
@@ -293,6 +311,46 @@ Return structured status, current phase, selected route, warnings, next actions,
     def build_initial_deck_content_plan(self, requirement: ConfirmedRequirement) -> DeckContentPlan:
         """Build a template-independent content plan for the HTML MVP."""
         return self.content_planner.build_plan(requirement)
+
+    async def build_deck_content_plan(
+        self,
+        requirement: ConfirmedRequirement,
+        *,
+        tool_context: ToolContext,
+        app_name: str,
+        artifact_service: InMemoryArtifactService | None,
+        expert_agents: dict[str, BaseAgent] | None = None,
+        content_plan_builder: Any | None = None,
+        asset_resolver: Any | None = None,
+    ) -> DeckContentPlan:
+        """Build a deck content plan through the ADK planning agent when possible."""
+        if content_plan_builder is not None:
+            plan_result = content_plan_builder(requirement)
+            if inspect.isawaitable(plan_result):
+                plan_result = await plan_result
+            plan = DeckContentPlan.model_validate(plan_result)
+            tool_context.state["ppt_content_planning_output"] = {
+                "status": "success",
+                "message": "Injected content plan builder produced DeckContentPlan.",
+                "source": "injected",
+            }
+        else:
+            plan = await self.content_planner.build_plan_with_agent(
+                requirement,
+                tool_context=tool_context,
+                app_name=app_name,
+                artifact_service=artifact_service,
+            )
+
+        return await self.content_planner.resolve_plan_assets(
+            plan,
+            requirement,
+            tool_context=tool_context,
+            expert_agents=expert_agents or {},
+            app_name=app_name,
+            artifact_service=artifact_service,
+            asset_resolver=asset_resolver,
+        )
 
     def list_registered_routes(self) -> dict[str, dict[str, object]]:
         """Return product-level route registrations without exposing route internals."""
@@ -343,10 +401,13 @@ Return structured status, current phase, selected route, warnings, next actions,
             return payload
 
         content_plan = DeckContentPlan.model_validate(content_plan_payload)
-        route_build = self._dispatch_ppt_route(
+        route_build = await self._dispatch_ppt_route(
             requirement=requirement,
             content_plan=content_plan,
             output_dir=self._build_route_output_dir(tool_context.state),
+            tool_context=tool_context,
+            app_name=str(getattr(getattr(tool_context, "_invocation_context", None), "app_name", "creative_claw")),
+            artifact_service=None,
         )
         output_files = self._record_output_files(
             tool_context.state,
@@ -367,12 +428,15 @@ Return structured status, current phase, selected route, warnings, next actions,
         tool_context.state["ppt_route_build"] = payload["route_build"]
         return payload
 
-    def _dispatch_ppt_route(
+    async def _dispatch_ppt_route(
         self,
         *,
         requirement: ConfirmedRequirement,
         content_plan: DeckContentPlan,
         output_dir: Path,
+        tool_context: ToolContext | None = None,
+        app_name: str = "creative_claw",
+        artifact_service: InMemoryArtifactService | None = None,
     ) -> Any:
         """Dispatch one confirmed PPT request to the registered route workflow."""
         registration = self._route_registry.get(requirement.route)
@@ -380,7 +444,22 @@ Return structured status, current phase, selected route, warnings, next actions,
             raise ValueError(f"Unknown PPT route `{requirement.route}`.")
         if not registration.implemented or registration.handler is None:
             raise NotImplementedError(f"PPT route `{requirement.route}` is not implemented.")
-        template_id = requirement.template_requirement.template_id or "clean_business"
+        template_id = ""
+        if (
+            requirement.template_requirement.template_source == "system"
+            and requirement.template_requirement.template_id
+        ):
+            template_id = requirement.template_requirement.template_id
+        if requirement.route == "html":
+            return await build_html_route_with_agent(
+                content_plan=content_plan,
+                output_dir=output_dir,
+                aspect_ratio=requirement.aspect_ratio,
+                template_id=template_id,
+                tool_context=tool_context,
+                app_name=app_name,
+                artifact_service=artifact_service,
+            )
         return registration.handler(
             content_plan,
             output_dir,
@@ -474,6 +553,34 @@ Return structured status, current phase, selected route, warnings, next actions,
             if not source_path:
                 warnings.append(f"Source {source_label} has no path or URL.")
                 continue
+            image_passthrough = self._register_existing_image_source(
+                source_input,
+                source_label=source_label,
+            )
+            if image_passthrough is not None:
+                figure_record, file_record = image_passthrough
+                figures.append(figure_record)
+                output_files.append(file_record)
+                continue
+            if source_converter is None:
+                markdown_passthrough = self._register_existing_markdown_source(
+                    source_input,
+                    source_label=source_label,
+                )
+            else:
+                markdown_passthrough = None
+            if markdown_passthrough is not None:
+                markdown_record, markdown, file_record = markdown_passthrough
+                markdown_sources.append(markdown_record)
+                figures.extend(
+                    self._collect_markdown_figures(
+                        markdown,
+                        source_name=source_label,
+                        markdown_output_path=markdown_record["output_path"],
+                    )
+                )
+                output_files.append(file_record)
+                continue
             if source_converter is None:
                 warnings.append(f"AnythingToMD expert was not available for {source_label}.")
                 continue
@@ -522,6 +629,75 @@ Return structured status, current phase, selected route, warnings, next actions,
             output_files=output_files,
             extraction_warnings=warnings,
         )
+
+    @classmethod
+    def _register_existing_markdown_source(
+        cls,
+        source_input: SourceInput,
+        *,
+        source_label: str,
+    ) -> tuple[dict[str, Any], str, dict[str, Any]] | None:
+        """Register an already prepared Markdown source without calling an expert."""
+        source_path = str(source_input.path or "").strip()
+        if cls._looks_like_url(source_path) or not cls._is_markdown_path(source_path):
+            return None
+
+        try:
+            markdown_file = resolve_workspace_path(source_path)
+        except Exception:
+            return None
+        if not markdown_file.exists() or not markdown_file.is_file():
+            return None
+
+        markdown = markdown_file.read_text(encoding="utf-8")
+        output_path = workspace_relative_path(markdown_file)
+        markdown_record = {
+            "name": source_label,
+            "source_path": source_path,
+            "method": "local:markdown_passthrough",
+            "output_path": output_path,
+        }
+        file_record = build_workspace_file_record(
+            markdown_file,
+            description="Prepared Markdown source for PPT planning.",
+            source="ppt_product_manager",
+            name=markdown_file.name,
+        )
+        return markdown_record, markdown, file_record
+
+    @classmethod
+    def _register_existing_image_source(
+        cls,
+        source_input: SourceInput,
+        *,
+        source_label: str,
+    ) -> tuple[dict[str, Any], dict[str, Any]] | None:
+        """Register an existing image source as a ready figure for PPT planning."""
+        source_path = str(source_input.path or "").strip()
+        if cls._looks_like_url(source_path) or not cls._is_image_path(source_path):
+            return None
+
+        try:
+            image_file = resolve_workspace_path(source_path)
+        except Exception:
+            return None
+        if not image_file.exists() or not image_file.is_file():
+            return None
+
+        output_path = workspace_relative_path(image_file)
+        figure_record = {
+            "source_name": source_label,
+            "alt": source_input.description or source_label,
+            "path": output_path,
+            "material_type": "image_input",
+        }
+        file_record = build_workspace_file_record(
+            image_file,
+            description="Prepared image source for PPT planning.",
+            source="ppt_product_manager",
+            name=image_file.name,
+        )
+        return figure_record, file_record
 
     @staticmethod
     def _build_source_output_dir(state: dict[str, Any]) -> Path:
@@ -617,6 +793,18 @@ Return structured status, current phase, selected route, warnings, next actions,
         return safe[:48] or "source"
 
     @staticmethod
+    def _is_markdown_path(value: str) -> bool:
+        """Return whether a path points to an existing Markdown-format source."""
+        suffix = Path(str(value or "")).suffix.lower()
+        return suffix in {".md", ".markdown", ".mdown", ".mkd"}
+
+    @staticmethod
+    def _is_image_path(value: str) -> bool:
+        """Return whether a path points to an image-format source."""
+        suffix = Path(str(value or "")).suffix.lower()
+        return suffix in {".png", ".jpg", ".jpeg", ".webp", ".gif"}
+
+    @staticmethod
     def _clean_markdown_text(text: str) -> str:
         """Remove common Markdown syntax from one short material label."""
         clean_text = str(text or "").strip()
@@ -687,7 +875,7 @@ Return structured status, current phase, selected route, warnings, next actions,
         self,
         *,
         task: str,
-        inputs: list[Any] | None = None,
+        inputs: Any | None = None,
         output: dict[str, Any] | None = None,
         source_understanding: SourceUnderstanding | None = None,
     ) -> ConfirmedRequirement:
@@ -698,20 +886,22 @@ Return structured status, current phase, selected route, warnings, next actions,
 
         output_options = dict(output or {})
         route, route_confirmed = self._select_route(clean_task, output_options)
-        source_inputs = self._normalize_source_inputs(inputs or [])
-        reference_assets = self._normalize_reference_assets(inputs or [])
-        slide_policy = self._infer_slide_count_policy(clean_task)
+        raw_inputs = self._normalize_raw_inputs(inputs)
+        source_inputs = self._normalize_source_inputs(raw_inputs)
+        reference_assets = self._normalize_reference_assets(raw_inputs)
+        slide_policy = self._infer_slide_count_policy(clean_task, output_options)
         source_understanding = source_understanding or SourceUnderstanding(
             document_type=self._infer_document_type(source_inputs),
         )
 
         return ConfirmedRequirement(
             route=route,
+            request_brief=clean_task,
             topic=self._infer_topic(clean_task),
-            audience="",
-            scenario="",
+            audience=self._infer_audience(clean_task),
+            scenario=self._infer_scenario(clean_task),
             slide_count_policy=slide_policy,
-            language=self._infer_language(clean_task),
+            language=self._infer_language(clean_task, output_options),
             aspect_ratio=self._select_aspect_ratio(clean_task, output_options),
             output_format="pptx",
             source_inputs=source_inputs,
@@ -723,7 +913,7 @@ Return structured status, current phase, selected route, warnings, next actions,
                 source_inputs,
                 output_options,
             ),
-            style_requirement=StyleRequirement(style_keywords=self._infer_style_keywords(clean_task)),
+            style_requirement=StyleRequirement(style_keywords=self._infer_style_keywords(clean_task, output_options)),
             editability_requirement=self._infer_editability_requirement(clean_task, route, output_options),
             confirmed_by_user=route_confirmed,
         )
@@ -747,11 +937,29 @@ Return structured status, current phase, selected route, warnings, next actions,
         return "html", False
 
     @staticmethod
+    def _normalize_raw_inputs(inputs: Any) -> list[Any]:
+        """Normalize raw product inputs into a list while preserving only user-provided values."""
+        if inputs is None:
+            return []
+        if isinstance(inputs, list):
+            return inputs
+        if isinstance(inputs, dict):
+            normalized_items: list[Any] = []
+            for key in ("documents", "files", "assets", "sources", "source_inputs"):
+                value = inputs.get(key)
+                if isinstance(value, list):
+                    normalized_items.extend(value)
+            return normalized_items or [inputs]
+        return []
+
+    @staticmethod
     def _normalize_source_inputs(inputs: list[Any]) -> list[SourceInput]:
         """Normalize raw tool inputs into SourceInput records."""
         source_inputs: list[SourceInput] = []
         for index, item in enumerate(inputs, start=1):
             if not isinstance(item, dict):
+                continue
+            if not PptProductManager._looks_like_document_input(item):
                 continue
             role = str(item.get("role") or item.get("type") or "source").strip() or "source"
             if role == "reference":
@@ -759,13 +967,18 @@ Return structured status, current phase, selected route, warnings, next actions,
             source_inputs.append(
                 SourceInput(
                     name=str(item.get("name") or item.get("filename") or f"input_{index}"),
-                    path=str(item.get("path") or item.get("url") or ""),
+                    path=str(item.get("path") or item.get("url") or item.get("uri") or item.get("file_path") or ""),
                     mime_type=str(item.get("mime_type") or item.get("mime") or ""),
                     role=role,
                     description=str(item.get("description") or ""),
                 )
             )
         return source_inputs
+
+    @staticmethod
+    def _looks_like_document_input(item: dict[str, Any]) -> bool:
+        """Return whether an input item is a real user document or asset reference."""
+        return bool(str(item.get("path") or item.get("url") or item.get("uri") or item.get("file_path") or "").strip())
 
     @staticmethod
     def _normalize_reference_assets(inputs: list[Any]) -> list[ReferenceAsset]:
@@ -780,7 +993,7 @@ Return structured status, current phase, selected route, warnings, next actions,
             reference_assets.append(
                 ReferenceAsset(
                     name=str(item.get("name") or item.get("filename") or f"reference_{index}"),
-                    path=str(item.get("path") or item.get("url") or ""),
+                    path=str(item.get("path") or item.get("url") or item.get("uri") or item.get("file_path") or ""),
                     asset_type=str(item.get("asset_type") or item.get("mime_type") or ""),
                     role="reference",
                     description=str(item.get("description") or ""),
@@ -789,8 +1002,38 @@ Return structured status, current phase, selected route, warnings, next actions,
         return reference_assets
 
     @staticmethod
-    def _infer_slide_count_policy(task: str) -> SlideCountPolicy:
+    def _infer_slide_count_policy(task: str, output: dict[str, Any] | None = None) -> SlideCountPolicy:
         """Infer a conservative slide count policy from the task text."""
+        output = output or {}
+        raw_output_count = output.get("slide_count") or output.get("slides") or output.get("page_count") or output.get("pages")
+        if raw_output_count not in (None, ""):
+            try:
+                target = max(1, int(raw_output_count))
+                return SlideCountPolicy(
+                    minimum=target,
+                    maximum=target,
+                    target=target,
+                    source="user",
+                )
+            except (TypeError, ValueError):
+                pass
+
+        upper_bound_match = re.search(
+            r"(?:小于|少于|低于|不超过|不超|最多|至多|以内|以下|<|<=)\s*(\d{1,2})\s*(?:页|p|pages?|slides?|张)",
+            task,
+            flags=re.IGNORECASE,
+        )
+        if upper_bound_match:
+            raw_bound = max(1, int(upper_bound_match.group(1)))
+            maximum = max(1, raw_bound - 1) if any(token in task for token in ("小于", "少于", "低于", "<")) else raw_bound
+            target = min(maximum, max(1, maximum - 1))
+            return SlideCountPolicy(
+                minimum=1,
+                maximum=maximum,
+                target=target,
+                source="user",
+            )
+
         match = re.search(r"(\d{1,2})\s*(?:页|p|pages?|slides?|张)", task, flags=re.IGNORECASE)
         if match:
             target = max(1, int(match.group(1)))
@@ -826,12 +1069,152 @@ Return structured status, current phase, selected route, warnings, next actions,
 
     @staticmethod
     def _infer_topic(task: str) -> str:
-        """Use the concise task text as the initial topic."""
-        return task[:120].strip()
+        """Infer the public-facing deck topic without copying task instructions."""
+        clean_task = PptProductManager._normalize_request_text(task)
+        topic = (
+            PptProductManager._topic_from_audience_pattern(clean_task)
+            or PptProductManager._topic_from_action_pattern(clean_task)
+            or PptProductManager._topic_from_subject_marker(clean_task)
+            or PptProductManager._topic_from_purpose_pattern(clean_task)
+            or PptProductManager._topic_from_cleaned_task(clean_task)
+        )
+        topic = PptProductManager._clean_public_topic(topic, original_task=clean_task)
+        return topic or clean_task[:120].strip()
 
     @staticmethod
-    def _infer_language(task: str) -> str:
+    def _normalize_request_text(task: str) -> str:
+        """Normalize request text before lightweight requirement extraction."""
+        return re.sub(r"\s+", " ", str(task or "").strip())
+
+    @staticmethod
+    def _topic_from_audience_pattern(task: str) -> str:
+        """Extract topic from phrases like `面向大学生的AI科普PPTX`."""
+        match = re.search(
+            r"(?:面向|给|向|用于向|用于给|用来给|为)[^，。,.；;：:]{2,40}?的(?P<topic>[^，。,.；;：:]{1,50}?)(?:pptx?|PPTX?|幻灯片|演示文稿|$)",
+            task,
+            flags=re.IGNORECASE,
+        )
+        return str(match.group("topic") or "") if match else ""
+
+    @staticmethod
+    def _topic_from_action_pattern(task: str) -> str:
+        """Extract topic from action phrases such as `科普AI` or `介绍产品`."""
+        match = re.search(
+            r"(?:科普|介绍|讲解|讲|说明|分享|培训|解读)(?P<topic>[A-Za-z0-9\u4e00-\u9fff][^，。,.；;：:]{0,50})",
+            task,
+            flags=re.IGNORECASE,
+        )
+        if not match:
+            return ""
+        raw_topic = str(match.group("topic") or "").strip()
+        action = task[match.start() : match.start() + 2]
+        if action == "科普" and "科普" not in raw_topic:
+            return f"{raw_topic}科普"
+        return raw_topic
+
+    @staticmethod
+    def _topic_from_subject_marker(task: str) -> str:
+        """Extract topic from explicit subject markers."""
+        match = re.search(
+            r"(?:主题(?:是|为)?|关于|围绕|around|about)\s*(?P<topic>[^，。,.；;：:]{1,60})",
+            task,
+            flags=re.IGNORECASE,
+        )
+        return str(match.group("topic") or "") if match else ""
+
+    @staticmethod
+    def _topic_from_purpose_pattern(task: str) -> str:
+        """Extract topic from purpose phrases that do not describe an audience."""
+        match = re.search(
+            r"(?:用于|用来|为)(?!向|给)(?P<topic>[^，。,.；;：:]{2,60})",
+            task,
+            flags=re.IGNORECASE,
+        )
+        return str(match.group("topic") or "") if match else ""
+
+    @staticmethod
+    def _topic_from_cleaned_task(task: str) -> str:
+        """Build a fallback topic by removing delivery instructions."""
+        topic = re.sub(
+            r"^(?:请|麻烦|帮我|给我)?(?:做一个|做个|做|制作一个|制作|生成一个|生成|产出|创建|create|make|build)\s*",
+            "",
+            task,
+            flags=re.IGNORECASE,
+        )
+        topic = re.sub(r"^(?:一个|一份|一套)?\s*(?:pptx?|PPTX?|幻灯片|演示文稿)\s*", "", topic, flags=re.IGNORECASE)
+        topic = re.split(r"[，。,.；;]", topic, maxsplit=1)[0]
+        topic = re.sub(r"^(?:用于|用来|为|给|向|面向)", "", topic)
+        return topic
+
+    @staticmethod
+    def _clean_public_topic(topic: str, *, original_task: str) -> str:
+        """Clean a candidate topic so it is safe to display inside the deck."""
+        clean_topic = PptProductManager._normalize_request_text(topic)
+        clean_topic = re.sub(r"(?i)pptx?|powerpoint|slide deck|slides?", "", clean_topic)
+        clean_topic = re.sub(r"(?:幻灯片|演示文稿|语言为中文|中文|风格.*$|内容需.*$)", "", clean_topic)
+        clean_topic = re.sub(r"^\d{1,2}\s*(?:页|p|pages?|slides?|张)\s*", "", clean_topic, flags=re.IGNORECASE)
+        clean_topic = re.sub(r"^(?:的|个|一个|一份|一套|用于|用来|给|向|面向)+", "", clean_topic)
+        clean_topic = re.sub(r"(?:图文并茂|配图|插图|图片|小于\d{1,2}页|少于\d{1,2}页).*$", "", clean_topic)
+        clean_topic = clean_topic.strip(" ：:，。,.；;、-\"'“”‘’《》")
+        if clean_topic in {"", "个", "一个", "一份", "一套"}:
+            return ""
+        clean_topic = re.sub(r"(?i)ai", "AI", clean_topic)
+        if clean_topic.lower() == "ai":
+            clean_topic = "AI"
+        if clean_topic == "AI" and "科普" in original_task:
+            clean_topic = "AI科普"
+        return clean_topic[:60].strip()
+
+    @staticmethod
+    def _clean_audience(audience: str) -> str:
+        """Clean audience text extracted from a PPT request."""
+        clean_audience = PptProductManager._normalize_request_text(audience)
+        if "的" in clean_audience:
+            clean_audience = clean_audience.split("的", 1)[0]
+        clean_audience = re.sub(r"^(?:一个|一份|一套|的|给|向|面向)+", "", clean_audience)
+        clean_audience = re.sub(r"(?i)pptx?|powerpoint|slides?", "", clean_audience)
+        return clean_audience.strip(" ：:，。,.；;、-")[:60]
+
+    @staticmethod
+    def _infer_audience(task: str) -> str:
+        """Infer the intended audience from common PPT request phrasing."""
+        clean_task = PptProductManager._normalize_request_text(task)
+        audience_patterns = (
+            r"(?:面向|给|向|用于向|用于给|用来给|为)(?P<audience>[^，。,.；;：:]{2,40}?)(?:科普|介绍|讲解|讲|说明|分享|培训|汇报|展示|演示)",
+            r"面向(?P<audience>[^，。,.；;：:]{2,40}?)的",
+            r"for (?P<audience>[A-Za-z][A-Za-z0-9\s-]{2,60}?)(?: about| on| to|,|\.|$)",
+        )
+        for pattern in audience_patterns:
+            match = re.search(pattern, clean_task, flags=re.IGNORECASE)
+            if match:
+                audience = PptProductManager._clean_audience(match.group("audience"))
+                if audience:
+                    return audience
+        return ""
+
+    @staticmethod
+    def _infer_scenario(task: str) -> str:
+        """Infer a coarse presentation scenario from the request text."""
+        normalized = task.lower()
+        scenario_keywords = {
+            "课堂/讲座": ("课堂", "讲座", "课程", "教学", "class", "lecture"),
+            "发布会": ("发布会", "launch", "发布"),
+            "汇报": ("汇报", "review", "report"),
+            "培训": ("培训", "training", "workshop"),
+            "答辩": ("答辩", "defense"),
+            "路演": ("路演", "pitch"),
+        }
+        for scenario, keywords in scenario_keywords.items():
+            if any(keyword in normalized for keyword in keywords):
+                return scenario
+        return ""
+
+    @staticmethod
+    def _infer_language(task: str, output: dict[str, Any] | None = None) -> str:
         """Infer output language from the task text."""
+        raw_language = str((output or {}).get("language") or "").strip()
+        if raw_language:
+            return raw_language
         return "zh-CN" if re.search(r"[\u4e00-\u9fff]", task) else "en"
 
     @staticmethod
@@ -862,19 +1245,25 @@ Return structured status, current phase, selected route, warnings, next actions,
                 template_path=template_path,
                 notes="User PPTX template requires XML route analysis.",
             )
-        if route == "html":
+        if route == "html" and template_id:
             return TemplateRequirement(
                 use_template=True,
                 template_source="system",
                 template_id=template_id,
-                notes="HTML route uses system templates only.",
+                notes="HTML route uses the explicitly selected system template.",
+            )
+        if route == "html":
+            return TemplateRequirement(
+                use_template=False,
+                template_source="none",
+                notes="HTML route uses no-template free design when no template is explicitly selected.",
             )
         if route == "svg":
             return TemplateRequirement(use_template=False, template_source="none", notes="SVG route can later opt into system SVG templates.")
         return TemplateRequirement()
 
     @staticmethod
-    def _infer_style_keywords(task: str) -> list[str]:
+    def _infer_style_keywords(task: str, output: dict[str, Any] | None = None) -> list[str]:
         """Extract a small set of style keywords from common request language."""
         style_keywords: list[str] = []
         keyword_map = {
@@ -882,11 +1271,40 @@ Return structured status, current phase, selected route, warnings, next actions,
             "editorial": ("杂志", "editorial", "magazine"),
             "academic": ("学术", "答辩", "academic"),
             "minimal": ("极简", "minimal"),
-            "playful": ("活泼", "playful"),
+            "playful": ("活泼", "幼儿园", "小朋友", "儿童", "少儿", "playful", "kindergarten", "children", "kids"),
+            "kid_friendly": ("幼儿园", "小朋友", "儿童", "少儿", "孩子", "低龄", "kindergarten", "children", "kids"),
+            "illustrated": ("图文并茂", "配图", "插图", "图片", "图画", "绘本", "单词卡片", "flashcard", "illustrated", "visual"),
         }
-        normalized = task.lower()
+        output = output or {}
+        positive_style_text = " ".join(
+            [
+                task,
+                str(output.get("style") or ""),
+                str(output.get("tone") or ""),
+                str(output.get("visual_style") or ""),
+            ]
+        ).lower()
+        negative_style_text = " ".join(
+            [
+                str(output.get("must_not_include") or ""),
+                str(output.get("negative_constraints") or ""),
+                str(output.get("avoid") or ""),
+                str(output.get("exclude") or ""),
+            ]
+        ).lower()
+        task_negative_text = " ".join(
+            match.group(0)
+            for match in re.finditer(
+                r"(?:不是|不要|禁止|避免|不需要|不能|must not|do not|avoid)[^，。,.；;]{0,40}",
+                task,
+                flags=re.IGNORECASE,
+            )
+        ).lower()
+        negative_style_text = f"{negative_style_text} {task_negative_text}".strip()
         for label, keywords in keyword_map.items():
-            if any(keyword in normalized for keyword in keywords):
+            if any(keyword in negative_style_text for keyword in keywords):
+                continue
+            if any(keyword in positive_style_text for keyword in keywords):
                 style_keywords.append(label)
         return style_keywords
 
