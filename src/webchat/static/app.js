@@ -349,35 +349,93 @@ function renderArtifacts(container, artifacts) {
 }
 
 function renderMarkdown(text) {
-  let html = escapeHtml(text || "");
-  html = html.replace(/```([\s\S]*?)```/g, (_, code) => `<pre><code>${escapeHtml(code.trim())}</code></pre>`);
-  html = html.replace(/`([^`]+)`/g, "<code>$1</code>");
-  html = html.replace(/\*\*([^*]+)\*\*/g, "<strong>$1</strong>");
-  html = html.replace(/\[([^\]]+)\]\(([^)]+)\)/g, '<a href="$2" target="_blank" rel="noreferrer">$1</a>');
-
-  const lines = html.split("\n");
+  const lines = String(text || "").replace(/\r\n?/g, "\n").split("\n");
   const rendered = [];
-  let inList = false;
-  for (const line of lines) {
-    if (/^\s*[-*]\s+/.test(line)) {
-      if (!inList) {
-        rendered.push("<ul>");
-        inList = true;
-      }
-      rendered.push(`<li>${line.replace(/^\s*[-*]\s+/, "")}</li>`);
+  let index = 0;
+
+  while (index < lines.length) {
+    const line = lines[index];
+
+    if (!line.trim()) {
+      index += 1;
       continue;
     }
-    if (inList) {
-      rendered.push("</ul>");
-      inList = false;
+
+    const fence = line.match(/^\s*```([A-Za-z0-9_-]+)?\s*$/);
+    if (fence) {
+      const codeLines = [];
+      index += 1;
+      while (index < lines.length && !/^\s*```\s*$/.test(lines[index])) {
+        codeLines.push(lines[index]);
+        index += 1;
+      }
+      if (index < lines.length) {
+        index += 1;
+      }
+      const languageClass = fence[1] ? ` class="language-${escapeAttribute(fence[1])}"` : "";
+      rendered.push(`<pre><code${languageClass}>${escapeHtml(codeLines.join("\n"))}</code></pre>`);
+      continue;
     }
-    if (line.trim()) {
-      rendered.push(`<p>${line}</p>`);
+
+    const heading = line.match(/^(#{1,6})\s+(.+)$/);
+    if (heading) {
+      const level = heading[1].length;
+      rendered.push(`<h${level}>${renderInline(heading[2].trim())}</h${level}>`);
+      index += 1;
+      continue;
     }
+
+    if (/^\s{0,3}([-*_])(?:\s*\1){2,}\s*$/.test(line)) {
+      rendered.push("<hr>");
+      index += 1;
+      continue;
+    }
+
+    if (isTableStart(lines, index)) {
+      const tableLines = [];
+      while (index < lines.length && looksLikeTableRow(lines[index])) {
+        tableLines.push(lines[index]);
+        index += 1;
+      }
+      rendered.push(renderTable(tableLines));
+      continue;
+    }
+
+    if (/^\s{0,3}>\s?/.test(line)) {
+      const quoteLines = [];
+      while (index < lines.length && /^\s{0,3}>\s?/.test(lines[index])) {
+        quoteLines.push(lines[index].replace(/^\s{0,3}>\s?/, ""));
+        index += 1;
+      }
+      rendered.push(`<blockquote>${renderMarkdown(quoteLines.join("\n"))}</blockquote>`);
+      continue;
+    }
+
+    const list = listMatch(line);
+    if (list) {
+      const listType = list.ordered ? "ol" : "ul";
+      const items = [];
+      while (index < lines.length) {
+        const nextList = listMatch(lines[index]);
+        if (!nextList || nextList.ordered !== list.ordered) {
+          break;
+        }
+        items.push(`<li>${renderInline(nextList.content)}</li>`);
+        index += 1;
+      }
+      rendered.push(`<${listType}>${items.join("")}</${listType}>`);
+      continue;
+    }
+
+    const paragraphLines = [line.trim()];
+    index += 1;
+    while (index < lines.length && lines[index].trim() && !startsMarkdownBlock(lines, index)) {
+      paragraphLines.push(lines[index].trim());
+      index += 1;
+    }
+    rendered.push(`<p>${renderInline(paragraphLines.join("\n")).replaceAll("\n", "<br>")}</p>`);
   }
-  if (inList) {
-    rendered.push("</ul>");
-  }
+
   return rendered.join("");
 }
 
@@ -385,7 +443,160 @@ function escapeHtml(text) {
   return String(text)
     .replaceAll("&", "&amp;")
     .replaceAll("<", "&lt;")
-    .replaceAll(">", "&gt;");
+    .replaceAll(">", "&gt;")
+    .replaceAll('"', "&quot;")
+    .replaceAll("'", "&#39;");
+}
+
+function escapeAttribute(text) {
+  return escapeHtml(text).replaceAll("`", "&#96;");
+}
+
+function startsMarkdownBlock(lines, index) {
+  const line = lines[index] || "";
+  return (
+    /^\s*```/.test(line) ||
+    /^(#{1,6})\s+/.test(line) ||
+    /^\s{0,3}([-*_])(?:\s*\1){2,}\s*$/.test(line) ||
+    /^\s{0,3}>\s?/.test(line) ||
+    Boolean(listMatch(line)) ||
+    isTableStart(lines, index)
+  );
+}
+
+function listMatch(line) {
+  const unordered = line.match(/^\s{0,3}[-*+]\s+(.+)$/);
+  if (unordered) {
+    return { ordered: false, content: unordered[1].trim() };
+  }
+  const ordered = line.match(/^\s{0,3}\d+[.)]\s+(.+)$/);
+  if (ordered) {
+    return { ordered: true, content: ordered[1].trim() };
+  }
+  return null;
+}
+
+function looksLikeTableRow(line) {
+  return /^\s*\|?.+\|.+\|?\s*$/.test(line || "");
+}
+
+function isTableDivider(line) {
+  return /^\s*\|?\s*:?-{3,}:?\s*(\|\s*:?-{3,}:?\s*)+\|?\s*$/.test(line || "");
+}
+
+function isTableStart(lines, index) {
+  return looksLikeTableRow(lines[index]) && isTableDivider(lines[index + 1]);
+}
+
+function splitTableRow(line) {
+  return String(line || "")
+    .trim()
+    .replace(/^\|/, "")
+    .replace(/\|$/, "")
+    .split("|")
+    .map((cell) => cell.trim());
+}
+
+function tableAlignment(dividerCell) {
+  const cell = dividerCell.trim();
+  if (cell.startsWith(":") && cell.endsWith(":")) return "center";
+  if (cell.endsWith(":")) return "right";
+  return "left";
+}
+
+function renderTable(tableLines) {
+  const header = splitTableRow(tableLines[0]);
+  const alignments = splitTableRow(tableLines[1]).map(tableAlignment);
+  const bodyRows = tableLines.slice(2).map(splitTableRow);
+  const headerHtml = header
+    .map((cell, cellIndex) => renderTableCell("th", cell, alignments[cellIndex]))
+    .join("");
+  const bodyHtml = bodyRows
+    .map((row) => `<tr>${row.map((cell, cellIndex) => renderTableCell("td", cell, alignments[cellIndex])).join("")}</tr>`)
+    .join("");
+  return `<div class="markdown-table-wrap"><table><thead><tr>${headerHtml}</tr></thead><tbody>${bodyHtml}</tbody></table></div>`;
+}
+
+function renderTableCell(tagName, content, alignment) {
+  const style = alignment && alignment !== "left" ? ` style="text-align: ${alignment}"` : "";
+  return `<${tagName}${style}>${renderInline(content)}</${tagName}>`;
+}
+
+function renderInline(text) {
+  const tokens = [];
+  let working = String(text || "");
+
+  working = working.replace(/`([^`\n]+)`/g, (_, code) => inlineToken(tokens, `<code>${escapeHtml(code)}</code>`));
+  working = working.replace(
+    /!\[([^\]\n]*)\]\(([^)\s]+)(?:\s+"([^"]+)")?\)/g,
+    (_, alt, rawUrl, title) => {
+      const safeUrl = sanitizeUrl(rawUrl, { allowMailto: false });
+      if (!safeUrl) return alt;
+      const cleanAlt = stripInlineTokens(alt);
+      const titleAttr = title ? ` title="${escapeAttribute(stripInlineTokens(title))}"` : "";
+      return inlineToken(
+        tokens,
+        `<img class="markdown-image" src="${escapeAttribute(safeUrl)}" alt="${escapeAttribute(cleanAlt)}"${titleAttr}>`
+      );
+    }
+  );
+  working = working.replace(
+    /\[([^\]\n]+)\]\(([^)\s]+)(?:\s+"([^"]+)")?\)/g,
+    (_, label, rawUrl, title) => {
+      const safeUrl = sanitizeUrl(rawUrl, { allowMailto: true });
+      if (!safeUrl) return label;
+      const titleAttr = title ? ` title="${escapeAttribute(stripInlineTokens(title))}"` : "";
+      return inlineToken(
+        tokens,
+        `<a href="${escapeAttribute(safeUrl)}" target="_blank" rel="noreferrer"${titleAttr}>${renderInlineText(label)}</a>`
+      );
+    }
+  );
+
+  working = renderInlineText(working);
+  return restoreInlineTokens(working, tokens);
+}
+
+function renderInlineText(text) {
+  let html = escapeHtml(text || "");
+  html = html.replace(/\*\*([^*\n]+)\*\*/g, "<strong>$1</strong>");
+  html = html.replace(/__([^_\n]+)__/g, "<strong>$1</strong>");
+  html = html.replace(/~~([^~\n]+)~~/g, "<del>$1</del>");
+  html = html.replace(/(^|[^*])\*([^*\n]+)\*(?!\*)/g, "$1<em>$2</em>");
+  html = html.replace(/(^|[^\w_])_([^_\n]+)_($|[^\w_])/g, "$1<em>$2</em>$3");
+  return html;
+}
+
+function inlineToken(tokens, html) {
+  const token = `\uE000${tokens.length}\uE000`;
+  tokens.push(html);
+  return token;
+}
+
+function restoreInlineTokens(html, tokens) {
+  return tokens.reduce((current, tokenHtml, index) => current.replaceAll(`\uE000${index}\uE000`, tokenHtml), html);
+}
+
+function stripInlineTokens(text) {
+  return String(text || "").replace(/\uE000\d+\uE000/g, "");
+}
+
+function sanitizeUrl(rawUrl, options = {}) {
+  const value = String(rawUrl || "").trim();
+  if (!value || /[\u0000-\u001f\s\uE000]/.test(value) || value.startsWith("//")) {
+    return "";
+  }
+
+  const scheme = value.match(/^([A-Za-z][A-Za-z0-9+.-]*):/);
+  if (!scheme) {
+    return value;
+  }
+
+  const protocol = scheme[1].toLowerCase();
+  if (protocol === "http" || protocol === "https" || (options.allowMailto && protocol === "mailto")) {
+    return value;
+  }
+  return "";
 }
 
 function scrollToBottom() {
