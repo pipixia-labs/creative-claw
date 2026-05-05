@@ -96,11 +96,16 @@
     </template>
 
     <template id="progress-template">
-      <article class="progress-card">
-        <div class="progress-header">
-          <span class="progress-badge">Progress</span>
-          <span class="progress-title">Working</span>
-        </div>
+      <article class="progress-card collapsed">
+        <button class="progress-toggle" type="button" aria-expanded="false">
+          <span class="progress-status" aria-hidden="true"></span>
+          <span class="progress-copy">
+            <span class="progress-badge">Activity</span>
+            <span class="progress-title">Working</span>
+            <span class="progress-summary">Preparing the request.</span>
+          </span>
+          <span class="progress-chevron" aria-hidden="true">⌄</span>
+        </button>
         <div class="progress-body markdown"></div>
       </article>
     </template>
