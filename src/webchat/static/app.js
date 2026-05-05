@@ -26,6 +26,8 @@ const HIDDEN_PROGRESS_TITLES = new Set(["Starting", "Finalize Result"]);
 const PREVIEW_TABS = ["tldraw", "html", "ppt"];
 const AUTO_PREVIEW_PRIORITY = ["ppt", "html", "tldraw"];
 const UPLOAD_CHUNK_SIZE = 512 * 1024;
+const MEDIA_CANVAS_MIN_ZOOM = 0.45;
+const MEDIA_CANVAS_MAX_ZOOM = 2.4;
 
 let sessionId = ensureSessionId();
 let socket = null;
@@ -35,6 +37,14 @@ let previewArtifactsByTab = buildEmptyPreviewGroups();
 let selectedPreviewByTab = buildEmptyPreviewSelections();
 const attachedFiles = [];
 const uploadWaiters = new Map();
+const mediaCanvasState = {
+  zoom: 1,
+  panX: 0,
+  panY: 0,
+  signature: "",
+  fitSignature: "",
+  positions: new Map(),
+};
 
 connect();
 restoreHistory();
@@ -635,6 +645,7 @@ function buildEmptyPreviewSelections() {
 function clearPreviewState(options = {}) {
   previewArtifactsByTab = buildEmptyPreviewGroups();
   selectedPreviewByTab = buildEmptyPreviewSelections();
+  resetMediaCanvasState();
   if (!options.keepActiveTab) {
     activePreviewTab = "tldraw";
   }
@@ -648,10 +659,33 @@ function previewArtifactSet(artifacts) {
     return;
   }
 
-  previewArtifactsByTab = groups;
+  const mergedGroups = buildEmptyPreviewGroups();
+  for (const artifact of previewArtifactsByTab.tldraw) {
+    addUniqueArtifact(mergedGroups.tldraw, artifact);
+  }
+  for (const artifact of groups.tldraw) {
+    addUniqueArtifact(mergedGroups.tldraw, artifact);
+  }
+  mergedGroups.html = groups.html.length > 0 ? groups.html : previewArtifactsByTab.html;
+  mergedGroups.ppt = groups.ppt.length > 0 ? groups.ppt : previewArtifactsByTab.ppt;
+
+  previewArtifactsByTab = mergedGroups;
+  const previousSelections = { ...selectedPreviewByTab };
   selectedPreviewByTab = buildEmptyPreviewSelections();
   for (const tabName of PREVIEW_TABS) {
-    selectedPreviewByTab[tabName] = groups[tabName][0] || null;
+    selectedPreviewByTab[tabName] = mergedGroups[tabName][0] || null;
+  }
+  if (groups.tldraw.length > 0) {
+    selectedPreviewByTab.tldraw = groups.tldraw[groups.tldraw.length - 1];
+  }
+  for (const tabName of PREVIEW_TABS) {
+    if (
+      groups[tabName].length === 0 &&
+      previousSelections[tabName] &&
+      mergedGroups[tabName].some((artifact) => artifactKey(artifact) === artifactKey(previousSelections[tabName]))
+    ) {
+      selectedPreviewByTab[tabName] = previousSelections[tabName];
+    }
   }
   renderAllPreviewViews();
 
@@ -734,32 +768,310 @@ function renderPreviewView(tabName) {
 
 function renderTldrawPreview() {
   tldrawPreview.innerHTML = "";
-  const artifact = selectedPreviewByTab.tldraw;
-  if (!artifact) {
+  const artifacts = previewArtifactsByTab.tldraw;
+  if (!artifacts.length) {
     tldrawPreview.appendChild(previewEmpty("No image/video preview"));
     return;
   }
 
   const board = document.createElement("div");
-  board.className = "tldraw-board";
-  const frame = document.createElement("div");
-  frame.className = "tldraw-media-frame";
+  board.className = "media-canvas-board";
+  board.tabIndex = 0;
+  board.setAttribute("aria-label", "Image and video canvas");
+
+  const world = document.createElement("div");
+  world.className = "media-canvas-world";
+
+  const signature = mediaCanvasSignature(artifacts);
+  if (mediaCanvasState.signature !== signature) {
+    mediaCanvasState.signature = signature;
+    mediaCanvasState.fitSignature = "";
+  }
+  ensureMediaCanvasLayout(artifacts);
+
+  if (!selectedPreviewByTab.tldraw) {
+    selectedPreviewByTab.tldraw = artifacts[0];
+  }
+
+  artifacts.forEach((artifact, index) => {
+    world.appendChild(buildMediaCanvasNode(artifact, index, artifacts.length, board));
+  });
+
+  board.appendChild(world);
+  board.appendChild(buildMediaCanvasControls(board, world, artifacts));
+  tldrawPreview.appendChild(board);
+  setupMediaCanvasInteractions(board, world, artifacts);
+
+  requestAnimationFrame(() => {
+    if (mediaCanvasState.fitSignature !== signature) {
+      fitMediaCanvas(board, artifacts);
+      mediaCanvasState.fitSignature = signature;
+    }
+    applyMediaCanvasTransform(world);
+  });
+}
+
+function resetMediaCanvasState() {
+  mediaCanvasState.zoom = 1;
+  mediaCanvasState.panX = 0;
+  mediaCanvasState.panY = 0;
+  mediaCanvasState.signature = "";
+  mediaCanvasState.fitSignature = "";
+  mediaCanvasState.positions.clear();
+}
+
+function mediaCanvasSignature(artifacts) {
+  return artifacts.map((artifact) => artifactKey(artifact)).join("|");
+}
+
+function ensureMediaCanvasLayout(artifacts) {
+  artifacts.forEach((artifact, index) => {
+    const key = artifactKey(artifact);
+    if (!mediaCanvasState.positions.has(key)) {
+      mediaCanvasState.positions.set(key, defaultMediaCanvasPosition(index, artifacts.length));
+    }
+  });
+}
+
+function defaultMediaCanvasPosition(index, count) {
+  if (count === 1) {
+    return { x: 0, y: 0 };
+  }
+  const columns = Math.max(2, Math.ceil(Math.sqrt(count)));
+  const width = mediaCanvasNodeWidth(count);
+  const height = Math.round(width * 0.68);
+  const gap = 34;
+  return {
+    x: (index % columns) * (width + gap),
+    y: Math.floor(index / columns) * (height + gap),
+  };
+}
+
+function mediaCanvasNodeWidth(count) {
+  if (count <= 1) return 720;
+  if (count <= 4) return 380;
+  if (count <= 9) return 320;
+  return 280;
+}
+
+function buildMediaCanvasNode(artifact, index, count, board) {
+  const key = artifactKey(artifact);
+  const position = mediaCanvasState.positions.get(key) || defaultMediaCanvasPosition(index, count);
+  const node = document.createElement("article");
+  node.className = "media-canvas-node";
+  node.classList.toggle("active", artifactKey(selectedPreviewByTab.tldraw) === key);
+  node.dataset.artifactKey = key;
+  node.style.width = `${mediaCanvasNodeWidth(count)}px`;
+  node.style.transform = `translate3d(${position.x}px, ${position.y}px, 0)`;
+
+  const badge = document.createElement("div");
+  badge.className = "media-canvas-badge";
+  badge.textContent = String(index + 1);
+  node.appendChild(badge);
 
   if (isVideoArtifact(artifact)) {
     const video = document.createElement("video");
     video.src = artifact.url;
     video.controls = true;
     video.playsInline = true;
-    frame.appendChild(video);
+    video.preload = "metadata";
+    node.appendChild(video);
   } else {
     const image = document.createElement("img");
     image.src = artifact.url;
     image.alt = artifact.name || "artifact";
-    frame.appendChild(image);
+    image.draggable = false;
+    node.appendChild(image);
   }
 
-  board.appendChild(frame);
-  tldrawPreview.appendChild(board);
+  setupMediaNodeDrag(node, artifact, board);
+  return node;
+}
+
+function setupMediaNodeDrag(node, artifact, board) {
+  let dragStart = null;
+  node.addEventListener("click", () => {
+    selectMediaCanvasNode(board, artifactKey(artifact));
+    selectedPreviewByTab.tldraw = artifact;
+  });
+  node.addEventListener("pointerdown", (event) => {
+    if (event.button !== 0 || event.target.closest("video")) {
+      return;
+    }
+    event.preventDefault();
+    event.stopPropagation();
+    const key = artifactKey(artifact);
+    const position = mediaCanvasState.positions.get(key) || { x: 0, y: 0 };
+    dragStart = {
+      pointerId: event.pointerId,
+      startX: event.clientX,
+      startY: event.clientY,
+      nodeX: position.x,
+      nodeY: position.y,
+      key,
+    };
+    selectedPreviewByTab.tldraw = artifact;
+    selectMediaCanvasNode(board, key);
+    node.classList.add("is-dragging");
+    node.setPointerCapture(event.pointerId);
+  });
+  node.addEventListener("pointermove", (event) => {
+    if (!dragStart || event.pointerId !== dragStart.pointerId) {
+      return;
+    }
+    const x = dragStart.nodeX + (event.clientX - dragStart.startX) / mediaCanvasState.zoom;
+    const y = dragStart.nodeY + (event.clientY - dragStart.startY) / mediaCanvasState.zoom;
+    mediaCanvasState.positions.set(dragStart.key, { x, y });
+    node.style.transform = `translate3d(${x}px, ${y}px, 0)`;
+  });
+  const finishDrag = (event) => {
+    if (!dragStart || event.pointerId !== dragStart.pointerId) {
+      return;
+    }
+    node.classList.remove("is-dragging");
+    node.releasePointerCapture(event.pointerId);
+    dragStart = null;
+  };
+  node.addEventListener("pointerup", finishDrag);
+  node.addEventListener("pointercancel", finishDrag);
+}
+
+function selectMediaCanvasNode(board, key) {
+  for (const node of board.querySelectorAll(".media-canvas-node")) {
+    node.classList.toggle("active", node.dataset.artifactKey === key);
+  }
+}
+
+function buildMediaCanvasControls(board, world, artifacts) {
+  const controls = document.createElement("div");
+  controls.className = "media-canvas-controls";
+  controls.appendChild(buildMediaCanvasButton("−", "Zoom out", () => zoomMediaCanvas(board, world, 0.86)));
+  controls.appendChild(buildMediaCanvasButton("+", "Zoom in", () => zoomMediaCanvas(board, world, 1.16)));
+  controls.appendChild(buildMediaCanvasButton("⌖", "Fit canvas", () => {
+    fitMediaCanvas(board, artifacts);
+    applyMediaCanvasTransform(world);
+  }));
+  return controls;
+}
+
+function buildMediaCanvasButton(label, title, onClick) {
+  const button = document.createElement("button");
+  button.className = "media-canvas-control";
+  button.type = "button";
+  button.title = title;
+  button.setAttribute("aria-label", title);
+  button.textContent = label;
+  button.addEventListener("click", onClick);
+  return button;
+}
+
+function setupMediaCanvasInteractions(board, world, artifacts) {
+  board.addEventListener(
+    "wheel",
+    (event) => {
+      event.preventDefault();
+      zoomMediaCanvas(board, world, event.deltaY > 0 ? 0.9 : 1.1, event.clientX, event.clientY);
+    },
+    { passive: false }
+  );
+
+  let panStart = null;
+  board.addEventListener("pointerdown", (event) => {
+    const isBackground = event.target === board || event.target === world;
+    if (!isBackground && event.button !== 1) {
+      return;
+    }
+    event.preventDefault();
+    panStart = {
+      pointerId: event.pointerId,
+      startX: event.clientX,
+      startY: event.clientY,
+      panX: mediaCanvasState.panX,
+      panY: mediaCanvasState.panY,
+    };
+    board.classList.add("is-panning");
+    board.setPointerCapture(event.pointerId);
+  });
+  board.addEventListener("pointermove", (event) => {
+    if (!panStart || event.pointerId !== panStart.pointerId) {
+      return;
+    }
+    mediaCanvasState.panX = panStart.panX + event.clientX - panStart.startX;
+    mediaCanvasState.panY = panStart.panY + event.clientY - panStart.startY;
+    applyMediaCanvasTransform(world);
+  });
+  const finishPan = (event) => {
+    if (!panStart || event.pointerId !== panStart.pointerId) {
+      return;
+    }
+    board.classList.remove("is-panning");
+    board.releasePointerCapture(event.pointerId);
+    panStart = null;
+  };
+  board.addEventListener("pointerup", finishPan);
+  board.addEventListener("pointercancel", finishPan);
+  board.addEventListener("keydown", (event) => {
+    if (event.key === "0") {
+      fitMediaCanvas(board, artifacts);
+      applyMediaCanvasTransform(world);
+    }
+  });
+}
+
+function zoomMediaCanvas(board, world, factor, clientX, clientY) {
+  const previousZoom = mediaCanvasState.zoom;
+  const nextZoom = clamp(previousZoom * factor, MEDIA_CANVAS_MIN_ZOOM, MEDIA_CANVAS_MAX_ZOOM);
+  if (nextZoom === previousZoom) {
+    return;
+  }
+  const rect = board.getBoundingClientRect();
+  const originX = typeof clientX === "number" ? clientX - rect.left : rect.width / 2;
+  const originY = typeof clientY === "number" ? clientY - rect.top : rect.height / 2;
+  const worldX = (originX - mediaCanvasState.panX) / previousZoom;
+  const worldY = (originY - mediaCanvasState.panY) / previousZoom;
+  mediaCanvasState.zoom = nextZoom;
+  mediaCanvasState.panX = originX - worldX * nextZoom;
+  mediaCanvasState.panY = originY - worldY * nextZoom;
+  applyMediaCanvasTransform(world);
+}
+
+function fitMediaCanvas(board, artifacts) {
+  const bounds = mediaCanvasBounds(artifacts);
+  const rect = board.getBoundingClientRect();
+  if (!rect.width || !rect.height || !bounds) {
+    return;
+  }
+  const padding = 68;
+  const zoomX = (rect.width - padding * 2) / bounds.width;
+  const zoomY = (rect.height - padding * 2) / bounds.height;
+  mediaCanvasState.zoom = clamp(Math.min(zoomX, zoomY, 1.06), MEDIA_CANVAS_MIN_ZOOM, MEDIA_CANVAS_MAX_ZOOM);
+  mediaCanvasState.panX = rect.width / 2 - (bounds.x + bounds.width / 2) * mediaCanvasState.zoom;
+  mediaCanvasState.panY = rect.height / 2 - (bounds.y + bounds.height / 2) * mediaCanvasState.zoom;
+}
+
+function mediaCanvasBounds(artifacts) {
+  if (!artifacts.length) {
+    return null;
+  }
+  const widths = artifacts.map((artifact, index) => {
+    const position = mediaCanvasState.positions.get(artifactKey(artifact)) || defaultMediaCanvasPosition(index, artifacts.length);
+    const width = mediaCanvasNodeWidth(artifacts.length);
+    const height = Math.round(width * 0.68);
+    return { x: position.x, y: position.y, width, height };
+  });
+  const minX = Math.min(...widths.map((item) => item.x));
+  const minY = Math.min(...widths.map((item) => item.y));
+  const maxX = Math.max(...widths.map((item) => item.x + item.width));
+  const maxY = Math.max(...widths.map((item) => item.y + item.height));
+  return { x: minX, y: minY, width: maxX - minX, height: maxY - minY };
+}
+
+function applyMediaCanvasTransform(world) {
+  world.style.transform = `translate3d(${mediaCanvasState.panX}px, ${mediaCanvasState.panY}px, 0) scale(${mediaCanvasState.zoom})`;
+}
+
+function clamp(value, min, max) {
+  return Math.max(min, Math.min(max, value));
 }
 
 function renderHtmlPreview() {
@@ -801,7 +1113,7 @@ function renderPptPreview() {
   if (isPdfArtifact(artifact) || isPptxArtifact(artifact)) {
     const iframe = document.createElement("iframe");
     iframe.className = "ppt-preview-frame";
-    iframe.src = isPptxArtifact(artifact) ? previewUrlForArtifact(artifact) : artifact.url;
+    iframe.src = previewUrlForArtifact(artifact);
     iframe.title = artifact.name || "PPT preview";
     iframe.addEventListener("load", () => hideEmbeddedPptChrome(iframe));
     pptPreview.appendChild(iframe);

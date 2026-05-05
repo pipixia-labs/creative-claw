@@ -36,6 +36,7 @@ from .events import OutboundMessage
 STATIC_PACKAGE = "src.webchat.static"
 INDEX_FILE = "index.html"
 PPTX_PREVIEW_ERROR_TITLE = "PPTX preview unavailable"
+PDF_PREVIEW_ERROR_TITLE = "PDF preview unavailable"
 UPLOAD_SIZE_LIMIT = 100 * 1024 * 1024
 UPLOAD_ROOT = Path(tempfile.gettempdir()) / "creative-claw-web-uploads"
 
@@ -327,6 +328,87 @@ def _render_pptx_preview_html(pptx_path: Path) -> str:
   </head>
   <body>
     <main class="deck">{slides}</main>
+  </body>
+</html>"""
+
+
+def _render_pdf_preview_html(pdf_path: Path) -> str:
+    """Render a PDF file into one standalone HTML preview."""
+    try:
+        import fitz
+    except ImportError as exc:  # pragma: no cover - dependency is declared by the project environment.
+        raise RuntimeError("PyMuPDF is required to preview PDF files.") from exc
+
+    pages: list[str] = []
+    with fitz.open(pdf_path) as document:
+        for index, page in enumerate(document, start=1):
+            pixmap = page.get_pixmap(matrix=fitz.Matrix(2, 2), alpha=False)
+            encoded = base64.b64encode(pixmap.tobytes("png")).decode("ascii")
+            pages.append(
+                f"""<section class="page-wrap">
+  <div class="page-label">Page {index}</div>
+  <img class="page-image" src="data:image/png;base64,{encoded}" alt="Page {index}">
+</section>"""
+            )
+
+    title = html.escape(pdf_path.name)
+    body = "\n".join(pages) or '<div class="empty-document">No pages found.</div>'
+    return f"""<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="utf-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1">
+    <title>{title}</title>
+    <style>
+      :root {{
+        --bg: #eef1ea;
+        --paper: #fffef9;
+        --ink: #18211d;
+        --muted: #68746d;
+        --border: rgba(29, 39, 34, 0.16);
+      }}
+      * {{ box-sizing: border-box; }}
+      body {{
+        margin: 0;
+        padding: 24px;
+        background: var(--bg);
+        color: var(--ink);
+        font-family: Avenir Next, Segoe UI, sans-serif;
+      }}
+      .document {{
+        max-width: 980px;
+        margin: 0 auto;
+        display: grid;
+        gap: 22px;
+      }}
+      .page-label {{
+        margin-bottom: 8px;
+        color: var(--muted);
+        font-size: 12px;
+        font-weight: 700;
+        letter-spacing: 0.08em;
+        text-transform: uppercase;
+      }}
+      .page-image {{
+        display: block;
+        width: 100%;
+        height: auto;
+        border: 1px solid var(--border);
+        border-radius: 16px;
+        background: var(--paper);
+        box-shadow: 0 18px 46px rgba(35, 42, 36, 0.13);
+      }}
+      .empty-document {{
+        min-height: 100vh;
+        display: grid;
+        place-items: center;
+        color: var(--muted);
+        font-size: 14px;
+      }}
+    </style>
+  </head>
+  <body>
+    <main class="document">{body}</main>
   </body>
 </html>"""
 
@@ -783,7 +865,17 @@ class WebChannel(BaseChannel):
                 [("Content-Type", "text/plain; charset=utf-8")],
                 b"Not Found",
             )
-        if resolved.suffix.lower() != ".pptx":
+        suffix = resolved.suffix.lower()
+        if suffix == ".pdf":
+            try:
+                return _html_response(_render_pdf_preview_html(resolved))
+            except Exception as exc:
+                logger.opt(exception=exc).warning("Failed to render PDF preview for {}", resolved)
+                return _html_response(
+                    _simple_preview_error(PDF_PREVIEW_ERROR_TITLE, f"Could not render {resolved.name}: {exc}"),
+                    status=HTTPStatus.INTERNAL_SERVER_ERROR,
+                )
+        if suffix != ".pptx":
             return _html_response(
                 _simple_preview_error(
                     "Preview unsupported",
