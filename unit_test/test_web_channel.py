@@ -45,6 +45,8 @@ class WebChannelTests(unittest.IsolatedAsyncioTestCase):
         self.assertEqual(status, 200)
         self.assertIn("CreativeClaw Web Chat", body)
         self.assertIn("/app.js", body)
+        self.assertNotIn("Creative flow in one surface", body)
+        self.assertNotIn("A local browser chat surface", body)
 
     async def test_web_channel_bridges_websocket_messages_and_artifacts(self) -> None:
         generated_file = generated_root() / f"web_channel_{uuid.uuid4().hex[:8]}.png"
