@@ -7,6 +7,8 @@ from typing import Any, Literal
 from pydantic import BaseModel, Field, field_validator, model_validator
 
 PPT_PRODUCT_RESULT_SCHEMA_VERSION = "ppt-product-result-v1"
+# Standard page types are template-level requirements, not a global deck-plan
+# requirement. A template package may opt into these page types later.
 REQUIRED_DECK_PAGE_TYPES = (
     "cover",
     "toc",
@@ -22,6 +24,9 @@ DeckPageType = Literal[
     "chapter_start",
     "chapter_content",
     "ending",
+    "content",
+    "word_card",
+    "activity",
     "quote",
     "stat",
     "kpi_grid",
@@ -293,8 +298,8 @@ class DeckContentPlan(BaseModel):
         return _clean_string(value)
 
     @model_validator(mode="after")
-    def _validate_required_page_types(self) -> "DeckContentPlan":
-        """Require the standard page types defined by the PPT product design."""
+    def _validate_plan_shape(self) -> "DeckContentPlan":
+        """Validate the generic, template-independent deck-plan shape."""
         validate_deck_content_plan(self)
         return self
 
@@ -362,6 +367,8 @@ class PptProductResult(BaseModel):
         "generation_failed",
         "success",
         "error",
+        "awaiting_requirement_confirmation",
+        "awaiting_content_plan_confirmation",
     ]
     product_line: Literal["ppt"] = "ppt"
     phase: str
@@ -372,14 +379,18 @@ class PptProductResult(BaseModel):
     route_build: HtmlRouteBuildPackage | None = None
     quality_review: QualityReviewResult | None = None
     delivery_manifest: DeliveryManifest = Field(default_factory=DeliveryManifest)
+    confirmation_request: dict[str, Any] = Field(default_factory=dict)
     output_files: list[dict[str, Any]] = Field(default_factory=list)
     warnings: list[str] = Field(default_factory=list)
     next_actions: list[str] = Field(default_factory=list)
 
 
 def validate_deck_content_plan(plan: DeckContentPlan) -> None:
-    """Validate that one deck plan covers the required standard page types."""
-    page_types = {page.page_type for page in plan.pages}
-    missing = [page_type for page_type in REQUIRED_DECK_PAGE_TYPES if page_type not in page_types]
-    if missing:
-        raise ValueError(f"DeckContentPlan missing required page types: {', '.join(missing)}")
+    """Validate the minimal route-independent DeckContentPlan invariants."""
+    if not plan.pages:
+        raise ValueError("DeckContentPlan must contain at least one page.")
+    slide_numbers = [page.slide_number for page in plan.pages]
+    duplicate_numbers = sorted({number for number in slide_numbers if slide_numbers.count(number) > 1})
+    if duplicate_numbers:
+        duplicates = ", ".join(str(number) for number in duplicate_numbers)
+        raise ValueError(f"DeckContentPlan has duplicate slide numbers: {duplicates}")

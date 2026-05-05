@@ -54,7 +54,9 @@ class PptContentPlanner:
                 "Use `source_understanding` only for user-provided documents and assets, not for the task text itself.\n"
                 "Always call read_ppt_markdown_sources first so source Markdown is read before planning.\n"
                 "Then call save_ppt_deck_content_plan_markdown with one Markdown string.\n"
-                "The plan must include cover, toc, chapter_start, chapter_content, and ending pages.\n"
+                "When `template_requirement.template_source` is `none`, do not force cover, toc, chapter_start, "
+                "or ending slides. Treat those page types as template requirements only. "
+                "Use them only when the user or selected template explicitly requires them.\n"
                 "Do not copy the raw user request, delivery command, file format request, or style instructions "
                 "into slide titles or slide body text. Treat those as planning metadata only.\n"
                 "Use concise audience-facing titles. For example, a request to make a PPTX for humanities "
@@ -65,7 +67,7 @@ class PptContentPlanner:
                 "Language: <language>\n"
                 "SlideCount: <count>\n"
                 "Narrative: <one sentence>\n\n"
-                "## Slide 1 | cover | <title>\n"
+                "## Slide 1 | <page_type> | <title>\n"
                 "Purpose: <why this slide exists>\n"
                 "Takeaway: <what the audience should remember>\n"
                 "Content:\n"
@@ -77,10 +79,10 @@ class PptContentPlanner:
                 "Use `placeholder | role=grid | description=...` for layout-only image placeholders.\n"
                 "When style_keywords include `illustrated`, `kid_friendly`, or the user asks for 图文并茂, "
                 "配图, 插图, children, kindergarten, or flashcards, plan image_generation assets for the "
-                "cover, chapter, and content pages unless suitable material_figure/user_upload assets already exist. "
+                "actual audience-facing teaching/content pages unless suitable material_figure/user_upload assets already exist. "
                 "For young children, asset prompts must be safe, colorful, simple, and easy to recognize.\n"
-                "For kindergarten English word decks, plan concrete word-card pages such as Apple 苹果, "
-                "Cat 猫, Dog 狗, Ball 球, Book 书, Sun 太阳, plus a review game. "
+                "For kindergarten English word decks, honor explicitly requested words and exact slide count first. "
+                "For example, `3页，分别讲 猫、狗、鸭子` means exactly three word_card slides: Cat 猫, Dog 狗, Duck 鸭子. "
                 "Never use internal placeholders like Context, Insight, Next Steps, No source file, "
                 "or ContentPlanningAgent in slide titles or slide body text.\n"
                 "Keep slide content concise, material-backed, and independent from HTML/SVG/XML templates."
@@ -449,6 +451,21 @@ class PptContentPlanner:
         chapters = _build_chapters(understanding)
         key_points = _build_key_points(requirement, understanding, source_texts=source_texts)
         source_preference = _select_asset_source_preference(requirement, understanding)
+        if not requirement.template_requirement.use_template:
+            pages = _build_direct_fallback_pages(
+                requirement=requirement,
+                understanding=understanding,
+                chapters=chapters,
+                key_points=key_points,
+                slide_count=slide_count,
+                source_preference=source_preference,
+            )
+            return DeckContentPlan(
+                title=requirement.topic,
+                core_narrative=_core_narrative(requirement, key_points),
+                chapters=chapters,
+                pages=pages,
+            )
 
         pages: list[DeckPagePlan] = [
             _build_page(
@@ -590,17 +607,34 @@ def _build_content_planning_user_message(requirement: ConfirmedRequirement) -> s
 
 def _validate_plan_matches_requirement(plan: DeckContentPlan, *, requirement: ConfirmedRequirement) -> None:
     """Reject content plans that are structurally valid but semantically off-task."""
+    exact_count = _exact_requested_slide_count(requirement)
+    if exact_count is not None and len(plan.pages) != exact_count:
+        raise ValueError(
+            f"DeckContentPlan has {len(plan.pages)} pages, but the user explicitly requested {exact_count} pages."
+        )
     if _should_use_kindergarten_english_plan(requirement, requirement.source_understanding):
-        if not _plan_matches_kindergarten_english_requirement(plan):
+        if not _plan_matches_kindergarten_english_requirement(plan, requirement=requirement):
             raise ValueError(
                 "DeckContentPlan does not match the kindergarten English-word task; "
                 "expected concrete child-friendly English word-card pages."
             )
 
 
-def _plan_matches_kindergarten_english_requirement(plan: DeckContentPlan) -> bool:
+def _plan_matches_kindergarten_english_requirement(
+    plan: DeckContentPlan,
+    *,
+    requirement: ConfirmedRequirement,
+) -> bool:
     """Return whether a plan looks like a child-friendly English word-card deck."""
     plan_text = _deck_plan_text(plan).lower()
+    requested_words = _extract_requested_kindergarten_word_specs(requirement)
+    if requested_words:
+        business_markers = ("目标对齐", "沟通稿", "商务", "协作安排", "行动确认", "团队需要")
+        has_business_contamination = any(marker in plan_text for marker in business_markers)
+        return (
+            all(_word_spec_matches_plan_text(word_spec, plan_text) for word_spec in requested_words)
+            and not has_business_contamination
+        )
     word_markers = (
         "apple",
         "cat",
@@ -660,9 +694,94 @@ def _deck_plan_text(plan: DeckContentPlan) -> str:
 
 
 def _select_slide_count(requirement: ConfirmedRequirement) -> int:
-    """Select a practical slide count while keeping required page types present."""
+    """Select a practical slide count while respecting exact user requests."""
+    exact_count = _exact_requested_slide_count(requirement)
+    if exact_count is not None:
+        return exact_count
     requested_count = requirement.slide_count_policy.target or requirement.slide_count_policy.maximum
-    return max(5, int(requested_count or 5))
+    return max(1, int(requested_count or 5))
+
+
+def _exact_requested_slide_count(requirement: ConfirmedRequirement) -> int | None:
+    """Return an exact user-requested slide count, when the request is exact."""
+    policy = requirement.slide_count_policy
+    if policy.source != "user" or policy.target is None:
+        return None
+    if policy.minimum == policy.maximum == policy.target:
+        return int(policy.target)
+    return None
+
+
+def _build_direct_fallback_pages(
+    *,
+    requirement: ConfirmedRequirement,
+    understanding: SourceUnderstanding,
+    chapters: list[DeckChapter],
+    key_points: list[str],
+    slide_count: int,
+    source_preference: str,
+) -> list[DeckPagePlan]:
+    """Build no-template fallback pages without injecting template-only structure."""
+    public_points = _public_planning_points(requirement, key_points)
+    pages: list[DeckPagePlan] = []
+    for index in range(slide_count):
+        slide_number = index + 1
+        point = public_points[index % len(public_points)]
+        support = public_points[(index + 1) % len(public_points)]
+        chapter = chapters[index % len(chapters)] if chapters else DeckChapter(title=requirement.topic)
+        title = _direct_slide_title(requirement, point=point, index=index)
+        pages.append(
+            _build_page(
+                slide_number=slide_number,
+                page_type="content",
+                title=title,
+                purpose=f"Explain {title} for {requirement.audience or 'the audience'}.",
+                chapter=chapter.title,
+                key_takeaway=point,
+                content_blocks=[
+                    {"title": "核心信息", "body": point},
+                    {"title": "辅助理解", "body": support},
+                ],
+                asset_intent=_asset_intent(requirement, understanding),
+                asset_source_preference=_asset_source_preference_for_page("content", source_preference),
+            )
+        )
+    return pages
+
+
+def _public_planning_points(requirement: ConfirmedRequirement, key_points: list[str]) -> list[str]:
+    """Keep only audience-facing fallback points."""
+    points = [
+        point
+        for point in key_points
+        if point and not _is_internal_planning_text(point)
+    ]
+    if requirement.topic and requirement.topic not in points:
+        points.insert(0, requirement.topic)
+    return _dedupe_text(points) or [requirement.topic or "Main topic"]
+
+
+def _is_internal_planning_text(text: str) -> bool:
+    """Return whether fallback text is an internal planning note."""
+    lowered = str(text or "").lower()
+    internal_markers = (
+        "no source file",
+        "content planning agent",
+        "prepared markdown source",
+        "converted markdown source",
+        "source files were listed",
+        "the plan uses the task request",
+    )
+    return any(marker in lowered for marker in internal_markers)
+
+
+def _direct_slide_title(requirement: ConfirmedRequirement, *, point: str, index: int) -> str:
+    """Build a concise title for no-template fallback pages."""
+    if index == 0:
+        return _compact_title(requirement.topic, fallback="主题说明")
+    if point == requirement.topic:
+        return _compact_title(f"{requirement.topic}：重点 {index + 1}", fallback=f"重点 {index + 1}")
+    return _compact_title(point, fallback=f"重点 {index + 1}")
 
 
 def parse_ppt_deck_plan_markdown(markdown: str, *, requirement: ConfirmedRequirement) -> DeckContentPlan:
@@ -930,8 +1049,15 @@ def _normalize_page_type(value: str) -> str:
         "section": "chapter_start",
         "section_divider": "chapter_start",
         "divider": "chapter_start",
-        "content": "chapter_content",
-        "main": "chapter_content",
+        "main": "content",
+        "body": "content",
+        "word": "word_card",
+        "wordcard": "word_card",
+        "flashcard": "word_card",
+        "word_flashcard": "word_card",
+        "game": "activity",
+        "exercise": "activity",
+        "practice": "activity",
         "summary": "ending",
         "closing": "ending",
         "review": "ending",
@@ -943,6 +1069,9 @@ def _normalize_page_type(value: str) -> str:
         "chapter_start",
         "chapter_content",
         "ending",
+        "content",
+        "word_card",
+        "activity",
         "quote",
         "stat",
         "kpi_grid",
@@ -990,94 +1119,184 @@ def _should_use_kindergarten_english_plan(
     return has_child_audience and has_english_words
 
 
+_KINDERGARTEN_WORD_BANK: tuple[dict[str, str], ...] = (
+    {
+        "english": "Apple",
+        "chinese": "苹果",
+        "prompt": "A single cute red apple with a smiling friendly style for kindergarten flashcard, plain light background, no text inside image",
+    },
+    {
+        "english": "Cat",
+        "chinese": "猫",
+        "prompt": "A cute orange kitten sitting happily, simple colorful kindergarten flashcard style, plain light background, no text inside image",
+    },
+    {
+        "english": "Dog",
+        "chinese": "狗",
+        "prompt": "A friendly puppy waving one paw, simple colorful kindergarten flashcard style, plain light background, no text inside image",
+    },
+    {
+        "english": "Duck",
+        "chinese": "鸭子",
+        "prompt": "A cute yellow duck standing by a small blue pond, simple colorful kindergarten flashcard style, no text inside image",
+    },
+    {
+        "english": "Ball",
+        "chinese": "球",
+        "prompt": "A colorful toy ball with simple friendly shapes, kindergarten flashcard style, plain light background, no text inside image",
+    },
+    {
+        "english": "Book",
+        "chinese": "书",
+        "prompt": "A cute children's picture book opened on a table, simple colorful kindergarten flashcard style, no text inside image",
+    },
+    {
+        "english": "Sun",
+        "chinese": "太阳",
+        "prompt": "A smiling bright sun in a simple blue sky, colorful kindergarten flashcard style, no text inside image",
+    },
+    {
+        "english": "Fish",
+        "chinese": "鱼",
+        "prompt": "A cute orange fish swimming happily, simple colorful kindergarten flashcard style, no text inside image",
+    },
+)
+_KINDERGARTEN_WORD_ALIASES: dict[str, tuple[str, str]] = {
+    "apple": ("Apple", "苹果"),
+    "苹果": ("Apple", "苹果"),
+    "cat": ("Cat", "猫"),
+    "猫": ("Cat", "猫"),
+    "dog": ("Dog", "狗"),
+    "狗": ("Dog", "狗"),
+    "duck": ("Duck", "鸭子"),
+    "鸭": ("Duck", "鸭子"),
+    "鸭子": ("Duck", "鸭子"),
+    "ball": ("Ball", "球"),
+    "球": ("Ball", "球"),
+    "book": ("Book", "书"),
+    "书": ("Book", "书"),
+    "sun": ("Sun", "太阳"),
+    "太阳": ("Sun", "太阳"),
+    "fish": ("Fish", "鱼"),
+    "鱼": ("Fish", "鱼"),
+}
+
+
+def _select_kindergarten_word_specs(requirement: ConfirmedRequirement) -> list[dict[str, str]]:
+    """Select word-card specs, giving explicit user vocabulary highest priority."""
+    requested_words = _extract_requested_kindergarten_word_specs(requirement)
+    slide_count = _select_slide_count(requirement)
+    selected = list(requested_words)
+    seen = {word["english"].lower() for word in selected}
+    for word in _KINDERGARTEN_WORD_BANK:
+        if len(selected) >= slide_count:
+            break
+        if word["english"].lower() in seen:
+            continue
+        selected.append(dict(word))
+        seen.add(word["english"].lower())
+    return selected[:slide_count] or [dict(_KINDERGARTEN_WORD_BANK[0])]
+
+
+def _extract_requested_kindergarten_word_specs(requirement: ConfirmedRequirement) -> list[dict[str, str]]:
+    """Extract explicitly requested vocabulary from the user task brief."""
+    text = " ".join(
+        [
+            requirement.request_brief,
+            requirement.topic,
+            requirement.scenario,
+        ]
+    )
+    candidate_segments: list[str] = []
+    patterns = (
+        r"(?:分别讲|分别介绍|分别学习|分别教|每页讲)\s*(?P<words>[^。.;；]+)",
+        r"(?:必须包含|需要包含|包含|包括)\s*(?P<words>[^。.;；]+)",
+    )
+    for pattern in patterns:
+        candidate_segments.extend(
+            match.group("words").strip()
+            for match in re.finditer(pattern, text, flags=re.IGNORECASE)
+            if match.group("words").strip()
+        )
+    if not candidate_segments:
+        return []
+
+    selected: list[dict[str, str]] = []
+    seen: set[str] = set()
+    for segment in candidate_segments:
+        for token in re.split(r"[、,，/和及\s]+", segment):
+            word_spec = _word_spec_from_token(token)
+            if word_spec is None:
+                continue
+            key = word_spec["english"].lower()
+            if key in seen:
+                continue
+            selected.append(word_spec)
+            seen.add(key)
+    return selected
+
+
+def _word_spec_from_token(token: str) -> dict[str, str] | None:
+    """Map one user vocabulary token to an English/Chinese word-card spec."""
+    clean_token = str(token or "").strip(" ：:，。,.；;、（）()[]【】\"'“”‘’")
+    if not clean_token:
+        return None
+    if re.search(r"\d", clean_token) or clean_token.lower() in {"ppt", "pptx", "page", "pages", "slide", "slides"}:
+        return None
+    alias = _KINDERGARTEN_WORD_ALIASES.get(clean_token.lower()) or _KINDERGARTEN_WORD_ALIASES.get(clean_token)
+    if alias is None:
+        return None
+    english, chinese = alias
+    for word in _KINDERGARTEN_WORD_BANK:
+        if word["english"] == english:
+            return dict(word)
+    return {
+        "english": english,
+        "chinese": chinese,
+        "prompt": f"A cute simple illustration of {english}, kindergarten flashcard style, no text inside image",
+    }
+
+
+def _word_spec_matches_plan_text(word_spec: dict[str, str], plan_text: str) -> bool:
+    """Return whether a planned deck includes one requested word."""
+    english = str(word_spec.get("english") or "").lower()
+    chinese = str(word_spec.get("chinese") or "").lower()
+    return bool((english and english in plan_text) or (chinese and chinese in plan_text))
+
+
 def _build_kindergarten_english_word_markdown(requirement: ConfirmedRequirement) -> str:
     """Build a simple Markdown plan for kid-friendly English word teaching decks."""
     audience = requirement.audience or "幼儿园小朋友"
+    word_specs = _select_kindergarten_word_specs(requirement)
+    slide_count = len(word_specs)
+    slide_sections = "\n\n".join(
+        _build_kindergarten_word_slide_markdown(index, word_spec)
+        for index, word_spec in enumerate(word_specs, start=1)
+    )
     return f"""# Deck: 开心学英语单词
 Audience: {audience}
 Language: zh-CN
-SlideCount: 8
-Narrative: 用可爱的图片和小游戏帮助小朋友认识常见英语单词。
+SlideCount: {slide_count}
+Narrative: 用可爱的图片帮助小朋友一页学会一个英语单词。
 
-## Slide 1 | cover | 开心学英语单词
-Purpose: 用轻松可爱的方式开场。
-Takeaway: 今天要用图片认识几个简单英语单词。
-Content:
-- 一起看图片、听单词、跟着读。
-Visual:
-- ai | role=hero | description=Colorful cute kindergarten classroom illustration with happy children learning English words, no text inside image
-
-## Slide 2 | toc | 今天学什么
-Purpose: 让小朋友知道今天会看到哪些词。
-Takeaway: 我们会学水果、动物、玩具和自然里的单词。
-Content:
-- 水果：Apple
-- 动物：Cat、Dog
-- 玩具和物品：Ball、Book
-- 自然：Sun
-Visual:
-- placeholder | role=word_card_grid | description=Six rounded word cards with simple picture spaces
-
-## Slide 3 | chapter_start | 看图学单词
-Purpose: 进入看图识词环节。
-Takeaway: 看到图片时，先说中文，再试着说英文。
-Content:
-- 看一看：图片里是什么？
-- 读一读：跟老师说英文。
-Visual:
-- ai | role=section_hero | description=Friendly illustrated flashcards on a classroom table, colorful simple shapes, no text inside image
-
-## Slide 4 | chapter_content | Apple 苹果
-Purpose: 学习第一个水果单词。
-Takeaway: Apple 是苹果。
-Content:
-- Apple：苹果
-- 读音练习：Ap-ple
-- 小互动：找一找红色的苹果。
-Visual:
-- ai | role=word_picture | description=A single cute red apple with a smiling friendly style for kindergarten flashcard, plain light background, no text inside image
-
-## Slide 5 | chapter_content | Cat 猫
-Purpose: 学习一个动物单词。
-Takeaway: Cat 是猫。
-Content:
-- Cat：猫
-- 读音练习：Cat
-- 小互动：学小猫轻轻叫。
-Visual:
-- ai | role=word_picture | description=A cute orange kitten sitting happily, simple colorful kindergarten flashcard style, plain light background, no text inside image
-
-## Slide 6 | chapter_content | Dog 狗
-Purpose: 学习另一个动物单词。
-Takeaway: Dog 是狗。
-Content:
-- Dog：狗
-- 读音练习：Dog
-- 小互动：做一个小狗挥手动作。
-Visual:
-- ai | role=word_picture | description=A friendly puppy waving one paw, simple colorful kindergarten flashcard style, plain light background, no text inside image
-
-## Slide 7 | chapter_content | Ball 球 / Book 书 / Sun 太阳
-Purpose: 一页复习三个常见单词。
-Takeaway: Ball 是球，Book 是书，Sun 是太阳。
-Content:
-- Ball：球
-- Book：书
-- Sun：太阳
-- 小互动：老师说英文，小朋友指图片。
-Visual:
-- ai | role=word_picture_grid | description=Three cute simple objects: colorful ball, children's book, smiling sun, kindergarten flashcard grid, no text inside image
-
-## Slide 8 | ending | 我说你指
-Purpose: 用小游戏结束并复习。
-Takeaway: 听到英文单词后，可以找到对应图片。
-Content:
-- 老师说：Apple / Cat / Dog / Ball / Book / Sun
-- 小朋友指一指对应图片。
-- 最后一起大声读一遍。
-Visual:
-- placeholder | role=review_game_board | description=Review game board with six picture spaces for teacher-led pointing game
+{slide_sections}
 """
+
+
+def _build_kindergarten_word_slide_markdown(index: int, word_spec: dict[str, str]) -> str:
+    """Build one word-card slide in the Markdown planning contract."""
+    english = word_spec["english"]
+    chinese = word_spec["chinese"]
+    prompt = word_spec["prompt"]
+    return f"""## Slide {index} | word_card | {english} {chinese}
+Purpose: 用图片和跟读帮助小朋友认识 {english}。
+Takeaway: {english} 是{chinese}。
+Content:
+- {english}：{chinese}
+- 跟读：{english}
+- 小互动：看图片，说出 {english}
+Visual:
+- ai | role=word_picture | description={prompt}"""
 
 
 def _select_asset_source_preference(
@@ -1096,7 +1315,7 @@ def _asset_source_preference_for_page(page_type: str, source_preference: str) ->
     """Limit generated visuals to pages where they add value."""
     if source_preference != "ai":
         return source_preference
-    if page_type in {"cover", "chapter_start", "chapter_content"}:
+    if page_type in {"cover", "chapter_start", "chapter_content", "content", "word_card", "activity"}:
         return "ai"
     return "placeholder"
 

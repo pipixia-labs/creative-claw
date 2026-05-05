@@ -43,6 +43,12 @@ from src.runtime.workspace import (
 
 PPT_CONFIRMED_REQUIREMENT_STATE_KEY = "ppt_confirmed_requirement"
 PPT_PRODUCT_RESULT_STATE_KEY = "ppt_product_result"
+PPT_WORKFLOW_STATE_KEY = "ppt_workflow_state"
+PPT_STAGE_AWAITING_REQUIREMENT_CONFIRMATION = "awaiting_requirement_confirmation"
+PPT_STAGE_AWAITING_CONTENT_PLAN_CONFIRMATION = "awaiting_content_plan_confirmation"
+PPT_STAGE_COMPLETED = "completed"
+PPT_WORKFLOW_WAITING_SINCE_TURN_KEY = "waiting_since_turn_index"
+PPT_WORKFLOW_LAST_CONSUMED_TURN_KEY = "last_consumed_turn_index"
 
 
 class PptProductManager(LlmAgent):
@@ -102,6 +108,8 @@ Own PPT and PowerPoint production end to end. If the requested final deliverable
 - Use deterministic tools and session state for stage contracts.
 - Treat `ConfirmedRequirement` as the requirement source of truth.
 - Treat `DeckContentPlan` as template-independent content truth.
+- Pause for user confirmation after `ConfirmedRequirement` is prepared.
+- Pause again after `DeckContentPlan` is prepared, before searching or generating images.
 - Dispatch exactly one route pipeline per task.
 - Prefer the HTML route first for the MVP, then add SVG and XML as separate route pipelines.
 - Do not expose route-internal editing tools at the top product-manager layer.
@@ -178,6 +186,26 @@ Return structured status, current phase, selected route, warnings, next actions,
             }
 
         output_options = dict(output or {})
+        if not self._should_auto_confirm(output_options):
+            workflow_state = self._get_workflow_state(tool_context.state)
+            if self._is_pending_confirmation_stage(workflow_state.get("stage")):
+                return await self.continue_product_request(
+                    user_response=clean_task,
+                    tool_context=tool_context,
+                    expert_agents=expert_agents,
+                    app_name=app_name,
+                    artifact_service=artifact_service,
+                    source_converter=source_converter,
+                    content_plan_builder=content_plan_builder,
+                    asset_resolver=asset_resolver,
+                )
+            return await self._start_interactive_product_request(
+                task=clean_task,
+                inputs=inputs,
+                output=output_options,
+                tool_context=tool_context,
+            )
+
         try:
             raw_inputs = self._normalize_raw_inputs(inputs)
             source_inputs = self._normalize_source_inputs(raw_inputs)
@@ -308,6 +336,607 @@ Return structured status, current phase, selected route, warnings, next actions,
         tool_context.state["last_output_message"] = str(result_payload.get("message") or "")
         return result_payload
 
+    async def continue_product_request(
+        self,
+        *,
+        user_response: str,
+        tool_context: ToolContext,
+        expert_agents: dict[str, BaseAgent] | None = None,
+        app_name: str = "creative_claw",
+        artifact_service: InMemoryArtifactService | None = None,
+        source_converter: Any | None = None,
+        content_plan_builder: Any | None = None,
+        asset_resolver: Any | None = None,
+    ) -> dict[str, Any]:
+        """Continue a paused PPT product workflow after a user confirmation turn."""
+        workflow_state = self._get_workflow_state(tool_context.state)
+        stage = str(workflow_state.get("stage") or "").strip()
+        clean_response = str(user_response or "").strip()
+        if not workflow_state or not stage:
+            result = PptProductResult(
+                status="error",
+                phase="ppt_workflow_resume",
+                message="没有找到等待确认的 PPT 工作流，请重新发起 PPT 任务。",
+                selected_route="html",
+                warnings=["Missing ppt_workflow_state."],
+                next_actions=["重新发起 PPT 任务。"],
+            )
+            return self._persist_product_result(tool_context, result)
+
+        if self._is_pending_confirmation_stage(stage) and self._is_waiting_for_later_user_turn(
+            workflow_state,
+            tool_context.state,
+        ):
+            result = self._build_current_confirmation_result(workflow_state)
+            return self._persist_product_result(tool_context, result)
+
+        workflow_state[PPT_WORKFLOW_LAST_CONSUMED_TURN_KEY] = self._current_turn_index(tool_context.state)
+
+        if stage == PPT_STAGE_AWAITING_REQUIREMENT_CONFIRMATION:
+            return await self._continue_after_requirement_confirmation(
+                user_response=clean_response,
+                workflow_state=workflow_state,
+                tool_context=tool_context,
+                expert_agents=expert_agents or {},
+                app_name=app_name,
+                artifact_service=artifact_service,
+                source_converter=source_converter,
+                content_plan_builder=content_plan_builder,
+            )
+        if stage == PPT_STAGE_AWAITING_CONTENT_PLAN_CONFIRMATION:
+            return await self._continue_after_content_plan_confirmation(
+                user_response=clean_response,
+                workflow_state=workflow_state,
+                tool_context=tool_context,
+                expert_agents=expert_agents or {},
+                app_name=app_name,
+                artifact_service=artifact_service,
+                content_plan_builder=content_plan_builder,
+                asset_resolver=asset_resolver,
+            )
+
+        result = PptProductResult(
+            status="error",
+            phase="ppt_workflow_resume",
+            message=f"PPT 工作流当前阶段 `{stage}` 不能继续确认。",
+            selected_route="html",
+            warnings=[f"Unsupported PPT workflow stage: {stage}"],
+            next_actions=["重新发起 PPT 任务。"],
+        )
+        return self._persist_product_result(tool_context, result)
+
+    async def _start_interactive_product_request(
+        self,
+        *,
+        task: str,
+        inputs: Any | None,
+        output: dict[str, Any],
+        tool_context: ToolContext,
+    ) -> dict[str, Any]:
+        """Start a PPT workflow and stop at the requirement confirmation gate."""
+        try:
+            raw_inputs = self._normalize_raw_inputs(inputs)
+            requirement = self.prepare_confirmed_requirement(
+                task=task,
+                inputs=raw_inputs,
+                output=output,
+                source_understanding=SourceUnderstanding(
+                    document_type=self._infer_document_type(self._normalize_source_inputs(raw_inputs)),
+                ),
+            )
+            tool_context.state[PPT_CONFIRMED_REQUIREMENT_STATE_KEY] = requirement.model_dump(mode="json")
+            clarification_questions = self.validate_confirmed_requirement(requirement)
+            if clarification_questions:
+                result = PptProductResult(
+                    status="needs_clarification",
+                    phase="requirement_confirmation",
+                    message="PptProductManager needs a clearer PPT topic or source material before generation.",
+                    selected_route=requirement.route,
+                    confirmed_requirement=requirement,
+                    delivery_manifest=DeliveryManifest(),
+                    warnings=[],
+                    next_actions=clarification_questions,
+                )
+                return self._persist_product_result(tool_context, result)
+
+            workflow_state = {
+                "workflow_id": self._build_workflow_id(tool_context.state),
+                "stage": PPT_STAGE_AWAITING_REQUIREMENT_CONFIRMATION,
+                "revision": 1,
+                "task": task,
+                "raw_inputs": raw_inputs,
+                "output": dict(output or {}),
+                "confirmed_requirement": requirement.model_dump(mode="json"),
+            }
+            self._mark_confirmation_waiting(workflow_state, tool_context.state)
+            result = self._build_requirement_confirmation_result(requirement, workflow_state)
+            tool_context.state[PPT_WORKFLOW_STATE_KEY] = workflow_state
+            return self._persist_product_result(tool_context, result)
+        except Exception as exc:
+            result = PptProductResult(
+                status="error",
+                phase="requirement_confirmation",
+                message=f"PPT requirement confirmation failed: {type(exc).__name__}: {exc}",
+                selected_route="html",
+                warnings=[str(exc)],
+                next_actions=["Fix the malformed PPT product request and retry."],
+            )
+            return self._persist_product_result(tool_context, result)
+
+    async def _continue_after_requirement_confirmation(
+        self,
+        *,
+        user_response: str,
+        workflow_state: dict[str, Any],
+        tool_context: ToolContext,
+        expert_agents: dict[str, BaseAgent],
+        app_name: str,
+        artifact_service: InMemoryArtifactService | None,
+        source_converter: Any | None,
+        content_plan_builder: Any | None,
+    ) -> dict[str, Any]:
+        """Handle the first confirmation gate and then prepare a content plan."""
+        if not self._is_confirmation_text(user_response):
+            return await self._revise_requirement_confirmation(
+                user_response=user_response,
+                workflow_state=workflow_state,
+                tool_context=tool_context,
+            )
+
+        requirement = ConfirmedRequirement.model_validate(workflow_state.get("confirmed_requirement") or {})
+        route_registration = self._route_registry.get(requirement.route)
+        if route_registration is None or not route_registration.implemented:
+            result = self._build_route_not_implemented_result(requirement, route_registration)
+            workflow_state["stage"] = PPT_STAGE_COMPLETED
+            tool_context.state[PPT_WORKFLOW_STATE_KEY] = workflow_state
+            return self._persist_product_result(tool_context, result)
+
+        raw_inputs = list(workflow_state.get("raw_inputs") or [])
+        source_inputs = self._normalize_source_inputs(raw_inputs)
+        source_converter = source_converter or self._build_source_converter(
+            tool_context=tool_context,
+            expert_agents=expert_agents,
+            app_name=app_name,
+            artifact_service=artifact_service,
+        )
+        source_materials = await self._prepare_source_materials(
+            source_inputs,
+            fallback_document_type=self._infer_document_type(source_inputs),
+            tool_context=tool_context,
+            source_converter=source_converter,
+        )
+        requirement = requirement.model_copy(update={"source_understanding": source_materials})
+        tool_context.state["ppt_source_materials"] = source_materials.model_dump(mode="json")
+        tool_context.state["ppt_source_markdown_sources"] = source_materials.markdown_sources
+        tool_context.state["ppt_source_figures"] = source_materials.figures
+        tool_context.state["ppt_source_output_files"] = source_materials.output_files
+        tool_context.state[PPT_CONFIRMED_REQUIREMENT_STATE_KEY] = requirement.model_dump(mode="json")
+
+        content_plan = await self.build_deck_content_plan(
+            requirement,
+            tool_context=tool_context,
+            app_name=app_name,
+            artifact_service=artifact_service,
+            expert_agents=expert_agents,
+            content_plan_builder=content_plan_builder,
+            resolve_assets=False,
+        )
+        workflow_state.update(
+            {
+                "stage": PPT_STAGE_AWAITING_CONTENT_PLAN_CONFIRMATION,
+                "confirmed_requirement": requirement.model_dump(mode="json"),
+                "source_materials": source_materials.model_dump(mode="json"),
+                "deck_content_plan": content_plan.model_dump(mode="json"),
+                "deck_content_plan_markdown": str(tool_context.state.get("ppt_deck_content_plan_markdown") or ""),
+                "revision": int(workflow_state.get("revision", 1) or 1) + 1,
+            }
+        )
+        self._mark_confirmation_waiting(workflow_state, tool_context.state)
+        tool_context.state[PPT_WORKFLOW_STATE_KEY] = workflow_state
+        result = self._build_content_plan_confirmation_result(requirement, content_plan, workflow_state)
+        return self._persist_product_result(tool_context, result)
+
+    async def _revise_requirement_confirmation(
+        self,
+        *,
+        user_response: str,
+        workflow_state: dict[str, Any],
+        tool_context: ToolContext,
+    ) -> dict[str, Any]:
+        """Apply user edits to the requirement draft and ask for confirmation again."""
+        revised_task = self._append_user_revision(str(workflow_state.get("task") or ""), user_response)
+        raw_inputs = list(workflow_state.get("raw_inputs") or [])
+        output = dict(workflow_state.get("output") or {})
+        requirement = self.prepare_confirmed_requirement(
+            task=revised_task,
+            inputs=raw_inputs,
+            output=output,
+            source_understanding=SourceUnderstanding(
+                document_type=self._infer_document_type(self._normalize_source_inputs(raw_inputs)),
+            ),
+        )
+        workflow_state.update(
+            {
+                "task": revised_task,
+                "confirmed_requirement": requirement.model_dump(mode="json"),
+                "revision": int(workflow_state.get("revision", 1) or 1) + 1,
+                "stage": PPT_STAGE_AWAITING_REQUIREMENT_CONFIRMATION,
+            }
+        )
+        self._mark_confirmation_waiting(workflow_state, tool_context.state)
+        tool_context.state[PPT_CONFIRMED_REQUIREMENT_STATE_KEY] = requirement.model_dump(mode="json")
+        tool_context.state[PPT_WORKFLOW_STATE_KEY] = workflow_state
+        result = self._build_requirement_confirmation_result(requirement, workflow_state)
+        return self._persist_product_result(tool_context, result)
+
+    async def _continue_after_content_plan_confirmation(
+        self,
+        *,
+        user_response: str,
+        workflow_state: dict[str, Any],
+        tool_context: ToolContext,
+        expert_agents: dict[str, BaseAgent],
+        app_name: str,
+        artifact_service: InMemoryArtifactService | None,
+        content_plan_builder: Any | None,
+        asset_resolver: Any | None,
+    ) -> dict[str, Any]:
+        """Handle the second confirmation gate and then resolve assets plus route output."""
+        requirement = ConfirmedRequirement.model_validate(workflow_state.get("confirmed_requirement") or {})
+        if not self._is_confirmation_text(user_response):
+            revised_requirement = requirement.model_copy(
+                update={
+                    "request_brief": self._append_user_revision(
+                        requirement.request_brief,
+                        user_response,
+                        label="Content plan revision",
+                    )
+                }
+            )
+            content_plan = await self.build_deck_content_plan(
+                revised_requirement,
+                tool_context=tool_context,
+                app_name=app_name,
+                artifact_service=artifact_service,
+                expert_agents=expert_agents,
+                content_plan_builder=content_plan_builder,
+                resolve_assets=False,
+            )
+            workflow_state.update(
+                {
+                    "stage": PPT_STAGE_AWAITING_CONTENT_PLAN_CONFIRMATION,
+                    "confirmed_requirement": revised_requirement.model_dump(mode="json"),
+                    "deck_content_plan": content_plan.model_dump(mode="json"),
+                    "deck_content_plan_markdown": str(tool_context.state.get("ppt_deck_content_plan_markdown") or ""),
+                    "revision": int(workflow_state.get("revision", 1) or 1) + 1,
+                }
+            )
+            self._mark_confirmation_waiting(workflow_state, tool_context.state)
+            tool_context.state[PPT_CONFIRMED_REQUIREMENT_STATE_KEY] = revised_requirement.model_dump(mode="json")
+            tool_context.state[PPT_WORKFLOW_STATE_KEY] = workflow_state
+            result = self._build_content_plan_confirmation_result(revised_requirement, content_plan, workflow_state)
+            return self._persist_product_result(tool_context, result)
+
+        content_plan = DeckContentPlan.model_validate(workflow_state.get("deck_content_plan") or {})
+        resolved_plan = await self.content_planner.resolve_plan_assets(
+            content_plan,
+            requirement,
+            tool_context=tool_context,
+            expert_agents=expert_agents,
+            app_name=app_name,
+            artifact_service=artifact_service,
+            asset_resolver=asset_resolver,
+        )
+        output_dir = self._build_route_output_dir(tool_context.state)
+        route_build = await self._dispatch_ppt_route(
+            requirement=requirement,
+            content_plan=resolved_plan,
+            output_dir=output_dir,
+            tool_context=tool_context,
+            app_name=app_name,
+            artifact_service=artifact_service,
+        )
+        output_files = self._record_output_files(
+            tool_context.state,
+            [
+                route_build.pptx_path,
+                route_build.html_deck_path,
+                route_build.quality_report_path,
+                route_build.build_log_path,
+                *route_build.preview_paths,
+            ],
+        )
+        delivery_manifest = DeliveryManifest(
+            final_pptx=route_build.pptx_path,
+            previews=route_build.preview_paths,
+            quality_report=route_build.quality_report_path,
+            build_log=route_build.build_log_path,
+            intermediate_artifacts=[route_build.html_deck_path],
+            output_files=output_files,
+        )
+        workflow_state.update(
+            {
+                "stage": PPT_STAGE_COMPLETED,
+                "deck_content_plan": resolved_plan.model_dump(mode="json"),
+                "route_build": route_build.model_dump(mode="json"),
+            }
+        )
+        tool_context.state[PPT_WORKFLOW_STATE_KEY] = workflow_state
+        result = PptProductResult(
+            status="success",
+            phase="html_route_delivery",
+            message="HTML route generated the PPTX after requirement and content-plan confirmation.",
+            selected_route=requirement.route,
+            confirmed_requirement=requirement,
+            deck_content_plan=resolved_plan,
+            route_build=route_build,
+            quality_review=QualityReviewResult(
+                status="pass",
+                page_count_ok=True,
+                file_open_ok=True,
+                text_complete_ok=True,
+                assets_ok=True,
+                placeholder_free_ok=True,
+                overflow_ok=None,
+                style_consistency_ok=True,
+            ),
+            delivery_manifest=delivery_manifest,
+            output_files=output_files,
+            warnings=[
+                *list(route_build.warnings),
+                *list(requirement.source_understanding.extraction_warnings),
+                *list(tool_context.state.get("ppt_content_planning_warnings") or []),
+            ],
+            next_actions=["Review the generated PPTX and previews."],
+        )
+        return self._persist_product_result(tool_context, result)
+
+    @staticmethod
+    def _should_auto_confirm(output: dict[str, Any]) -> bool:
+        """Return whether the caller explicitly requests the old single-shot behavior."""
+        raw_value = output.get("auto_confirm") or output.get("skip_confirmations") or output.get("confirmation_mode")
+        if isinstance(raw_value, bool):
+            return raw_value
+        return str(raw_value or "").strip().lower() in {"auto", "skip", "true", "yes", "1"}
+
+    @staticmethod
+    def _get_workflow_state(state: dict[str, Any]) -> dict[str, Any]:
+        """Return the persisted PPT workflow state if it is a dictionary."""
+        workflow_state = state.get(PPT_WORKFLOW_STATE_KEY)
+        return dict(workflow_state) if isinstance(workflow_state, dict) else {}
+
+    @staticmethod
+    def _is_pending_confirmation_stage(stage: Any) -> bool:
+        """Return whether a PPT workflow is waiting for user confirmation."""
+        return str(stage or "").strip() in {
+            PPT_STAGE_AWAITING_REQUIREMENT_CONFIRMATION,
+            PPT_STAGE_AWAITING_CONTENT_PLAN_CONFIRMATION,
+        }
+
+    @staticmethod
+    def _current_turn_index(state: dict[str, Any]) -> int:
+        """Return the current user turn index from ADK session state."""
+        try:
+            return int(state.get("turn_index", 0) or 0)
+        except (TypeError, ValueError):
+            return 0
+
+    def _mark_confirmation_waiting(
+        self,
+        workflow_state: dict[str, Any],
+        state: dict[str, Any],
+    ) -> None:
+        """Record the user turn that created the current confirmation state."""
+        waiting_since_turn = self._current_turn_index(state)
+        workflow_state[PPT_WORKFLOW_WAITING_SINCE_TURN_KEY] = waiting_since_turn
+        workflow_state["confirmation_id"] = (
+            f"{workflow_state.get('workflow_id', '')}:"
+            f"{workflow_state.get('stage', '')}:"
+            f"{workflow_state.get('revision', 0)}:"
+            f"{waiting_since_turn}"
+        )
+
+    def _is_waiting_for_later_user_turn(
+        self,
+        workflow_state: dict[str, Any],
+        state: dict[str, Any],
+    ) -> bool:
+        """Return whether the current confirmation was already returned this turn."""
+        waiting_since_turn = workflow_state.get(PPT_WORKFLOW_WAITING_SINCE_TURN_KEY)
+        if waiting_since_turn is None:
+            return False
+        try:
+            waiting_since_turn_index = int(waiting_since_turn)
+        except (TypeError, ValueError):
+            return False
+        return self._current_turn_index(state) <= waiting_since_turn_index
+
+    def _build_current_confirmation_result(self, workflow_state: dict[str, Any]) -> PptProductResult:
+        """Rebuild the current pending confirmation without advancing the workflow."""
+        stage = str(workflow_state.get("stage") or "").strip()
+        requirement = ConfirmedRequirement.model_validate(workflow_state.get("confirmed_requirement") or {})
+        if stage == PPT_STAGE_AWAITING_REQUIREMENT_CONFIRMATION:
+            return self._build_requirement_confirmation_result(requirement, workflow_state)
+        if stage == PPT_STAGE_AWAITING_CONTENT_PLAN_CONFIRMATION:
+            content_plan = DeckContentPlan.model_validate(workflow_state.get("deck_content_plan") or {})
+            return self._build_content_plan_confirmation_result(requirement, content_plan, workflow_state)
+        return PptProductResult(
+            status="error",
+            phase="ppt_workflow_resume",
+            message=f"PPT 工作流当前阶段 `{stage}` 不能继续确认。",
+            selected_route=requirement.route,
+            warnings=[f"Unsupported PPT workflow stage: {stage}"],
+            next_actions=["重新发起 PPT 任务。"],
+        )
+
+    @staticmethod
+    def _build_workflow_id(state: dict[str, Any]) -> str:
+        """Build a stable workflow id from the current ADK session and turn."""
+        session_id = str(state.get("sid") or "ppt-session").strip()
+        turn_index = int(state.get("turn_index", 0) or 0)
+        return f"{session_id}:ppt:{turn_index}"
+
+    @staticmethod
+    def _is_confirmation_text(text: str) -> bool:
+        """Return whether the user response is an approval rather than a revision."""
+        normalized = re.sub(r"[\s，。,.！!？?：:；;、]+", "", str(text or "").lower())
+        return normalized in {
+            "确认",
+            "确认无误",
+            "可以",
+            "可以继续",
+            "继续",
+            "开始",
+            "没问题",
+            "没问题继续",
+            "同意",
+            "通过",
+            "ok",
+            "okay",
+            "yes",
+            "y",
+            "confirm",
+            "approved",
+            "approve",
+            "goahead",
+        }
+
+    @staticmethod
+    def _append_user_revision(base_text: str, user_response: str, *, label: str = "User revision") -> str:
+        """Append a user revision to the original brief in a planner-readable form."""
+        clean_base = str(base_text or "").strip()
+        clean_revision = str(user_response or "").strip()
+        if not clean_revision:
+            return clean_base
+        return f"{clean_base}\n{label}: {clean_revision}".strip()
+
+    def _build_requirement_confirmation_result(
+        self,
+        requirement: ConfirmedRequirement,
+        workflow_state: dict[str, Any],
+    ) -> PptProductResult:
+        """Build the first user-confirmation result for normalized requirements."""
+        summary_markdown = self._format_requirement_confirmation(requirement)
+        return PptProductResult(
+            status="awaiting_requirement_confirmation",
+            phase="requirement_confirmation",
+            message="请确认 PPT 需求参数。确认后我再开始读取材料并规划内容。",
+            selected_route=requirement.route,
+            confirmed_requirement=requirement,
+            delivery_manifest=DeliveryManifest(),
+            confirmation_request={
+                "type": "requirement",
+                "workflow_id": workflow_state.get("workflow_id", ""),
+                "summary_markdown": summary_markdown,
+                "expected_user_action": "回复“确认”继续；或直接说明要修改的主题、页数、受众、模板、路线等。",
+            },
+            next_actions=["确认需求参数，或说明需要修改的参数。"],
+        )
+
+    def _build_content_plan_confirmation_result(
+        self,
+        requirement: ConfirmedRequirement,
+        content_plan: DeckContentPlan,
+        workflow_state: dict[str, Any],
+    ) -> PptProductResult:
+        """Build the second user-confirmation result for the content plan."""
+        summary_markdown = self._format_content_plan_confirmation(content_plan)
+        return PptProductResult(
+            status="awaiting_content_plan_confirmation",
+            phase="content_plan_confirmation",
+            message="请确认 PPT 内容规划。确认后我才会开始搜索或生成图片，并导出 PPTX。",
+            selected_route=requirement.route,
+            confirmed_requirement=requirement,
+            deck_content_plan=content_plan,
+            delivery_manifest=DeliveryManifest(),
+            confirmation_request={
+                "type": "content_plan",
+                "workflow_id": workflow_state.get("workflow_id", ""),
+                "summary_markdown": summary_markdown,
+                "expected_user_action": "回复“确认”开始补图和导出；或说明要调整的页面、标题、内容重点、图片意图。",
+            },
+            next_actions=["确认内容规划，或说明需要修改的页面和内容。"],
+        )
+
+    @staticmethod
+    def _format_requirement_confirmation(requirement: ConfirmedRequirement) -> str:
+        """Render ConfirmedRequirement as user-facing Markdown for confirmation."""
+        template = requirement.template_requirement
+        slide_policy = requirement.slide_count_policy
+        if slide_policy.target is not None and slide_policy.minimum == slide_policy.maximum:
+            slide_count = f"{slide_policy.target} 页"
+        elif slide_policy.target is not None:
+            slide_count = f"目标 {slide_policy.target} 页，范围 {slide_policy.minimum}-{slide_policy.maximum} 页"
+        else:
+            slide_count = f"范围 {slide_policy.minimum}-{slide_policy.maximum} 页"
+        template_text = (
+            f"系统模板 `{template.template_id}`"
+            if template.template_source == "system" and template.template_id
+            else "用户模板"
+            if template.template_source == "user"
+            else "无模板，自由设计"
+        )
+        source_count = len(requirement.source_inputs)
+        lines = [
+            "| 参数 | 当前值 |",
+            "| --- | --- |",
+            f"| 主题 | {requirement.topic or '未识别'} |",
+            f"| 受众 | {requirement.audience or '未指定'} |",
+            f"| 场景 | {requirement.scenario or '未指定'} |",
+            f"| 页数 | {slide_count} |",
+            f"| 语言 | {requirement.language} |",
+            f"| 比例 | {requirement.aspect_ratio} |",
+            f"| 路线 | {requirement.route} |",
+            f"| 模板 | {template_text} |",
+            f"| 输入材料 | {source_count} 个 |",
+        ]
+        return "\n".join(lines)
+
+    @staticmethod
+    def _format_content_plan_confirmation(content_plan: DeckContentPlan) -> str:
+        """Render DeckContentPlan as a concise user-facing Markdown table."""
+        lines = [
+            f"标题：{content_plan.title}",
+            "",
+            "| 页 | 页型 | 标题 | 重点 | 插图意图 |",
+            "| --- | --- | --- | --- | --- |",
+        ]
+        for page in content_plan.pages:
+            visual_intent = page.asset_intent or "无"
+            if page.assets:
+                first_asset = page.assets[0]
+                visual_intent = first_asset.description or first_asset.prompt or visual_intent
+            lines.append(
+                "| "
+                f"{page.slide_number} | "
+                f"{page.page_type} | "
+                f"{page.title} | "
+                f"{page.key_takeaway} | "
+                f"{visual_intent} |"
+            )
+        return "\n".join(lines)
+
+    def _persist_product_result(
+        self,
+        tool_context: ToolContext,
+        result: PptProductResult,
+    ) -> dict[str, Any]:
+        """Persist one PPT product result into ADK session state."""
+        result_payload = result.model_dump(mode="json")
+        tool_context.state["product_line"] = "ppt"
+        tool_context.state[PPT_CONFIRMED_REQUIREMENT_STATE_KEY] = (
+            result_payload.get("confirmed_requirement") or {}
+        )
+        if result_payload.get("deck_content_plan"):
+            tool_context.state["ppt_deck_content_plan"] = result_payload["deck_content_plan"]
+        if result_payload.get("route_build"):
+            tool_context.state["ppt_route_build"] = result_payload["route_build"]
+        tool_context.state[PPT_PRODUCT_RESULT_STATE_KEY] = result_payload
+        tool_context.state["current_output"] = result_payload
+        tool_context.state["last_product_result"] = result_payload
+        tool_context.state["last_output_message"] = str(result_payload.get("message") or "")
+        return result_payload
+
     def build_initial_deck_content_plan(self, requirement: ConfirmedRequirement) -> DeckContentPlan:
         """Build a template-independent content plan for the HTML MVP."""
         return self.content_planner.build_plan(requirement)
@@ -322,6 +951,7 @@ Return structured status, current phase, selected route, warnings, next actions,
         expert_agents: dict[str, BaseAgent] | None = None,
         content_plan_builder: Any | None = None,
         asset_resolver: Any | None = None,
+        resolve_assets: bool = True,
     ) -> DeckContentPlan:
         """Build a deck content plan through the ADK planning agent when possible."""
         if content_plan_builder is not None:
@@ -341,6 +971,10 @@ Return structured status, current phase, selected route, warnings, next actions,
                 app_name=app_name,
                 artifact_service=artifact_service,
             )
+
+        tool_context.state["ppt_deck_content_plan"] = plan.model_dump(mode="json")
+        if not resolve_assets:
+            return plan
 
         return await self.content_planner.resolve_plan_assets(
             plan,

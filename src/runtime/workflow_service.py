@@ -48,6 +48,11 @@ _PROGRESS_STAGE_TITLES = {
     "finalizing": "Finalizing Result",
 }
 
+_PENDING_PPT_WORKFLOW_STAGES = {
+    "awaiting_requirement_confirmation",
+    "awaiting_content_plan_confirmation",
+}
+
 
 def _append_turn_file_history(
     history: list[dict[str, object]],
@@ -61,6 +66,29 @@ def _append_turn_file_history(
     updated_history = list(history)
     updated_history.append({"turn": turn, "files": list(files)})
     return updated_history
+
+
+def _should_preserve_ppt_product_state(state: dict[str, object]) -> bool:
+    """Return whether a PPT workflow is paused and should survive the next user turn."""
+    workflow_state = state.get("ppt_workflow_state")
+    if not isinstance(workflow_state, dict):
+        return False
+    stage = str(workflow_state.get("stage") or "").strip()
+    return stage in _PENDING_PPT_WORKFLOW_STAGES
+
+
+def _collect_persistent_product_state(state: dict[str, object]) -> dict[str, object]:
+    """Collect product-owned state that must survive a channel message reset."""
+    if not _should_preserve_ppt_product_state(state):
+        return {}
+    persistent_state = {
+        key: value
+        for key, value in state.items()
+        if key.startswith("ppt_") and value is not None
+    }
+    if state.get("last_product_result") is not None:
+        persistent_state["last_product_result"] = state["last_product_result"]
+    return persistent_state
 
 
 def _format_exception_summary(exc: Exception) -> str:
@@ -338,6 +366,7 @@ class CreativeClawRuntime:
         if current_session is None:
             raise ValueError(f"Session {session_id} not found for user {user_id}")
 
+        persistent_product_state = _collect_persistent_product_state(current_session.state)
         state_delta = {key: None for key in current_session.state.keys()}
         previous_turn = int(current_session.state.get("turn_index", 0) or 0)
         current_turn = turn_index if turn_index is not None else previous_turn + 1
@@ -360,7 +389,12 @@ class CreativeClawRuntime:
         state_delta["channel"] = inbound.channel
         state_delta["chat_id"] = inbound.chat_id
         state_delta["sender_id"] = inbound.sender_id or user_id
-        state_delta["product_line"] = str(inbound.metadata.get("product_line", "") or "").strip()
+        requested_product_line = str(inbound.metadata.get("product_line", "") or "").strip()
+        state_delta["product_line"] = requested_product_line or (
+            str(current_session.state.get("product_line", "") or "").strip()
+            if persistent_product_state
+            else ""
+        )
         state_delta["product_line_options"] = inbound.metadata
         state_delta["user_prompt"] = inbound.text
         state_delta["step"] = current_session.state.get("step", 0)
@@ -418,6 +452,7 @@ class CreativeClawRuntime:
         state_delta["message_history"] = current_session.state.get("message_history", [])
         state_delta["new_files"] = state_delta["uploaded"]
         state_delta["orchestration_events"] = current_session.state.get("orchestration_events", [])
+        state_delta.update(persistent_product_state)
 
         event = Event(
             author="channel_gateway",

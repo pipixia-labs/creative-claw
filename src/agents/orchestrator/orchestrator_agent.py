@@ -98,6 +98,7 @@ _DISPLAY_TOOL_TITLES = {
     "read_skill": "Read Skill",
     "list_session_files": "List Session Files",
     "run_ppt_product": "Run PPT Product",
+    "continue_ppt_product": "Continue PPT Product",
     "run_design_product": "Run Design Product",
 }
 
@@ -229,6 +230,7 @@ async def orchestrator_before_model_callback(
     delivery_sender_id = str(state.get("sender_id", "")).strip()
     product_line = str(state.get("product_line", "") or "").strip()
     product_line_options = state.get("product_line_options") or {}
+    ppt_workflow_state = state.get("ppt_workflow_state") or {}
     uploaded = list(state.get("uploaded") or state.get("input_files") or state.get("input_artifacts") or [])
     uploaded_history = list(state.get("uploaded_history") or [])
     generated = list(state.get("generated") or [])
@@ -257,6 +259,17 @@ async def orchestrator_before_model_callback(
                 "# Product line options:\n"
                 f"{json.dumps(product_line_options, ensure_ascii=False, indent=2)}"
             )
+
+    if isinstance(ppt_workflow_state, dict) and ppt_workflow_state.get("stage"):
+        pending_summary = {
+            "workflow_id": ppt_workflow_state.get("workflow_id", ""),
+            "stage": ppt_workflow_state.get("stage", ""),
+            "revision": ppt_workflow_state.get("revision", 0),
+        }
+        summary_lines.append(
+            "# Active PPT workflow:\n"
+            f"{json.dumps(pending_summary, ensure_ascii=False, indent=2)}"
+        )
 
     if uploaded:
         summary_lines.append("# Uploaded files in current turn:")
@@ -417,6 +430,39 @@ def _select_fallback_final_response_paths(state: dict[str, Any]) -> list[str]:
     return _normalize_final_response_paths(latest_paths, state=state)
 
 
+def _extract_confirmation_tool_result(event: Event) -> dict[str, Any] | None:
+    """Return a tool result that asks the user to confirm before continuing."""
+    if not event.content or not event.content.parts:
+        return None
+    for part in event.content.parts:
+        function_response = getattr(part, "function_response", None)
+        if not function_response:
+            continue
+        response = getattr(function_response, "response", None)
+        if not isinstance(response, dict):
+            continue
+        result = response.get("result") if isinstance(response.get("result"), dict) else response
+        if _format_confirmation_reply(result):
+            return result
+    return None
+
+
+def _format_confirmation_reply(result: Any) -> str:
+    """Render a product/tool confirmation request as one user-facing reply."""
+    if not isinstance(result, dict):
+        return ""
+    confirmation_request = result.get("confirmation_request")
+    if not isinstance(confirmation_request, dict):
+        return ""
+    summary_markdown = str(confirmation_request.get("summary_markdown") or "").strip()
+    if not summary_markdown:
+        return ""
+    message = str(result.get("message") or "").strip()
+    expected_user_action = str(confirmation_request.get("expected_user_action") or "").strip()
+    reply_parts = [part for part in [message, summary_markdown, expected_user_action] if part]
+    return "\n\n".join(reply_parts)
+
+
 class Orchestrator:
     """Plan one workflow step at a time with skills and builtin tools."""
 
@@ -481,6 +527,7 @@ class Orchestrator:
                 self.web_fetch,
                 self.list_session_files,
                 self.run_ppt_product,
+                self.continue_ppt_product,
                 self.run_design_product,
                 self.invoke_agent,
             ],
@@ -519,7 +566,7 @@ You can use six kinds of capabilities:
 1. Skills from local markdown files
 2. Built-in local file tools inside the fixed workspace
 3. Built-in shell and web tools
-4. The PPT product-line tool `run_ppt_product`
+4. The PPT product-line tools `run_ppt_product` and `continue_ppt_product`
 5. The Design product-line tool `run_design_product`
 6. Existing expert agents through `invoke_agent(agent_name, prompt)`
 
@@ -578,8 +625,11 @@ Creative workflow routing hints:
 - If no skill is needed because the user gave a clear final generation request, execute directly with the smallest suitable expert call.
 
 PPT workflow routing hints:
+- If session state shows a pending PPT confirmation, call `continue_ppt_product` with the user's latest response. Do not start a new PPT workflow unless the user explicitly asks to discard the current one.
 - If runtime context says `Product line: ppt`, call `run_ppt_product` as the primary execution path before considering lower-level tools.
 - PPT product line does its own requirement normalization, content planning, and page planning. Pass the user's PPT task description directly into `run_ppt_product`; do not rewrite it into a slide outline, chapter plan, or inferred page list.
+- `run_ppt_product` intentionally pauses twice: after requirement normalization, and after content planning. Present those confirmation summaries to the user and wait for the user's confirmation or edits.
+- Use `continue_ppt_product` for "确认", "继续", "可以", "改成...", or similar replies to an active PPT confirmation.
 - Pass `inputs` only for real user-provided task documents or assets, such as uploaded files, workspace paths, URLs, or reference images. Do not put your own inferred outline, slides, chapters, or page content into `inputs`.
 - Pass `output` only for explicit delivery constraints from the user, such as format, route, language, slide count, aspect ratio, template id, or editability.
 - If the requested final deliverable is `.pptx`, PowerPoint, PPT, an editable slide deck, PPT template application, or PPTX editing, prefer `run_ppt_product` unless the user explicitly asks for a non-PPTX HTML deck or design prototype.
@@ -1442,6 +1492,35 @@ Expert parameter contracts:
             runner=_runner,
         )
 
+    async def continue_ppt_product(
+        self,
+        user_response: str,
+        tool_context: ToolContext | None = None,
+    ) -> dict[str, Any]:
+        """Continue an active PPT product workflow after user confirmation or edits."""
+
+        async def _runner() -> dict[str, Any]:
+            if tool_context is None:
+                return {
+                    "status": "error",
+                    "message": "continue_ppt_product requires tool context.",
+                }
+            return await self.ppt_product_manager.continue_product_request(
+                user_response=user_response,
+                tool_context=tool_context,
+                expert_agents=self.expert_agents,
+                app_name=self.app_name,
+                artifact_service=self.artifact_service,
+            )
+
+        return await self._run_async_tool_with_events(
+            tool_context=tool_context,
+            tool_name="continue_ppt_product",
+            stage="ppt_product_confirmation",
+            args={"user_response": user_response},
+            runner=_runner,
+        )
+
     async def invoke_agent(
         self,
         agent_name: str,
@@ -1485,11 +1564,51 @@ Expert parameter contracts:
                 session_id,
                 event.model_dump_json(indent=2, exclude_none=True),
             )
+            confirmation_result = _extract_confirmation_tool_result(event)
+            if confirmation_result is not None:
+                final_reply = _format_confirmation_reply(confirmation_result)
+                await self._persist_confirmation_final_response(
+                    user_id=user_id,
+                    session_id=session_id,
+                    reply_text=final_reply,
+                )
+                return final_reply
             if event.is_final_response() and event.content and event.content.parts:
                 text_part = next((part.text for part in event.content.parts if part.text), None)
                 if text_part:
                     final_response_text = text_part
         return final_response_text
+
+    async def _persist_confirmation_final_response(
+        self,
+        *,
+        user_id: str,
+        session_id: str,
+        reply_text: str,
+    ) -> None:
+        """Persist a tool-requested confirmation as the final user reply for this turn."""
+        current_session = await self.session_service.get_session(
+            app_name=self.app_name,
+            user_id=user_id,
+            session_id=session_id,
+        )
+        if current_session is None:
+            return
+        structured_response = OrchestratorFinalResponse(
+            reply_text=reply_text,
+            final_file_paths=[],
+        )
+        await self.session_service.append_event(
+            current_session,
+            Event(
+                author="api_server",
+                actions=EventActions(
+                    state_delta={
+                        ORCHESTRATOR_FINAL_RESPONSE_OUTPUT_KEY: structured_response.model_dump(mode="json")
+                    }
+                ),
+            ),
+        )
 
     async def run_until_done(self) -> dict[str, Any]:
         """Run one orchestrator invocation and persist the structured final response."""

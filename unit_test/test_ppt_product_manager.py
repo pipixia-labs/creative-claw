@@ -109,6 +109,8 @@ class PptProductManagerTests(unittest.IsolatedAsyncioTestCase):
             {tool.__name__ for tool in agent.tools},
             {"read_ppt_markdown_sources", "save_ppt_deck_content_plan_markdown"},
         )
+        self.assertIn("do not force cover, toc, chapter_start", agent.instruction)
+        self.assertIn("template requirements only", agent.instruction)
 
     def test_content_planning_user_message_includes_requirement_json(self) -> None:
         manager = PptProductManager()
@@ -422,6 +424,24 @@ Visual:
         self.assertIn("kid_friendly", requirement.style_requirement.style_keywords)
         self.assertIn("playful", requirement.style_requirement.style_keywords)
 
+    def test_content_plan_honors_exact_kindergarten_word_pages(self) -> None:
+        manager = PptProductManager()
+        requirement = manager.prepare_confirmed_requirement(
+            task="给我做一个ppt，用来给幼儿园小朋友讲英语单词。3页，分别讲 猫、狗、鸭子。",
+            inputs=[],
+            output={"format": "pptx"},
+        )
+
+        plan = manager.build_initial_deck_content_plan(requirement)
+
+        self.assertEqual(requirement.slide_count_policy.target, 3)
+        self.assertEqual(len(plan.pages), 3)
+        self.assertEqual([page.page_type for page in plan.pages], ["word_card", "word_card", "word_card"])
+        self.assertEqual([page.title for page in plan.pages], ["Cat 猫", "Dog 狗", "Duck 鸭子"])
+        self.assertNotIn("cover", {page.page_type for page in plan.pages})
+        self.assertNotIn("toc", {page.page_type for page in plan.pages})
+        self.assertNotIn("chapter_start", {page.page_type for page in plan.pages})
+
     def test_prepare_confirmed_requirement_cleans_orchestrator_style_task(self) -> None:
         manager = PptProductManager()
 
@@ -477,7 +497,7 @@ Visual:
         result = await manager.run_product_request(
             task="生成一个 PPTX 产品介绍。",
             inputs=[],
-            output={"format": "pptx"},
+            output={"format": "pptx", "auto_confirm": True},
             tool_context=tool_context,
         )
 
@@ -501,6 +521,113 @@ Visual:
         self.assertGreater(len(result["delivery_manifest"]["previews"]), 0)
         self.assertEqual(len(Presentation(str(pptx_path)).slides), len(result["deck_content_plan"]["pages"]))
 
+    async def test_interactive_workflow_pauses_for_two_confirmations(self) -> None:
+        image_path = _write_test_image("interactive_kid_word_asset.png")
+        manager = PptProductManager()
+        tool_context = SimpleNamespace(state={"sid": "ppt-manager-interactive-test", "turn_index": 1, "step": 1})
+        resolved_assets: list[str] = []
+
+        async def _asset_resolver(asset, _page, _requirement):
+            resolved_assets.append(asset.asset_id)
+            return {
+                "asset_id": asset.asset_id,
+                "status": "ready",
+                "path": image_path,
+                "provider": "test_resolver",
+            }
+
+        requirement_result = await manager.run_product_request(
+            task="给我做一个ppt，用来给幼儿园小朋友讲英语单词。3页，分别讲 猫、狗、鸭子。",
+            inputs=[],
+            output={"format": "pptx"},
+            tool_context=tool_context,
+            asset_resolver=_asset_resolver,
+        )
+
+        self.assertEqual(requirement_result["status"], "awaiting_requirement_confirmation")
+        self.assertEqual(tool_context.state["ppt_workflow_state"]["stage"], "awaiting_requirement_confirmation")
+        self.assertNotIn("final_file_paths", tool_context.state)
+        self.assertIn("summary_markdown", requirement_result["confirmation_request"])
+        self.assertEqual(resolved_assets, [])
+        self.assertEqual(tool_context.state["ppt_workflow_state"]["waiting_since_turn_index"], 1)
+
+        same_turn_requirement_result = await manager.continue_product_request(
+            user_response="确认",
+            tool_context=tool_context,
+            asset_resolver=_asset_resolver,
+        )
+
+        self.assertEqual(same_turn_requirement_result["status"], "awaiting_requirement_confirmation")
+        self.assertEqual(tool_context.state["ppt_workflow_state"]["stage"], "awaiting_requirement_confirmation")
+        self.assertEqual(resolved_assets, [])
+
+        tool_context.state["turn_index"] = 2
+        plan_result = await manager.continue_product_request(
+            user_response="确认",
+            tool_context=tool_context,
+            asset_resolver=_asset_resolver,
+        )
+
+        self.assertEqual(plan_result["status"], "awaiting_content_plan_confirmation")
+        self.assertEqual(tool_context.state["ppt_workflow_state"]["stage"], "awaiting_content_plan_confirmation")
+        self.assertEqual([page["title"] for page in plan_result["deck_content_plan"]["pages"]], ["Cat 猫", "Dog 狗", "Duck 鸭子"])
+        self.assertEqual(resolved_assets, [])
+        self.assertEqual(tool_context.state["ppt_workflow_state"]["waiting_since_turn_index"], 2)
+
+        same_turn_plan_result = await manager.continue_product_request(
+            user_response="确认",
+            tool_context=tool_context,
+            asset_resolver=_asset_resolver,
+        )
+
+        self.assertEqual(same_turn_plan_result["status"], "awaiting_content_plan_confirmation")
+        self.assertEqual(tool_context.state["ppt_workflow_state"]["stage"], "awaiting_content_plan_confirmation")
+        self.assertEqual(resolved_assets, [])
+        self.assertNotIn("final_file_paths", tool_context.state)
+
+        tool_context.state["turn_index"] = 3
+        final_result = await manager.continue_product_request(
+            user_response="确认",
+            tool_context=tool_context,
+            asset_resolver=_asset_resolver,
+        )
+
+        self.assertEqual(final_result["status"], "success")
+        self.assertEqual(tool_context.state["ppt_workflow_state"]["stage"], "completed")
+        self.assertGreaterEqual(len(resolved_assets), 1)
+        self.assertTrue(final_result["delivery_manifest"]["final_pptx"].endswith(".pptx"))
+        self.assertEqual(tool_context.state["final_file_paths"], [final_result["delivery_manifest"]["final_pptx"]])
+
+    async def test_interactive_workflow_allows_revision_on_later_turn(self) -> None:
+        manager = PptProductManager()
+        tool_context = SimpleNamespace(state={"sid": "ppt-manager-revision-test", "turn_index": 1, "step": 1})
+
+        await manager.run_product_request(
+            task="给我做一个ppt，用来给幼儿园小朋友讲英语单词。3页，分别讲 猫、狗、鸭子。",
+            inputs=[],
+            output={"format": "pptx"},
+            tool_context=tool_context,
+        )
+
+        tool_context.state["turn_index"] = 2
+        plan_result = await manager.continue_product_request(
+            user_response="确认",
+            tool_context=tool_context,
+        )
+        self.assertEqual(plan_result["status"], "awaiting_content_plan_confirmation")
+
+        tool_context.state["turn_index"] = 3
+        revised_result = await manager.continue_product_request(
+            user_response="把第 2 页改成兔子。",
+            tool_context=tool_context,
+        )
+
+        self.assertEqual(revised_result["status"], "awaiting_content_plan_confirmation")
+        self.assertEqual(tool_context.state["ppt_workflow_state"]["stage"], "awaiting_content_plan_confirmation")
+        self.assertEqual(tool_context.state["ppt_workflow_state"]["waiting_since_turn_index"], 3)
+        self.assertIn("Content plan revision", tool_context.state["ppt_workflow_state"]["confirmed_requirement"]["request_brief"])
+        self.assertNotIn("final_file_paths", tool_context.state)
+
     async def test_run_returns_deferred_status_for_unimplemented_xml_route(self) -> None:
         manager = PptProductManager()
         tool_context = SimpleNamespace(state={"sid": "ppt-manager-test", "turn_index": 1, "step": 1})
@@ -508,7 +635,7 @@ Visual:
         result = await manager.run_product_request(
             task="套用用户上传 PPTX 模板生成汇报。",
             inputs=[{"name": "template.pptx", "path": "inbox/demo/template.pptx"}],
-            output={"route": "xml"},
+            output={"route": "xml", "auto_confirm": True},
             tool_context=tool_context,
         )
 
@@ -540,7 +667,7 @@ Visual:
         result = await manager.run_product_request(
             task="基于材料生成 6 页 PPTX，用于增长发布会。",
             inputs=[{"name": "launch_brief.md", "path": source_path}],
-            output={"format": "pptx"},
+            output={"format": "pptx", "auto_confirm": True},
             tool_context=tool_context,
             source_converter=_fake_source_converter,
         )
@@ -559,7 +686,7 @@ Visual:
         self.assertTrue(ready_assets[0]["path"].endswith("activation.png"))
         self.assertEqual(tool_context.state["ppt_resolved_asset_manifest"]["ready_asset_count"], 1)
         plan_text = str(result["deck_content_plan"])
-        self.assertIn("converted Markdown source", plan_text)
+        self.assertIn("prepared source materials", plan_text)
         self.assertIn("ppt_source_markdown_sources", tool_context.state)
         self.assertIn("ppt_source_figures", tool_context.state)
         self.assertTrue(tool_context.state["ppt_source_output_files"])
@@ -568,7 +695,8 @@ Visual:
 
         html_path = resolve_workspace_path(result["delivery_manifest"]["intermediate_artifacts"][0])
         html_text = html_path.read_text(encoding="utf-8")
-        self.assertIn("converted Markdown source", html_text)
+        self.assertIn("Growth Launch", html_text)
+        self.assertIn("Activation chart", html_text)
 
         pptx_path = resolve_workspace_path(result["delivery_manifest"]["final_pptx"])
         pptx_text = "\n".join(
@@ -577,7 +705,8 @@ Visual:
             for shape in slide.shapes
             if getattr(shape, "has_text_frame", False)
         )
-        self.assertIn("converted Markdown source", pptx_text)
+        self.assertIn("Growth Launch", pptx_text)
+        self.assertIn("Use the provided figures", pptx_text)
         picture_count = sum(
             1
             for slide in Presentation(str(pptx_path)).slides
@@ -601,7 +730,7 @@ Visual:
         result = await manager.run_product_request(
             task="基于本地 Markdown 生成 6 页 PPTX。",
             inputs=[{"name": "local_markdown_brief.md", "path": source_path}],
-            output={"format": "pptx"},
+            output={"format": "pptx", "auto_confirm": True},
             tool_context=tool_context,
         )
 
@@ -661,7 +790,7 @@ Visual:
         result = await manager.run_product_request(
             task="给小学生做一个 AI 科普 PPTX。",
             inputs=[],
-            output={"format": "pptx"},
+            output={"format": "pptx", "auto_confirm": True},
             tool_context=tool_context,
             content_plan_builder=_content_plan_builder,
             asset_resolver=_asset_resolver,
@@ -698,7 +827,7 @@ Visual:
         result = await manager.run_product_request(
             task="给我做一个ppt，用来给幼儿园小朋友讲英语单词。图文并茂。小于10页。",
             inputs=[],
-            output={"format": "pptx"},
+            output={"format": "pptx", "auto_confirm": True},
             tool_context=tool_context,
             asset_resolver=_asset_resolver,
         )
@@ -721,8 +850,8 @@ Visual:
 
         ai_pages = [page for page in pages if page["asset_source_preference"] == "ai"]
         self.assertGreaterEqual(len(ai_pages), 1)
-        self.assertEqual(pages[1]["asset_source_preference"], "placeholder")
-        self.assertEqual(pages[-1]["asset_source_preference"], "placeholder")
+        self.assertTrue(all(page["page_type"] == "word_card" for page in pages))
+        self.assertTrue(all(page["asset_source_preference"] == "ai" for page in pages))
 
         ready_assets = [
             asset
@@ -759,30 +888,27 @@ Visual:
         self.assertIn("补充 PPT 的主题", result["next_actions"][0])
         self.assertNotIn("final_file_paths", tool_context.state)
 
-    def test_deck_content_plan_requires_standard_page_types(self) -> None:
+    def test_deck_content_plan_allows_no_template_page_types(self) -> None:
         plan = DeckContentPlan(
             title="Demo deck",
-            core_narrative="A complete five-part narrative.",
+            core_narrative="A concise direct narrative.",
             pages=[
-                _page(1, "cover"),
-                _page(2, "toc"),
-                _page(3, "chapter_start"),
-                _page(4, "chapter_content"),
-                _page(5, "ending"),
+                _page(1, "word_card"),
+                _page(2, "content"),
+                _page(3, "activity"),
             ],
         )
 
-        self.assertEqual(len(plan.pages), 5)
+        self.assertEqual(len(plan.pages), 3)
+        self.assertEqual({page.page_type for page in plan.pages}, {"word_card", "content", "activity"})
 
-        with self.assertRaisesRegex(ValueError, "missing required page types"):
+        with self.assertRaisesRegex(ValueError, "duplicate slide numbers"):
             DeckContentPlan(
                 title="Broken deck",
-                core_narrative="Missing ending.",
+                core_narrative="Duplicate slide numbers.",
                 pages=[
-                    _page(1, "cover"),
-                    _page(2, "toc"),
-                    _page(3, "chapter_start"),
-                    _page(4, "chapter_content"),
+                    _page(1, "word_card"),
+                    _page(1, "content"),
                 ],
             )
 

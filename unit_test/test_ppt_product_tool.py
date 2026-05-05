@@ -19,7 +19,9 @@ class PptProductToolTests(unittest.IsolatedAsyncioTestCase):
         instruction = orchestrator._build_instruction()
 
         self.assertIn("run_ppt_product", tool_names)
+        self.assertIn("continue_ppt_product", tool_names)
         self.assertIn("run_ppt_product", instruction)
+        self.assertIn("continue_ppt_product", instruction)
         self.assertIn("PPT workflow routing hints", instruction)
         self.assertIn("Do not route PPTX delivery through DesignProductManager", instruction)
         self.assertIn("HTML route first", instruction)
@@ -39,13 +41,14 @@ class PptProductToolTests(unittest.IsolatedAsyncioTestCase):
             tool_context=tool_context,
         )
 
-        self.assertEqual(result["status"], "success")
+        self.assertEqual(result["status"], "awaiting_requirement_confirmation")
         self.assertEqual(result["result_schema_version"], "ppt-product-result-v1")
         self.assertEqual(result["selected_route"], "html")
         self.assertEqual(result["confirmed_requirement"]["slide_count_policy"]["target"], 5)
-        self.assertEqual(tool_context.state["ppt_product_result"]["status"], "success")
-        self.assertTrue(result["delivery_manifest"]["final_pptx"].endswith(".pptx"))
-        self.assertEqual(tool_context.state["final_file_paths"], [result["delivery_manifest"]["final_pptx"]])
+        self.assertEqual(tool_context.state["ppt_product_result"]["status"], "awaiting_requirement_confirmation")
+        self.assertEqual(tool_context.state["ppt_workflow_state"]["stage"], "awaiting_requirement_confirmation")
+        self.assertIn("summary_markdown", result["confirmation_request"])
+        self.assertNotIn("final_file_paths", tool_context.state)
         self.assertEqual(tool_context.state["orchestration_events"][0]["title"], "Run PPT Product")
         self.assertEqual(tool_context.state["orchestration_events"][0]["stage"], "ppt_product_planning")
 

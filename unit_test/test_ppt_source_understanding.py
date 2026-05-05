@@ -102,9 +102,11 @@ class PptSourceMaterialTests(unittest.IsolatedAsyncioTestCase):
         plan_text = str(plan.model_dump(mode="json"))
         self.assertEqual(len(plan.pages), 6)
         self.assertIn("Planner Brief", [chapter.title for chapter in plan.chapters])
-        self.assertIn("converted Markdown source", plan_text)
-        self.assertIn("cover", {page.page_type for page in plan.pages})
-        self.assertIn("ending", {page.page_type for page in plan.pages})
+        self.assertIn("prepared Markdown sources", plan_text)
+        self.assertNotIn("cover", {page.page_type for page in plan.pages})
+        self.assertNotIn("toc", {page.page_type for page in plan.pages})
+        self.assertNotIn("chapter_start", {page.page_type for page in plan.pages})
+        self.assertNotIn("chapter_content", {page.page_type for page in plan.pages})
 
 
 if __name__ == "__main__":

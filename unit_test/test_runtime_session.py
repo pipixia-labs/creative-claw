@@ -196,6 +196,117 @@ class RuntimeSessionTests(unittest.IsolatedAsyncioTestCase):
         self.assertEqual(session.state["product_line_options"]["design"]["scenario"], "dashboard")
         self.assertFalse(session.state["product_line_options"]["design"]["allow_assumptions"])
 
+    async def test_initial_state_preserves_pending_ppt_workflow_across_confirmation_turn(self) -> None:
+        runtime = CreativeClawRuntime()
+        user_id, session_id = await runtime._ensure_session(
+            InboundMessage(
+                channel="web",
+                sender_id="web-client",
+                chat_id="ppt-chat",
+                text="给我做一个ppt，用来给幼儿园小朋友讲英语单词。3页，分别讲 猫、狗、鸭子。",
+            )
+        )
+        session = await runtime.session_service.get_session(
+            app_name=SYS_CONFIG.app_name,
+            user_id=user_id,
+            session_id=session_id,
+        )
+        await runtime.session_service.append_event(
+            session,
+            Event(
+                author="unit_test",
+                actions=EventActions(
+                    state_delta={
+                        "product_line": "ppt",
+                        "turn_index": 1,
+                        "ppt_workflow_state": {
+                            "workflow_id": "ppt-workflow-test",
+                            "stage": "awaiting_requirement_confirmation",
+                            "confirmed_requirement": {"topic": "英语单词"},
+                        },
+                        "ppt_confirmed_requirement": {"topic": "英语单词"},
+                        "ppt_product_result": {"status": "awaiting_requirement_confirmation"},
+                        "last_product_result": {"status": "awaiting_requirement_confirmation"},
+                        "current_output": {"status": "awaiting_requirement_confirmation"},
+                    }
+                ),
+            ),
+        )
+        inbound = InboundMessage(
+            channel="web",
+            sender_id="web-client",
+            chat_id="ppt-chat",
+            text="确认",
+        )
+
+        await runtime._set_initial_state(user_id, session_id, inbound)
+        updated_session = await runtime.session_service.get_session(
+            app_name=SYS_CONFIG.app_name,
+            user_id=user_id,
+            session_id=session_id,
+        )
+
+        self.assertEqual(updated_session.state["turn_index"], 2)
+        self.assertEqual(updated_session.state["user_prompt"], "确认")
+        self.assertEqual(updated_session.state["product_line"], "ppt")
+        self.assertEqual(
+            updated_session.state["ppt_workflow_state"]["stage"],
+            "awaiting_requirement_confirmation",
+        )
+        self.assertEqual(updated_session.state["ppt_confirmed_requirement"]["topic"], "英语单词")
+        self.assertEqual(
+            updated_session.state["ppt_product_result"]["status"],
+            "awaiting_requirement_confirmation",
+        )
+        self.assertIsNone(updated_session.state["current_output"])
+
+    async def test_initial_state_does_not_preserve_completed_ppt_workflow(self) -> None:
+        runtime = CreativeClawRuntime()
+        user_id, session_id = await runtime._ensure_session(
+            InboundMessage(
+                channel="web",
+                sender_id="web-client",
+                chat_id="ppt-chat",
+                text="做一个ppt",
+            )
+        )
+        session = await runtime.session_service.get_session(
+            app_name=SYS_CONFIG.app_name,
+            user_id=user_id,
+            session_id=session_id,
+        )
+        await runtime.session_service.append_event(
+            session,
+            Event(
+                author="unit_test",
+                actions=EventActions(
+                    state_delta={
+                        "product_line": "ppt",
+                        "turn_index": 1,
+                        "ppt_workflow_state": {"stage": "completed"},
+                        "ppt_product_result": {"status": "success"},
+                    }
+                ),
+            ),
+        )
+        inbound = InboundMessage(
+            channel="web",
+            sender_id="web-client",
+            chat_id="ppt-chat",
+            text="帮我生成一张图片",
+        )
+
+        await runtime._set_initial_state(user_id, session_id, inbound)
+        updated_session = await runtime.session_service.get_session(
+            app_name=SYS_CONFIG.app_name,
+            user_id=user_id,
+            session_id=session_id,
+        )
+
+        self.assertEqual(updated_session.state["product_line"], "")
+        self.assertIsNone(updated_session.state["ppt_workflow_state"])
+        self.assertIsNone(updated_session.state["ppt_product_result"])
+
     async def test_initial_state_persists_uploaded_files_in_history(self) -> None:
         runtime = CreativeClawRuntime()
         with tempfile.TemporaryDirectory() as tmpdir:

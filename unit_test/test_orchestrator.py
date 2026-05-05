@@ -6,9 +6,10 @@ from types import SimpleNamespace
 from unittest.mock import AsyncMock, patch
 
 from google.adk.artifacts import InMemoryArtifactService
+from google.adk.events import Event
 from google.adk.sessions import InMemorySessionService
 from google.adk.sessions.state import State
-from google.genai.types import Content
+from google.genai.types import Content, Part
 
 from conf.system import SYS_CONFIG
 from src.agents.experts.image_grounding.image_grounding_agent import ImageGroundingAgent
@@ -18,6 +19,8 @@ from src.agents.orchestrator.final_response import (
 )
 from src.agents.orchestrator.orchestrator_agent import (
     Orchestrator,
+    _extract_confirmation_tool_result,
+    _format_confirmation_reply,
     _normalize_final_response_paths,
     orchestrator_before_model_callback,
 )
@@ -451,6 +454,44 @@ class OrchestratorTests(unittest.TestCase):
         self.assertIn("latest_output_files contains 2 record(s)", summary)
         self.assertIn("generated/session/a.png", summary)
 
+    def test_format_confirmation_reply_uses_tool_confirmation_request(self) -> None:
+        reply = _format_confirmation_reply(
+            {
+                "message": "请确认 PPT 需求参数。",
+                "confirmation_request": {
+                    "summary_markdown": "| 参数 | 当前值 |\n| --- | --- |\n| 页数 | 3 页 |",
+                    "expected_user_action": "回复“确认”继续；或说明修改意见。",
+                },
+            }
+        )
+
+        self.assertIn("请确认 PPT 需求参数。", reply)
+        self.assertIn("| 页数 | 3 页 |", reply)
+        self.assertIn("回复“确认”继续", reply)
+
+    def test_extract_confirmation_tool_result_from_function_response_event(self) -> None:
+        tool_result = {
+            "status": "awaiting_requirement_confirmation",
+            "message": "请确认 PPT 需求参数。",
+            "confirmation_request": {
+                "summary_markdown": "| 参数 | 当前值 |\n| --- | --- |\n| 主题 | 英语单词 |",
+                "expected_user_action": "回复“确认”继续。",
+            },
+        }
+        event = SimpleNamespace(
+            content=Content(
+                role="user",
+                parts=[
+                    Part.from_function_response(
+                        name="continue_ppt_product",
+                        response=tool_result,
+                    )
+                ],
+            )
+        )
+
+        self.assertEqual(_extract_confirmation_tool_result(event), tool_result)
+
 
 class OrchestratorCallbackTests(unittest.IsolatedAsyncioTestCase):
     async def test_before_model_callback_includes_workspace_file_history_without_new_upload(self) -> None:
@@ -505,6 +546,75 @@ class OrchestratorCallbackTests(unittest.IsolatedAsyncioTestCase):
         self.assertIn("reply_text", prompt_text)
         self.assertIn("final_file_paths", prompt_text)
         self.assertIn("list_session_files(section=\"latest_output\")", prompt_text)
+
+    async def test_run_agent_stops_after_tool_confirmation_request(self) -> None:
+        session_service = InMemorySessionService()
+        orchestrator = Orchestrator(
+            session_service=session_service,
+            artifact_service=InMemoryArtifactService(),
+            expert_agents={},
+        )
+        user_id = "user-confirmation"
+        session_id = "session-confirmation"
+        await session_service.create_session(
+            app_name=SYS_CONFIG.app_name,
+            user_id=user_id,
+            session_id=session_id,
+            state={},
+        )
+
+        tool_result = {
+            "status": "awaiting_requirement_confirmation",
+            "message": "请确认 PPT 需求参数。",
+            "confirmation_request": {
+                "summary_markdown": "| 参数 | 当前值 |\n| --- | --- |\n| 主题 | 英语单词 |",
+                "expected_user_action": "回复“确认”继续。",
+            },
+        }
+
+        class _FakeRunner:
+            def __init__(self) -> None:
+                self.continued_after_confirmation = False
+
+            async def run_async(self, **_kwargs):
+                yield Event(
+                    author="CreativeClawOrchestrator",
+                    content=Content(
+                        role="user",
+                        parts=[
+                            Part.from_function_response(
+                                name="continue_ppt_product",
+                                response=tool_result,
+                            )
+                        ],
+                    ),
+                )
+                self.continued_after_confirmation = True
+                yield Event(
+                    author="CreativeClawOrchestrator",
+                    content=Content(role="model", parts=[Part(text="should not continue")]),
+                )
+
+        fake_runner = _FakeRunner()
+        orchestrator.runner = fake_runner
+
+        reply = await orchestrator.run_agent_and_log_events(
+            user_id=user_id,
+            session_id=session_id,
+            new_message=Content(role="user", parts=[Part(text="确认")]),
+        )
+
+        self.assertFalse(fake_runner.continued_after_confirmation)
+        self.assertIn("请确认 PPT 需求参数。", reply)
+        self.assertIn("| 主题 | 英语单词 |", reply)
+        session = await session_service.get_session(
+            app_name=SYS_CONFIG.app_name,
+            user_id=user_id,
+            session_id=session_id,
+        )
+        structured = session.state[ORCHESTRATOR_FINAL_RESPONSE_OUTPUT_KEY]
+        self.assertEqual(structured["reply_text"], reply)
+        self.assertEqual(structured["final_file_paths"], [])
 
     async def test_run_until_done_uses_structured_final_response(self) -> None:
         session_service = InMemorySessionService()
