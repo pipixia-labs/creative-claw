@@ -102,6 +102,8 @@ _DISPLAY_TOOL_TITLES = {
     "run_design_product": "Run Design Product",
 }
 
+_WorkspaceFileSnapshot = dict[str, tuple[int, int]]
+
 
 def _format_file_summary(file_info: dict[str, Any], *, index: int) -> str:
     """Render one compact workspace file summary."""
@@ -791,6 +793,68 @@ Expert parameter contracts:
         state["new_files"] = file_records
         state["files_history"] = history
 
+    def _snapshot_workspace_files(self) -> _WorkspaceFileSnapshot:
+        """Return file metadata for files currently visible in the toolbox workspace."""
+        snapshot: _WorkspaceFileSnapshot = {}
+        workspace = self.toolbox.workspace_root
+        if not workspace.exists():
+            return snapshot
+
+        for path in workspace.rglob("*"):
+            try:
+                if not path.is_file():
+                    continue
+                resolved = path.resolve()
+                relative_path = str(resolved.relative_to(workspace))
+                stat = resolved.stat()
+            except (OSError, ValueError):
+                continue
+            snapshot[relative_path] = (stat.st_mtime_ns, stat.st_size)
+        return snapshot
+
+    def _changed_workspace_files_since(self, before_snapshot: _WorkspaceFileSnapshot) -> list[str]:
+        """Return workspace-relative files created or changed since one prior snapshot."""
+        after_snapshot = self._snapshot_workspace_files()
+        changed_paths = [
+            path
+            for path, metadata in after_snapshot.items()
+            if before_snapshot.get(path) != metadata
+        ]
+        return sorted(changed_paths)
+
+    @staticmethod
+    def _exec_command_finished_successfully(result: Any) -> bool:
+        """Return whether one foreground exec command result represents a successful finish."""
+        if not isinstance(result, str):
+            return False
+        stripped = result.strip()
+        if not stripped or stripped.startswith("Error"):
+            return False
+        if stripped.startswith("Command still running"):
+            return False
+        lines = stripped.splitlines()
+        return not bool(lines and lines[-1].startswith("Exit code:"))
+
+    def _record_exec_command_files(
+        self,
+        state: dict[str, Any],
+        *,
+        before_snapshot: _WorkspaceFileSnapshot | None,
+        result: Any,
+    ) -> None:
+        """Record files created or modified by a successful foreground exec command."""
+        if before_snapshot is None or not self._exec_command_finished_successfully(result):
+            return
+        changed_paths = self._changed_workspace_files_since(before_snapshot)
+        if not changed_paths:
+            return
+        self._record_workspace_files(
+            state,
+            paths=changed_paths,
+            description="Workspace file created or updated by builtin tool `exec_command`.",
+            source="builtin_tool",
+        )
+
     @staticmethod
     def _advance_tool_counters(state: dict[str, Any], *, tool_name: str) -> None:
         """Advance session counters for one top-level tool or expert call."""
@@ -829,6 +893,7 @@ Expert parameter contracts:
         tool_name: str,
         args: dict[str, Any],
         result: Any,
+        before_snapshot: _WorkspaceFileSnapshot | None = None,
     ) -> None:
         """Persist workspace file outputs produced by builtin tools."""
         if isinstance(result, str) and result.startswith("Error"):
@@ -862,6 +927,12 @@ Expert parameter contracts:
                     description=f"Workspace file updated by builtin tool `{tool_name}`.",
                     source="builtin_tool",
                 )
+        elif tool_name == "exec_command" and not bool(args.get("background")):
+            self._record_exec_command_files(
+                state,
+                before_snapshot=before_snapshot,
+                result=result,
+            )
 
     def _run_tool_with_events(
         self,
@@ -879,13 +950,24 @@ Expert parameter contracts:
         should_record_manually = (not step_event_streaming_active()) or tool_name not in _PLUGIN_MANAGED_TOOL_NAMES
         if should_record_manually:
             self._record_tool_started(tool_context.state, tool_name=tool_name, args=args, stage=stage)
+        before_snapshot = (
+            self._snapshot_workspace_files()
+            if tool_name == "exec_command" and not bool(args.get("background"))
+            else None
+        )
         result = runner()
         result = self._normalize_generated_tool_result(
             tool_context.state,
             tool_name=tool_name,
             result=result,
         )
-        self._maybe_record_tool_files(tool_context.state, tool_name=tool_name, args=args, result=result)
+        self._maybe_record_tool_files(
+            tool_context.state,
+            tool_name=tool_name,
+            args=args,
+            result=result,
+            before_snapshot=before_snapshot,
+        )
         if should_record_manually:
             self._record_tool_finished(
                 tool_context.state,
