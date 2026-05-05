@@ -3,7 +3,9 @@
 from __future__ import annotations
 
 import asyncio
+import base64
 import contextlib
+import html
 import json
 import mimetypes
 import webbrowser
@@ -30,6 +32,7 @@ from .events import OutboundMessage
 
 STATIC_PACKAGE = "src.webchat.static"
 INDEX_FILE = "index.html"
+PPTX_PREVIEW_ERROR_TITLE = "PPTX preview unavailable"
 
 
 @dataclass(slots=True)
@@ -67,6 +70,254 @@ def _normalize_workspace_relative_path(raw_path: str) -> str | None:
         return None
     normalized = pure.as_posix().strip()
     return normalized or None
+
+
+def _html_response(body: str, *, status: HTTPStatus = HTTPStatus.OK) -> tuple[HTTPStatus, list[tuple[str, str]], bytes]:
+    """Build one no-cache HTML response."""
+    return (
+        status,
+        [("Content-Type", "text/html; charset=utf-8"), ("Cache-Control", "no-cache")],
+        body.encode("utf-8"),
+    )
+
+
+def _simple_preview_error(title: str, message: str) -> str:
+    """Render a minimal browser-readable preview error page."""
+    return f"""<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="utf-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1">
+    <title>{html.escape(title)}</title>
+    <style>
+      body {{
+        margin: 0;
+        min-height: 100vh;
+        display: grid;
+        place-items: center;
+        background: #f3f5ef;
+        color: #18211d;
+        font-family: Avenir Next, Segoe UI, sans-serif;
+      }}
+      main {{
+        width: min(560px, calc(100vw - 48px));
+        padding: 28px;
+        border: 1px solid rgba(29, 39, 34, 0.14);
+        border-radius: 18px;
+        background: #fffef9;
+        box-shadow: 0 18px 48px rgba(35, 42, 36, 0.12);
+      }}
+      h1 {{ margin: 0 0 10px; font-size: 22px; }}
+      p {{ margin: 0; color: #5b675f; line-height: 1.6; }}
+    </style>
+  </head>
+  <body>
+    <main>
+      <h1>{html.escape(title)}</h1>
+      <p>{html.escape(message)}</p>
+    </main>
+  </body>
+</html>"""
+
+
+def _pct(value: Any, total: int) -> float:
+    """Convert one EMU coordinate into a slide-relative percentage."""
+    try:
+        numeric = float(value)
+    except (TypeError, ValueError):
+        numeric = 0.0
+    return 0.0 if total <= 0 else max(0.0, numeric / total * 100.0)
+
+
+def _shape_style(shape: Any, slide_width: int, slide_height: int) -> str:
+    """Build absolute-position CSS for one PPTX shape."""
+    left = _pct(getattr(shape, "left", 0), slide_width)
+    top = _pct(getattr(shape, "top", 0), slide_height)
+    width = _pct(getattr(shape, "width", 0), slide_width)
+    height = _pct(getattr(shape, "height", 0), slide_height)
+    return f"left:{left:.4f}%;top:{top:.4f}%;width:{width:.4f}%;height:{height:.4f}%;"
+
+
+def _pptx_text_html(shape: Any) -> str:
+    """Render text content from one PPTX text shape."""
+    text_frame = getattr(shape, "text_frame", None)
+    if text_frame is None:
+        return ""
+    paragraphs: list[str] = []
+    for paragraph in text_frame.paragraphs:
+        text = "".join(run.text for run in paragraph.runs) or paragraph.text
+        stripped = text.strip()
+        if stripped:
+            paragraphs.append(f"<p>{html.escape(stripped)}</p>")
+    return "".join(paragraphs)
+
+
+def _pptx_table_html(shape: Any) -> str:
+    """Render one PPTX table shape into HTML."""
+    table = getattr(shape, "table", None)
+    if table is None:
+        return ""
+    rows: list[str] = []
+    for row in table.rows:
+        cells = "".join(f"<td>{html.escape(cell.text.strip())}</td>" for cell in row.cells)
+        rows.append(f"<tr>{cells}</tr>")
+    return f"<table>{''.join(rows)}</table>" if rows else ""
+
+
+def _pptx_image_html(shape: Any) -> str:
+    """Render one PPTX picture shape as an embedded image."""
+    image = getattr(shape, "image", None)
+    if image is None:
+        return ""
+    mime_type = getattr(image, "content_type", None) or _guess_content_type(getattr(image, "filename", "image"))
+    encoded = base64.b64encode(image.blob).decode("ascii")
+    alt = html.escape(str(getattr(shape, "name", "") or "slide image"))
+    return f'<img src="data:{html.escape(mime_type)};base64,{encoded}" alt="{alt}">'
+
+
+def _render_pptx_shape(shape: Any, slide_width: int, slide_height: int) -> str:
+    """Render one PPTX shape into positioned HTML."""
+    content = ""
+    if getattr(shape, "has_table", False):
+        content = _pptx_table_html(shape)
+    elif getattr(shape, "has_text_frame", False):
+        content = _pptx_text_html(shape)
+    if not content:
+        content = _pptx_image_html(shape)
+    if not content:
+        return ""
+
+    style = _shape_style(shape, slide_width, slide_height)
+    return f'<div class="shape" style="{style}">{content}</div>'
+
+
+def _render_pptx_preview_html(pptx_path: Path) -> str:
+    """Render a PPTX file into one standalone HTML preview."""
+    try:
+        from pptx import Presentation
+    except ImportError as exc:  # pragma: no cover - dependency is declared by the project.
+        raise RuntimeError("python-pptx is required to preview PPTX files.") from exc
+
+    presentation = Presentation(str(pptx_path))
+    slide_width = int(presentation.slide_width) or 12192000
+    slide_height = int(presentation.slide_height) or 6858000
+    aspect_ratio = f"{slide_width} / {slide_height}"
+    slide_items: list[str] = []
+    for index, slide in enumerate(presentation.slides, start=1):
+        shapes = "".join(
+            rendered
+            for shape in slide.shapes
+            if (rendered := _render_pptx_shape(shape, slide_width, slide_height))
+        )
+        empty = '<div class="empty-slide">No visible text or images on this slide.</div>' if not shapes else ""
+        slide_items.append(
+            f"""<section class="slide-wrap">
+  <div class="slide-label">Slide {index}</div>
+  <div class="slide" style="aspect-ratio:{aspect_ratio};">{shapes}{empty}</div>
+</section>"""
+        )
+
+    title = html.escape(pptx_path.name)
+    slides = "\n".join(slide_items) or '<div class="empty-deck">No slides found.</div>'
+    return f"""<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="utf-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1">
+    <title>{title}</title>
+    <style>
+      :root {{
+        --bg: #eef1ea;
+        --paper: #fffef9;
+        --ink: #18211d;
+        --muted: #68746d;
+        --border: rgba(29, 39, 34, 0.16);
+      }}
+      * {{ box-sizing: border-box; }}
+      body {{
+        margin: 0;
+        padding: 24px;
+        background: var(--bg);
+        color: var(--ink);
+        font-family: Avenir Next, Segoe UI, sans-serif;
+      }}
+      header {{
+        max-width: 1180px;
+        margin: 0 auto 18px;
+      }}
+      h1 {{
+        margin: 0;
+        overflow: hidden;
+        font-size: 18px;
+        text-overflow: ellipsis;
+        white-space: nowrap;
+      }}
+      .deck {{
+        max-width: 1180px;
+        margin: 0 auto;
+        display: grid;
+        gap: 22px;
+      }}
+      .slide-label {{
+        margin-bottom: 8px;
+        color: var(--muted);
+        font-size: 12px;
+        font-weight: 700;
+        letter-spacing: 0.08em;
+        text-transform: uppercase;
+      }}
+      .slide {{
+        position: relative;
+        overflow: hidden;
+        width: 100%;
+        border: 1px solid var(--border);
+        border-radius: 16px;
+        background: var(--paper);
+        box-shadow: 0 18px 46px rgba(35, 42, 36, 0.13);
+      }}
+      .shape {{
+        position: absolute;
+        overflow: hidden;
+        color: var(--ink);
+      }}
+      .shape p {{
+        margin: 0 0 0.35em;
+        font-size: clamp(10px, 1.8vw, 30px);
+        line-height: 1.24;
+        white-space: pre-wrap;
+      }}
+      .shape img {{
+        width: 100%;
+        height: 100%;
+        object-fit: contain;
+        display: block;
+      }}
+      .shape table {{
+        width: 100%;
+        height: 100%;
+        border-collapse: collapse;
+        font-size: clamp(8px, 1.2vw, 18px);
+      }}
+      .shape td {{
+        border: 1px solid rgba(29, 39, 34, 0.16);
+        padding: 0.35em;
+        vertical-align: top;
+      }}
+      .empty-slide,
+      .empty-deck {{
+        height: 100%;
+        display: grid;
+        place-items: center;
+        color: var(--muted);
+        font-size: 14px;
+      }}
+    </style>
+  </head>
+  <body>
+    <header><h1>{title}</h1></header>
+    <main class="deck">{slides}</main>
+  </body>
+</html>"""
 
 
 class WebChannel(BaseChannel):
@@ -302,6 +553,9 @@ class WebChannel(BaseChannel):
         if parsed.path == "/ws":
             return None
 
+        if parsed.path.startswith("/workspace-preview/"):
+            return self._serve_workspace_preview(parsed.path.removeprefix("/workspace-preview/"))
+
         if parsed.path.startswith("/workspace/"):
             return self._serve_workspace_asset(parsed.path.removeprefix("/workspace/"))
 
@@ -350,6 +604,46 @@ class WebChannel(BaseChannel):
             [("Content-Type", self._content_type_header(resolved.name)), ("Cache-Control", "no-cache")],
             resolved.read_bytes(),
         )
+
+    def _serve_workspace_preview(self, raw_relative_path: str) -> tuple[HTTPStatus, list[tuple[str, str]], bytes]:
+        """Serve one browser-renderable preview for a workspace file."""
+        resolved = self._resolve_workspace_file(raw_relative_path)
+        if resolved is None:
+            return (
+                HTTPStatus.NOT_FOUND,
+                [("Content-Type", "text/plain; charset=utf-8")],
+                b"Not Found",
+            )
+        if resolved.suffix.lower() != ".pptx":
+            return _html_response(
+                _simple_preview_error(
+                    "Preview unsupported",
+                    f"No inline preview is available for {resolved.name}. Open the original file instead.",
+                ),
+                status=HTTPStatus.UNSUPPORTED_MEDIA_TYPE,
+            )
+
+        try:
+            return _html_response(_render_pptx_preview_html(resolved))
+        except Exception as exc:
+            logger.opt(exception=exc).warning("Failed to render PPTX preview for {}", resolved)
+            return _html_response(
+                _simple_preview_error(PPTX_PREVIEW_ERROR_TITLE, f"Could not render {resolved.name}: {exc}"),
+                status=HTTPStatus.INTERNAL_SERVER_ERROR,
+            )
+
+    def _resolve_workspace_file(self, raw_relative_path: str) -> Path | None:
+        """Resolve one normalized workspace file path for browser routes."""
+        normalized = _normalize_workspace_relative_path(raw_relative_path)
+        if normalized is None:
+            return None
+        try:
+            resolved = resolve_workspace_path(normalized)
+        except Exception:
+            return None
+        if not resolved.exists() or not resolved.is_file():
+            return None
+        return resolved
 
     def _asset_exists(self, relative_path: str) -> bool:
         """Return whether one packaged static asset exists."""
