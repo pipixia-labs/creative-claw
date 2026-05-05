@@ -4,20 +4,69 @@
   "title": "Team OKRs",
   "description": "Key design elements for team OKR dashboards, objective planning pages, and key result tracking views.",
   "surface": "planning",
-  "scenarios": ["team_okrs", "okr", "okrs", "objectives", "key_results", "目标", "团队OKR"],
-  "required_fields": ["team_context", "period", "objectives", "key_results", "owners", "confidence_or_status", "review_cadence"],
-  "optional_fields": ["initiatives", "risks", "dependencies", "scoring_model", "stakeholders", "history"],
+  "scenarios": [
+    "team_okrs",
+    "okr",
+    "okrs",
+    "objectives",
+    "key_results",
+    "目标",
+    "团队OKR"
+  ],
+  "required_fields": [
+    "team_context",
+    "period",
+    "objectives",
+    "key_results",
+    "owners",
+    "confidence_or_status",
+    "review_cadence"
+  ],
+  "optional_fields": [
+    "initiatives",
+    "risks",
+    "dependencies",
+    "scoring_model",
+    "stakeholders",
+    "history"
+  ],
   "question_templates": [
-    {"field": "team_context", "question": "这是哪个团队或业务线的 OKR？"},
-    {"field": "period", "question": "周期是什么：季度、半年、年度，还是项目周期？"},
-    {"field": "objectives", "question": "有哪些 Objective？如果没有，我可以按团队目标先拟一版。"},
-    {"field": "key_results", "question": "每个 Objective 的可衡量 KR 是什么？"}
+    {
+      "field": "team_context",
+      "question": "这是哪个团队或业务线的 OKR？"
+    },
+    {
+      "field": "period",
+      "question": "周期是什么：季度、半年、年度，还是项目周期？"
+    },
+    {
+      "field": "objectives",
+      "question": "有哪些 Objective？如果没有，我可以按团队目标先拟一版。"
+    },
+    {
+      "field": "key_results",
+      "question": "每个 Objective 的可衡量 KR 是什么？"
+    }
   ],
   "defaults": {
     "platform": "responsive web",
     "density": "medium",
     "recommended_skill": "team-okrs",
-    "recommended_design_system_candidates": ["linear-app", "notion", "default"],
-    "output_contract": "standalone responsive HTML OKR planning page"
+    "recommended_design_system_candidates": [
+      "linear-app",
+      "notion",
+      "default"
+    ],
+    "output_contract": "standalone responsive HTML OKR planning page",
+    "primary_user": "team lead or team member reviewing objectives and progress",
+    "business_domain": "team planning and performance management",
+    "decision_goal": "show objective ownership, key result progress, confidence, and review cadence clearly",
+    "visual_direction": "planning dashboard/document hybrid with progress bars, owner cues, status labels, and review rhythm",
+    "interactions": [
+      "review objective status",
+      "scan key results",
+      "check owners",
+      "compare confidence levels"
+    ]
   }
 }

@@ -4,7 +4,14 @@
   "title": "Magazine Poster",
   "description": "Key design elements for editorial posters, launch posters, event visuals, and magazine-style static compositions.",
   "surface": "poster",
-  "scenarios": ["magazine_poster", "editorial_poster", "launch_poster", "event_poster", "海报", "杂志海报"],
+  "scenarios": [
+    "magazine_poster",
+    "editorial_poster",
+    "launch_poster",
+    "event_poster",
+    "海报",
+    "杂志海报"
+  ],
   "required_fields": [
     "poster_goal",
     "audience",
@@ -45,7 +52,21 @@
     "platform": "static visual",
     "density": "medium",
     "recommended_skill": "magazine-poster",
-    "recommended_design_system_candidates": ["warm-editorial", "wired", "theverge", "default"],
-    "output_contract": "standalone HTML poster composition"
+    "recommended_design_system_candidates": [
+      "warm-editorial",
+      "wired",
+      "theverge",
+      "default"
+    ],
+    "output_contract": "standalone HTML poster composition",
+    "primary_user": "viewer scanning an editorial poster for a launch, event, or campaign",
+    "business_domain": "editorial promotion and brand communication",
+    "decision_goal": "make the headline, subject, and call to action memorable in one static composition",
+    "visual_direction": "magazine-inspired poster with expressive typography, strong focal image, and disciplined negative space",
+    "interactions": [
+      "read headline",
+      "scan supporting copy",
+      "follow call to action"
+    ]
   }
 }

@@ -4,7 +4,14 @@
   "title": "Admin Console",
   "description": "Key design elements for dense admin consoles, internal tools, list-detail workflows, and permissioned management UI.",
   "surface": "dashboard",
-  "scenarios": ["admin_console", "admin_panel", "backoffice", "internal_tool", "management_console", "后台管理"],
+  "scenarios": [
+    "admin_console",
+    "admin_panel",
+    "backoffice",
+    "internal_tool",
+    "management_console",
+    "后台管理"
+  ],
   "required_fields": [
     "business_domain",
     "primary_user",
@@ -59,7 +66,23 @@
     "platform": "desktop web",
     "density": "high",
     "recommended_skill": "dashboard",
-    "recommended_design_system_candidates": ["linear-app", "figma", "notion", "default"],
-    "output_contract": "standalone responsive HTML admin console"
+    "recommended_design_system_candidates": [
+      "linear-app",
+      "figma",
+      "notion",
+      "default"
+    ],
+    "output_contract": "standalone responsive HTML admin console",
+    "primary_user": "operations manager responsible for maintaining business records and resolving workflow exceptions",
+    "business_domain": "internal operations and admin management",
+    "decision_goal": "help operators find, update, and audit managed entities quickly without losing context",
+    "visual_direction": "dense but orderly enterprise console with clear hierarchy, persistent navigation, and restrained status color",
+    "interactions": [
+      "search records",
+      "filter and sort tables",
+      "open detail panels",
+      "perform bulk actions",
+      "review permission-aware states"
+    ]
   }
 }

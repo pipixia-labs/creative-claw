@@ -178,6 +178,43 @@ class DesignKnowledgeResourceTests(unittest.TestCase):
             self.assertTrue(brief_element["question_templates"], brief_element["id"])
             self.assertIn("recommended_skill", brief_element["defaults"])
 
+    def test_brief_elements_provide_stable_contract_defaults(self) -> None:
+        required_default_fields = {
+            "primary_user",
+            "business_domain",
+            "decision_goal",
+            "visual_direction",
+            "interactions",
+        }
+        brief_elements = [
+            json.loads(path.read_text(encoding="utf-8"))
+            for path in sorted((self._resource_root() / "brief-elements").glob("*.json"))
+        ]
+
+        self.assertTrue(brief_elements)
+        for brief_element in brief_elements:
+            defaults = brief_element["defaults"]
+            self.assertEqual(required_default_fields - set(defaults), set(), brief_element["id"])
+            for field in required_default_fields - {"interactions"}:
+                self.assertTrue(defaults[field], f"{brief_element['id']} {field}")
+            self.assertIsInstance(defaults["interactions"], list, brief_element["id"])
+            self.assertTrue(defaults["interactions"], brief_element["id"])
+
+    def test_brief_design_system_candidates_exist(self) -> None:
+        design_system_root = self._resource_root() / "design-systems"
+        brief_elements = [
+            json.loads(path.read_text(encoding="utf-8"))
+            for path in sorted((self._resource_root() / "brief-elements").glob("*.json"))
+        ]
+        missing_candidates: list[str] = []
+
+        for brief_element in brief_elements:
+            for candidate in brief_element["defaults"].get("recommended_design_system_candidates", []) or []:
+                if not (design_system_root / candidate / "DESIGN.md").exists():
+                    missing_candidates.append(f"{brief_element['id']} -> {candidate}")
+
+        self.assertEqual(missing_candidates, [])
+
     def test_design_resource_files_do_not_embed_local_absolute_paths(self) -> None:
         for path in [
             self._resource_root() / "SKILL.md",

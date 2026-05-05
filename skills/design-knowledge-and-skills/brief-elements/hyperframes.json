@@ -4,21 +4,70 @@
   "title": "Hyperframes",
   "description": "Key design elements for HTML video compositions, kinetic typography, captioned scenes, and browser-rendered motion narratives.",
   "surface": "video",
-  "scenarios": ["hyperframes", "html_video", "video_composition", "kinetic_typography", "captioned_video", "互动视频", "字幕视频"],
-  "required_fields": ["video_goal", "audience", "duration", "scene_outline", "script_or_copy", "motion_style", "caption_needs", "output_ratio"],
-  "optional_fields": ["voiceover", "music", "brand_context", "data_visuals", "render_target", "asset_sources"],
+  "scenarios": [
+    "hyperframes",
+    "html_video",
+    "video_composition",
+    "kinetic_typography",
+    "captioned_video",
+    "互动视频",
+    "字幕视频"
+  ],
+  "required_fields": [
+    "video_goal",
+    "audience",
+    "duration",
+    "scene_outline",
+    "script_or_copy",
+    "motion_style",
+    "caption_needs",
+    "output_ratio"
+  ],
+  "optional_fields": [
+    "voiceover",
+    "music",
+    "brand_context",
+    "data_visuals",
+    "render_target",
+    "asset_sources"
+  ],
   "question_templates": [
-    {"field": "video_goal", "question": "这个 HTML video composition 的目的是什么：产品解释、发布预告、社媒短片，还是数据故事？"},
-    {"field": "duration", "question": "目标时长是多少？"},
-    {"field": "scene_outline", "question": "需要哪些镜头或章节？"},
-    {"field": "motion_style", "question": "动效风格偏 kinetic typography、数据流、卡片切换、还是字幕故事？"}
+    {
+      "field": "video_goal",
+      "question": "这个 HTML video composition 的目的是什么：产品解释、发布预告、社媒短片，还是数据故事？"
+    },
+    {
+      "field": "duration",
+      "question": "目标时长是多少？"
+    },
+    {
+      "field": "scene_outline",
+      "question": "需要哪些镜头或章节？"
+    },
+    {
+      "field": "motion_style",
+      "question": "动效风格偏 kinetic typography、数据流、卡片切换、还是字幕故事？"
+    }
   ],
   "defaults": {
     "platform": "browser video composition",
     "density": "medium",
     "recommended_skill": "hyperframes",
-    "recommended_design_system_candidates": ["default", "vercel", "runwayml"],
+    "recommended_design_system_candidates": [
+      "default",
+      "vercel",
+      "runwayml"
+    ],
     "output_contract": "HTML storyboard or browser-rendered video composition brief",
-    "execution_mode": "code_or_video_expert"
+    "execution_mode": "code_or_video_expert",
+    "primary_user": "viewer watching a short kinetic typography or motion composition",
+    "business_domain": "motion design and video communication",
+    "decision_goal": "make the message understandable and visually engaging within the target duration",
+    "visual_direction": "high-energy motion system with timed typography, expressive transitions, and caption-safe composition",
+    "interactions": [
+      "play animation",
+      "read captions",
+      "follow scene transitions"
+    ]
   }
 }

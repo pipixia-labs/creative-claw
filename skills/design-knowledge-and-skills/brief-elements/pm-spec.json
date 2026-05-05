@@ -4,20 +4,70 @@
   "title": "PM Spec",
   "description": "Key design elements for product requirement docs, feature specs, PRDs, and product briefs.",
   "surface": "spec",
-  "scenarios": ["pm_spec", "prd", "product_spec", "feature_spec", "feature_brief", "需求文档", "产品需求"],
-  "required_fields": ["feature_name", "problem_statement", "target_users", "goals", "scope", "user_flows", "success_metrics", "open_questions"],
-  "optional_fields": ["non_goals", "dependencies", "launch_plan", "analytics_events", "edge_cases", "design_links"],
+  "scenarios": [
+    "pm_spec",
+    "prd",
+    "product_spec",
+    "feature_spec",
+    "feature_brief",
+    "需求文档",
+    "产品需求"
+  ],
+  "required_fields": [
+    "feature_name",
+    "problem_statement",
+    "target_users",
+    "goals",
+    "scope",
+    "user_flows",
+    "success_metrics",
+    "open_questions"
+  ],
+  "optional_fields": [
+    "non_goals",
+    "dependencies",
+    "launch_plan",
+    "analytics_events",
+    "edge_cases",
+    "design_links"
+  ],
   "question_templates": [
-    {"field": "feature_name", "question": "这个需求或功能叫什么？"},
-    {"field": "problem_statement", "question": "它要解决什么用户或业务问题？"},
-    {"field": "target_users", "question": "目标用户是谁？他们现在如何完成这个任务？"},
-    {"field": "success_metrics", "question": "怎么判断上线后成功：转化、留存、效率、收入、满意度，还是其他？"}
+    {
+      "field": "feature_name",
+      "question": "这个需求或功能叫什么？"
+    },
+    {
+      "field": "problem_statement",
+      "question": "它要解决什么用户或业务问题？"
+    },
+    {
+      "field": "target_users",
+      "question": "目标用户是谁？他们现在如何完成这个任务？"
+    },
+    {
+      "field": "success_metrics",
+      "question": "怎么判断上线后成功：转化、留存、效率、收入、满意度，还是其他？"
+    }
   ],
   "defaults": {
     "platform": "product docs",
     "density": "high",
     "recommended_skill": "pm-spec",
-    "recommended_design_system_candidates": ["notion", "linear-app", "default"],
-    "output_contract": "structured product specification document"
+    "recommended_design_system_candidates": [
+      "notion",
+      "linear-app",
+      "default"
+    ],
+    "output_contract": "structured product specification document",
+    "primary_user": "product manager, designer, or engineer aligning on feature scope",
+    "business_domain": "product planning and requirements definition",
+    "decision_goal": "clarify the problem, scope, flows, success metrics, and open questions for implementation",
+    "visual_direction": "structured spec document with concise sections, flow summaries, metric callouts, and decision tables",
+    "interactions": [
+      "scan scope",
+      "review user flows",
+      "check success metrics",
+      "track open questions"
+    ]
   }
 }

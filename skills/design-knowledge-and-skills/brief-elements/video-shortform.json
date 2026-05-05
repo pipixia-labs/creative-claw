@@ -4,22 +4,72 @@
   "title": "Shortform Video",
   "description": "Key design elements for short videos, reels, product clips, launch teasers, and vertical social video briefs.",
   "surface": "video",
-  "scenarios": ["video_shortform", "shortform_video", "reel", "product_clip", "launch_teaser", "短视频", "竖屏视频"],
-  "required_fields": ["video_goal", "audience", "duration", "platform", "story_beats", "visual_style", "audio_or_voiceover", "call_to_action"],
-  "optional_fields": ["aspect_ratio", "captions", "reference_videos", "brand_context", "asset_sources", "export_format"],
+  "scenarios": [
+    "video_shortform",
+    "shortform_video",
+    "reel",
+    "product_clip",
+    "launch_teaser",
+    "短视频",
+    "竖屏视频"
+  ],
+  "required_fields": [
+    "video_goal",
+    "audience",
+    "duration",
+    "platform",
+    "story_beats",
+    "visual_style",
+    "audio_or_voiceover",
+    "call_to_action"
+  ],
+  "optional_fields": [
+    "aspect_ratio",
+    "captions",
+    "reference_videos",
+    "brand_context",
+    "asset_sources",
+    "export_format"
+  ],
   "question_templates": [
-    {"field": "video_goal", "question": "短视频目标是什么：获客、发布、教育、活动预热、品牌认知，还是转化？"},
-    {"field": "platform", "question": "发布平台是什么：抖音、小红书、Instagram Reels、YouTube Shorts，还是站内视频？"},
-    {"field": "duration", "question": "目标时长是多少：5 秒、15 秒、30 秒，还是更长？"},
-    {"field": "story_beats", "question": "需要哪些故事节奏：hook、痛点、演示、证明、CTA？"}
+    {
+      "field": "video_goal",
+      "question": "短视频目标是什么：获客、发布、教育、活动预热、品牌认知，还是转化？"
+    },
+    {
+      "field": "platform",
+      "question": "发布平台是什么：抖音、小红书、Instagram Reels、YouTube Shorts，还是站内视频？"
+    },
+    {
+      "field": "duration",
+      "question": "目标时长是多少：5 秒、15 秒、30 秒，还是更长？"
+    },
+    {
+      "field": "story_beats",
+      "question": "需要哪些故事节奏：hook、痛点、演示、证明、CTA？"
+    }
   ],
   "defaults": {
     "platform": "shortform video",
     "density": "medium",
     "aspect_ratio": "9:16",
     "recommended_skill": "video-shortform",
-    "recommended_design_system_candidates": ["runwayml", "xiaohongshu", "default"],
+    "recommended_design_system_candidates": [
+      "runwayml",
+      "xiaohongshu",
+      "default"
+    ],
     "output_contract": "structured shortform video brief or storyboard",
-    "execution_mode": "video_expert"
+    "execution_mode": "video_expert",
+    "primary_user": "shortform viewer deciding whether to keep watching and respond to the CTA",
+    "business_domain": "shortform video marketing and social storytelling",
+    "decision_goal": "structure the hook, story beats, audio cues, and CTA for the target platform and duration",
+    "visual_direction": "vertical-video-first storyboard with strong opening hook, caption-safe frames, and punchy pacing",
+    "interactions": [
+      "watch story beats",
+      "read captions",
+      "follow audio cues",
+      "respond to CTA"
+    ]
   }
 }

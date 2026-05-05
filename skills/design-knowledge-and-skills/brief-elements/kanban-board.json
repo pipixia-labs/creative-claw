@@ -4,7 +4,14 @@
   "title": "Kanban Board",
   "description": "Key design elements for task boards, workflow pipelines, content operations boards, and team execution views.",
   "surface": "dashboard",
-  "scenarios": ["kanban_board", "task_board", "workflow_board", "project_board", "看板", "任务看板"],
+  "scenarios": [
+    "kanban_board",
+    "task_board",
+    "workflow_board",
+    "project_board",
+    "看板",
+    "任务看板"
+  ],
   "required_fields": [
     "workflow_domain",
     "primary_user",
@@ -46,7 +53,22 @@
     "platform": "desktop web",
     "density": "medium",
     "recommended_skill": "kanban-board",
-    "recommended_design_system_candidates": ["linear-app", "notion", "figma", "default"],
-    "output_contract": "standalone responsive HTML kanban board"
+    "recommended_design_system_candidates": [
+      "linear-app",
+      "notion",
+      "figma",
+      "default"
+    ],
+    "output_contract": "standalone responsive HTML kanban board",
+    "primary_user": "team member or manager tracking workflow status and work-in-progress",
+    "business_domain": "workflow management and team operations",
+    "decision_goal": "help users see what needs attention and move work through the right status transitions",
+    "visual_direction": "organized board UI with stable columns, compact cards, clear priority signals, and collaboration cues",
+    "interactions": [
+      "drag cards between columns",
+      "filter work items",
+      "open card details",
+      "update owners or priority"
+    ]
   }
 }

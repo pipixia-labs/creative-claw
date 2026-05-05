@@ -4,7 +4,14 @@
   "title": "Operation Data UI",
   "description": "Key design elements for operational data dashboards focused on business monitoring, diagnosis, and action.",
   "surface": "dashboard",
-  "scenarios": ["operation_data_ui", "operations_dashboard", "growth_dashboard", "business_metrics", "运营数据", "运营看板"],
+  "scenarios": [
+    "operation_data_ui",
+    "operations_dashboard",
+    "growth_dashboard",
+    "business_metrics",
+    "运营数据",
+    "运营看板"
+  ],
   "required_fields": [
     "business_domain",
     "primary_user",
@@ -65,7 +72,23 @@
     "density": "high",
     "comparison_model": "previous period and target",
     "recommended_skill": "dashboard",
-    "recommended_design_system_candidates": ["linear-app", "vercel", "stripe", "figma", "default"],
-    "output_contract": "standalone responsive HTML operation data dashboard"
+    "recommended_design_system_candidates": [
+      "linear-app",
+      "vercel",
+      "stripe",
+      "figma",
+      "default"
+    ],
+    "output_contract": "standalone responsive HTML operation data dashboard",
+    "primary_user": "operator or business analyst monitoring operational health",
+    "business_domain": "operational analytics and performance management",
+    "decision_goal": "help the user compare current performance against baseline and identify where action is needed",
+    "visual_direction": "dense operations UI with north-star metric focus, comparison panels, and clear anomaly affordances",
+    "interactions": [
+      "change comparison model",
+      "filter dimensions",
+      "inspect metric trends",
+      "drill into anomalies"
+    ]
   }
 }

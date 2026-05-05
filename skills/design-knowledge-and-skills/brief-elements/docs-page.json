@@ -4,7 +4,15 @@
   "title": "Documentation Page",
   "description": "Key design elements for product documentation, developer docs, API guides, and structured knowledge pages.",
   "surface": "docs_page",
-  "scenarios": ["docs_page", "documentation", "api_docs", "developer_docs", "knowledge_base", "文档页", "开发者文档"],
+  "scenarios": [
+    "docs_page",
+    "documentation",
+    "api_docs",
+    "developer_docs",
+    "knowledge_base",
+    "文档页",
+    "开发者文档"
+  ],
   "required_fields": [
     "audience",
     "documentation_goal",
@@ -45,7 +53,22 @@
     "platform": "desktop web",
     "density": "medium",
     "recommended_skill": "docs-page",
-    "recommended_design_system_candidates": ["mintlify", "vercel", "stripe", "default"],
-    "output_contract": "standalone responsive HTML documentation page"
+    "recommended_design_system_candidates": [
+      "mintlify",
+      "vercel",
+      "stripe",
+      "default"
+    ],
+    "output_contract": "standalone responsive HTML documentation page",
+    "primary_user": "developer or technical user trying to complete an implementation task",
+    "business_domain": "developer documentation and technical enablement",
+    "decision_goal": "help the user find the right concept, follow the quickstart, and avoid implementation mistakes",
+    "visual_direction": "technical documentation page with precise navigation, code-first examples, and low-friction scanning",
+    "interactions": [
+      "navigate sections",
+      "copy code examples",
+      "search or filter topics",
+      "switch reference contexts"
+    ]
   }
 }

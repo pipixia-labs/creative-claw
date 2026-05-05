@@ -4,7 +4,13 @@
   "title": "Mobile App Screen / Prototype",
   "description": "Key design elements for mobile app screens, onboarding flows, and multi-screen mobile prototypes.",
   "surface": "mobile_app",
-  "scenarios": ["mobile_app", "mobile_screen", "ios_app", "android_app", "app_prototype"],
+  "scenarios": [
+    "mobile_app",
+    "mobile_screen",
+    "ios_app",
+    "android_app",
+    "app_prototype"
+  ],
   "required_fields": [
     "app_purpose",
     "primary_user",
@@ -65,7 +71,23 @@
     "device_frame": "iphone-15-pro",
     "interaction_depth": "static prototype",
     "recommended_skill": "mobile-app",
-    "recommended_design_system_candidates": ["apple", "notion", "airbnb", "xiaohongshu", "default"],
-    "output_contract": "standalone mobile HTML prototype"
+    "recommended_design_system_candidates": [
+      "apple",
+      "notion",
+      "airbnb",
+      "xiaohongshu",
+      "default"
+    ],
+    "output_contract": "standalone mobile HTML prototype",
+    "primary_user": "mobile app user completing a primary product flow",
+    "business_domain": "mobile product experience and workflow design",
+    "decision_goal": "help the user understand the screen set and complete the primary flow with minimal friction",
+    "visual_direction": "native-feeling mobile prototype with thumb-friendly controls, clear navigation, and focused screen hierarchy",
+    "interactions": [
+      "navigate key screens",
+      "complete primary flow",
+      "use controls and form states",
+      "review feedback states"
+    ]
   }
 }

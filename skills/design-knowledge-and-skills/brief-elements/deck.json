@@ -4,7 +4,13 @@
   "title": "Slide Deck",
   "description": "Key design elements for pitch decks, updates, readouts, workshops, and presentation-style HTML decks.",
   "surface": "deck",
-  "scenarios": ["deck", "slide_deck", "pitch_deck", "presentation", "readout"],
+  "scenarios": [
+    "deck",
+    "slide_deck",
+    "pitch_deck",
+    "presentation",
+    "readout"
+  ],
   "required_fields": [
     "deck_purpose",
     "audience",
@@ -58,7 +64,21 @@
     "speaker_notes": false,
     "recommended_skill": "simple-deck",
     "fallback_skill": "guizang-ppt",
-    "recommended_design_system_candidates": ["warm-editorial", "stripe", "vercel", "default"],
-    "output_contract": "standalone HTML slide deck"
+    "recommended_design_system_candidates": [
+      "warm-editorial",
+      "stripe",
+      "vercel",
+      "default"
+    ],
+    "output_contract": "standalone HTML slide deck",
+    "primary_user": "stakeholder audience reviewing a narrative presentation",
+    "business_domain": "business storytelling and presentation communication",
+    "decision_goal": "move the audience through the narrative arc toward a decision, alignment, or next step",
+    "visual_direction": "polished slide narrative with clear chapter breaks, strong headlines, and presentation-safe contrast",
+    "interactions": [
+      "navigate slides",
+      "review speaker notes",
+      "follow calls to action"
+    ]
   }
 }

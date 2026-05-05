@@ -4,7 +4,12 @@
   "title": "SaaS / Marketing Landing Page",
   "description": "Key design elements for SaaS landing pages, product marketing pages, and homepage-style conversion pages.",
   "surface": "landing_page",
-  "scenarios": ["landing_page", "saas_landing", "marketing_page", "homepage"],
+  "scenarios": [
+    "landing_page",
+    "saas_landing",
+    "marketing_page",
+    "homepage"
+  ],
   "required_fields": [
     "product_name",
     "target_audience",
@@ -57,10 +62,33 @@
   ],
   "defaults": {
     "platform": "responsive web",
-    "page_sections": ["hero", "problem", "features", "workflow", "proof", "cta"],
+    "page_sections": [
+      "hero",
+      "problem",
+      "features",
+      "workflow",
+      "proof",
+      "cta"
+    ],
     "recommended_skill": "saas-landing",
     "fallback_skill": "web-prototype",
-    "recommended_design_system_candidates": ["stripe", "linear-app", "vercel", "supabase", "default"],
-    "output_contract": "standalone responsive HTML landing page"
+    "recommended_design_system_candidates": [
+      "stripe",
+      "linear-app",
+      "vercel",
+      "supabase",
+      "default"
+    ],
+    "output_contract": "standalone responsive HTML landing page",
+    "primary_user": "prospective customer evaluating the product from a marketing page",
+    "business_domain": "SaaS marketing and customer acquisition",
+    "decision_goal": "explain the value proposition and move qualified visitors to the primary CTA",
+    "visual_direction": "conversion-focused product page with strong first-viewport signal, proof points, and clear section rhythm",
+    "interactions": [
+      "click primary CTA",
+      "scan product proof",
+      "compare sections",
+      "open supporting details"
+    ]
   }
 }

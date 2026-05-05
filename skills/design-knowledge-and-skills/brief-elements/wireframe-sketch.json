@@ -4,7 +4,15 @@
   "title": "Wireframe Sketch",
   "description": "Key design elements for low-fidelity wireframes, layout exploration, early product flows, and UX structure sketches.",
   "surface": "wireframe",
-  "scenarios": ["wireframe_sketch", "wireframe", "low_fidelity", "ux_sketch", "lofi_mockup", "线框图", "低保真"],
+  "scenarios": [
+    "wireframe_sketch",
+    "wireframe",
+    "low_fidelity",
+    "ux_sketch",
+    "lofi_mockup",
+    "线框图",
+    "低保真"
+  ],
   "required_fields": [
     "product_context",
     "target_user",
@@ -43,7 +51,20 @@
     "platform": "responsive web",
     "density": "medium",
     "recommended_skill": "wireframe-sketch",
-    "recommended_design_system_candidates": ["default", "figma", "notion"],
-    "output_contract": "standalone low-fidelity HTML wireframe"
+    "recommended_design_system_candidates": [
+      "default",
+      "figma",
+      "notion"
+    ],
+    "output_contract": "standalone low-fidelity HTML wireframe",
+    "primary_user": "product team member evaluating structure and flow before visual design",
+    "business_domain": "early-stage UX planning and product design",
+    "decision_goal": "clarify screen structure, information hierarchy, and interaction points before high-fidelity work",
+    "visual_direction": "low-fidelity wireframe with grayscale hierarchy, clear labels, and intentionally minimal styling",
+    "interactions": [
+      "trace primary flow",
+      "compare screen sections",
+      "identify interaction points"
+    ]
   }
 }

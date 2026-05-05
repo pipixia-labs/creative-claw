@@ -4,7 +4,15 @@
   "title": "Marketing Campaign Page",
   "description": "Key design elements for campaign pages, launch pages, event pages, and conversion-oriented marketing pages.",
   "surface": "landing_page",
-  "scenarios": ["marketing_campaign_page", "campaign_page", "event_page", "launch_page", "promo_page", "活动页", "营销活动"],
+  "scenarios": [
+    "marketing_campaign_page",
+    "campaign_page",
+    "event_page",
+    "launch_page",
+    "promo_page",
+    "活动页",
+    "营销活动"
+  ],
   "required_fields": [
     "campaign_name",
     "target_audience",
@@ -56,10 +64,32 @@
   ],
   "defaults": {
     "platform": "responsive web",
-    "page_sections": ["hero", "offer", "benefits", "how_it_works", "proof", "cta"],
+    "page_sections": [
+      "hero",
+      "offer",
+      "benefits",
+      "how_it_works",
+      "proof",
+      "cta"
+    ],
     "recommended_skill": "web-prototype",
     "fallback_skill": "saas-landing",
-    "recommended_design_system_candidates": ["stripe", "vercel", "airbnb", "default"],
-    "output_contract": "standalone responsive HTML marketing campaign page"
+    "recommended_design_system_candidates": [
+      "stripe",
+      "vercel",
+      "airbnb",
+      "default"
+    ],
+    "output_contract": "standalone responsive HTML marketing campaign page",
+    "primary_user": "campaign visitor deciding whether to claim an offer, register, or learn more",
+    "business_domain": "campaign marketing and conversion funnels",
+    "decision_goal": "make the campaign offer credible, timely, and easy to act on",
+    "visual_direction": "campaign page with urgent but polished hierarchy, offer modules, proof, and CTA repetition",
+    "interactions": [
+      "click campaign CTA",
+      "review offer details",
+      "scan proof points",
+      "navigate page sections"
+    ]
   }
 }
