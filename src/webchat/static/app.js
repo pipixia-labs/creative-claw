@@ -32,6 +32,7 @@ const MEDIA_CANVAS_MAX_ZOOM = 2.4;
 let sessionId = ensureSessionId();
 let socket = null;
 let activeProgressCard = null;
+let progressBodyCounter = 0;
 let activePreviewTab = "tldraw";
 let previewArtifactsByTab = buildEmptyPreviewGroups();
 let selectedPreviewByTab = buildEmptyPreviewSelections();
@@ -560,6 +561,7 @@ function upsertProgressCard(content, metadata) {
     const fragment = progressTemplate.content.cloneNode(true);
     timeline.appendChild(fragment);
     activeProgressCard = timeline.lastElementChild;
+    initializeProgressCard(activeProgressCard);
   }
   const rawTitle = String(metadata.stage_title || "").trim();
   const titleEl = activeProgressCard.querySelector(".progress-title");
@@ -570,8 +572,74 @@ function upsertProgressCard(content, metadata) {
     titleEl.hidden = false;
     titleEl.textContent = rawTitle || "Working";
   }
+  activeProgressCard.querySelector(".progress-summary").textContent = summarizeProgressContent(content, rawTitle);
   activeProgressCard.querySelector(".progress-body").innerHTML = renderMarkdown(content);
   scrollToBottom();
+}
+
+function initializeProgressCard(card) {
+  const toggle = card.querySelector(".progress-toggle");
+  const body = card.querySelector(".progress-body");
+  const bodyId = `progress-body-${++progressBodyCounter}`;
+  body.id = bodyId;
+  toggle.setAttribute("aria-controls", bodyId);
+  toggle.addEventListener("click", () => {
+    setProgressExpanded(card, toggle.getAttribute("aria-expanded") !== "true");
+  });
+  setProgressExpanded(card, false);
+}
+
+function setProgressExpanded(card, expanded) {
+  const toggle = card.querySelector(".progress-toggle");
+  const body = card.querySelector(".progress-body");
+  card.classList.toggle("expanded", expanded);
+  card.classList.toggle("collapsed", !expanded);
+  card.dataset.expanded = expanded ? "true" : "false";
+  toggle.setAttribute("aria-expanded", expanded ? "true" : "false");
+  body.hidden = !expanded;
+}
+
+function summarizeProgressContent(content, fallbackTitle) {
+  const fallback = fallbackTitle && !HIDDEN_PROGRESS_TITLES.has(fallbackTitle) ? fallbackTitle : "Working on the request.";
+  const lines = String(content || "")
+    .replace(/\r\n?/g, "\n")
+    .split("\n")
+    .map((line) => plainProgressLine(line))
+    .filter(Boolean);
+  const normalizedTitle = plainProgressLine(fallbackTitle);
+  const candidates = lines.filter((line) => {
+    const lower = line.toLowerCase();
+    return line !== normalizedTitle && !lower.startsWith("args:");
+  });
+  const preferred =
+    candidates.find((line) => /^result:/i.test(line)) ||
+    candidates.find((line) => !/^status:/i.test(line)) ||
+    candidates[0] ||
+    normalizedTitle ||
+    fallback;
+  return truncateProgressSummary(preferred.replace(/^(current progress|result|status):\s*/i, ""));
+}
+
+function plainProgressLine(line) {
+  return String(line || "")
+    .replace(/`([^`]+)`/g, "$1")
+    .replace(/\*\*([^*]+)\*\*/g, "$1")
+    .replace(/\*([^*]+)\*/g, "$1")
+    .replace(/\[(.*?)\]\((.*?)\)/g, "$1")
+    .replace(/^\s*[-*+]\s+/, "")
+    .replace(/^\s*\d+\.\s+/, "")
+    .replace(/^#{1,6}\s+/, "")
+    .replace(/[>_~]/g, "")
+    .replace(/\s+/g, " ")
+    .trim();
+}
+
+function truncateProgressSummary(text) {
+  const normalized = String(text || "").trim() || "Working on the request.";
+  if (normalized.length <= 136) {
+    return normalized;
+  }
+  return `${normalized.slice(0, 133).trimEnd()}...`;
 }
 
 function renderArtifacts(container, artifacts) {

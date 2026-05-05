@@ -687,6 +687,14 @@ button {
   background: rgba(255, 252, 249, 0.9);
 }
 
+.progress-card {
+  overflow: hidden;
+  padding: 0;
+  background:
+    linear-gradient(135deg, rgba(47, 125, 116, 0.055), rgba(255, 255, 252, 0.92)),
+    rgba(255, 255, 252, 0.88);
+}
+
 .message-meta {
   display: flex;
   align-items: center;
@@ -705,12 +713,44 @@ button {
   -webkit-font-smoothing: antialiased;
 }
 
-.progress-header {
-  display: flex;
+.progress-toggle {
+  width: 100%;
+  min-height: 46px;
+  display: grid;
+  grid-template-columns: 10px minmax(0, 1fr) 24px;
   align-items: center;
-  justify-content: space-between;
-  gap: 12px;
-  margin-bottom: 10px;
+  gap: 10px;
+  padding: 9px 11px 9px 12px;
+  border: 0;
+  background: transparent;
+  color: inherit;
+  text-align: left;
+}
+
+.progress-toggle:hover {
+  background: rgba(47, 125, 116, 0.055);
+}
+
+.progress-toggle:focus-visible {
+  outline: 2px solid rgba(47, 125, 116, 0.32);
+  outline-offset: -2px;
+}
+
+.progress-status {
+  width: 8px;
+  height: 8px;
+  border-radius: 50%;
+  background: var(--accent);
+  box-shadow: 0 0 0 4px rgba(47, 125, 116, 0.1);
+}
+
+.progress-copy {
+  min-width: 0;
+  display: grid;
+  grid-template-columns: auto minmax(0, 1fr);
+  align-items: baseline;
+  column-gap: 8px;
+  row-gap: 2px;
 }
 
 .progress-badge {
@@ -721,6 +761,59 @@ button {
   letter-spacing: 0;
   text-transform: none;
   -webkit-font-smoothing: antialiased;
+}
+
+.progress-title {
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.progress-summary {
+  grid-column: 1 / -1;
+  min-width: 0;
+  overflow: hidden;
+  color: var(--text-soft);
+  font-family: var(--font-ui);
+  font-size: 13px;
+  line-height: 1.36;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  -webkit-font-smoothing: antialiased;
+}
+
+.progress-chevron {
+  width: 24px;
+  height: 24px;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  border-radius: 50%;
+  color: var(--text-muted);
+  font-size: 15px;
+  line-height: 1;
+  transition: transform 0.16s ease, background 0.16s ease;
+}
+
+.progress-toggle:hover .progress-chevron {
+  background: rgba(47, 125, 116, 0.1);
+}
+
+.progress-card.expanded .progress-chevron {
+  transform: rotate(180deg);
+}
+
+.progress-body {
+  max-height: min(36dvh, 320px);
+  overflow: auto;
+  padding: 12px 14px 14px;
+  border-top: 1px solid var(--hairline);
+  background: rgba(255, 255, 252, 0.62);
+}
+
+.progress-body[hidden] {
+  display: none;
 }
 
 .markdown {
