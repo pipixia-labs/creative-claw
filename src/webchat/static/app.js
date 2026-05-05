@@ -2,23 +2,30 @@ const timeline = document.getElementById("timeline");
 const composer = document.getElementById("composer");
 const promptInput = document.getElementById("prompt");
 const sendButton = document.getElementById("send");
+const attachButton = document.getElementById("attach-files");
+const fileInput = document.getElementById("file-input");
+const attachmentList = document.getElementById("attachment-list");
 const statusEl = document.getElementById("status");
 const statusDot = document.getElementById("status-dot");
 const newSessionButton = document.getElementById("new-session");
+const sessionHistoryButton = document.getElementById("session-history");
+const sessionPopover = document.getElementById("session-popover");
+const sessionList = document.getElementById("session-list");
 const messageTemplate = document.getElementById("message-template");
 const progressTemplate = document.getElementById("progress-template");
 const previewTabs = Array.from(document.querySelectorAll("[data-preview-tab]"));
 const previewViews = Array.from(document.querySelectorAll("[data-preview-view]"));
-const previewTray = document.getElementById("preview-tray");
 const tldrawPreview = document.getElementById("tldraw-preview");
 const htmlPreview = document.getElementById("html-preview");
 const pptPreview = document.getElementById("ppt-preview");
 
 const STORAGE_KEY = "creative_claw_webchat_session_id";
 const HISTORY_KEY_PREFIX = "creative_claw_webchat_history:";
+const SESSION_INDEX_KEY = "creative_claw_webchat_sessions";
 const HIDDEN_PROGRESS_TITLES = new Set(["Starting", "Finalize Result"]);
 const PREVIEW_TABS = ["tldraw", "html", "ppt"];
 const AUTO_PREVIEW_PRIORITY = ["ppt", "html", "tldraw"];
+const UPLOAD_CHUNK_SIZE = 512 * 1024;
 
 let sessionId = ensureSessionId();
 let socket = null;
@@ -26,10 +33,13 @@ let activeProgressCard = null;
 let activePreviewTab = "tldraw";
 let previewArtifactsByTab = buildEmptyPreviewGroups();
 let selectedPreviewByTab = buildEmptyPreviewSelections();
+const attachedFiles = [];
+const uploadWaiters = new Map();
 
 connect();
 restoreHistory();
 renderAllPreviewViews();
+renderSessionHistory();
 
 function ensureSessionId() {
   const existing = window.localStorage.getItem(STORAGE_KEY);
@@ -62,18 +72,223 @@ function saveHistory(items, currentSessionId = sessionId) {
 
 function appendHistory(entry, currentSessionId = sessionId) {
   const items = loadHistory(currentSessionId);
-  items.push(entry);
+  const timestampedEntry = {
+    ...entry,
+    createdAt: entry.createdAt || new Date().toISOString(),
+  };
+  items.push(timestampedEntry);
   saveHistory(items, currentSessionId);
+  touchSessionIndex(currentSessionId, items);
+  renderSessionHistory();
+}
+
+function loadSessionIndex() {
+  try {
+    const raw = window.localStorage.getItem(SESSION_INDEX_KEY);
+    if (!raw) return [];
+    const parsed = JSON.parse(raw);
+    return Array.isArray(parsed) ? parsed : [];
+  } catch {
+    return [];
+  }
+}
+
+function saveSessionIndex(sessions) {
+  window.localStorage.setItem(SESSION_INDEX_KEY, JSON.stringify(sessions.slice(0, 80)));
+}
+
+function touchSessionIndex(currentSessionId = sessionId, items = loadHistory(currentSessionId)) {
+  if (!currentSessionId) {
+    return;
+  }
+  const summary = buildSessionSummary(currentSessionId, items);
+  const sessions = loadSessionIndex().filter((item) => item.id !== currentSessionId);
+  sessions.unshift(summary);
+  saveSessionIndex(sessions.sort(compareSessionSummaries));
+}
+
+function historySessionIds() {
+  const ids = new Set(loadSessionIndex().map((item) => item.id).filter(Boolean));
+  ids.add(sessionId);
+  for (let index = 0; index < window.localStorage.length; index += 1) {
+    const key = window.localStorage.key(index) || "";
+    if (key.startsWith(HISTORY_KEY_PREFIX)) {
+      const foundSessionId = key.slice(HISTORY_KEY_PREFIX.length);
+      if (foundSessionId) {
+        ids.add(foundSessionId);
+      }
+    }
+  }
+  return Array.from(ids);
+}
+
+function sessionSummaries() {
+  const indexed = new Map(loadSessionIndex().map((item) => [item.id, item]));
+  const summaries = historySessionIds().map((foundSessionId) => {
+    const items = loadHistory(foundSessionId);
+    return buildSessionSummary(foundSessionId, items, indexed.get(foundSessionId));
+  });
+  return summaries.sort(compareSessionSummaries);
+}
+
+function compareSessionSummaries(left, right) {
+  if (left.id === sessionId && right.id !== sessionId) return -1;
+  if (right.id === sessionId && left.id !== sessionId) return 1;
+  const leftTime = Date.parse(left.updatedAt || "") || 0;
+  const rightTime = Date.parse(right.updatedAt || "") || 0;
+  return rightTime - leftTime;
+}
+
+function buildSessionSummary(foundSessionId, items = loadHistory(foundSessionId), indexed = {}) {
+  const firstUser = items.find((item) => item.type === "user" && item.content);
+  const lastItem = [...items].reverse().find((item) => item.createdAt);
+  const latestArtifacts = latestSessionArtifacts(items);
+  return {
+    id: foundSessionId,
+    title: compactText(sessionTitleText(firstUser?.content) || indexed.title || "New session", 42),
+    updatedAt: lastItem?.createdAt || indexed.updatedAt || "",
+    count: items.length,
+    artifactTypes: sessionArtifactTypes(latestArtifacts),
+  };
+}
+
+function sessionTitleText(content) {
+  return String(content || "").split("\n\nAttached files:", 1)[0].trim();
+}
+
+function latestSessionArtifacts(items) {
+  for (let index = items.length - 1; index >= 0; index -= 1) {
+    const artifacts = artifactsForHistoryItem(items[index]);
+    if (Array.isArray(artifacts) && artifacts.length > 0) {
+      return artifacts;
+    }
+  }
+  return [];
+}
+
+function sessionArtifactTypes(artifacts) {
+  const labels = new Set();
+  for (const artifact of artifacts || []) {
+    const tab = previewTabForArtifact(artifact);
+    if (tab === "tldraw") labels.add("Image");
+    if (tab === "html") labels.add("Design");
+    if (tab === "ppt") labels.add("PPT");
+  }
+  return Array.from(labels);
+}
+
+function compactText(text, maxLength) {
+  const compacted = String(text || "").replace(/\s+/g, " ").trim();
+  if (compacted.length <= maxLength) {
+    return compacted;
+  }
+  return `${compacted.slice(0, maxLength - 1)}…`;
+}
+
+function formatSessionTime(value) {
+  const date = new Date(value);
+  if (!value || Number.isNaN(date.getTime())) {
+    return "Local";
+  }
+  return new Intl.DateTimeFormat(undefined, {
+    month: "short",
+    day: "numeric",
+    hour: "2-digit",
+    minute: "2-digit",
+  }).format(date);
+}
+
+function renderSessionHistory() {
+  if (!sessionList) {
+    return;
+  }
+  sessionList.innerHTML = "";
+  const summaries = sessionSummaries();
+  for (const summary of summaries) {
+    const button = document.createElement("button");
+    button.className = "session-item";
+    button.type = "button";
+    button.classList.toggle("active", summary.id === sessionId);
+    button.addEventListener("click", () => {
+      switchSession(summary.id);
+    });
+
+    const main = document.createElement("span");
+    main.className = "session-item-main";
+    main.textContent = summary.title;
+    const meta = document.createElement("span");
+    meta.className = "session-item-meta";
+    meta.textContent = `${formatSessionTime(summary.updatedAt)} · ${summary.count || 0} messages`;
+    button.appendChild(main);
+    button.appendChild(meta);
+
+    if (summary.artifactTypes.length > 0) {
+      const tags = document.createElement("span");
+      tags.className = "session-item-tags";
+      for (const type of summary.artifactTypes) {
+        const tag = document.createElement("span");
+        tag.className = "session-tag";
+        tag.textContent = type;
+        tags.appendChild(tag);
+      }
+      button.appendChild(tags);
+    }
+
+    sessionList.appendChild(button);
+  }
+
+  if (summaries.length === 0) {
+    const empty = document.createElement("div");
+    empty.className = "session-empty";
+    empty.textContent = "No local sessions yet.";
+    sessionList.appendChild(empty);
+  }
+}
+
+function toggleSessionPopover() {
+  if (!sessionPopover.hidden) {
+    closeSessionPopover();
+    return;
+  }
+  renderSessionHistory();
+  sessionPopover.hidden = false;
+  sessionHistoryButton.setAttribute("aria-expanded", "true");
+}
+
+function closeSessionPopover() {
+  sessionPopover.hidden = true;
+  sessionHistoryButton.setAttribute("aria-expanded", "false");
+}
+
+function switchSession(nextSessionId) {
+  if (!nextSessionId || nextSessionId === sessionId) {
+    closeSessionPopover();
+    return;
+  }
+  touchSessionIndex(sessionId);
+  sessionId = nextSessionId;
+  window.localStorage.setItem(STORAGE_KEY, nextSessionId);
+  disconnect();
+  clearAttachments();
+  restoreHistory();
+  closeSessionPopover();
+  renderSessionHistory();
+  connect();
 }
 
 function createNewSession() {
+  touchSessionIndex(sessionId);
   const nextSessionId = `web-${crypto.randomUUID()}`;
   sessionId = nextSessionId;
   window.localStorage.setItem(STORAGE_KEY, nextSessionId);
   disconnect();
+  clearAttachments();
   clearTimeline();
   clearPreviewState();
   renderEmptyState();
+  touchSessionIndex(nextSessionId, []);
+  closeSessionPopover();
+  renderSessionHistory();
   connect();
 }
 
@@ -127,9 +342,14 @@ function setStatus(status) {
   if (status === "error" || status === "disconnected") {
     statusDot.classList.add("error");
   }
+  updateComposerButtons();
 }
 
 function handleEvent(payload) {
+  if (handleUploadEvent(payload)) {
+    return;
+  }
+
   if (payload.type === "ready") {
     setStatus("ready");
     if (payload.title) {
@@ -196,9 +416,107 @@ function restoreHistory() {
   }
 
   for (const item of items) {
-    addMessageCard(item.type || "assistant", item.role || "CreativeClaw", item.content || "", item.artifacts || [], false);
+    addMessageCard(item.type || "assistant", item.role || "CreativeClaw", item.content || "", artifactsForHistoryItem(item), false);
   }
   scrollToBottom();
+}
+
+function artifactsForHistoryItem(item) {
+  if (Array.isArray(item?.artifacts) && item.artifacts.length > 0) {
+    return item.artifacts;
+  }
+  return extractArtifactsFromContent(item?.content || "");
+}
+
+function extractArtifactsFromContent(content) {
+  const artifacts = [];
+  const linkPattern = /\[([^\]\n]+)\]\(([^)\s]+)(?:\s+"[^"]*")?\)/g;
+  let match = linkPattern.exec(content);
+  while (match) {
+    const artifact = artifactFromMarkdownLink(match[1], match[2]);
+    if (artifact && !artifacts.some((item) => artifactKey(item) === artifactKey(artifact))) {
+      artifacts.push(artifact);
+    }
+    match = linkPattern.exec(content);
+  }
+  return artifacts;
+}
+
+function artifactFromMarkdownLink(label, rawUrl) {
+  const url = normalizeWorkspaceUrl(rawUrl);
+  if (!url || !isPreviewableArtifactUrl(url)) {
+    return null;
+  }
+
+  const path = workspacePathFromUrl(url);
+  const extension = artifactExtension({ path, url });
+  return {
+    name: artifactNameFromLink(label, path, url),
+    path,
+    url,
+    mimeType: mimeTypeForExtension(extension),
+    isImage: [".gif", ".jpeg", ".jpg", ".png", ".svg", ".webp"].includes(extension),
+  };
+}
+
+function normalizeWorkspaceUrl(rawUrl) {
+  const value = String(rawUrl || "").trim();
+  if (!value) {
+    return "";
+  }
+
+  if (value.startsWith("/")) {
+    return value;
+  }
+  if (value.startsWith(`${window.location.host}/`)) {
+    return value.slice(window.location.host.length);
+  }
+  if (value.startsWith("workspace/")) {
+    return `/${value}`;
+  }
+
+  try {
+    const parsed = new URL(value);
+    if (parsed.origin === window.location.origin) {
+      return `${parsed.pathname}${parsed.search}${parsed.hash}`;
+    }
+  } catch {
+    const workspaceIndex = value.indexOf("/workspace/");
+    if (workspaceIndex >= 0) {
+      return value.slice(workspaceIndex);
+    }
+  }
+
+  return value;
+}
+
+function isPreviewableArtifactUrl(url) {
+  const extension = artifactExtension({ url });
+  return (
+    url.startsWith("/workspace/") &&
+    [".gif", ".htm", ".html", ".jpeg", ".jpg", ".pdf", ".png", ".ppt", ".pptx", ".svg", ".webm", ".mp4", ".mov", ".webp"].includes(
+      extension
+    )
+  );
+}
+
+function workspacePathFromUrl(url) {
+  return String(url || "").replace(/^\/workspace\//, "").split("?")[0].split("#")[0];
+}
+
+function artifactNameFromLink(label, path, url) {
+  const cleaned = String(label || "").replace(/\s+/g, " ").trim();
+  const pathText = String(path || "").trim();
+  if (cleaned && pathText && cleaned.includes(pathText)) {
+    const name = cleaned.slice(0, cleaned.indexOf(pathText)).trim();
+    if (name) {
+      return name;
+    }
+  }
+  if (cleaned && !cleaned.startsWith("generated/")) {
+    return cleaned;
+  }
+  return String(path || url || "artifact").split("/").filter(Boolean).pop() || "artifact";
 }
 
 function removeEmptyState() {
@@ -255,8 +573,9 @@ function renderArtifacts(container, artifacts) {
   container.style.display = "grid";
   for (const artifact of artifacts) {
     const previewTab = previewTabForArtifact(artifact);
+    const hasMedia = artifact.isImage || isVideoArtifact(artifact);
     const anchor = document.createElement("a");
-    anchor.className = `artifact-card${previewTab ? " previewable" : ""}`;
+    anchor.className = `artifact-card${previewTab ? " previewable" : ""}${hasMedia ? " has-media" : " file-artifact"}`;
     anchor.href = artifact.url;
     anchor.target = "_blank";
     anchor.rel = "noreferrer";
@@ -391,14 +710,12 @@ function activatePreviewTab(tabName) {
     view.classList.toggle("active", isActive);
     view.hidden = !isActive;
   }
-  renderPreviewTray();
 }
 
 function renderAllPreviewViews() {
   for (const tabName of PREVIEW_TABS) {
     renderPreviewView(tabName);
   }
-  renderPreviewTray();
 }
 
 function renderPreviewView(tabName) {
@@ -419,11 +736,9 @@ function renderTldrawPreview() {
   tldrawPreview.innerHTML = "";
   const artifact = selectedPreviewByTab.tldraw;
   if (!artifact) {
-    tldrawPreview.appendChild(previewEmpty("No media preview"));
+    tldrawPreview.appendChild(previewEmpty("No image/video preview"));
     return;
   }
-
-  tldrawPreview.appendChild(buildPreviewToolbar(artifact));
 
   const board = document.createElement("div");
   board.className = "tldraw-board";
@@ -451,7 +766,7 @@ function renderHtmlPreview() {
   htmlPreview.innerHTML = "";
   const artifact = selectedPreviewByTab.html;
   if (!artifact) {
-    htmlPreview.appendChild(previewEmpty("No HTML preview"));
+    htmlPreview.appendChild(previewEmpty("No Design preview"));
     return;
   }
 
@@ -481,13 +796,14 @@ function renderPptPreview() {
     return;
   }
 
-  pptPreview.appendChild(buildPreviewToolbar(artifact));
+  pptPreview.appendChild(buildPreviewToolbar(artifact, [], { showMeta: false }));
 
   if (isPdfArtifact(artifact) || isPptxArtifact(artifact)) {
     const iframe = document.createElement("iframe");
     iframe.className = "ppt-preview-frame";
     iframe.src = isPptxArtifact(artifact) ? previewUrlForArtifact(artifact) : artifact.url;
     iframe.title = artifact.name || "PPT preview";
+    iframe.addEventListener("load", () => hideEmbeddedPptChrome(iframe));
     pptPreview.appendChild(iframe);
     return;
   }
@@ -510,81 +826,87 @@ function renderPptPreview() {
   copy.appendChild(title);
   copy.appendChild(meta);
 
-  const open = document.createElement("a");
-  open.className = "preview-open-link";
-  open.href = artifact.url;
-  open.target = "_blank";
-  open.rel = "noreferrer";
-  open.textContent = "Open file";
-
   card.appendChild(icon);
   card.appendChild(copy);
-  card.appendChild(open);
   pptPreview.appendChild(card);
 }
 
-function buildPreviewToolbar(artifact, actions = []) {
+function hideEmbeddedPptChrome(iframe) {
+  try {
+    const document = iframe.contentDocument;
+    if (!document?.head) {
+      return;
+    }
+    const style = document.createElement("style");
+    style.textContent = "header { display: none !important; }";
+    document.head.appendChild(style);
+  } catch {
+    // Cross-origin or browser-restricted previews can still render without this polish.
+  }
+}
+
+function buildPreviewToolbar(artifact, actions = [], options = {}) {
   const toolbar = document.createElement("div");
   toolbar.className = "preview-toolbar";
+  const showMeta = options.showMeta !== false;
+  if (!showMeta) {
+    toolbar.classList.add("preview-toolbar--actions-only");
+  }
 
-  const meta = document.createElement("div");
-  meta.className = "preview-file";
-  const name = document.createElement("div");
-  name.className = "preview-file-name";
-  name.textContent = artifact.name || "artifact";
-  const path = document.createElement("div");
-  path.className = "preview-file-path";
-  path.textContent = artifact.path || artifact.mimeType || "";
-  meta.appendChild(name);
-  meta.appendChild(path);
+  let meta = null;
+  if (showMeta) {
+    meta = document.createElement("div");
+    meta.className = "preview-file";
+    const name = document.createElement("div");
+    name.className = "preview-file-name";
+    name.textContent = artifact.name || "artifact";
+    const path = document.createElement("div");
+    path.className = "preview-file-path";
+    path.textContent = artifact.path || artifact.mimeType || "";
+    meta.appendChild(name);
+    meta.appendChild(path);
+  }
 
   const actionGroup = document.createElement("div");
   actionGroup.className = "preview-actions";
   for (const action of actions) {
     actionGroup.appendChild(action);
   }
-  const open = document.createElement("a");
-  open.className = "preview-action";
-  open.href = artifact.url;
-  open.target = "_blank";
-  open.rel = "noreferrer";
-  open.textContent = "Open";
-  actionGroup.appendChild(open);
+  if (options.showOpen !== false) {
+    const open = document.createElement("a");
+    open.className = "preview-action";
+    open.href = artifact.url;
+    open.target = "_blank";
+    open.rel = "noreferrer";
+    open.textContent = "Open";
+    actionGroup.appendChild(open);
+  }
 
-  toolbar.appendChild(meta);
-  toolbar.appendChild(actionGroup);
+  if (meta) {
+    toolbar.appendChild(meta);
+  }
+  if (actionGroup.children.length > 0) {
+    toolbar.appendChild(actionGroup);
+  }
   return toolbar;
 }
 
 function previewEmpty(text) {
   const empty = document.createElement("div");
   empty.className = "preview-empty";
-  empty.textContent = text;
+  const icon = document.createElement("div");
+  icon.className = "preview-empty-icon";
+  icon.setAttribute("aria-hidden", "true");
+  const title = document.createElement("div");
+  title.className = "preview-empty-title";
+  title.textContent = text;
+  const detail = document.createElement("div");
+  detail.className = "preview-empty-detail";
+  detail.textContent = "Generated artifacts will appear here automatically.";
+  empty.appendChild(icon);
+  empty.appendChild(title);
+  empty.appendChild(detail);
   return empty;
-}
-
-function renderPreviewTray() {
-  const artifacts = previewArtifactsByTab[activePreviewTab] || [];
-  previewTray.innerHTML = "";
-  if (artifacts.length <= 1) {
-    previewTray.hidden = true;
-    return;
-  }
-
-  previewTray.hidden = false;
-  for (const artifact of artifacts) {
-    const button = document.createElement("button");
-    button.className = "preview-tray-item";
-    button.type = "button";
-    button.classList.toggle("active", artifactKey(artifact) === artifactKey(selectedPreviewByTab[activePreviewTab]));
-    button.textContent = artifact.name || "artifact";
-    button.addEventListener("click", () => {
-      selectedPreviewByTab[activePreviewTab] = artifact;
-      renderPreviewView(activePreviewTab);
-      renderPreviewTray();
-    });
-    previewTray.appendChild(button);
-  }
 }
 
 function previewTabForArtifact(artifact) {
@@ -643,6 +965,26 @@ function artifactExtension(artifact) {
   const source = String(artifact?.name || artifact?.path || artifact?.url || "").split("?")[0].split("#")[0];
   const dotIndex = source.lastIndexOf(".");
   return dotIndex >= 0 ? source.slice(dotIndex).toLowerCase() : "";
+}
+
+function mimeTypeForExtension(extension) {
+  const types = {
+    ".gif": "image/gif",
+    ".htm": "text/html",
+    ".html": "text/html",
+    ".jpeg": "image/jpeg",
+    ".jpg": "image/jpeg",
+    ".mov": "video/quicktime",
+    ".mp4": "video/mp4",
+    ".pdf": "application/pdf",
+    ".png": "image/png",
+    ".ppt": "application/vnd.ms-powerpoint",
+    ".pptx": "application/vnd.openxmlformats-officedocument.presentationml.presentation",
+    ".svg": "image/svg+xml",
+    ".webm": "video/webm",
+    ".webp": "image/webp",
+  };
+  return types[extension] || "";
 }
 
 function previewUrlForArtifact(artifact) {
@@ -910,38 +1252,285 @@ function scrollToBottom() {
   });
 }
 
-function sendPrompt() {
-  const content = promptInput.value.trim();
+function updateComposerButtons() {
+  const hasUploadingAttachment = attachedFiles.some((attachment) => attachment.status === "uploading");
+  const hasUploadedAttachment = attachedFiles.some((attachment) => attachment.status === "uploaded" && attachment.path);
+  const hasPromptText = promptInput.value.trim().length > 0;
+  const isConnected = socket && socket.readyState === WebSocket.OPEN;
+  sendButton.disabled = hasUploadingAttachment || !isConnected || (!hasPromptText && !hasUploadedAttachment);
+  attachButton.disabled = !isConnected;
+}
+
+function renderAttachments() {
+  attachmentList.innerHTML = "";
+  attachmentList.hidden = attachedFiles.length === 0;
+  for (const attachment of attachedFiles) {
+    const chip = document.createElement("div");
+    chip.className = `attachment-chip ${attachment.status || "uploading"}`;
+
+    const name = document.createElement("span");
+    name.className = "attachment-name";
+    name.textContent = attachment.name || "attachment";
+
+    const status = document.createElement("span");
+    status.className = "attachment-status";
+    if (attachment.status === "uploaded") {
+      status.textContent = "ready";
+    } else if (attachment.status === "error") {
+      status.textContent = "failed";
+    } else {
+      status.textContent = `${Math.max(0, Math.min(100, attachment.progress || 0))}%`;
+    }
+
+    const remove = document.createElement("button");
+    remove.className = "attachment-remove";
+    remove.type = "button";
+    remove.setAttribute("aria-label", `Remove ${attachment.name || "attachment"}`);
+    remove.textContent = "×";
+    remove.addEventListener("click", () => {
+      removeAttachment(attachment.id);
+    });
+
+    chip.appendChild(name);
+    chip.appendChild(status);
+    chip.appendChild(remove);
+    attachmentList.appendChild(chip);
+  }
+  updateComposerButtons();
+}
+
+function removeAttachment(attachmentId) {
+  const index = attachedFiles.findIndex((attachment) => attachment.id === attachmentId);
+  if (index < 0) {
+    return;
+  }
+  const [attachment] = attachedFiles.splice(index, 1);
+  attachment.cancelled = true;
+  const waiter = uploadWaiters.get(attachment.id);
+  if (waiter) {
+    uploadWaiters.delete(attachment.id);
+    waiter.reject(new Error("Upload cancelled."));
+  }
+  if (attachment.status === "uploading" && socket && socket.readyState === WebSocket.OPEN) {
+    sendSocket({ type: "upload_cancel", uploadId: attachment.id });
+  }
+  renderAttachments();
+}
+
+function clearAttachments() {
+  attachedFiles.length = 0;
+  renderAttachments();
+}
+
+function handleUploadEvent(payload) {
+  const type = String(payload?.type || "");
+  const uploadId = String(payload?.uploadId || "");
+  if (!uploadId || !type.startsWith("upload_")) {
+    return false;
+  }
+
+  const waiter = uploadWaiters.get(uploadId);
+  if (!waiter) {
+    return true;
+  }
+
+  if (type === "upload_error") {
+    uploadWaiters.delete(uploadId);
+    waiter.reject(new Error(payload.message || "Upload failed."));
+    return true;
+  }
+
+  if (type === waiter.expectedType) {
+    uploadWaiters.delete(uploadId);
+    waiter.resolve(payload);
+  }
+  return true;
+}
+
+function waitForUploadEvent(uploadId, expectedType) {
+  return new Promise((resolve, reject) => {
+    const timeout = window.setTimeout(() => {
+      uploadWaiters.delete(uploadId);
+      reject(new Error("Upload timed out."));
+    }, 30000);
+    uploadWaiters.set(uploadId, {
+      expectedType,
+      resolve: (payload) => {
+        window.clearTimeout(timeout);
+        resolve(payload);
+      },
+      reject: (error) => {
+        window.clearTimeout(timeout);
+        reject(error);
+      },
+    });
+  });
+}
+
+function sendSocket(payload) {
+  if (!socket || socket.readyState !== WebSocket.OPEN) {
+    throw new Error("Web chat is not connected.");
+  }
+  socket.send(JSON.stringify(payload));
+}
+
+async function uploadSelectedFiles(files) {
+  for (const file of files) {
+    const attachment = {
+      id: crypto.randomUUID(),
+      name: file.name || "attachment",
+      size: file.size,
+      mimeType: file.type || "",
+      status: "uploading",
+      progress: 0,
+      path: "",
+    };
+    attachedFiles.push(attachment);
+    renderAttachments();
+
+    try {
+      const uploaded = await uploadFile(file, attachment);
+      if (attachment.cancelled || !attachedFiles.includes(attachment)) {
+        continue;
+      }
+      attachment.status = "uploaded";
+      attachment.progress = 100;
+      attachment.path = uploaded.path || "";
+      attachment.mimeType = uploaded.mimeType || attachment.mimeType;
+    } catch (error) {
+      if (!attachment.cancelled && attachedFiles.includes(attachment)) {
+        attachment.status = "error";
+        attachment.error = error instanceof Error ? error.message : "Upload failed.";
+      }
+    }
+    renderAttachments();
+  }
+}
+
+async function uploadFile(file, attachment) {
+  sendSocket({
+    type: "upload_start",
+    uploadId: attachment.id,
+    name: attachment.name,
+    size: file.size,
+    mimeType: attachment.mimeType,
+  });
+  await waitForUploadEvent(attachment.id, "upload_started");
+
+  let offset = 0;
+  while (offset < file.size) {
+    if (attachment.cancelled) {
+      throw new Error("Upload cancelled.");
+    }
+    const nextOffset = Math.min(offset + UPLOAD_CHUNK_SIZE, file.size);
+    const chunk = file.slice(offset, nextOffset);
+    const data = await blobToBase64(chunk);
+    sendSocket({ type: "upload_chunk", uploadId: attachment.id, data });
+    const received = await waitForUploadEvent(attachment.id, "upload_chunk_received");
+    offset = nextOffset;
+    attachment.progress = file.size > 0 ? Math.round(((received.received || offset) / file.size) * 100) : 100;
+    renderAttachments();
+  }
+
+  sendSocket({ type: "upload_finish", uploadId: attachment.id });
+  return waitForUploadEvent(attachment.id, "upload_complete");
+}
+
+function blobToBase64(blob) {
+  return new Promise((resolve, reject) => {
+    const reader = new FileReader();
+    reader.addEventListener("load", () => {
+      const result = String(reader.result || "");
+      resolve(result.includes(",") ? result.split(",", 2)[1] : result);
+    });
+    reader.addEventListener("error", () => {
+      reject(new Error("Could not read the selected file."));
+    });
+    reader.readAsDataURL(blob);
+  });
+}
+
+function contentWithAttachments(content, attachments) {
+  if (attachments.length === 0) {
+    return content;
+  }
+  const prompt = content || "Please use the attached file(s).";
+  const fileLines = attachments.map((attachment) => `- ${attachment.path}`);
+  return `${prompt}\n\nAttached files:\n${fileLines.join("\n")}`;
+}
+
+async function sendPrompt() {
+  const uploadedAttachments = attachedFiles.filter((attachment) => attachment.status === "uploaded" && attachment.path);
+  const hasUploadingAttachment = attachedFiles.some((attachment) => attachment.status === "uploading");
+  if (hasUploadingAttachment) {
+    return;
+  }
+
+  const content = contentWithAttachments(promptInput.value.trim(), uploadedAttachments);
   if (!content || !socket || socket.readyState !== WebSocket.OPEN) {
     return;
   }
-  socket.send(JSON.stringify({ type: "chat", content }));
+  sendSocket({ type: "chat", content });
   addMessageCard("user", "You", content);
   appendHistory({ type: "user", role: "You", content, artifacts: [] });
   promptInput.value = "";
   promptInput.style.height = "";
+  clearAttachments();
   activeProgressCard = null;
 }
 
 composer.addEventListener("submit", (event) => {
   event.preventDefault();
-  sendPrompt();
+  void sendPrompt();
 });
 
 promptInput.addEventListener("input", () => {
   promptInput.style.height = "";
   promptInput.style.height = `${Math.min(promptInput.scrollHeight, 220)}px`;
+  updateComposerButtons();
 });
 
 promptInput.addEventListener("keydown", (event) => {
   if (event.key === "Enter" && !event.shiftKey && !event.isComposing) {
     event.preventDefault();
-    sendPrompt();
+    void sendPrompt();
   }
+});
+
+attachButton.addEventListener("click", () => {
+  fileInput.click();
+});
+
+fileInput.addEventListener("change", () => {
+  const files = Array.from(fileInput.files || []);
+  fileInput.value = "";
+  void uploadSelectedFiles(files);
 });
 
 newSessionButton.addEventListener("click", () => {
   createNewSession();
+});
+
+sessionHistoryButton.addEventListener("click", (event) => {
+  event.stopPropagation();
+  toggleSessionPopover();
+});
+
+document.addEventListener("click", (event) => {
+  if (sessionPopover.hidden) {
+    return;
+  }
+  const target = event.target;
+  if (sessionPopover.contains(target) || sessionHistoryButton.contains(target)) {
+    return;
+  }
+  closeSessionPopover();
+});
+
+document.addEventListener("keydown", (event) => {
+  if (event.key === "Escape" && !sessionPopover.hidden) {
+    closeSessionPopover();
+  }
 });
 
 for (const tab of previewTabs) {
