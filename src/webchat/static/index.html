@@ -8,32 +8,45 @@
   </head>
   <body>
     <div class="shell">
-      <aside class="sidebar">
-        <div class="brand">
-          <div class="brand-mark">CC</div>
-          <div class="brand-copy">
-            <div class="eyebrow">CreativeClaw</div>
-            <h1 id="title">__CREATIVE_CLAW_TITLE__</h1>
+      <section class="preview-panel" aria-label="Artifact preview">
+        <div class="preview-tabs" role="tablist" aria-label="Preview type">
+          <button id="tab-tldraw" class="preview-tab active" type="button" role="tab" aria-selected="true" aria-controls="preview-tldraw" data-preview-tab="tldraw">tldraw</button>
+          <button id="tab-html" class="preview-tab" type="button" role="tab" aria-selected="false" aria-controls="preview-html" data-preview-tab="html">HTML</button>
+          <button id="tab-ppt" class="preview-tab" type="button" role="tab" aria-selected="false" aria-controls="preview-ppt" data-preview-tab="ppt">PPT</button>
+        </div>
+
+        <div class="preview-body">
+          <section id="preview-tldraw" class="preview-view active" role="tabpanel" aria-labelledby="tab-tldraw" data-preview-view="tldraw">
+            <div id="tldraw-preview" class="tldraw-canvas">
+              <div class="preview-empty">No media preview</div>
+            </div>
+          </section>
+
+          <section id="preview-html" class="preview-view" role="tabpanel" aria-labelledby="tab-html" data-preview-view="html" hidden>
+            <div id="html-preview" class="preview-slot">
+              <div class="preview-empty">No HTML preview</div>
+            </div>
+          </section>
+
+          <section id="preview-ppt" class="preview-view" role="tabpanel" aria-labelledby="tab-ppt" data-preview-view="ppt" hidden>
+            <div id="ppt-preview" class="preview-slot">
+              <div class="preview-empty">No PPT preview</div>
+            </div>
+          </section>
+        </div>
+
+        <div id="preview-tray" class="preview-tray" hidden></div>
+      </section>
+
+      <main class="chat-panel">
+        <div class="chat-topbar">
+          <button id="new-session" class="new-session-button" type="button" aria-label="Start new session" title="Start new session">+</button>
+          <div class="status-line screen-reader-status">
+            <span id="status-dot" class="status-dot" hidden></span>
+            <span id="status">connecting</span>
           </div>
         </div>
 
-        <button id="new-session" class="primary-button" type="button">New Session</button>
-
-        <section class="session-panel">
-          <div class="section-label">Recent Sessions</div>
-          <ul id="session-list" class="session-list"></ul>
-        </section>
-
-        <section class="status-panel">
-          <div class="status-line">
-            <span id="status-dot" class="status-dot"></span>
-            <span id="status">connecting</span>
-          </div>
-          <button id="clear-history" class="ghost-button danger" type="button">Clear Current Session</button>
-        </section>
-      </aside>
-
-      <main class="chat-panel">
         <section id="timeline" class="timeline"></section>
 
         <div class="composer-shell">
@@ -45,7 +58,11 @@
                 rows="1"
                 placeholder="Describe the image, prompt, poster, edit, or idea you want CreativeClaw to handle..."
               ></textarea>
-              <button id="send" class="send-button" type="submit">Send</button>
+              <button id="send" class="send-button" type="submit" aria-label="Send message" title="Send message">
+                <svg aria-hidden="true" viewBox="0 0 24 24" focusable="false">
+                  <path d="M3.6 20.4 21 12 3.6 3.6l1.2 6.3L13 12l-8.2 2.1-1.2 6.3Z" fill="currentColor"></path>
+                </svg>
+              </button>
             </div>
             <div class="composer-hint">Markdown is supported. Press Enter to send, Shift + Enter for a new line.</div>
           </form>

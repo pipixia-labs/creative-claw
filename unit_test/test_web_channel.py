@@ -4,15 +4,18 @@ import json
 import unittest
 import uuid
 from pathlib import Path
+from urllib.parse import quote
 from urllib.request import urlopen
 
+from pptx import Presentation
+from pptx.util import Inches
 import websockets
 
 from conf.channel import WebChannelConfig
 from src.channels.events import OutboundMessage
 from src.channels.web import WebChannel
 from src.runtime import InboundMessage
-from src.runtime.workspace import generated_root
+from src.runtime.workspace import generated_root, workspace_relative_path
 
 
 class WebChannelTests(unittest.IsolatedAsyncioTestCase):
@@ -47,6 +50,36 @@ class WebChannelTests(unittest.IsolatedAsyncioTestCase):
         self.assertIn("/app.js", body)
         self.assertNotIn("Creative flow in one surface", body)
         self.assertNotIn("A local browser chat surface", body)
+        self.assertNotIn("Recent Sessions", body)
+        self.assertIn('data-preview-tab="tldraw"', body)
+        self.assertIn('data-preview-tab="html"', body)
+        self.assertIn('data-preview-tab="ppt"', body)
+        self.assertIn('aria-label="Send message"', body)
+
+    async def test_web_channel_serves_pptx_preview_page(self) -> None:
+        generated_file = generated_root() / f"web_channel_{uuid.uuid4().hex[:8]}.pptx"
+        presentation = Presentation()
+        slide = presentation.slides.add_slide(presentation.slide_layouts[6])
+        textbox = slide.shapes.add_textbox(Inches(1), Inches(1), Inches(8), Inches(1))
+        textbox.text = "Quarterly roadmap preview"
+        presentation.save(generated_file)
+
+        try:
+            relative_path = workspace_relative_path(generated_file)
+
+            def fetch_preview():
+                preview_url = f"{self.channel.url}/workspace-preview/{quote(relative_path)}"
+                with urlopen(preview_url) as response:  # noqa: S310 - local test server
+                    return response.status, response.headers.get("Content-Type", ""), response.read().decode("utf-8")
+
+            status, content_type, body = await asyncio.to_thread(fetch_preview)
+            self.assertEqual(status, 200)
+            self.assertIn("text/html", content_type)
+            self.assertIn("Quarterly roadmap preview", body)
+            self.assertIn("Slide 1", body)
+        finally:
+            with contextlib.suppress(FileNotFoundError):
+                generated_file.unlink()
 
     async def test_web_channel_bridges_websocket_messages_and_artifacts(self) -> None:
         generated_file = generated_root() / f"web_channel_{uuid.uuid4().hex[:8]}.png"

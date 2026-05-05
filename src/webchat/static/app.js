@@ -4,25 +4,32 @@ const promptInput = document.getElementById("prompt");
 const sendButton = document.getElementById("send");
 const statusEl = document.getElementById("status");
 const statusDot = document.getElementById("status-dot");
-const sessionListEl = document.getElementById("session-list");
-const titleEl = document.getElementById("title");
 const newSessionButton = document.getElementById("new-session");
-const clearHistoryButton = document.getElementById("clear-history");
 const messageTemplate = document.getElementById("message-template");
 const progressTemplate = document.getElementById("progress-template");
+const previewTabs = Array.from(document.querySelectorAll("[data-preview-tab]"));
+const previewViews = Array.from(document.querySelectorAll("[data-preview-view]"));
+const previewTray = document.getElementById("preview-tray");
+const tldrawPreview = document.getElementById("tldraw-preview");
+const htmlPreview = document.getElementById("html-preview");
+const pptPreview = document.getElementById("ppt-preview");
 
 const STORAGE_KEY = "creative_claw_webchat_session_id";
-const SESSION_INDEX_KEY = "creative_claw_webchat_sessions";
 const HISTORY_KEY_PREFIX = "creative_claw_webchat_history:";
 const HIDDEN_PROGRESS_TITLES = new Set(["Starting", "Finalize Result"]);
+const PREVIEW_TABS = ["tldraw", "html", "ppt"];
+const AUTO_PREVIEW_PRIORITY = ["ppt", "html", "tldraw"];
 
 let sessionId = ensureSessionId();
 let socket = null;
 let activeProgressCard = null;
+let activePreviewTab = "tldraw";
+let previewArtifactsByTab = buildEmptyPreviewGroups();
+let selectedPreviewByTab = buildEmptyPreviewSelections();
 
 connect();
 restoreHistory();
-renderSessionList();
+renderAllPreviewViews();
 
 function ensureSessionId() {
   const existing = window.localStorage.getItem(STORAGE_KEY);
@@ -57,74 +64,6 @@ function appendHistory(entry, currentSessionId = sessionId) {
   const items = loadHistory(currentSessionId);
   items.push(entry);
   saveHistory(items, currentSessionId);
-  recordSessionActivity(currentSessionId);
-  renderSessionList();
-}
-
-function loadSessions() {
-  try {
-    const raw = window.localStorage.getItem(SESSION_INDEX_KEY);
-    if (!raw) {
-      return [];
-    }
-    const parsed = JSON.parse(raw);
-    return Array.isArray(parsed) ? parsed : [];
-  } catch {
-    return [];
-  }
-}
-
-function recordSessionActivity(currentSessionId) {
-  let sessions = loadSessions();
-  sessions = sessions.filter((value) => value !== currentSessionId);
-  sessions.unshift(currentSessionId);
-  window.localStorage.setItem(SESSION_INDEX_KEY, JSON.stringify(sessions.slice(0, 20)));
-}
-
-function removeSessionActivity(currentSessionId) {
-  const sessions = loadSessions().filter((value) => value !== currentSessionId);
-  window.localStorage.setItem(SESSION_INDEX_KEY, JSON.stringify(sessions));
-}
-
-function renderSessionList() {
-  const sessions = loadSessions();
-  if (!sessions.includes(sessionId)) {
-    sessions.unshift(sessionId);
-  }
-  sessionListEl.innerHTML = "";
-
-  for (const item of sessions) {
-    const li = document.createElement("li");
-    li.className = `session-item${item === sessionId ? " active" : ""}`;
-
-    const title = document.createElement("div");
-    title.className = "session-item-title";
-    title.textContent = item === sessionId ? "Current Session" : "Saved Session";
-
-    const meta = document.createElement("div");
-    meta.className = "session-item-meta";
-    meta.textContent = item.replace("web-", "").slice(0, 8);
-
-    li.appendChild(title);
-    li.appendChild(meta);
-    li.addEventListener("click", () => {
-      if (item !== sessionId) {
-        switchSession(item);
-      }
-    });
-
-    sessionListEl.appendChild(li);
-  }
-}
-
-function switchSession(nextSessionId) {
-  sessionId = nextSessionId;
-  window.localStorage.setItem(STORAGE_KEY, sessionId);
-  disconnect();
-  clearTimeline();
-  restoreHistory();
-  renderSessionList();
-  connect();
 }
 
 function createNewSession() {
@@ -133,17 +72,9 @@ function createNewSession() {
   window.localStorage.setItem(STORAGE_KEY, nextSessionId);
   disconnect();
   clearTimeline();
+  clearPreviewState();
   renderEmptyState();
-  renderSessionList();
   connect();
-}
-
-function clearCurrentSession() {
-  window.localStorage.removeItem(historyKey());
-  removeSessionActivity(sessionId);
-  clearTimeline();
-  renderEmptyState();
-  renderSessionList();
 }
 
 function wsUrl() {
@@ -202,7 +133,6 @@ function handleEvent(payload) {
   if (payload.type === "ready") {
     setStatus("ready");
     if (payload.title) {
-      titleEl.textContent = payload.title;
       document.title = payload.title;
     }
     renderEmptyStateIfNeeded();
@@ -258,6 +188,7 @@ function clearTimeline() {
 
 function restoreHistory() {
   clearTimeline();
+  clearPreviewState({ keepActiveTab: true });
   const items = loadHistory();
   if (items.length === 0) {
     renderEmptyState();
@@ -287,6 +218,9 @@ function addMessageCard(type, role, content, artifacts = [], scroll = true) {
   const artifactGrid = fragment.querySelector(".artifact-grid");
   renderArtifacts(artifactGrid, artifacts);
   timeline.appendChild(fragment);
+  if (type === "assistant") {
+    previewArtifactSet(artifacts);
+  }
   if (scroll) {
     scrollToBottom();
   }
@@ -320,11 +254,21 @@ function renderArtifacts(container, artifacts) {
   }
   container.style.display = "grid";
   for (const artifact of artifacts) {
+    const previewTab = previewTabForArtifact(artifact);
     const anchor = document.createElement("a");
-    anchor.className = "artifact-card";
+    anchor.className = `artifact-card${previewTab ? " previewable" : ""}`;
     anchor.href = artifact.url;
     anchor.target = "_blank";
     anchor.rel = "noreferrer";
+    if (previewTab) {
+      anchor.addEventListener("click", (event) => {
+        if (event.metaKey || event.ctrlKey || event.shiftKey || event.altKey) {
+          return;
+        }
+        event.preventDefault();
+        selectPreviewArtifact(artifact);
+      });
+    }
 
     if (artifact.isImage) {
       const image = document.createElement("img");
@@ -332,6 +276,13 @@ function renderArtifacts(container, artifacts) {
       image.alt = artifact.name || "artifact";
       image.addEventListener("load", scrollToBottom, { once: true });
       anchor.appendChild(image);
+    } else if (isVideoArtifact(artifact)) {
+      const video = document.createElement("video");
+      video.src = artifact.url;
+      video.muted = true;
+      video.playsInline = true;
+      video.preload = "metadata";
+      anchor.appendChild(video);
     }
 
     const name = document.createElement("div");
@@ -346,6 +297,360 @@ function renderArtifacts(container, artifacts) {
 
     container.appendChild(anchor);
   }
+}
+
+function buildEmptyPreviewGroups() {
+  return PREVIEW_TABS.reduce((groups, tabName) => {
+    groups[tabName] = [];
+    return groups;
+  }, {});
+}
+
+function buildEmptyPreviewSelections() {
+  return PREVIEW_TABS.reduce((selections, tabName) => {
+    selections[tabName] = null;
+    return selections;
+  }, {});
+}
+
+function clearPreviewState(options = {}) {
+  previewArtifactsByTab = buildEmptyPreviewGroups();
+  selectedPreviewByTab = buildEmptyPreviewSelections();
+  if (!options.keepActiveTab) {
+    activePreviewTab = "tldraw";
+  }
+  renderAllPreviewViews();
+  activatePreviewTab(activePreviewTab);
+}
+
+function previewArtifactSet(artifacts) {
+  const groups = groupPreviewArtifacts(artifacts);
+  if (!PREVIEW_TABS.some((tabName) => groups[tabName].length > 0)) {
+    return;
+  }
+
+  previewArtifactsByTab = groups;
+  selectedPreviewByTab = buildEmptyPreviewSelections();
+  for (const tabName of PREVIEW_TABS) {
+    selectedPreviewByTab[tabName] = groups[tabName][0] || null;
+  }
+  renderAllPreviewViews();
+
+  const nextTab = AUTO_PREVIEW_PRIORITY.find((tabName) => groups[tabName].length > 0);
+  if (nextTab) {
+    activatePreviewTab(nextTab);
+  }
+}
+
+function groupPreviewArtifacts(artifacts) {
+  const groups = buildEmptyPreviewGroups();
+  for (const artifact of artifacts || []) {
+    const tabName = previewTabForArtifact(artifact);
+    if (tabName) {
+      addUniqueArtifact(groups[tabName], artifact);
+    }
+  }
+  return groups;
+}
+
+function selectPreviewArtifact(artifact) {
+  const tabName = previewTabForArtifact(artifact);
+  if (!tabName) {
+    return;
+  }
+  addUniqueArtifact(previewArtifactsByTab[tabName], artifact);
+  selectedPreviewByTab[tabName] = artifact;
+  renderPreviewView(tabName);
+  activatePreviewTab(tabName);
+}
+
+function addUniqueArtifact(collection, artifact) {
+  const key = artifactKey(artifact);
+  if (!key || collection.some((item) => artifactKey(item) === key)) {
+    return;
+  }
+  collection.push(artifact);
+}
+
+function artifactKey(artifact) {
+  return String(artifact?.url || artifact?.path || artifact?.name || "");
+}
+
+function activatePreviewTab(tabName) {
+  if (!PREVIEW_TABS.includes(tabName)) {
+    return;
+  }
+  activePreviewTab = tabName;
+  for (const tab of previewTabs) {
+    const isActive = tab.dataset.previewTab === tabName;
+    tab.classList.toggle("active", isActive);
+    tab.setAttribute("aria-selected", String(isActive));
+  }
+  for (const view of previewViews) {
+    const isActive = view.dataset.previewView === tabName;
+    view.classList.toggle("active", isActive);
+    view.hidden = !isActive;
+  }
+  renderPreviewTray();
+}
+
+function renderAllPreviewViews() {
+  for (const tabName of PREVIEW_TABS) {
+    renderPreviewView(tabName);
+  }
+  renderPreviewTray();
+}
+
+function renderPreviewView(tabName) {
+  if (tabName === "tldraw") {
+    renderTldrawPreview();
+    return;
+  }
+  if (tabName === "html") {
+    renderHtmlPreview();
+    return;
+  }
+  if (tabName === "ppt") {
+    renderPptPreview();
+  }
+}
+
+function renderTldrawPreview() {
+  tldrawPreview.innerHTML = "";
+  const artifact = selectedPreviewByTab.tldraw;
+  if (!artifact) {
+    tldrawPreview.appendChild(previewEmpty("No media preview"));
+    return;
+  }
+
+  tldrawPreview.appendChild(buildPreviewToolbar(artifact));
+
+  const board = document.createElement("div");
+  board.className = "tldraw-board";
+  const frame = document.createElement("div");
+  frame.className = "tldraw-media-frame";
+
+  if (isVideoArtifact(artifact)) {
+    const video = document.createElement("video");
+    video.src = artifact.url;
+    video.controls = true;
+    video.playsInline = true;
+    frame.appendChild(video);
+  } else {
+    const image = document.createElement("img");
+    image.src = artifact.url;
+    image.alt = artifact.name || "artifact";
+    frame.appendChild(image);
+  }
+
+  board.appendChild(frame);
+  tldrawPreview.appendChild(board);
+}
+
+function renderHtmlPreview() {
+  htmlPreview.innerHTML = "";
+  const artifact = selectedPreviewByTab.html;
+  if (!artifact) {
+    htmlPreview.appendChild(previewEmpty("No HTML preview"));
+    return;
+  }
+
+  const refreshButton = document.createElement("button");
+  refreshButton.className = "preview-action";
+  refreshButton.type = "button";
+  refreshButton.textContent = "Refresh";
+
+  htmlPreview.appendChild(buildPreviewToolbar(artifact, [refreshButton]));
+
+  const iframe = document.createElement("iframe");
+  iframe.className = "html-preview-frame";
+  iframe.src = artifact.url;
+  iframe.setAttribute("sandbox", "allow-scripts allow-forms allow-popups allow-downloads");
+  iframe.title = artifact.name || "HTML preview";
+  refreshButton.addEventListener("click", () => {
+    iframe.src = artifact.url;
+  });
+  htmlPreview.appendChild(iframe);
+}
+
+function renderPptPreview() {
+  pptPreview.innerHTML = "";
+  const artifact = selectedPreviewByTab.ppt;
+  if (!artifact) {
+    pptPreview.appendChild(previewEmpty("No PPT preview"));
+    return;
+  }
+
+  pptPreview.appendChild(buildPreviewToolbar(artifact));
+
+  if (isPdfArtifact(artifact) || isPptxArtifact(artifact)) {
+    const iframe = document.createElement("iframe");
+    iframe.className = "ppt-preview-frame";
+    iframe.src = isPptxArtifact(artifact) ? previewUrlForArtifact(artifact) : artifact.url;
+    iframe.title = artifact.name || "PPT preview";
+    pptPreview.appendChild(iframe);
+    return;
+  }
+
+  const card = document.createElement("div");
+  card.className = "document-preview-card";
+
+  const icon = document.createElement("div");
+  icon.className = "document-preview-icon";
+  icon.textContent = artifactExtension(artifact).replace(".", "").toUpperCase() || "PPT";
+
+  const copy = document.createElement("div");
+  copy.className = "document-preview-copy";
+  const title = document.createElement("div");
+  title.className = "document-preview-title";
+  title.textContent = artifact.name || "Presentation file";
+  const meta = document.createElement("div");
+  meta.className = "document-preview-meta";
+  meta.textContent = artifact.path || artifact.mimeType || "";
+  copy.appendChild(title);
+  copy.appendChild(meta);
+
+  const open = document.createElement("a");
+  open.className = "preview-open-link";
+  open.href = artifact.url;
+  open.target = "_blank";
+  open.rel = "noreferrer";
+  open.textContent = "Open file";
+
+  card.appendChild(icon);
+  card.appendChild(copy);
+  card.appendChild(open);
+  pptPreview.appendChild(card);
+}
+
+function buildPreviewToolbar(artifact, actions = []) {
+  const toolbar = document.createElement("div");
+  toolbar.className = "preview-toolbar";
+
+  const meta = document.createElement("div");
+  meta.className = "preview-file";
+  const name = document.createElement("div");
+  name.className = "preview-file-name";
+  name.textContent = artifact.name || "artifact";
+  const path = document.createElement("div");
+  path.className = "preview-file-path";
+  path.textContent = artifact.path || artifact.mimeType || "";
+  meta.appendChild(name);
+  meta.appendChild(path);
+
+  const actionGroup = document.createElement("div");
+  actionGroup.className = "preview-actions";
+  for (const action of actions) {
+    actionGroup.appendChild(action);
+  }
+  const open = document.createElement("a");
+  open.className = "preview-action";
+  open.href = artifact.url;
+  open.target = "_blank";
+  open.rel = "noreferrer";
+  open.textContent = "Open";
+  actionGroup.appendChild(open);
+
+  toolbar.appendChild(meta);
+  toolbar.appendChild(actionGroup);
+  return toolbar;
+}
+
+function previewEmpty(text) {
+  const empty = document.createElement("div");
+  empty.className = "preview-empty";
+  empty.textContent = text;
+  return empty;
+}
+
+function renderPreviewTray() {
+  const artifacts = previewArtifactsByTab[activePreviewTab] || [];
+  previewTray.innerHTML = "";
+  if (artifacts.length <= 1) {
+    previewTray.hidden = true;
+    return;
+  }
+
+  previewTray.hidden = false;
+  for (const artifact of artifacts) {
+    const button = document.createElement("button");
+    button.className = "preview-tray-item";
+    button.type = "button";
+    button.classList.toggle("active", artifactKey(artifact) === artifactKey(selectedPreviewByTab[activePreviewTab]));
+    button.textContent = artifact.name || "artifact";
+    button.addEventListener("click", () => {
+      selectedPreviewByTab[activePreviewTab] = artifact;
+      renderPreviewView(activePreviewTab);
+      renderPreviewTray();
+    });
+    previewTray.appendChild(button);
+  }
+}
+
+function previewTabForArtifact(artifact) {
+  if (!artifact) {
+    return "";
+  }
+  if (isPptArtifact(artifact) || isPdfArtifact(artifact)) {
+    return "ppt";
+  }
+  if (isHtmlArtifact(artifact)) {
+    return "html";
+  }
+  if (artifact.isImage || isVideoArtifact(artifact)) {
+    return "tldraw";
+  }
+  return "";
+}
+
+function isHtmlArtifact(artifact) {
+  const extension = artifactExtension(artifact);
+  const mimeType = artifactMimeType(artifact);
+  return extension === ".html" || extension === ".htm" || mimeType === "text/html";
+}
+
+function isPptArtifact(artifact) {
+  const extension = artifactExtension(artifact);
+  const mimeType = artifactMimeType(artifact);
+  return (
+    extension === ".ppt" ||
+    isPptxArtifact(artifact) ||
+    mimeType === "application/vnd.ms-powerpoint" ||
+    mimeType === "application/vnd.openxmlformats-officedocument.presentationml.presentation"
+  );
+}
+
+function isPptxArtifact(artifact) {
+  return (
+    artifactExtension(artifact) === ".pptx" ||
+    artifactMimeType(artifact) === "application/vnd.openxmlformats-officedocument.presentationml.presentation"
+  );
+}
+
+function isPdfArtifact(artifact) {
+  return artifactExtension(artifact) === ".pdf" || artifactMimeType(artifact) === "application/pdf";
+}
+
+function isVideoArtifact(artifact) {
+  return artifactMimeType(artifact).startsWith("video/");
+}
+
+function artifactMimeType(artifact) {
+  return String(artifact?.mimeType || "").toLowerCase();
+}
+
+function artifactExtension(artifact) {
+  const source = String(artifact?.name || artifact?.path || artifact?.url || "").split("?")[0].split("#")[0];
+  const dotIndex = source.lastIndexOf(".");
+  return dotIndex >= 0 ? source.slice(dotIndex).toLowerCase() : "";
+}
+
+function previewUrlForArtifact(artifact) {
+  const url = String(artifact?.url || "");
+  if (url.startsWith("/workspace/")) {
+    return url.replace("/workspace/", "/workspace-preview/");
+  }
+  return url;
 }
 
 function renderMarkdown(text) {
@@ -639,9 +944,11 @@ newSessionButton.addEventListener("click", () => {
   createNewSession();
 });
 
-clearHistoryButton.addEventListener("click", () => {
-  clearCurrentSession();
-});
+for (const tab of previewTabs) {
+  tab.addEventListener("click", () => {
+    activatePreviewTab(tab.dataset.previewTab);
+  });
+}
 
 window.addEventListener("beforeunload", () => {
   disconnect();
