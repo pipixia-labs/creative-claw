@@ -1,4 +1,5 @@
 import json
+import shlex
 import tempfile
 import unittest
 from pathlib import Path
@@ -187,6 +188,60 @@ class OrchestratorTests(unittest.TestCase):
         self.assertIn("Status: started", events[0]["detail"])
         self.assertIn("Result:", events[1]["detail"])
         self.assertIn("path=README.md", events[1]["detail"])
+
+    def test_exec_command_records_created_workspace_files(self) -> None:
+        orchestrator = Orchestrator(
+            session_service=InMemorySessionService(),
+            artifact_service=InMemoryArtifactService(),
+            expert_agents={},
+        )
+        tool_context = SimpleNamespace(state={"turn_index": 1, "step": 0, "expert_step": 0})
+
+        with tempfile.TemporaryDirectory(dir=workspace_root()) as tmpdir:
+            output_path = Path(tmpdir) / "result.png"
+            relative_output_path = workspace_relative_path(output_path)
+
+            result = orchestrator.exec_command(
+                f"printf 'card' > {shlex.quote(relative_output_path)}",
+                tool_context=tool_context,
+            )
+            payload = json.loads(
+                orchestrator.list_session_files(section="latest_output", tool_context=tool_context)
+            )
+            normalized_paths = _normalize_final_response_paths(
+                [relative_output_path],
+                state=tool_context.state,
+            )
+
+        self.assertNotIn("Exit code:", result)
+        self.assertEqual(len(payload["latest_output_files"]), 1)
+        self.assertEqual(payload["latest_output_files"][0]["path"], relative_output_path)
+        self.assertEqual(normalized_paths, [relative_output_path])
+
+    def test_exec_command_does_not_record_files_from_failed_command(self) -> None:
+        orchestrator = Orchestrator(
+            session_service=InMemorySessionService(),
+            artifact_service=InMemoryArtifactService(),
+            expert_agents={},
+        )
+        tool_context = SimpleNamespace(state={"turn_index": 1, "step": 0, "expert_step": 0})
+
+        with tempfile.TemporaryDirectory(dir=workspace_root()) as tmpdir:
+            output_path = Path(tmpdir) / "partial.png"
+            relative_output_path = workspace_relative_path(output_path)
+
+            result = orchestrator.exec_command(
+                f"printf 'partial' > {shlex.quote(relative_output_path)}; exit 2",
+                tool_context=tool_context,
+            )
+            output_exists = output_path.exists()
+            payload = json.loads(
+                orchestrator.list_session_files(section="latest_output", tool_context=tool_context)
+            )
+
+        self.assertIn("Exit code: 2", result)
+        self.assertTrue(output_exists)
+        self.assertEqual(payload["latest_output_files"], [])
 
     def test_list_session_files_returns_latest_output_records(self) -> None:
         orchestrator = Orchestrator(
