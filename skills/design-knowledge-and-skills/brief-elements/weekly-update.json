@@ -4,14 +4,49 @@
   "title": "Weekly Update",
   "description": "Key design elements for weekly update decks, team status slides, project reviews, and lightweight leadership readouts.",
   "surface": "deck",
-  "scenarios": ["weekly_update", "team_update_slides", "weekly_status", "weekly_review", "周报演示", "周报"],
-  "required_fields": ["team_or_project", "week_range", "audience", "wins", "in_progress", "risks_or_blockers", "metrics", "asks"],
-  "optional_fields": ["next_week_plan", "owner_updates", "customer_notes", "timeline", "speaker_notes", "brand_context"],
+  "scenarios": [
+    "weekly_update",
+    "team_update_slides",
+    "weekly_status",
+    "weekly_review",
+    "周报演示",
+    "周报"
+  ],
+  "required_fields": [
+    "team_or_project",
+    "week_range",
+    "audience",
+    "wins",
+    "in_progress",
+    "risks_or_blockers",
+    "metrics",
+    "asks"
+  ],
+  "optional_fields": [
+    "next_week_plan",
+    "owner_updates",
+    "customer_notes",
+    "timeline",
+    "speaker_notes",
+    "brand_context"
+  ],
   "question_templates": [
-    {"field": "team_or_project", "question": "这是哪个团队或项目的周报？"},
-    {"field": "week_range", "question": "周报覆盖哪一周或哪个时间段？"},
-    {"field": "wins", "question": "本周完成了哪些关键进展或成果？"},
-    {"field": "risks_or_blockers", "question": "有哪些风险、阻塞或需要管理层帮助的事项？"}
+    {
+      "field": "team_or_project",
+      "question": "这是哪个团队或项目的周报？"
+    },
+    {
+      "field": "week_range",
+      "question": "周报覆盖哪一周或哪个时间段？"
+    },
+    {
+      "field": "wins",
+      "question": "本周完成了哪些关键进展或成果？"
+    },
+    {
+      "field": "risks_or_blockers",
+      "question": "有哪些风险、阻塞或需要管理层帮助的事项？"
+    }
   ],
   "defaults": {
     "platform": "browser presentation",
@@ -19,7 +54,21 @@
     "aspect_ratio": "16:9",
     "recommended_skill": "weekly-update",
     "fallback_skill": "simple-deck",
-    "recommended_design_system_candidates": ["warm-editorial", "linear-app", "default"],
-    "output_contract": "single-file weekly update HTML deck"
+    "recommended_design_system_candidates": [
+      "warm-editorial",
+      "linear-app",
+      "default"
+    ],
+    "output_contract": "single-file weekly update HTML deck",
+    "primary_user": "stakeholder or team member reviewing weekly progress and risks",
+    "business_domain": "project reporting and team communication",
+    "decision_goal": "summarize wins, work in progress, risks, metrics, and asks so stakeholders know what needs attention",
+    "visual_direction": "concise update deck with status-led sections, metric callouts, risk blocks, and clear asks",
+    "interactions": [
+      "navigate update slides",
+      "scan metrics",
+      "review blockers",
+      "capture asks"
+    ]
   }
 }

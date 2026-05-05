@@ -4,7 +4,13 @@
   "title": "HTML Deck",
   "description": "Key design elements for browser-native slide decks, presentation readouts, and horizontal HTML storytelling.",
   "surface": "deck",
-  "scenarios": ["html_deck", "web_deck", "browser_deck", "presentation_html", "HTML演示"],
+  "scenarios": [
+    "html_deck",
+    "web_deck",
+    "browser_deck",
+    "presentation_html",
+    "HTML演示"
+  ],
   "required_fields": [
     "deck_purpose",
     "audience",
@@ -59,7 +65,21 @@
     "speaker_notes": false,
     "recommended_skill": "simple-deck",
     "fallback_skill": "guizang-ppt",
-    "recommended_design_system_candidates": ["warm-editorial", "vercel", "stripe", "default"],
-    "output_contract": "standalone responsive HTML deck"
+    "recommended_design_system_candidates": [
+      "warm-editorial",
+      "vercel",
+      "stripe",
+      "default"
+    ],
+    "output_contract": "standalone responsive HTML deck",
+    "primary_user": "presenter and audience using a browser-based slide deck",
+    "business_domain": "interactive presentations and product storytelling",
+    "decision_goal": "deliver a clear slide narrative with the right level of interactivity for the presentation context",
+    "visual_direction": "browser-native deck with crisp slide frames, consistent rhythm, and presentation-safe typography",
+    "interactions": [
+      "navigate slides",
+      "trigger lightweight transitions",
+      "review speaker cues"
+    ]
   }
 }

@@ -4,7 +4,14 @@
   "title": "Social Carousel",
   "description": "Key design elements for swipeable social media carousel cards, Xiaohongshu posts, and campaign card sequences.",
   "surface": "social_carousel",
-  "scenarios": ["social_carousel", "xiaohongshu_carousel", "instagram_carousel", "social_cards", "小红书", "社媒轮播"],
+  "scenarios": [
+    "social_carousel",
+    "xiaohongshu_carousel",
+    "instagram_carousel",
+    "social_cards",
+    "小红书",
+    "社媒轮播"
+  ],
   "required_fields": [
     "platform",
     "audience",
@@ -58,7 +65,22 @@
     "platform": "xiaohongshu",
     "card_count": 6,
     "recommended_skill": "social-carousel",
-    "recommended_design_system_candidates": ["xiaohongshu", "pinterest", "airbnb", "warm-editorial", "default"],
-    "output_contract": "standalone responsive HTML social carousel storyboard"
+    "recommended_design_system_candidates": [
+      "xiaohongshu",
+      "pinterest",
+      "airbnb",
+      "warm-editorial",
+      "default"
+    ],
+    "output_contract": "standalone responsive HTML social carousel storyboard",
+    "primary_user": "social feed viewer deciding whether to keep swiping, save, or click through",
+    "business_domain": "social content marketing and educational storytelling",
+    "decision_goal": "turn the message into a swipeable sequence with a strong hook and clear final CTA",
+    "visual_direction": "platform-native carousel cards with bold hooks, repeated visual rhythm, and readable mobile typography",
+    "interactions": [
+      "swipe through cards",
+      "save or share post",
+      "follow final CTA"
+    ]
   }
 }

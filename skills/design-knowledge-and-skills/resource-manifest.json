@@ -102,7 +102,18 @@
           "notion",
           "default"
         ],
-        "output_contract": "standalone responsive HTML admin console"
+        "output_contract": "standalone responsive HTML admin console",
+        "primary_user": "operations manager responsible for maintaining business records and resolving workflow exceptions",
+        "business_domain": "internal operations and admin management",
+        "decision_goal": "help operators find, update, and audit managed entities quickly without losing context",
+        "visual_direction": "dense but orderly enterprise console with clear hierarchy, persistent navigation, and restrained status color",
+        "interactions": [
+          "search records",
+          "filter and sort tables",
+          "open detail panels",
+          "perform bulk actions",
+          "review permission-aware states"
+        ]
       },
       "runtimeEnabled": true,
       "source": "creative-claw",
@@ -163,7 +174,16 @@
           "stripe",
           "default"
         ],
-        "output_contract": "standalone responsive HTML article page"
+        "output_contract": "standalone responsive HTML article page",
+        "primary_user": "reader evaluating a product idea, market point of view, or expert explanation",
+        "business_domain": "content marketing and thought leadership",
+        "decision_goal": "guide readers from the core argument to a clear next action or takeaway",
+        "visual_direction": "editorial article layout with strong typography, pull quotes, evidence blocks, and comfortable reading rhythm",
+        "interactions": [
+          "scan section anchors",
+          "read supporting examples",
+          "follow the call to action"
+        ]
       },
       "runtimeEnabled": true,
       "source": "creative-claw",
@@ -217,7 +237,16 @@
         "recommended_design_system_candidates": [
           "default"
         ],
-        "output_contract": "structured design critique report with prioritized findings"
+        "output_contract": "structured design critique report with prioritized findings",
+        "primary_user": "designer or product owner requesting structured feedback on an existing artifact",
+        "business_domain": "design review and creative quality assurance",
+        "decision_goal": "identify the most important strengths, weaknesses, and concrete fixes for the artifact",
+        "visual_direction": "evaluation report with scorecards, annotated observations, and prioritized recommendations",
+        "interactions": [
+          "compare review dimensions",
+          "inspect evidence notes",
+          "prioritize keep/fix/quick-win actions"
+        ]
       },
       "runtimeEnabled": true,
       "source": "creative-claw",
@@ -274,7 +303,17 @@
           "figma",
           "default"
         ],
-        "output_contract": "standalone responsive HTML dashboard"
+        "output_contract": "standalone responsive HTML dashboard",
+        "primary_user": "operations lead monitoring performance and acting on anomalies",
+        "business_domain": "business analytics and operational reporting",
+        "decision_goal": "surface performance changes and help the user decide where to investigate or intervene",
+        "visual_direction": "high-density analytical dashboard with stable navigation, prominent KPIs, and legible charts",
+        "interactions": [
+          "filter by time range",
+          "compare dimensions",
+          "drill into metric details",
+          "export or share findings"
+        ]
       },
       "runtimeEnabled": true,
       "source": "creative-claw",
@@ -332,7 +371,17 @@
           "xiaohongshu",
           "default"
         ],
-        "output_contract": "standalone responsive HTML dating or matchmaking interface"
+        "output_contract": "standalone responsive HTML dating or matchmaking interface",
+        "primary_user": "growth or community operator improving matchmaking quality and user trust",
+        "business_domain": "dating and social matching product operations",
+        "decision_goal": "understand match quality, user intent, and safety signals to improve conversion and trust",
+        "visual_direction": "modern social product dashboard with profile-rich cards, warm accents, and explicit trust indicators",
+        "interactions": [
+          "review profile signals",
+          "filter cohorts",
+          "inspect trust and safety flags",
+          "trigger community actions"
+        ]
       },
       "runtimeEnabled": true,
       "source": "creative-claw",
@@ -389,7 +438,16 @@
           "vercel",
           "default"
         ],
-        "output_contract": "standalone HTML slide deck"
+        "output_contract": "standalone HTML slide deck",
+        "primary_user": "stakeholder audience reviewing a narrative presentation",
+        "business_domain": "business storytelling and presentation communication",
+        "decision_goal": "move the audience through the narrative arc toward a decision, alignment, or next step",
+        "visual_direction": "polished slide narrative with clear chapter breaks, strong headlines, and presentation-safe contrast",
+        "interactions": [
+          "navigate slides",
+          "review speaker notes",
+          "follow calls to action"
+        ]
       },
       "runtimeEnabled": true,
       "source": "creative-claw",
@@ -449,7 +507,17 @@
           "notion",
           "default"
         ],
-        "output_contract": "standalone responsive HTML digital guide"
+        "output_contract": "standalone responsive HTML digital guide",
+        "primary_user": "learner or prospect reading a structured educational guide",
+        "business_domain": "education, enablement, and lead-generation content",
+        "decision_goal": "help the reader learn the topic and understand the recommended next step",
+        "visual_direction": "chaptered editorial guide with calm hierarchy, learning checkpoints, and practical examples",
+        "interactions": [
+          "move through chapters",
+          "scan key takeaways",
+          "use checklists or prompts",
+          "follow conversion CTA"
+        ]
       },
       "runtimeEnabled": true,
       "source": "creative-claw",
@@ -509,7 +577,17 @@
           "stripe",
           "default"
         ],
-        "output_contract": "standalone responsive HTML documentation page"
+        "output_contract": "standalone responsive HTML documentation page",
+        "primary_user": "developer or technical user trying to complete an implementation task",
+        "business_domain": "developer documentation and technical enablement",
+        "decision_goal": "help the user find the right concept, follow the quickstart, and avoid implementation mistakes",
+        "visual_direction": "technical documentation page with precise navigation, code-first examples, and low-friction scanning",
+        "interactions": [
+          "navigate sections",
+          "copy code examples",
+          "search or filter topics",
+          "switch reference contexts"
+        ]
       },
       "runtimeEnabled": true,
       "source": "creative-claw",
@@ -567,7 +645,17 @@
           "superhuman",
           "default"
         ],
-        "output_contract": "responsive HTML email concept or MJML-ready template"
+        "output_contract": "responsive HTML email concept or MJML-ready template",
+        "primary_user": "prospect or customer receiving a campaign email",
+        "business_domain": "lifecycle marketing and email campaigns",
+        "decision_goal": "make the offer clear enough for the recipient to click, reply, or continue reading",
+        "visual_direction": "responsive email layout with concise hierarchy, strong subject-aligned hero, and unmistakable CTA",
+        "interactions": [
+          "scan sections",
+          "click primary CTA",
+          "review offer details",
+          "open secondary links"
+        ]
       },
       "runtimeEnabled": true,
       "source": "creative-claw",
@@ -625,7 +713,17 @@
           "mintlify",
           "default"
         ],
-        "output_contract": "standalone responsive HTML engineering runbook"
+        "output_contract": "standalone responsive HTML engineering runbook",
+        "primary_user": "on-call engineer responding to incidents or operational alerts",
+        "business_domain": "engineering operations and incident response",
+        "decision_goal": "help responders diagnose alerts, execute the right procedure, and escalate with context",
+        "visual_direction": "clear technical runbook with command blocks, severity cues, procedural steps, and escalation tables",
+        "interactions": [
+          "jump to alert procedures",
+          "copy commands",
+          "follow decision branches",
+          "open dashboard or escalation links"
+        ]
       },
       "runtimeEnabled": true,
       "source": "creative-claw",
@@ -685,7 +783,16 @@
           "wise",
           "default"
         ],
-        "output_contract": "standalone responsive HTML finance report"
+        "output_contract": "standalone responsive HTML finance report",
+        "primary_user": "finance lead or executive reviewing business performance",
+        "business_domain": "financial reporting and business planning",
+        "decision_goal": "explain financial performance, highlight risks, and identify actions for the next period",
+        "visual_direction": "executive report with crisp tables, variance highlights, restrained charts, and narrative callouts",
+        "interactions": [
+          "compare periods",
+          "scan variance explanations",
+          "review risk and action tables"
+        ]
       },
       "runtimeEnabled": true,
       "source": "creative-claw",
@@ -745,7 +852,17 @@
           "xiaohongshu",
           "default"
         ],
-        "output_contract": "standalone responsive HTML gamified mobile app prototype"
+        "output_contract": "standalone responsive HTML gamified mobile app prototype",
+        "primary_user": "consumer user building a repeat habit through progress, rewards, and feedback loops",
+        "business_domain": "consumer gamification and habit-forming mobile products",
+        "decision_goal": "make the next daily action obvious and reinforce progression after completion",
+        "visual_direction": "playful mobile interface with progress states, reward moments, and readable task cards",
+        "interactions": [
+          "complete daily actions",
+          "claim rewards",
+          "review progress",
+          "navigate progression levels"
+        ]
       },
       "runtimeEnabled": true,
       "source": "creative-claw",
@@ -807,7 +924,16 @@
           "theverge",
           "default"
         ],
-        "output_contract": "single-file horizontal-swipe editorial HTML deck"
+        "output_contract": "single-file horizontal-swipe editorial HTML deck",
+        "primary_user": "audience watching an editorial web presentation or launch talk",
+        "business_domain": "editorial presentations and web-based storytelling",
+        "decision_goal": "create a memorable narrative rhythm that supports the talk and lands the key message",
+        "visual_direction": "magazine-style web deck with cinematic chapter covers, strong typography, and controlled motion",
+        "interactions": [
+          "swipe or click through slides",
+          "read speaker-supporting captions",
+          "advance chapter sections"
+        ]
       },
       "runtimeEnabled": true,
       "source": "creative-claw",
@@ -863,7 +989,16 @@
           "linear-app",
           "default"
         ],
-        "output_contract": "standalone responsive HTML HR onboarding guide"
+        "output_contract": "standalone responsive HTML HR onboarding guide",
+        "primary_user": "new hire learning how to become productive in a role",
+        "business_domain": "human resources onboarding and employee enablement",
+        "decision_goal": "show the new hire what to do, who to meet, and how success will be measured",
+        "visual_direction": "welcoming but practical guide with timelines, checklists, people cards, and tool access steps",
+        "interactions": [
+          "follow onboarding checklist",
+          "review timeline milestones",
+          "identify owners and contacts"
+        ]
       },
       "runtimeEnabled": true,
       "source": "creative-claw",
@@ -921,7 +1056,16 @@
           "stripe",
           "default"
         ],
-        "output_contract": "standalone responsive HTML deck"
+        "output_contract": "standalone responsive HTML deck",
+        "primary_user": "presenter and audience using a browser-based slide deck",
+        "business_domain": "interactive presentations and product storytelling",
+        "decision_goal": "deliver a clear slide narrative with the right level of interactivity for the presentation context",
+        "visual_direction": "browser-native deck with crisp slide frames, consistent rhythm, and presentation-safe typography",
+        "interactions": [
+          "navigate slides",
+          "trigger lightweight transitions",
+          "review speaker cues"
+        ]
       },
       "runtimeEnabled": true,
       "source": "creative-claw",
@@ -981,7 +1125,16 @@
           "runwayml"
         ],
         "output_contract": "HTML storyboard or browser-rendered video composition brief",
-        "execution_mode": "code_or_video_expert"
+        "execution_mode": "code_or_video_expert",
+        "primary_user": "viewer watching a short kinetic typography or motion composition",
+        "business_domain": "motion design and video communication",
+        "decision_goal": "make the message understandable and visually engaging within the target duration",
+        "visual_direction": "high-energy motion system with timed typography, expressive transitions, and caption-safe composition",
+        "interactions": [
+          "play animation",
+          "read captions",
+          "follow scene transitions"
+        ]
       },
       "runtimeEnabled": true,
       "source": "creative-claw",
@@ -1040,7 +1193,16 @@
           "warm-editorial"
         ],
         "output_contract": "structured image generation brief for poster/key art",
-        "execution_mode": "image_expert"
+        "execution_mode": "image_expert",
+        "primary_user": "viewer encountering a static promotional or editorial image",
+        "business_domain": "visual promotion and image-led communication",
+        "decision_goal": "communicate the subject, mood, and intended action at a glance",
+        "visual_direction": "image-first poster with strong focal subject, controlled text placement, and format-aware composition",
+        "interactions": [
+          "scan headline",
+          "inspect visual subject",
+          "follow call to action"
+        ]
       },
       "runtimeEnabled": true,
       "source": "creative-claw",
@@ -1099,7 +1261,17 @@
           "wise",
           "default"
         ],
-        "output_contract": "standalone responsive HTML invoice"
+        "output_contract": "standalone responsive HTML invoice",
+        "primary_user": "customer or accounting operator reviewing billing details",
+        "business_domain": "billing, payments, and finance operations",
+        "decision_goal": "make amount due, payment terms, line items, and invoice status unambiguous",
+        "visual_direction": "clean document layout with strong totals, readable tables, and clear payment/status hierarchy",
+        "interactions": [
+          "review line items",
+          "check totals and tax",
+          "confirm payment status",
+          "find payment instructions"
+        ]
       },
       "runtimeEnabled": true,
       "source": "creative-claw",
@@ -1158,7 +1330,17 @@
           "figma",
           "default"
         ],
-        "output_contract": "standalone responsive HTML kanban board"
+        "output_contract": "standalone responsive HTML kanban board",
+        "primary_user": "team member or manager tracking workflow status and work-in-progress",
+        "business_domain": "workflow management and team operations",
+        "decision_goal": "help users see what needs attention and move work through the right status transitions",
+        "visual_direction": "organized board UI with stable columns, compact cards, clear priority signals, and collaboration cues",
+        "interactions": [
+          "drag cards between columns",
+          "filter work items",
+          "open card details",
+          "update owners or priority"
+        ]
       },
       "runtimeEnabled": true,
       "source": "creative-claw",
@@ -1223,7 +1405,17 @@
           "supabase",
           "default"
         ],
-        "output_contract": "standalone responsive HTML landing page"
+        "output_contract": "standalone responsive HTML landing page",
+        "primary_user": "prospective customer evaluating the product from a marketing page",
+        "business_domain": "SaaS marketing and customer acquisition",
+        "decision_goal": "explain the value proposition and move qualified visitors to the primary CTA",
+        "visual_direction": "conversion-focused product page with strong first-viewport signal, proof points, and clear section rhythm",
+        "interactions": [
+          "click primary CTA",
+          "scan product proof",
+          "compare sections",
+          "open supporting details"
+        ]
       },
       "runtimeEnabled": true,
       "source": "creative-claw",
@@ -1281,7 +1473,16 @@
           "theverge",
           "default"
         ],
-        "output_contract": "standalone HTML poster composition"
+        "output_contract": "standalone HTML poster composition",
+        "primary_user": "viewer scanning an editorial poster for a launch, event, or campaign",
+        "business_domain": "editorial promotion and brand communication",
+        "decision_goal": "make the headline, subject, and call to action memorable in one static composition",
+        "visual_direction": "magazine-inspired poster with expressive typography, strong focal image, and disciplined negative space",
+        "interactions": [
+          "read headline",
+          "scan supporting copy",
+          "follow call to action"
+        ]
       },
       "runtimeEnabled": true,
       "source": "creative-claw",
@@ -1350,7 +1551,17 @@
           "airbnb",
           "default"
         ],
-        "output_contract": "standalone responsive HTML marketing campaign page"
+        "output_contract": "standalone responsive HTML marketing campaign page",
+        "primary_user": "campaign visitor deciding whether to claim an offer, register, or learn more",
+        "business_domain": "campaign marketing and conversion funnels",
+        "decision_goal": "make the campaign offer credible, timely, and easy to act on",
+        "visual_direction": "campaign page with urgent but polished hierarchy, offer modules, proof, and CTA repetition",
+        "interactions": [
+          "click campaign CTA",
+          "review offer details",
+          "scan proof points",
+          "navigate page sections"
+        ]
       },
       "runtimeEnabled": true,
       "source": "creative-claw",
@@ -1406,7 +1617,17 @@
           "linear-app",
           "default"
         ],
-        "output_contract": "structured meeting notes page"
+        "output_contract": "structured meeting notes page",
+        "primary_user": "team member reviewing decisions and follow-up actions after a meeting",
+        "business_domain": "team collaboration and meeting operations",
+        "decision_goal": "make decisions, owners, deadlines, and unresolved items easy to recover after the meeting",
+        "visual_direction": "structured notes document with clear sections, action tables, owner labels, and concise summaries",
+        "interactions": [
+          "scan decisions",
+          "review action items",
+          "filter owners mentally",
+          "check follow-up dates"
+        ]
       },
       "runtimeEnabled": true,
       "source": "creative-claw",
@@ -1467,7 +1688,17 @@
           "xiaohongshu",
           "default"
         ],
-        "output_contract": "standalone mobile HTML prototype"
+        "output_contract": "standalone mobile HTML prototype",
+        "primary_user": "mobile app user completing a primary product flow",
+        "business_domain": "mobile product experience and workflow design",
+        "decision_goal": "help the user understand the screen set and complete the primary flow with minimal friction",
+        "visual_direction": "native-feeling mobile prototype with thumb-friendly controls, clear navigation, and focused screen hierarchy",
+        "interactions": [
+          "navigate key screens",
+          "complete primary flow",
+          "use controls and form states",
+          "review feedback states"
+        ]
       },
       "runtimeEnabled": true,
       "source": "creative-claw",
@@ -1526,7 +1757,17 @@
           "notion",
           "default"
         ],
-        "output_contract": "standalone responsive HTML mobile onboarding flow"
+        "output_contract": "standalone responsive HTML mobile onboarding flow",
+        "primary_user": "new mobile user deciding whether to activate and continue setup",
+        "business_domain": "mobile activation and onboarding",
+        "decision_goal": "communicate value quickly and move the user through signup or activation steps",
+        "visual_direction": "friendly onboarding flow with focused messages, strong progress cues, and clear mobile CTAs",
+        "interactions": [
+          "advance onboarding screens",
+          "complete signup or auth step",
+          "tap primary CTA",
+          "review progress"
+        ]
       },
       "runtimeEnabled": true,
       "source": "creative-claw",
@@ -1584,7 +1825,16 @@
           "runwayml"
         ],
         "output_contract": "structured motion frame storyboard or HTML motion concept",
-        "execution_mode": "code_or_video_expert"
+        "execution_mode": "code_or_video_expert",
+        "primary_user": "viewer consuming a short motion graphic or animated title sequence",
+        "business_domain": "motion graphics and animated communication",
+        "decision_goal": "sequence frames so the message, timing, and visual emphasis are clear before animation production",
+        "visual_direction": "frame-by-frame motion storyboard with strong type, rhythm, and transition-ready composition",
+        "interactions": [
+          "preview frame sequence",
+          "read timed copy",
+          "compare motion beats"
+        ]
       },
       "runtimeEnabled": true,
       "source": "creative-claw",
@@ -1647,7 +1897,17 @@
           "figma",
           "default"
         ],
-        "output_contract": "standalone responsive HTML operation data dashboard"
+        "output_contract": "standalone responsive HTML operation data dashboard",
+        "primary_user": "operator or business analyst monitoring operational health",
+        "business_domain": "operational analytics and performance management",
+        "decision_goal": "help the user compare current performance against baseline and identify where action is needed",
+        "visual_direction": "dense operations UI with north-star metric focus, comparison panels, and clear anomaly affordances",
+        "interactions": [
+          "change comparison model",
+          "filter dimensions",
+          "inspect metric trends",
+          "drill into anomalies"
+        ]
       },
       "runtimeEnabled": true,
       "source": "creative-claw",
@@ -1706,7 +1966,17 @@
           "linear-app",
           "default"
         ],
-        "output_contract": "structured product specification document"
+        "output_contract": "structured product specification document",
+        "primary_user": "product manager, designer, or engineer aligning on feature scope",
+        "business_domain": "product planning and requirements definition",
+        "decision_goal": "clarify the problem, scope, flows, success metrics, and open questions for implementation",
+        "visual_direction": "structured spec document with concise sections, flow summaries, metric callouts, and decision tables",
+        "interactions": [
+          "scan scope",
+          "review user flows",
+          "check success metrics",
+          "track open questions"
+        ]
       },
       "runtimeEnabled": true,
       "source": "creative-claw",
@@ -1767,7 +2037,17 @@
           "supabase",
           "default"
         ],
-        "output_contract": "standalone responsive HTML pricing page"
+        "output_contract": "standalone responsive HTML pricing page",
+        "primary_user": "buyer comparing plans and deciding whether to start, upgrade, or contact sales",
+        "business_domain": "pricing strategy and SaaS conversion",
+        "decision_goal": "make plan differences, billing options, trust proof, and the primary conversion path easy to compare",
+        "visual_direction": "pricing page with scannable plan cards, comparison table, FAQ support, and confident CTA hierarchy",
+        "interactions": [
+          "compare plans",
+          "toggle billing period",
+          "open FAQ items",
+          "click conversion CTA"
+        ]
       },
       "runtimeEnabled": true,
       "source": "creative-claw",
@@ -1820,12 +2100,20 @@
         "recommended_skill": "replit-deck",
         "fallback_skill": "simple-deck",
         "recommended_design_system_candidates": [
-          "replit",
           "cursor",
           "vercel",
           "default"
         ],
-        "output_contract": "single-file Replit-inspired HTML deck"
+        "output_contract": "single-file Replit-inspired HTML deck",
+        "primary_user": "developer, founder, or product audience watching a Replit-inspired story deck",
+        "business_domain": "developer tools storytelling and product presentations",
+        "decision_goal": "tell a distinctive developer story that leads to adoption, alignment, or a launch action",
+        "visual_direction": "Replit Slides-inspired deck using code motifs, modular frames, strong contrast, and playful developer texture",
+        "interactions": [
+          "navigate chapters",
+          "review code or product examples",
+          "follow final call to action"
+        ]
       },
       "runtimeEnabled": true,
       "source": "creative-claw",
@@ -1885,7 +2173,16 @@
           "warm-editorial",
           "default"
         ],
-        "output_contract": "standalone responsive HTML social carousel storyboard"
+        "output_contract": "standalone responsive HTML social carousel storyboard",
+        "primary_user": "social feed viewer deciding whether to keep swiping, save, or click through",
+        "business_domain": "social content marketing and educational storytelling",
+        "decision_goal": "turn the message into a swipeable sequence with a strong hook and clear final CTA",
+        "visual_direction": "platform-native carousel cards with bold hooks, repeated visual rhythm, and readable mobile typography",
+        "interactions": [
+          "swipe through cards",
+          "save or share post",
+          "follow final CTA"
+        ]
       },
       "runtimeEnabled": true,
       "source": "creative-claw",
@@ -1942,7 +2239,16 @@
           "default"
         ],
         "output_contract": "structured sprite animation storyboard or HTML animation concept",
-        "execution_mode": "code_or_video_expert"
+        "execution_mode": "code_or_video_expert",
+        "primary_user": "viewer or player reading a small animated sprite sequence",
+        "business_domain": "game asset design and lightweight animation",
+        "decision_goal": "make the sprite subject, motion loop, and visual personality readable at small size",
+        "visual_direction": "pixel-aware animation storyboard with clear silhouette, limited palette, and loop-friendly motion beats",
+        "interactions": [
+          "preview animation loop",
+          "compare scene sequence",
+          "inspect sprite states"
+        ]
       },
       "runtimeEnabled": true,
       "source": "creative-claw",
@@ -2000,7 +2306,17 @@
           "notion",
           "default"
         ],
-        "output_contract": "standalone responsive HTML OKR planning page"
+        "output_contract": "standalone responsive HTML OKR planning page",
+        "primary_user": "team lead or team member reviewing objectives and progress",
+        "business_domain": "team planning and performance management",
+        "decision_goal": "show objective ownership, key result progress, confidence, and review cadence clearly",
+        "visual_direction": "planning dashboard/document hybrid with progress bars, owner cues, status labels, and review rhythm",
+        "interactions": [
+          "review objective status",
+          "scan key results",
+          "check owners",
+          "compare confidence levels"
+        ]
       },
       "runtimeEnabled": true,
       "source": "creative-claw",
@@ -2056,7 +2372,17 @@
           "linear-app",
           "default"
         ],
-        "output_contract": "standalone HTML tweak panel or variant exploration tool"
+        "output_contract": "standalone HTML tweak panel or variant exploration tool",
+        "primary_user": "creator adjusting an artifact through live controls",
+        "business_domain": "creative tooling and interactive parameter tuning",
+        "decision_goal": "let the user understand which parameters can be changed and preview the effect immediately",
+        "visual_direction": "compact control surface with grouped sliders, toggles, swatches, and a clear live preview relationship",
+        "interactions": [
+          "adjust sliders",
+          "toggle options",
+          "choose presets",
+          "preview parameter changes"
+        ]
       },
       "runtimeEnabled": true,
       "source": "creative-claw",
@@ -2117,7 +2443,17 @@
           "default"
         ],
         "output_contract": "structured shortform video brief or storyboard",
-        "execution_mode": "video_expert"
+        "execution_mode": "video_expert",
+        "primary_user": "shortform viewer deciding whether to keep watching and respond to the CTA",
+        "business_domain": "shortform video marketing and social storytelling",
+        "decision_goal": "structure the hook, story beats, audio cues, and CTA for the target platform and duration",
+        "visual_direction": "vertical-video-first storyboard with strong opening hook, caption-safe frames, and punchy pacing",
+        "interactions": [
+          "watch story beats",
+          "read captions",
+          "follow audio cues",
+          "respond to CTA"
+        ]
       },
       "runtimeEnabled": true,
       "source": "creative-claw",
@@ -2176,7 +2512,17 @@
           "linear-app",
           "default"
         ],
-        "output_contract": "single-file weekly update HTML deck"
+        "output_contract": "single-file weekly update HTML deck",
+        "primary_user": "stakeholder or team member reviewing weekly progress and risks",
+        "business_domain": "project reporting and team communication",
+        "decision_goal": "summarize wins, work in progress, risks, metrics, and asks so stakeholders know what needs attention",
+        "visual_direction": "concise update deck with status-led sections, metric callouts, risk blocks, and clear asks",
+        "interactions": [
+          "navigate update slides",
+          "scan metrics",
+          "review blockers",
+          "capture asks"
+        ]
       },
       "runtimeEnabled": true,
       "source": "creative-claw",
@@ -2233,7 +2579,16 @@
           "figma",
           "notion"
         ],
-        "output_contract": "standalone low-fidelity HTML wireframe"
+        "output_contract": "standalone low-fidelity HTML wireframe",
+        "primary_user": "product team member evaluating structure and flow before visual design",
+        "business_domain": "early-stage UX planning and product design",
+        "decision_goal": "clarify screen structure, information hierarchy, and interaction points before high-fidelity work",
+        "visual_direction": "low-fidelity wireframe with grayscale hierarchy, clear labels, and intentionally minimal styling",
+        "interactions": [
+          "trace primary flow",
+          "compare screen sections",
+          "identify interaction points"
+        ]
       },
       "runtimeEnabled": true,
       "source": "creative-claw",

@@ -4,20 +4,70 @@
   "title": "Blog Post",
   "description": "Key design elements for blog posts, essays, case studies, and editorial article pages.",
   "surface": "article",
-  "scenarios": ["blog_post", "article", "case_study", "newsletter_article", "essay", "博客", "文章", "案例文章"],
-  "required_fields": ["topic", "audience", "core_argument", "outline", "tone", "evidence_or_examples", "call_to_action"],
-  "optional_fields": ["seo_keywords", "author_context", "image_requirements", "reading_time", "brand_context", "distribution_channel"],
+  "scenarios": [
+    "blog_post",
+    "article",
+    "case_study",
+    "newsletter_article",
+    "essay",
+    "博客",
+    "文章",
+    "案例文章"
+  ],
+  "required_fields": [
+    "topic",
+    "audience",
+    "core_argument",
+    "outline",
+    "tone",
+    "evidence_or_examples",
+    "call_to_action"
+  ],
+  "optional_fields": [
+    "seo_keywords",
+    "author_context",
+    "image_requirements",
+    "reading_time",
+    "brand_context",
+    "distribution_channel"
+  ],
   "question_templates": [
-    {"field": "topic", "question": "文章主题是什么？"},
-    {"field": "audience", "question": "主要读者是谁：用户、开发者、投资人、内部团队，还是潜在客户？"},
-    {"field": "core_argument", "question": "这篇文章最想说服读者相信什么？"},
-    {"field": "outline", "question": "是否已有大纲？没有的话我可以先按问题、洞察、方案、案例、CTA 来组织。"}
+    {
+      "field": "topic",
+      "question": "文章主题是什么？"
+    },
+    {
+      "field": "audience",
+      "question": "主要读者是谁：用户、开发者、投资人、内部团队，还是潜在客户？"
+    },
+    {
+      "field": "core_argument",
+      "question": "这篇文章最想说服读者相信什么？"
+    },
+    {
+      "field": "outline",
+      "question": "是否已有大纲？没有的话我可以先按问题、洞察、方案、案例、CTA 来组织。"
+    }
   ],
   "defaults": {
     "platform": "responsive web",
     "density": "medium",
     "recommended_skill": "blog-post",
-    "recommended_design_system_candidates": ["warm-editorial", "notion", "stripe", "default"],
-    "output_contract": "standalone responsive HTML article page"
+    "recommended_design_system_candidates": [
+      "warm-editorial",
+      "notion",
+      "stripe",
+      "default"
+    ],
+    "output_contract": "standalone responsive HTML article page",
+    "primary_user": "reader evaluating a product idea, market point of view, or expert explanation",
+    "business_domain": "content marketing and thought leadership",
+    "decision_goal": "guide readers from the core argument to a clear next action or takeaway",
+    "visual_direction": "editorial article layout with strong typography, pull quotes, evidence blocks, and comfortable reading rhythm",
+    "interactions": [
+      "scan section anchors",
+      "read supporting examples",
+      "follow the call to action"
+    ]
   }
 }

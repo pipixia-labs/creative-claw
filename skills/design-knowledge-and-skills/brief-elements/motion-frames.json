@@ -4,21 +4,68 @@
   "title": "Motion Frames",
   "description": "Key design elements for motion graphics, animated hero concepts, loop animations, and title card sequences.",
   "surface": "motion",
-  "scenarios": ["motion_frames", "motion_design", "motion_graphic", "animated_hero", "loop_animation", "动态设计", "动效"],
-  "required_fields": ["motion_goal", "audience", "duration", "frame_sequence", "visual_style", "copy_or_labels", "output_ratio"],
-  "optional_fields": ["music_or_sound", "brand_context", "reference_motion", "export_format", "interaction_trigger"],
+  "scenarios": [
+    "motion_frames",
+    "motion_design",
+    "motion_graphic",
+    "animated_hero",
+    "loop_animation",
+    "动态设计",
+    "动效"
+  ],
+  "required_fields": [
+    "motion_goal",
+    "audience",
+    "duration",
+    "frame_sequence",
+    "visual_style",
+    "copy_or_labels",
+    "output_ratio"
+  ],
+  "optional_fields": [
+    "music_or_sound",
+    "brand_context",
+    "reference_motion",
+    "export_format",
+    "interaction_trigger"
+  ],
   "question_templates": [
-    {"field": "motion_goal", "question": "这个动效要服务什么目的：hero 展示、产品解释、标题卡、循环背景，还是社媒短片？"},
-    {"field": "duration", "question": "目标时长或循环周期是多少？"},
-    {"field": "frame_sequence", "question": "需要几个关键帧或阶段？每一帧表达什么？"},
-    {"field": "visual_style", "question": "动效风格偏科技、编辑、数据流、品牌图形，还是 kinetic typography？"}
+    {
+      "field": "motion_goal",
+      "question": "这个动效要服务什么目的：hero 展示、产品解释、标题卡、循环背景，还是社媒短片？"
+    },
+    {
+      "field": "duration",
+      "question": "目标时长或循环周期是多少？"
+    },
+    {
+      "field": "frame_sequence",
+      "question": "需要几个关键帧或阶段？每一帧表达什么？"
+    },
+    {
+      "field": "visual_style",
+      "question": "动效风格偏科技、编辑、数据流、品牌图形，还是 kinetic typography？"
+    }
   ],
   "defaults": {
     "platform": "motion storyboard",
     "density": "medium",
     "recommended_skill": "motion-frames",
-    "recommended_design_system_candidates": ["default", "vercel", "runwayml"],
+    "recommended_design_system_candidates": [
+      "default",
+      "vercel",
+      "runwayml"
+    ],
     "output_contract": "structured motion frame storyboard or HTML motion concept",
-    "execution_mode": "code_or_video_expert"
+    "execution_mode": "code_or_video_expert",
+    "primary_user": "viewer consuming a short motion graphic or animated title sequence",
+    "business_domain": "motion graphics and animated communication",
+    "decision_goal": "sequence frames so the message, timing, and visual emphasis are clear before animation production",
+    "visual_direction": "frame-by-frame motion storyboard with strong type, rhythm, and transition-ready composition",
+    "interactions": [
+      "preview frame sequence",
+      "read timed copy",
+      "compare motion beats"
+    ]
   }
 }

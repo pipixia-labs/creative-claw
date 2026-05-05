@@ -4,14 +4,48 @@
   "title": "Mobile Onboarding",
   "description": "Key design elements for mobile app onboarding, signup, activation, and first-run education flows.",
   "surface": "mobile_app",
-  "scenarios": ["mobile_onboarding", "ios_onboarding", "android_onboarding", "phone_signup", "app_onboarding", "移动端引导"],
-  "required_fields": ["app_context", "target_user", "activation_goal", "screen_count", "value_messages", "signup_or_auth", "primary_cta", "device_context"],
-  "optional_fields": ["permission_prompts", "progress_indicator", "illustration_style", "brand_context", "skip_policy"],
+  "scenarios": [
+    "mobile_onboarding",
+    "ios_onboarding",
+    "android_onboarding",
+    "phone_signup",
+    "app_onboarding",
+    "移动端引导"
+  ],
+  "required_fields": [
+    "app_context",
+    "target_user",
+    "activation_goal",
+    "screen_count",
+    "value_messages",
+    "signup_or_auth",
+    "primary_cta",
+    "device_context"
+  ],
+  "optional_fields": [
+    "permission_prompts",
+    "progress_indicator",
+    "illustration_style",
+    "brand_context",
+    "skip_policy"
+  ],
   "question_templates": [
-    {"field": "app_context", "question": "这个 onboarding 对应什么 app 或功能？"},
-    {"field": "activation_goal", "question": "新用户完成 onboarding 后要做什么：注册、创建项目、授权、首次打卡，还是体验核心功能？"},
-    {"field": "screen_count", "question": "需要几屏：1 屏、3 屏、5 屏，还是完整注册流程？"},
-    {"field": "value_messages", "question": "每屏想传达哪些核心价值点？"}
+    {
+      "field": "app_context",
+      "question": "这个 onboarding 对应什么 app 或功能？"
+    },
+    {
+      "field": "activation_goal",
+      "question": "新用户完成 onboarding 后要做什么：注册、创建项目、授权、首次打卡，还是体验核心功能？"
+    },
+    {
+      "field": "screen_count",
+      "question": "需要几屏：1 屏、3 屏、5 屏，还是完整注册流程？"
+    },
+    {
+      "field": "value_messages",
+      "question": "每屏想传达哪些核心价值点？"
+    }
   ],
   "defaults": {
     "platform": "mobile app",
@@ -19,7 +53,22 @@
     "device_frame": "iphone-15-pro",
     "recommended_skill": "mobile-onboarding",
     "fallback_skill": "mobile-app",
-    "recommended_design_system_candidates": ["apple", "airbnb", "notion", "default"],
-    "output_contract": "standalone responsive HTML mobile onboarding flow"
+    "recommended_design_system_candidates": [
+      "apple",
+      "airbnb",
+      "notion",
+      "default"
+    ],
+    "output_contract": "standalone responsive HTML mobile onboarding flow",
+    "primary_user": "new mobile user deciding whether to activate and continue setup",
+    "business_domain": "mobile activation and onboarding",
+    "decision_goal": "communicate value quickly and move the user through signup or activation steps",
+    "visual_direction": "friendly onboarding flow with focused messages, strong progress cues, and clear mobile CTAs",
+    "interactions": [
+      "advance onboarding screens",
+      "complete signup or auth step",
+      "tap primary CTA",
+      "review progress"
+    ]
   }
 }

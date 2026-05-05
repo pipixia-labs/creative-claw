@@ -3,7 +3,10 @@ import unittest
 from pathlib import Path
 
 from src.productions.design.design_product_manager import DesignProductManager
-from src.productions.design.design_product_manager.design_product_manager import DESIGN_BRIEF_SCHEMA_VERSION
+from src.productions.design.design_product_manager.design_product_manager import (
+    DESIGN_BRIEF_SCHEMA_VERSION,
+    _SURFACE_KEYWORDS,
+)
 
 
 class DesignProductManagerTests(unittest.TestCase):
@@ -208,6 +211,35 @@ class DesignProductManagerTests(unittest.TestCase):
                     if not (project_root / context_file).exists()
                 ]
                 self.assertEqual(missing_context_files, [])
+
+    def test_prepare_all_builtin_scenarios_populates_stable_brief_fields(self) -> None:
+        manager = DesignProductManager()
+        project_root = Path(__file__).resolve().parents[1]
+        brief_root = project_root / "skills" / "design-knowledge-and-skills" / "brief-elements"
+
+        for path in sorted(brief_root.glob("*.json")):
+            brief_element = json.loads(path.read_text(encoding="utf-8"))
+            scenario = brief_element["id"].split(".", 1)[1]
+            prompt = f"Create a design artifact for {brief_element['title']}."
+            with self.subTest(scenario=scenario):
+                brief = manager.prepare_brief(prompt=prompt, scenario=scenario)
+
+                self.assertTrue(brief.design_brief["primary_user"])
+                self.assertTrue(brief.design_brief["business_domain"])
+                self.assertTrue(brief.design_brief["goal"])
+                self.assertNotEqual(brief.design_brief["goal"], prompt)
+                self.assertTrue(brief.design_brief["visual_direction"])
+                self.assertTrue(brief.design_brief["interactions"])
+
+    def test_surface_keywords_cover_all_brief_element_surfaces(self) -> None:
+        project_root = Path(__file__).resolve().parents[1]
+        brief_root = project_root / "skills" / "design-knowledge-and-skills" / "brief-elements"
+        resource_surfaces = {
+            json.loads(path.read_text(encoding="utf-8"))["surface"]
+            for path in sorted(brief_root.glob("*.json"))
+        }
+
+        self.assertEqual(resource_surfaces - set(_SURFACE_KEYWORDS), set())
 
     def test_prepare_web_ppt_prefers_magazine_web_ppt_schema(self) -> None:
         manager = DesignProductManager()

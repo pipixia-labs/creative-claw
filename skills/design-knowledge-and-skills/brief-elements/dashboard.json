@@ -4,7 +4,12 @@
   "title": "Dashboard / Analytics Console",
   "description": "Key design elements for operational dashboards, analytics consoles, and internal data tools.",
   "surface": "dashboard",
-  "scenarios": ["dashboard", "analytics_dashboard", "bi_console", "metrics_dashboard"],
+  "scenarios": [
+    "dashboard",
+    "analytics_dashboard",
+    "bi_console",
+    "metrics_dashboard"
+  ],
   "required_fields": [
     "business_domain",
     "primary_user",
@@ -63,7 +68,23 @@
     "platform": "desktop web",
     "density": "high",
     "recommended_skill": "dashboard",
-    "recommended_design_system_candidates": ["linear-app", "vercel", "stripe", "figma", "default"],
-    "output_contract": "standalone responsive HTML dashboard"
+    "recommended_design_system_candidates": [
+      "linear-app",
+      "vercel",
+      "stripe",
+      "figma",
+      "default"
+    ],
+    "output_contract": "standalone responsive HTML dashboard",
+    "primary_user": "operations lead monitoring performance and acting on anomalies",
+    "business_domain": "business analytics and operational reporting",
+    "decision_goal": "surface performance changes and help the user decide where to investigate or intervene",
+    "visual_direction": "high-density analytical dashboard with stable navigation, prominent KPIs, and legible charts",
+    "interactions": [
+      "filter by time range",
+      "compare dimensions",
+      "drill into metric details",
+      "export or share findings"
+    ]
   }
 }

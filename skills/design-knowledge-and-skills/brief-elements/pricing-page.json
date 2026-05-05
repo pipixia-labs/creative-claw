@@ -4,7 +4,14 @@
   "title": "Pricing Page",
   "description": "Key design elements for SaaS pricing pages, plan comparison, conversion decision support, and upgrade CTAs.",
   "surface": "landing_page",
-  "scenarios": ["pricing_page", "pricing_table", "plans_page", "subscription_pricing", "定价页", "价格页"],
+  "scenarios": [
+    "pricing_page",
+    "pricing_table",
+    "plans_page",
+    "subscription_pricing",
+    "定价页",
+    "价格页"
+  ],
   "required_fields": [
     "product_category",
     "target_customer",
@@ -51,7 +58,23 @@
     "density": "medium",
     "recommended_skill": "pricing-page",
     "fallback_skill": "saas-landing",
-    "recommended_design_system_candidates": ["stripe", "linear-app", "vercel", "supabase", "default"],
-    "output_contract": "standalone responsive HTML pricing page"
+    "recommended_design_system_candidates": [
+      "stripe",
+      "linear-app",
+      "vercel",
+      "supabase",
+      "default"
+    ],
+    "output_contract": "standalone responsive HTML pricing page",
+    "primary_user": "buyer comparing plans and deciding whether to start, upgrade, or contact sales",
+    "business_domain": "pricing strategy and SaaS conversion",
+    "decision_goal": "make plan differences, billing options, trust proof, and the primary conversion path easy to compare",
+    "visual_direction": "pricing page with scannable plan cards, comparison table, FAQ support, and confident CTA hierarchy",
+    "interactions": [
+      "compare plans",
+      "toggle billing period",
+      "open FAQ items",
+      "click conversion CTA"
+    ]
   }
 }

@@ -4,20 +4,70 @@
   "title": "Digital E-guide",
   "description": "Key design elements for ebooks, lead magnets, playbooks, lookbooks, and digital guides.",
   "surface": "guide",
-  "scenarios": ["digital_eguide", "ebook", "playbook", "lead_magnet", "lookbook", "digital_guide", "电子书", "电子指南"],
-  "required_fields": ["guide_topic", "audience", "learning_outcome", "chapter_outline", "source_material", "visual_direction", "conversion_goal"],
-  "optional_fields": ["worksheet_needs", "examples", "download_format", "brand_context", "image_requirements"],
+  "scenarios": [
+    "digital_eguide",
+    "ebook",
+    "playbook",
+    "lead_magnet",
+    "lookbook",
+    "digital_guide",
+    "电子书",
+    "电子指南"
+  ],
+  "required_fields": [
+    "guide_topic",
+    "audience",
+    "learning_outcome",
+    "chapter_outline",
+    "source_material",
+    "visual_direction",
+    "conversion_goal"
+  ],
+  "optional_fields": [
+    "worksheet_needs",
+    "examples",
+    "download_format",
+    "brand_context",
+    "image_requirements"
+  ],
   "question_templates": [
-    {"field": "guide_topic", "question": "这份电子指南的主题是什么？"},
-    {"field": "audience", "question": "读者是谁？他们处在新手、进阶、决策者还是执行者阶段？"},
-    {"field": "learning_outcome", "question": "读完后读者应该能完成什么？"},
-    {"field": "chapter_outline", "question": "需要哪些章节？如果没有，我可以先生成 5-7 章结构。"}
+    {
+      "field": "guide_topic",
+      "question": "这份电子指南的主题是什么？"
+    },
+    {
+      "field": "audience",
+      "question": "读者是谁？他们处在新手、进阶、决策者还是执行者阶段？"
+    },
+    {
+      "field": "learning_outcome",
+      "question": "读完后读者应该能完成什么？"
+    },
+    {
+      "field": "chapter_outline",
+      "question": "需要哪些章节？如果没有，我可以先生成 5-7 章结构。"
+    }
   ],
   "defaults": {
     "platform": "responsive web",
     "density": "medium",
     "recommended_skill": "digital-eguide",
-    "recommended_design_system_candidates": ["warm-editorial", "stripe", "notion", "default"],
-    "output_contract": "standalone responsive HTML digital guide"
+    "recommended_design_system_candidates": [
+      "warm-editorial",
+      "stripe",
+      "notion",
+      "default"
+    ],
+    "output_contract": "standalone responsive HTML digital guide",
+    "primary_user": "learner or prospect reading a structured educational guide",
+    "business_domain": "education, enablement, and lead-generation content",
+    "decision_goal": "help the reader learn the topic and understand the recommended next step",
+    "visual_direction": "chaptered editorial guide with calm hierarchy, learning checkpoints, and practical examples",
+    "interactions": [
+      "move through chapters",
+      "scan key takeaways",
+      "use checklists or prompts",
+      "follow conversion CTA"
+    ]
   }
 }
