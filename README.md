@@ -18,6 +18,7 @@ No more jumping back and forth between different tools.
 With CreativeClaw, you can keep iterating around a single idea and move from inspiration to final output in one flow.
 
 ## 📰 News
+ - 2026-05-05: Added interactive PPT generation and HTML-to-PPTX workflows, plus improved Web Chat previews for artifacts, media, PDF, and PPT outputs.
  - 2026-05-02: Released v0.3.0 with DeepSeek V4, Seedance 2.0, Seed TTS 2.0 multi-voice support, DashScope media models, and expanded 3D providers.
  - 2026-05-01: Added design product flow and CodeGenerationExpert routing.
  - 2026-04-24: Released v0.2.0 with expert runtime refactor, expert cards, and deduplicated basic media agents.
@@ -154,16 +155,22 @@ Notes:
 
 ### 3. Start chatting
 
-If you already ran `pip install -e .`, you can use the command directly:
+Web Chat is recommended for most creative workflows because it has optimized progress and artifact previews:
 
 ```bash
-creative-claw chat cli
+creative-claw chat web
 ```
 
 If you have not installed the console script yet, use the module entrypoint:
 
 ```bash
-python -m src.creative_claw_cli chat cli
+python -m src.creative_claw_cli chat web
+```
+
+If you already ran `pip install -e .`, you can also use CLI Chat directly:
+
+```bash
+creative-claw chat cli
 ```
 
 You can also send a single request directly:
@@ -254,8 +261,8 @@ The main LLM orchestrator can call these tool groups directly:
 
 CreativeClaw currently supports:
 
-- **CLI Chat**: the easiest way to get started
-- **Local Web Chat**: browser-based chat with realtime progress and artifact previews
+- **Local Web Chat (recommended)**: browser-based chat with optimized realtime progress, Markdown, media, PDF, and PPT previews
+- **CLI Chat**: lightweight command-line chat for quick calls and automation
 - **Telegram**: chat in Telegram
 - **Feishu**: chat in Feishu
 
