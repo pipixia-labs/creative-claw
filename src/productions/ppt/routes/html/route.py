@@ -33,6 +33,7 @@ from src.productions.ppt.schemas import (
     HtmlRouteBuildPackage,
     HtmlTemplatePackage,
 )
+from src.productions.ppt.routes.html.html_to_pptx import convert_html_pages_to_pptx
 from src.productions.ppt.templates.html_registry import load_html_template_package
 from src.runtime.tool_context_artifact_service import ToolContextArtifactService
 from src.runtime.workspace import resolve_workspace_path, workspace_relative_path
@@ -85,6 +86,7 @@ class HtmlPageGenerationResult:
 
     html_path: Path
     preview_paths: list[Path]
+    html_pages: list[str] = field(default_factory=list)
     generation_mode: str = "deterministic_renderer"
     warnings: list[str] = field(default_factory=list)
     stage: str = "page_generation"
@@ -96,6 +98,8 @@ class HtmlPptxOutputResult:
 
     pptx_path: Path
     pptx_strategy: str
+    warnings: list[str] = field(default_factory=list)
+    conversion_report: dict[str, Any] = field(default_factory=dict)
     stage: str = "pptx_output"
 
 
@@ -266,6 +270,7 @@ def generate_html_pages(
     return HtmlPageGenerationResult(
         html_path=paths.html_path,
         preview_paths=preview_paths,
+        html_pages=[_render_html_slide(page, template) for page in content_plan.pages],
     )
 
 
@@ -309,6 +314,7 @@ async def generate_html_pages_with_agent(
         return HtmlPageGenerationResult(
             html_path=paths.html_path,
             preview_paths=preview_paths,
+            html_pages=[page.html_fragment for page in page_fragments],
             generation_mode="llm_agent_html",
             warnings=warnings,
         )
@@ -332,16 +338,50 @@ def export_html_pptx(
     paths: HtmlRoutePaths,
 ) -> HtmlPptxOutputResult:
     """Export PPTX from generated HTML-route pages."""
-    if page_generation.generation_mode == "llm_agent_html":
+    warnings: list[str] = []
+    if page_generation.generation_mode == "llm_agent_html" or template.pptx_strategy == "html_to_pptx":
+        conversion = convert_html_pages_to_pptx(
+            html_pages=page_generation.html_pages,
+            pptx_path=paths.pptx_path,
+            template=template,
+        )
+        if conversion.ok:
+            return HtmlPptxOutputResult(
+                pptx_path=paths.pptx_path,
+                pptx_strategy=conversion.strategy,
+                warnings=conversion.warnings,
+                conversion_report=_build_html_to_pptx_conversion_report(
+                    conversion,
+                    page_count=len(content_plan.pages),
+                    fallback_used=False,
+                ),
+            )
+        warnings.extend(
+            [
+                "HTML-to-PPTX conversion failed; screenshot PPTX fallback was used.",
+                *conversion.warnings,
+                *conversion.errors,
+            ]
+        )
         _export_previews_to_pptx(
             page_generation.preview_paths,
             paths.pptx_path,
             aspect_ratio=template.aspect_ratio,
         )
         pptx_strategy = "screenshot"
+        conversion_report = _build_html_to_pptx_conversion_report(
+            conversion,
+            page_count=len(content_plan.pages),
+            fallback_used=True,
+        )
     elif template.pptx_strategy == "native_editable":
         _export_native_pptx(content_plan, paths.pptx_path, template)
         pptx_strategy = template.pptx_strategy
+        conversion_report = _build_non_html_to_pptx_conversion_report(
+            engine="native_editable_renderer",
+            strategy=pptx_strategy,
+            page_count=len(content_plan.pages),
+        )
     else:
         _export_previews_to_pptx(
             page_generation.preview_paths,
@@ -349,9 +389,16 @@ def export_html_pptx(
             aspect_ratio=template.aspect_ratio,
         )
         pptx_strategy = template.pptx_strategy
+        conversion_report = _build_non_html_to_pptx_conversion_report(
+            engine="screenshot_renderer",
+            strategy=pptx_strategy,
+            page_count=len(content_plan.pages),
+        )
     return HtmlPptxOutputResult(
         pptx_path=paths.pptx_path,
         pptx_strategy=pptx_strategy,
+        warnings=warnings,
+        conversion_report=conversion_report,
     )
 
 
@@ -373,6 +420,7 @@ def deliver_html_route_quality(
     )
     quality_report["route_stages"] = list(HTML_ROUTE_STAGE_SEQUENCE)
     quality_report["delivery_stage"] = HTML_DELIVERY_STAGE
+    quality_report["pptx_conversion"] = pptx_output.conversion_report
     paths.quality_report_path.write_text(
         json.dumps(quality_report, ensure_ascii=False, indent=2),
         encoding="utf-8",
@@ -389,14 +437,16 @@ def deliver_html_route_quality(
         else "system_template",
         "page_generation_executor": page_generation.generation_mode,
         "pptx_strategy": pptx_output.pptx_strategy,
+        "pptx_warnings": pptx_output.warnings,
+        "pptx_conversion": pptx_output.conversion_report,
         "slide_count": len(content_plan.pages),
         "html_deck_path": workspace_relative_path(page_generation.html_path),
         "pptx_path": workspace_relative_path(pptx_output.pptx_path),
         "preview_count": len(page_generation.preview_paths),
     }
     paths.build_log_path.write_text(json.dumps(build_log, ensure_ascii=False, indent=2), encoding="utf-8")
-    warnings = []
-    if template.pptx_strategy == "screenshot":
+    warnings = [*pptx_output.warnings]
+    if pptx_output.pptx_strategy == "screenshot" and template.editability_notes:
         warnings.append(template.editability_notes)
     return HtmlQualityDeliveryResult(
         quality_report_path=paths.quality_report_path,
@@ -404,6 +454,91 @@ def deliver_html_route_quality(
         quality_report=quality_report,
         warnings=warnings,
     )
+
+
+def _build_html_to_pptx_conversion_report(
+    conversion: Any,
+    *,
+    page_count: int,
+    fallback_used: bool,
+) -> dict[str, Any]:
+    """Build a user-visible page-level report for HTML-to-PPTX conversion."""
+    findings = list((conversion.preflight_report or {}).get("findings") or [])
+    findings_by_slide: dict[int, list[dict[str, Any]]] = {}
+    for finding in findings:
+        try:
+            slide_number = int(finding.get("slide_number") or 0)
+        except (TypeError, ValueError):
+            slide_number = 0
+        if slide_number > 0:
+            findings_by_slide.setdefault(slide_number, []).append(dict(finding))
+
+    page_status = "screenshot_fallback" if fallback_used else "html_to_pptx"
+    editable_level = "low" if fallback_used else "high"
+    pages = []
+    for slide_number in range(1, page_count + 1):
+        slide_findings = findings_by_slide.get(slide_number, [])
+        pages.append(
+            {
+                "slide_number": slide_number,
+                "status": page_status,
+                "editable_level": editable_level,
+                "warnings": [
+                    finding.get("message", "")
+                    for finding in slide_findings
+                    if finding.get("severity") == "warning"
+                ],
+                "errors": [
+                    finding.get("message", "")
+                    for finding in slide_findings
+                    if finding.get("severity") == "error"
+                ],
+            }
+        )
+
+    return {
+        "engine": getattr(conversion, "engine", "python_structured_html"),
+        "requested_strategy": "html_to_pptx",
+        "final_strategy": "screenshot" if fallback_used else getattr(conversion, "strategy", "html_to_pptx"),
+        "ok": bool(getattr(conversion, "ok", False)) and not fallback_used,
+        "fallback_used": fallback_used,
+        "editable_level": editable_level,
+        "warnings": list(getattr(conversion, "warnings", []) or []),
+        "errors": list(getattr(conversion, "errors", []) or []),
+        "preflight_report": conversion.preflight_report or {},
+        "pages": pages,
+    }
+
+
+def _build_non_html_to_pptx_conversion_report(
+    *,
+    engine: str,
+    strategy: str,
+    page_count: int,
+) -> dict[str, Any]:
+    """Build a conversion report for non-HTML-to-PPTX output strategies."""
+    editable_level = "high" if strategy == "native_editable" else "low"
+    return {
+        "engine": engine,
+        "requested_strategy": strategy,
+        "final_strategy": strategy,
+        "ok": True,
+        "fallback_used": False,
+        "editable_level": editable_level,
+        "warnings": [],
+        "errors": [],
+        "preflight_report": {},
+        "pages": [
+            {
+                "slide_number": slide_number,
+                "status": strategy,
+                "editable_level": editable_level,
+                "warnings": [],
+                "errors": [],
+            }
+            for slide_number in range(1, page_count + 1)
+        ],
+    }
 
 
 def build_html_page_generation_agent() -> LlmAgent:
@@ -416,8 +551,13 @@ def build_html_page_generation_agent() -> LlmAgent:
             "You receive a complete DeckContentPlan JSON and must create one HTML fragment per slide.\n"
             "Do not use a fixed template, fixed card grid, or shared business layout. Choose each page's "
             "composition directly from the page content, audience, page_type, and available assets.\n"
+            "Keep visual style and layout language consistent across the whole deck. All `chapter_start` "
+            "slides must use a consistent style and layout language with each other.\n"
             "Each fragment must be a single <section> for one slide. Inline CSS is allowed. Do not use "
             "external CSS, external JS, remote images, markdown, JSON, or code fences.\n"
+            "For PPTX conversion compatibility, put readable text in h1-h6, p, li, or simple text "
+            "elements, give important images explicit size and placement, and avoid relying on CSS "
+            "gradients, canvas, svg-only content, or remote assets.\n"
             "Fit each slide into the declared viewport. Avoid text overlap, tiny unreadable text, and image/text collisions.\n"
             "Use ready asset html_src values when useful. Keep image text out of generated images.\n"
             "When all slides are ready, call save_html_route_pages with the full ordered page list."

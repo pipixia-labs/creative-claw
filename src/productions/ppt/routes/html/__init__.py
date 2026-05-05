@@ -1,5 +1,9 @@
 """HTML route for the PPT product line."""
 
+from src.productions.ppt.routes.html.html_to_pptx import (
+    HtmlToPptxConversionResult,
+    convert_html_pages_to_pptx,
+)
 from src.productions.ppt.routes.html.route import (
     HTML_DELIVERY_STAGE,
     HTML_PAGE_GENERATION_CONTENT_PLAN_KEY,
@@ -27,6 +31,7 @@ __all__ = [
     "HTML_PAGE_GENERATION_CONTENT_PLAN_KEY",
     "HTML_PAGE_GENERATION_PAGES_KEY",
     "HTML_ROUTE_STAGE_SEQUENCE",
+    "HtmlToPptxConversionResult",
     "HtmlPageGenerationResult",
     "HtmlPptxOutputResult",
     "HtmlQualityDeliveryResult",
@@ -35,6 +40,7 @@ __all__ = [
     "build_html_page_generation_agent",
     "build_html_route",
     "build_html_route_with_agent",
+    "convert_html_pages_to_pptx",
     "deliver_html_route_quality",
     "export_html_pptx",
     "generate_html_pages",

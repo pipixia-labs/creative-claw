@@ -436,7 +436,7 @@ Visual:
 
         self.assertEqual(requirement.slide_count_policy.target, 3)
         self.assertEqual(len(plan.pages), 3)
-        self.assertEqual([page.page_type for page in plan.pages], ["word_card", "word_card", "word_card"])
+        self.assertEqual([page.page_type for page in plan.pages], ["content", "content", "content"])
         self.assertEqual([page.title for page in plan.pages], ["Cat 猫", "Dog 狗", "Duck 鸭子"])
         self.assertNotIn("cover", {page.page_type for page in plan.pages})
         self.assertNotIn("toc", {page.page_type for page in plan.pages})
@@ -801,6 +801,14 @@ Visual:
         self.assertEqual(resolved_asset["status"], "ready")
         self.assertEqual(resolved_asset["path"], image_path)
         self.assertEqual(tool_context.state["ppt_resolved_asset_manifest"]["ready_asset_count"], 1)
+        progress_events = list(tool_context.state.get("orchestration_events") or [])
+        image_generation_events = [
+            event for event in progress_events if event.get("title") == "PPT Image Generation"
+        ]
+        self.assertEqual(len(image_generation_events), 2)
+        self.assertIn("Status: started", image_generation_events[0]["detail"])
+        self.assertIn("Status: success", image_generation_events[1]["detail"])
+        self.assertIn("slide_04_ai_visual", image_generation_events[1]["detail"])
 
         pptx_path = resolve_workspace_path(result["delivery_manifest"]["final_pptx"])
         picture_count = sum(
@@ -850,7 +858,7 @@ Visual:
 
         ai_pages = [page for page in pages if page["asset_source_preference"] == "ai"]
         self.assertGreaterEqual(len(ai_pages), 1)
-        self.assertTrue(all(page["page_type"] == "word_card" for page in pages))
+        self.assertTrue(all(page["page_type"] == "content" for page in pages))
         self.assertTrue(all(page["asset_source_preference"] == "ai" for page in pages))
 
         ready_assets = [
@@ -893,21 +901,21 @@ Visual:
             title="Demo deck",
             core_narrative="A concise direct narrative.",
             pages=[
-                _page(1, "word_card"),
-                _page(2, "content"),
+                _page(1, "content"),
+                _page(2, "quote"),
                 _page(3, "activity"),
             ],
         )
 
         self.assertEqual(len(plan.pages), 3)
-        self.assertEqual({page.page_type for page in plan.pages}, {"word_card", "content", "activity"})
+        self.assertEqual({page.page_type for page in plan.pages}, {"content", "quote", "activity"})
 
         with self.assertRaisesRegex(ValueError, "duplicate slide numbers"):
             DeckContentPlan(
                 title="Broken deck",
                 core_narrative="Duplicate slide numbers.",
                 pages=[
-                    _page(1, "word_card"),
+                    _page(1, "content"),
                     _page(1, "content"),
                 ],
             )

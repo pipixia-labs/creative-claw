@@ -33,7 +33,7 @@ from src.runtime.expert_dispatcher import dispatch_expert_call
 from src.runtime.expert_registry import build_expert_contract_summary
 from src.runtime.step_events import (
     CreativeClawStepEventPlugin,
-    publish_orchestration_step_event,
+    append_orchestration_step_event,
     step_event_streaming_active,
 )
 from src.runtime.tool_display import format_tool_args, stringify_value, summarize_tool_result
@@ -679,27 +679,13 @@ Expert parameter contracts:
         session_id: str = "",
     ) -> None:
         """Append one structured orchestrator step event into session state."""
-        normalized_title = title.strip() or "In Progress"
-        normalized_detail = detail.strip() or "Processing the current step."
-        normalized_stage = stage.strip() or "orchestrating"
-        events = list(state.get("orchestration_events", []))
-        events.append(
-            {
-                "title": normalized_title,
-                "detail": normalized_detail,
-                "stage": normalized_stage,
-            }
+        append_orchestration_step_event(
+            state,
+            title=title,
+            detail=detail,
+            stage=stage,
+            session_id=session_id,
         )
-        state["orchestration_events"] = events
-        resolved_session_id = session_id.strip() or str(state.get("sid", "")).strip()
-        if resolved_session_id:
-            publish_orchestration_step_event(
-                session_id=resolved_session_id,
-                turn_index=int(state.get("turn_index", 0) or 0),
-                title=normalized_title,
-                detail=normalized_detail,
-                stage=normalized_stage,
-            )
 
     @staticmethod
     def _stringify_value(value: Any, max_chars: int = 180) -> str:

@@ -25,7 +25,6 @@ DeckPageType = Literal[
     "chapter_content",
     "ending",
     "content",
-    "word_card",
     "activity",
     "quote",
     "stat",
@@ -340,7 +339,7 @@ class HtmlTemplatePackage(BaseModel):
     viewport_width: int = Field(default=1280, ge=1)
     viewport_height: int = Field(default=720, ge=1)
     page_types: dict[str, str] = Field(default_factory=dict)
-    pptx_strategy: Literal["native_editable", "screenshot"] = "native_editable"
+    pptx_strategy: Literal["native_editable", "html_to_pptx", "screenshot"] = "native_editable"
     editability_notes: str = ""
 
 

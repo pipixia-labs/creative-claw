@@ -27,6 +27,7 @@ from src.productions.ppt.schemas import (
     SourceUnderstanding,
 )
 from src.runtime.expert_dispatcher import dispatch_expert_call
+from src.runtime.step_events import append_orchestration_step_event
 from src.runtime.tool_context_artifact_service import ToolContextArtifactService
 from src.runtime.workspace import resolve_workspace_path
 
@@ -82,7 +83,7 @@ class PptContentPlanner:
                 "actual audience-facing teaching/content pages unless suitable material_figure/user_upload assets already exist. "
                 "For young children, asset prompts must be safe, colorful, simple, and easy to recognize.\n"
                 "For kindergarten English word decks, honor explicitly requested words and exact slide count first. "
-                "For example, `3页，分别讲 猫、狗、鸭子` means exactly three word_card slides: Cat 猫, Dog 狗, Duck 鸭子. "
+                "For example, `3页，分别讲 猫、狗、鸭子` means exactly three content slides: Cat 猫, Dog 狗, Duck 鸭子. "
                 "Never use internal placeholders like Context, Insight, Next Steps, No source file, "
                 "or ContentPlanningAgent in slide titles or slide body text.\n"
                 "Keep slide content concise, material-backed, and independent from HTML/SVG/XML templates."
@@ -257,6 +258,89 @@ class PptContentPlanner:
                 return asset.model_copy(update={"status": "ready"})
             return _mark_asset_failed(asset, f"Planned asset path is missing or unsupported: {asset.path}")
 
+        if asset.source_kind in {"search", "image_generation"}:
+            return await self._resolve_visual_asset_with_progress(
+                asset,
+                page=page,
+                requirement=requirement,
+                tool_context=tool_context,
+                expert_agents=expert_agents,
+                app_name=app_name,
+                artifact_service=artifact_service,
+                asset_resolver=asset_resolver,
+            )
+
+        if asset.status == "pending":
+            return _mark_asset_failed(asset, f"No resolver was available for asset source_kind `{asset.source_kind}`.")
+        return asset
+
+    async def _resolve_visual_asset_with_progress(
+        self,
+        asset: DeckPageAsset,
+        *,
+        page: DeckPagePlan,
+        requirement: ConfirmedRequirement,
+        tool_context: ToolContext,
+        expert_agents: dict[str, BaseAgent],
+        app_name: str,
+        artifact_service: BaseArtifactService | None,
+        asset_resolver: Any | None,
+    ) -> DeckPageAsset:
+        """Resolve one search/generated visual asset while recording user-visible progress."""
+        _append_asset_resolution_progress(
+            tool_context,
+            asset=asset,
+            page=page,
+            status="started",
+        )
+        try:
+            resolved_asset = await self._resolve_visual_asset(
+                asset,
+                page=page,
+                requirement=requirement,
+                tool_context=tool_context,
+                expert_agents=expert_agents,
+                app_name=app_name,
+                artifact_service=artifact_service,
+                asset_resolver=asset_resolver,
+            )
+        except Exception as exc:
+            _append_asset_resolution_progress(
+                tool_context,
+                asset=asset,
+                page=page,
+                status="error",
+                result_text=str(exc).strip(),
+            )
+            raise
+
+        result_text = (
+            f"Ready: {resolved_asset.path}"
+            if resolved_asset.status == "ready" and resolved_asset.path
+            else "; ".join(resolved_asset.warnings) or f"Asset status: {resolved_asset.status}"
+        )
+        _append_asset_resolution_progress(
+            tool_context,
+            asset=resolved_asset,
+            page=page,
+            status="success" if resolved_asset.status == "ready" else "error",
+            result_text=result_text,
+        )
+        return resolved_asset
+
+    async def _resolve_visual_asset(
+        self,
+        asset: DeckPageAsset,
+        *,
+        page: DeckPagePlan,
+        requirement: ConfirmedRequirement,
+        tool_context: ToolContext,
+        expert_agents: dict[str, BaseAgent],
+        app_name: str,
+        artifact_service: BaseArtifactService | None,
+        asset_resolver: Any | None,
+    ) -> DeckPageAsset:
+        """Resolve one pending search/generated visual asset."""
         if asset_resolver is not None and asset.source_kind in {"search", "image_generation"}:
             resolved = await _call_asset_resolver(
                 asset_resolver,
@@ -294,8 +378,6 @@ class PptContentPlanner:
                 app_name=app_name,
                 artifact_service=artifact_service,
             )
-        if asset.status == "pending":
-            return _mark_asset_failed(asset, f"No resolver was available for asset source_kind `{asset.source_kind}`.")
         return asset
 
     async def _resolve_asset_with_expert(
@@ -616,7 +698,7 @@ def _validate_plan_matches_requirement(plan: DeckContentPlan, *, requirement: Co
         if not _plan_matches_kindergarten_english_requirement(plan, requirement=requirement):
             raise ValueError(
                 "DeckContentPlan does not match the kindergarten English-word task; "
-                "expected concrete child-friendly English word-card pages."
+                "expected concrete child-friendly English vocabulary pages."
             )
 
 
@@ -625,7 +707,7 @@ def _plan_matches_kindergarten_english_requirement(
     *,
     requirement: ConfirmedRequirement,
 ) -> bool:
-    """Return whether a plan looks like a child-friendly English word-card deck."""
+    """Return whether a plan looks like a child-friendly English vocabulary deck."""
     plan_text = _deck_plan_text(plan).lower()
     requested_words = _extract_requested_kindergarten_word_specs(requirement)
     if requested_words:
@@ -653,7 +735,7 @@ def _plan_matches_kindergarten_english_requirement(
     business_markers = ("目标对齐", "沟通稿", "商务", "协作安排", "行动确认", "团队需要")
     matched_words = sum(1 for marker in word_markers if marker in plan_text)
     has_child_marker = any(marker in plan_text for marker in child_markers)
-    has_english_word_marker = any(marker in plan_text for marker in ("英语单词", "english word", "word-card", "word card"))
+    has_english_word_marker = any(marker in plan_text for marker in ("英语单词", "english word", "vocabulary"))
     has_business_contamination = any(marker in plan_text for marker in business_markers)
     return matched_words >= 3 and (has_child_marker or has_english_word_marker) and not has_business_contamination
 
@@ -1051,10 +1133,8 @@ def _normalize_page_type(value: str) -> str:
         "divider": "chapter_start",
         "main": "content",
         "body": "content",
-        "word": "word_card",
-        "wordcard": "word_card",
-        "flashcard": "word_card",
-        "word_flashcard": "word_card",
+        "word": "content",
+        "flashcard": "content",
         "game": "activity",
         "exercise": "activity",
         "practice": "activity",
@@ -1070,7 +1150,6 @@ def _normalize_page_type(value: str) -> str:
         "chapter_content",
         "ending",
         "content",
-        "word_card",
         "activity",
         "quote",
         "stat",
@@ -1100,7 +1179,7 @@ def _should_use_kindergarten_english_plan(
     requirement: ConfirmedRequirement,
     understanding: SourceUnderstanding,
 ) -> bool:
-    """Return whether the generic no-source fallback should become a word-card deck."""
+    """Return whether the generic no-source fallback should become an English vocabulary deck."""
     if understanding.markdown_sources or understanding.figures:
         return False
     text = " ".join(
@@ -1183,7 +1262,7 @@ _KINDERGARTEN_WORD_ALIASES: dict[str, tuple[str, str]] = {
 
 
 def _select_kindergarten_word_specs(requirement: ConfirmedRequirement) -> list[dict[str, str]]:
-    """Select word-card specs, giving explicit user vocabulary highest priority."""
+    """Select vocabulary specs, giving explicit user vocabulary highest priority."""
     requested_words = _extract_requested_kindergarten_word_specs(requirement)
     slide_count = _select_slide_count(requirement)
     selected = list(requested_words)
@@ -1237,7 +1316,7 @@ def _extract_requested_kindergarten_word_specs(requirement: ConfirmedRequirement
 
 
 def _word_spec_from_token(token: str) -> dict[str, str] | None:
-    """Map one user vocabulary token to an English/Chinese word-card spec."""
+    """Map one user vocabulary token to an English/Chinese vocabulary spec."""
     clean_token = str(token or "").strip(" ：:，。,.；;、（）()[]【】\"'“”‘’")
     if not clean_token:
         return None
@@ -1284,11 +1363,11 @@ Narrative: 用可爱的图片帮助小朋友一页学会一个英语单词。
 
 
 def _build_kindergarten_word_slide_markdown(index: int, word_spec: dict[str, str]) -> str:
-    """Build one word-card slide in the Markdown planning contract."""
+    """Build one English vocabulary slide in the Markdown planning contract."""
     english = word_spec["english"]
     chinese = word_spec["chinese"]
     prompt = word_spec["prompt"]
-    return f"""## Slide {index} | word_card | {english} {chinese}
+    return f"""## Slide {index} | content | {english} {chinese}
 Purpose: 用图片和跟读帮助小朋友认识 {english}。
 Takeaway: {english} 是{chinese}。
 Content:
@@ -1315,7 +1394,7 @@ def _asset_source_preference_for_page(page_type: str, source_preference: str) ->
     """Limit generated visuals to pages where they add value."""
     if source_preference != "ai":
         return source_preference
-    if page_type in {"cover", "chapter_start", "chapter_content", "content", "word_card", "activity"}:
+    if page_type in {"cover", "chapter_start", "chapter_content", "content", "activity"}:
         return "ai"
     return "placeholder"
 
@@ -1781,6 +1860,46 @@ def _build_child_runner(
     else:
         runner_kwargs["agent"] = agent
     return Runner(**runner_kwargs)
+
+
+def _append_asset_resolution_progress(
+    tool_context: ToolContext,
+    *,
+    asset: DeckPageAsset,
+    page: DeckPagePlan,
+    status: str,
+    result_text: str = "",
+) -> None:
+    """Record user-visible progress for PPT visual asset resolution."""
+    source_kind = str(asset.source_kind or "").strip()
+    title = "PPT Image Search" if source_kind == "search" else "PPT Image Generation"
+    prompt_or_query = asset.search_query if source_kind == "search" else asset.prompt
+    prompt_or_query = prompt_or_query or asset.description or page.asset_intent or page.title
+    args = [
+        f"slide={page.slide_number}",
+        f"asset_id={asset.asset_id}",
+        f"role={asset.role}",
+        f"source={source_kind}",
+    ]
+    if prompt_or_query:
+        args.append(f"prompt={_clip_progress_text(prompt_or_query, max_chars=140)}")
+    lines = [f"Status: {status}", f"Args: {'; '.join(args)}"]
+    if result_text:
+        lines.append(f"Result: {_clip_progress_text(result_text, max_chars=180)}")
+    append_orchestration_step_event(
+        tool_context.state,
+        title=title,
+        detail="\n".join(lines),
+        stage="research" if source_kind == "search" else "image_processing",
+    )
+
+
+def _clip_progress_text(text: str, *, max_chars: int) -> str:
+    """Trim long progress details so progress cards remain readable."""
+    clean_text = " ".join(str(text or "").split())
+    if len(clean_text) <= max_chars:
+        return clean_text
+    return f"{clean_text[: max(0, max_chars - 3)].rstrip()}..."
 
 
 def _append_planning_warning(state: Any, warning: str) -> None:

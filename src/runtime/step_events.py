@@ -182,6 +182,39 @@ def publish_orchestration_step_event(
     )
 
 
+def append_orchestration_step_event(
+    state: Any,
+    *,
+    title: str,
+    detail: str,
+    stage: str = "orchestrating",
+    session_id: str = "",
+) -> None:
+    """Append one progress event to session state and publish it when realtime streaming is active."""
+    normalized_title = str(title or "").strip() or "In Progress"
+    normalized_detail = str(detail or "").strip() or "Processing the current step."
+    normalized_stage = str(stage or "").strip() or "orchestrating"
+    events = list(state.get("orchestration_events", []) or [])
+    events.append(
+        {
+            "title": normalized_title,
+            "detail": normalized_detail,
+            "stage": normalized_stage,
+        }
+    )
+    state["orchestration_events"] = events
+    resolved_session_id = str(session_id or "").strip() or str(state.get("sid", "") or "").strip()
+    if not resolved_session_id:
+        return
+    publish_orchestration_step_event(
+        session_id=resolved_session_id,
+        turn_index=_normalize_turn_index(state.get("turn_index")),
+        title=normalized_title,
+        detail=normalized_detail,
+        stage=normalized_stage,
+    )
+
+
 class CreativeClawStepEventPlugin(BasePlugin):
     """Publish builtin tool lifecycle events in realtime during ADK execution."""
 

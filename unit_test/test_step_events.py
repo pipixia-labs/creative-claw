@@ -4,6 +4,7 @@ from types import SimpleNamespace
 
 from src.runtime.step_events import (
     CreativeClawStepEventPlugin,
+    append_orchestration_step_event,
     configure_step_event_publisher,
     publish_orchestration_step_event,
     reset_step_event_history,
@@ -90,6 +91,25 @@ class StepEventPluginTests(unittest.IsolatedAsyncioTestCase):
         self.assertEqual(len(self.messages), 1)
         self.assertEqual(self.messages[0].metadata["stage_title"], "Call Expert Agent")
         self.assertIn("Calling `ImageGenerationAgent`", self.messages[0].text)
+
+    async def test_append_orchestration_step_event_updates_state_and_publishes(self) -> None:
+        state = {"sid": "session-append", "turn_index": 3, "orchestration_events": []}
+
+        with route_context("cli", "chat-append"):
+            reset_step_event_history(session_id="session-append", turn_index=3)
+            append_orchestration_step_event(
+                state,
+                title="PPT Image Generation",
+                detail="Status: started\nArgs: slide=1; asset_id=slide_01_visual",
+                stage="image_processing",
+            )
+            await asyncio.sleep(0)
+
+        self.assertEqual(state["orchestration_events"][0]["title"], "PPT Image Generation")
+        self.assertEqual(len(self.messages), 1)
+        self.assertEqual(self.messages[0].metadata["stage_title"], "PPT Image Generation")
+        self.assertEqual(self.messages[0].metadata["turn_index"], 3)
+        self.assertIn("slide_01_visual", self.messages[0].text)
 
     async def test_orchestration_event_history_is_scoped_by_turn_index(self) -> None:
         with route_context("cli", "chat-3"):
