@@ -1,4 +1,5 @@
 import asyncio
+import base64
 import contextlib
 import json
 import unittest
@@ -54,7 +55,16 @@ class WebChannelTests(unittest.IsolatedAsyncioTestCase):
         self.assertIn('data-preview-tab="tldraw"', body)
         self.assertIn('data-preview-tab="html"', body)
         self.assertIn('data-preview-tab="ppt"', body)
+        self.assertIn("Image / Video", body)
+        self.assertIn("Design", body)
+        self.assertIn("No Design preview", body)
+        self.assertNotIn("No HTML preview", body)
         self.assertIn('aria-label="Send message"', body)
+        self.assertIn('aria-label="Attach files"', body)
+        self.assertIn('id="session-history"', body)
+        self.assertIn('id="session-popover"', body)
+        self.assertIn('id="file-input"', body)
+        self.assertNotIn("Describe the image, prompt", body)
 
     async def test_web_channel_serves_pptx_preview_page(self) -> None:
         generated_file = generated_root() / f"web_channel_{uuid.uuid4().hex[:8]}.pptx"
@@ -135,6 +145,56 @@ class WebChannelTests(unittest.IsolatedAsyncioTestCase):
         finally:
             with contextlib.suppress(FileNotFoundError):
                 generated_file.unlink()
+
+    async def test_web_channel_accepts_chunked_file_uploads(self) -> None:
+        upload_id = f"upload-{uuid.uuid4().hex[:8]}"
+        body = b"hello uploaded file"
+        uploaded_path: Path | None = None
+
+        async with websockets.connect(f"ws://127.0.0.1:{self.channel._port}/ws?session_id=upload-session") as websocket:
+            ready = json.loads(await asyncio.wait_for(websocket.recv(), timeout=2))
+            self.assertEqual(ready["type"], "ready")
+
+            await websocket.send(
+                json.dumps(
+                    {
+                        "type": "upload_start",
+                        "uploadId": upload_id,
+                        "name": "note.txt",
+                        "size": len(body),
+                        "mimeType": "text/plain",
+                    }
+                )
+            )
+            started = json.loads(await asyncio.wait_for(websocket.recv(), timeout=2))
+            self.assertEqual(started["type"], "upload_started")
+            self.assertEqual(started["uploadId"], upload_id)
+
+            await websocket.send(
+                json.dumps(
+                    {
+                        "type": "upload_chunk",
+                        "uploadId": upload_id,
+                        "data": base64.b64encode(body).decode("ascii"),
+                    }
+                )
+            )
+            chunk = json.loads(await asyncio.wait_for(websocket.recv(), timeout=2))
+            self.assertEqual(chunk["type"], "upload_chunk_received")
+            self.assertEqual(chunk["received"], len(body))
+
+            await websocket.send(json.dumps({"type": "upload_finish", "uploadId": upload_id}))
+            complete = json.loads(await asyncio.wait_for(websocket.recv(), timeout=2))
+            self.assertEqual(complete["type"], "upload_complete")
+            self.assertEqual(complete["name"], "note.txt")
+            uploaded_path = Path(complete["path"])
+            self.assertEqual(uploaded_path.read_bytes(), body)
+
+        if uploaded_path is not None:
+            with contextlib.suppress(FileNotFoundError):
+                uploaded_path.unlink()
+            with contextlib.suppress(OSError):
+                uploaded_path.parent.rmdir()
 
     async def _consume_inbound(self) -> InboundMessage:
         for _ in range(20):

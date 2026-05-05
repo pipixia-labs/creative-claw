@@ -8,6 +8,9 @@ import contextlib
 import html
 import json
 import mimetypes
+import re
+import tempfile
+import uuid
 import webbrowser
 from collections.abc import Awaitable, Callable
 from dataclasses import dataclass
@@ -33,6 +36,8 @@ from .events import OutboundMessage
 STATIC_PACKAGE = "src.webchat.static"
 INDEX_FILE = "index.html"
 PPTX_PREVIEW_ERROR_TITLE = "PPTX preview unavailable"
+UPLOAD_SIZE_LIMIT = 100 * 1024 * 1024
+UPLOAD_ROOT = Path(tempfile.gettempdir()) / "creative-claw-web-uploads"
 
 
 @dataclass(slots=True)
@@ -42,6 +47,17 @@ class _ClientConnection:
     websocket: WebSocketServerProtocol
     session_id: str
     client_id: str
+
+
+@dataclass(slots=True)
+class _PendingUpload:
+    """One file upload currently being streamed from a browser client."""
+
+    path: Path
+    original_name: str
+    mime_type: str
+    expected_size: int
+    received_size: int = 0
 
 
 def _guess_content_type(filename: str) -> str:
@@ -70,6 +86,13 @@ def _normalize_workspace_relative_path(raw_path: str) -> str | None:
         return None
     normalized = pure.as_posix().strip()
     return normalized or None
+
+
+def _safe_upload_segment(value: str, *, fallback: str) -> str:
+    """Return one filesystem-safe upload path segment."""
+    cleaned = re.sub(r"[^A-Za-z0-9._-]+", "_", value.strip())
+    cleaned = cleaned.strip("._")
+    return cleaned[:120] or fallback
 
 
 def _html_response(body: str, *, status: HTTPStatus = HTTPStatus.OK) -> tuple[HTTPStatus, list[tuple[str, str]], bytes]:
@@ -241,17 +264,6 @@ def _render_pptx_preview_html(pptx_path: Path) -> str:
         color: var(--ink);
         font-family: Avenir Next, Segoe UI, sans-serif;
       }}
-      header {{
-        max-width: 1180px;
-        margin: 0 auto 18px;
-      }}
-      h1 {{
-        margin: 0;
-        overflow: hidden;
-        font-size: 18px;
-        text-overflow: ellipsis;
-        white-space: nowrap;
-      }}
       .deck {{
         max-width: 1180px;
         margin: 0 auto;
@@ -314,7 +326,6 @@ def _render_pptx_preview_html(pptx_path: Path) -> str:
     </style>
   </head>
   <body>
-    <header><h1>{title}</h1></header>
     <main class="deck">{slides}</main>
   </body>
 </html>"""
@@ -341,6 +352,7 @@ class WebChannel(BaseChannel):
         self._client_seq = 0
         self._host = config.host
         self._port = config.port
+        self._pending_uploads: dict[str, _PendingUpload] = {}
 
     @property
     def url(self) -> str:
@@ -382,6 +394,7 @@ class WebChannel(BaseChannel):
             with contextlib.suppress(Exception):
                 await conn.websocket.close(code=1001, reason="server shutdown")
         self._sessions.clear()
+        self._cleanup_pending_uploads()
 
         if self._server is not None:
             self._server.close()
@@ -520,7 +533,21 @@ class WebChannel(BaseChannel):
             )
             return
 
-        if payload.get("type") != "chat":
+        event_type = payload.get("type")
+        if event_type == "upload_start":
+            await self._handle_upload_start(conn, payload)
+            return
+        if event_type == "upload_chunk":
+            await self._handle_upload_chunk(conn, payload)
+            return
+        if event_type == "upload_finish":
+            await self._handle_upload_finish(conn, payload)
+            return
+        if event_type == "upload_cancel":
+            await self._handle_upload_cancel(conn, payload)
+            return
+
+        if event_type != "chat":
             await conn.websocket.send(
                 json.dumps({"type": "error", "message": "Unsupported event type"}, ensure_ascii=False)
             )
@@ -542,6 +569,148 @@ class WebChannel(BaseChannel):
                 metadata={"client_id": conn.client_id},
             )
         )
+
+    async def _handle_upload_start(self, conn: _ClientConnection, payload: dict[str, Any]) -> None:
+        """Initialize a streamed browser file upload."""
+        upload_id = str(payload.get("uploadId") or "").strip()
+        original_name = str(payload.get("name") or "attachment").strip()
+        mime_type = str(payload.get("mimeType") or "").strip()
+        try:
+            expected_size = int(payload.get("size") or 0)
+        except (TypeError, ValueError):
+            expected_size = 0
+
+        if not upload_id or expected_size < 0 or expected_size > UPLOAD_SIZE_LIMIT:
+            await self._send_upload_error(conn, upload_id, "Upload is missing an id or exceeds the size limit.")
+            return
+
+        key = self._upload_key(conn, upload_id)
+        self._cleanup_pending_upload(key)
+        safe_session = _safe_upload_segment(conn.session_id, fallback="session")
+        safe_upload_id = _safe_upload_segment(upload_id, fallback=uuid.uuid4().hex)
+        safe_name = _safe_upload_segment(Path(original_name).name, fallback="attachment")
+        upload_dir = UPLOAD_ROOT / safe_session / safe_upload_id
+        upload_dir.mkdir(parents=True, exist_ok=True)
+        upload_path = upload_dir / safe_name
+        upload_path.write_bytes(b"")
+        self._pending_uploads[key] = _PendingUpload(
+            path=upload_path,
+            original_name=original_name,
+            mime_type=mime_type,
+            expected_size=expected_size,
+        )
+        await conn.websocket.send(
+            json.dumps(
+                {
+                    "type": "upload_started",
+                    "uploadId": upload_id,
+                    "name": original_name,
+                    "size": expected_size,
+                },
+                ensure_ascii=False,
+            )
+        )
+
+    async def _handle_upload_chunk(self, conn: _ClientConnection, payload: dict[str, Any]) -> None:
+        """Append one base64 encoded upload chunk to a pending file."""
+        upload_id = str(payload.get("uploadId") or "").strip()
+        key = self._upload_key(conn, upload_id)
+        pending = self._pending_uploads.get(key)
+        if pending is None:
+            await self._send_upload_error(conn, upload_id, "Upload was not started.")
+            return
+
+        try:
+            chunk = base64.b64decode(str(payload.get("data") or ""), validate=True)
+        except Exception:
+            self._cleanup_pending_upload(key)
+            await self._send_upload_error(conn, upload_id, "Upload chunk was not valid base64.")
+            return
+
+        next_size = pending.received_size + len(chunk)
+        if next_size > pending.expected_size or next_size > UPLOAD_SIZE_LIMIT:
+            self._cleanup_pending_upload(key)
+            await self._send_upload_error(conn, upload_id, "Upload exceeded the expected size.")
+            return
+
+        with pending.path.open("ab") as file_obj:
+            file_obj.write(chunk)
+        pending.received_size = next_size
+        await conn.websocket.send(
+            json.dumps(
+                {
+                    "type": "upload_chunk_received",
+                    "uploadId": upload_id,
+                    "received": pending.received_size,
+                },
+                ensure_ascii=False,
+            )
+        )
+
+    async def _handle_upload_finish(self, conn: _ClientConnection, payload: dict[str, Any]) -> None:
+        """Finalize a streamed browser file upload and return the local path."""
+        upload_id = str(payload.get("uploadId") or "").strip()
+        key = self._upload_key(conn, upload_id)
+        pending = self._pending_uploads.pop(key, None)
+        if pending is None:
+            await self._send_upload_error(conn, upload_id, "Upload was not started.")
+            return
+        if pending.received_size != pending.expected_size:
+            self._cleanup_upload_file(pending.path)
+            await self._send_upload_error(conn, upload_id, "Upload finished before all bytes were received.")
+            return
+
+        await conn.websocket.send(
+            json.dumps(
+                {
+                    "type": "upload_complete",
+                    "uploadId": upload_id,
+                    "name": pending.original_name,
+                    "path": str(pending.path),
+                    "size": pending.received_size,
+                    "mimeType": pending.mime_type,
+                },
+                ensure_ascii=False,
+            )
+        )
+
+    async def _handle_upload_cancel(self, conn: _ClientConnection, payload: dict[str, Any]) -> None:
+        """Cancel a pending browser file upload."""
+        upload_id = str(payload.get("uploadId") or "").strip()
+        self._cleanup_pending_upload(self._upload_key(conn, upload_id))
+        await conn.websocket.send(
+            json.dumps({"type": "upload_cancelled", "uploadId": upload_id}, ensure_ascii=False)
+        )
+
+    async def _send_upload_error(self, conn: _ClientConnection, upload_id: str, message: str) -> None:
+        """Send one upload-scoped error to a browser client."""
+        await conn.websocket.send(
+            json.dumps({"type": "upload_error", "uploadId": upload_id, "message": message}, ensure_ascii=False)
+        )
+
+    def _upload_key(self, conn: _ClientConnection, upload_id: str) -> str:
+        """Return the internal key for a client-scoped upload."""
+        return f"{conn.client_id}:{upload_id}"
+
+    def _cleanup_pending_upload(self, key: str) -> None:
+        """Remove one pending upload and its partially written file."""
+        pending = self._pending_uploads.pop(key, None)
+        if pending is not None:
+            self._cleanup_upload_file(pending.path)
+
+    def _cleanup_pending_uploads(self, *, client_id: str | None = None) -> None:
+        """Remove pending upload files, optionally only for one client."""
+        keys = list(self._pending_uploads)
+        for key in keys:
+            if client_id is None or key.startswith(f"{client_id}:"):
+                self._cleanup_pending_upload(key)
+
+    def _cleanup_upload_file(self, path: Path) -> None:
+        """Delete one partial upload file and its empty parent directory."""
+        with contextlib.suppress(FileNotFoundError):
+            path.unlink()
+        with contextlib.suppress(OSError):
+            path.parent.rmdir()
 
     async def _process_request(
         self,
@@ -667,6 +836,7 @@ class WebChannel(BaseChannel):
 
     def _drop_connection(self, conn: _ClientConnection) -> None:
         """Remove one closed browser connection from the session registry."""
+        self._cleanup_pending_uploads(client_id=conn.client_id)
         session_connections = self._sessions.get(conn.session_id)
         if not session_connections:
             return
