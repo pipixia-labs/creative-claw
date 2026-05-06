@@ -147,7 +147,7 @@ def build_html_route(
         template=template_stage.template,
         html_deck_path=workspace_relative_path(page_stage.html_path),
         preview_paths=[workspace_relative_path(path) for path in page_stage.preview_paths],
-        pptx_path=workspace_relative_path(pptx_stage.pptx_path),
+        pptx_path=_workspace_relative_existing_file(pptx_stage.pptx_path),
         quality_report_path=workspace_relative_path(quality_stage.quality_report_path),
         build_log_path=workspace_relative_path(quality_stage.build_log_path),
         warnings=quality_stage.warnings,
@@ -193,7 +193,7 @@ async def build_html_route_with_agent(
         template=template_stage.template,
         html_deck_path=workspace_relative_path(page_stage.html_path),
         preview_paths=[workspace_relative_path(path) for path in page_stage.preview_paths],
-        pptx_path=workspace_relative_path(pptx_stage.pptx_path),
+        pptx_path=_workspace_relative_existing_file(pptx_stage.pptx_path),
         quality_report_path=workspace_relative_path(quality_stage.quality_report_path),
         build_log_path=workspace_relative_path(quality_stage.build_log_path),
         warnings=[*page_stage.warnings, *quality_stage.warnings],
@@ -213,6 +213,11 @@ def prepare_html_route_paths(output_dir: Path) -> HtmlRoutePaths:
         quality_report_path=output_dir / "quality_report.json",
         build_log_path=output_dir / "build_log.json",
     )
+
+
+def _workspace_relative_existing_file(path: Path) -> str:
+    """Return a workspace-relative path only for an existing file."""
+    return workspace_relative_path(path) if path.exists() and path.is_file() else ""
 
 
 def prepare_html_template(
@@ -358,21 +363,17 @@ def export_html_pptx(
             )
         warnings.extend(
             [
-                "HTML-to-PPTX conversion failed; screenshot PPTX fallback was used.",
+                "HTML-to-PPTX conversion failed; no screenshot PPTX fallback was used because final PPTX must remain editable.",
                 *conversion.warnings,
                 *conversion.errors,
             ]
         )
-        _export_previews_to_pptx(
-            page_generation.preview_paths,
-            paths.pptx_path,
-            aspect_ratio=template.aspect_ratio,
-        )
-        pptx_strategy = "screenshot"
+        pptx_strategy = "html_to_pptx_failed"
         conversion_report = _build_html_to_pptx_conversion_report(
             conversion,
             page_count=len(content_plan.pages),
-            fallback_used=True,
+            fallback_used=False,
+            final_strategy=pptx_strategy,
         )
     elif template.pptx_strategy == "native_editable":
         _export_native_pptx(content_plan, paths.pptx_path, template)
@@ -461,6 +462,7 @@ def _build_html_to_pptx_conversion_report(
     *,
     page_count: int,
     fallback_used: bool,
+    final_strategy: str | None = None,
 ) -> dict[str, Any]:
     """Build a user-visible page-level report for HTML-to-PPTX conversion."""
     findings = list((conversion.preflight_report or {}).get("findings") or [])
@@ -473,8 +475,12 @@ def _build_html_to_pptx_conversion_report(
         if slide_number > 0:
             findings_by_slide.setdefault(slide_number, []).append(dict(finding))
 
-    page_status = "screenshot_fallback" if fallback_used else "html_to_pptx"
-    editable_level = "low" if fallback_used else "high"
+    conversion_ok = bool(getattr(conversion, "ok", False)) and not fallback_used
+    resolved_final_strategy = final_strategy or (
+        "screenshot" if fallback_used else getattr(conversion, "strategy", "html_to_pptx")
+    )
+    page_status = "screenshot_fallback" if fallback_used else "html_to_pptx" if conversion_ok else "html_to_pptx_failed"
+    editable_level = "low" if fallback_used else "high" if conversion_ok else "none"
     pages = []
     for slide_number in range(1, page_count + 1):
         slide_findings = findings_by_slide.get(slide_number, [])
@@ -499,8 +505,8 @@ def _build_html_to_pptx_conversion_report(
     return {
         "engine": getattr(conversion, "engine", "python_structured_html"),
         "requested_strategy": "html_to_pptx",
-        "final_strategy": "screenshot" if fallback_used else getattr(conversion, "strategy", "html_to_pptx"),
-        "ok": bool(getattr(conversion, "ok", False)) and not fallback_used,
+        "final_strategy": resolved_final_strategy,
+        "ok": conversion_ok,
         "fallback_used": fallback_used,
         "editable_level": editable_level,
         "warnings": list(getattr(conversion, "warnings", []) or []),
@@ -555,10 +561,16 @@ def build_html_page_generation_agent() -> LlmAgent:
             "slides must use a consistent style and layout language with each other.\n"
             "Each fragment must be a single <section> for one slide. Inline CSS is allowed. Do not use "
             "external CSS, external JS, remote images, markdown, JSON, or code fences.\n"
-            "For PPTX conversion compatibility, put readable text in h1-h6, p, li, or simple text "
-            "elements, give important images explicit size and placement, and avoid relying on CSS "
-            "gradients, canvas, svg-only content, or remote assets.\n"
-            "Fit each slide into the declared viewport. Avoid text overlap, tiny unreadable text, and image/text collisions.\n"
+            "For PPTX conversion compatibility, design for a fixed browser viewport and make visible "
+            "elements measurable: use explicit width and height for the slide, important text blocks, "
+            "images, and decorative shapes. Prefer absolute positioning for final visible elements. "
+            "Readable text must be inside h1-h6, p, ul, ol, li, or label tags. Use div/section elements "
+            "for backgrounds, cards, borders, and shapes; do not put unwrapped text directly inside divs. "
+            "Use real ul/li lists instead of manually typing bullet symbols. Do not put background, border, "
+            "or box-shadow directly on text tags; place a separate shape behind the text instead. Avoid CSS "
+            "gradients, filters, canvas, svg-only content, remote assets, and background images on divs.\n"
+            "Fit each slide into the declared viewport and leave a safe bottom margin. Avoid text overlap, "
+            "tiny unreadable text, and image/text collisions.\n"
             "Use ready asset html_src values when useful. Keep image text out of generated images.\n"
             "When all slides are ready, call save_html_route_pages with the full ordered page list."
         ),
@@ -703,6 +715,9 @@ def _build_html_page_generation_user_message(
             "Return no prose. Call save_html_route_pages with a list of objects: "
             "`[{\"slide_number\": 1, \"html\": \"<section>...</section>\"}, ...]`.",
             f"Viewport: {template.viewport_width}x{template.viewport_height}.",
+            "HTML-to-PPTX rule: every slide must be convertible into editable PowerPoint objects. "
+            "Use measurable browser layout, explicit dimensions, semantic text tags, local/file image src values, "
+            "and separate div/section shapes behind text.",
             "",
             "DeckContentPlan JSON:",
             "```json",
@@ -1716,12 +1731,8 @@ def _validate_html_route_output(
             for shape in slide.shapes
             if getattr(shape, "has_text_frame", False)
         )
-        if pptx_strategy == "screenshot":
-            checks["pptx_contains_editable_text"] = True
-            checks["pptx_titles_present"] = True
-        else:
-            checks["pptx_contains_editable_text"] = editable_text_shape_count > 0
-            checks["pptx_titles_present"] = all(page.title in pptx_text for page in content_plan.pages)
+        checks["pptx_contains_editable_text"] = editable_text_shape_count > 0 and pptx_strategy != "screenshot"
+        checks["pptx_titles_present"] = pptx_strategy != "screenshot" and all(page.title in pptx_text for page in content_plan.pages)
         checks["pptx_ready_assets_rendered"] = ready_asset_count == 0 or pptx_picture_count >= min(
             ready_asset_count,
             len(content_plan.pages),

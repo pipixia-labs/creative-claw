@@ -2,15 +2,21 @@
 
 from __future__ import annotations
 
-import json
+import copy
 import inspect
+import json
 import re
 from pathlib import Path
 from typing import Any
 
+from google.adk.apps import App
 from google.adk.agents import BaseAgent, LlmAgent, SequentialAgent
-from google.adk.artifacts import InMemoryArtifactService
+from google.adk.artifacts import BaseArtifactService, InMemoryArtifactService
+from google.adk.memory import InMemoryMemoryService
+from google.adk.runners import Runner
+from google.adk.sessions import InMemorySessionService
 from google.adk.tools.tool_context import ToolContext
+from google.genai.types import Content, Part
 from pydantic import PrivateAttr
 
 from conf.llm import build_llm
@@ -34,10 +40,12 @@ from src.productions.ppt.schemas import (
 )
 from src.productions.ppt.schemas.contracts import PPT_PRODUCT_RESULT_SCHEMA_VERSION
 from src.runtime.expert_dispatcher import dispatch_expert_call
+from src.runtime.tool_context_artifact_service import ToolContextArtifactService
 from src.runtime.workspace import (
     build_workspace_file_record,
     generated_session_dir,
     resolve_workspace_path,
+    stage_attachment_into_workspace,
     workspace_relative_path,
 )
 
@@ -49,6 +57,8 @@ PPT_STAGE_AWAITING_CONTENT_PLAN_CONFIRMATION = "awaiting_content_plan_confirmati
 PPT_STAGE_COMPLETED = "completed"
 PPT_WORKFLOW_WAITING_SINCE_TURN_KEY = "waiting_since_turn_index"
 PPT_WORKFLOW_LAST_CONSUMED_TURN_KEY = "last_consumed_turn_index"
+PPT_REQUIREMENT_ANALYSIS_BASE_KEY = "ppt_requirement_analysis_base"
+PPT_REQUIREMENT_ANALYSIS_AGENT_MESSAGE_KEY = "ppt_requirement_analysis_agent_message"
 
 
 class PptProductManager(LlmAgent):
@@ -129,6 +139,29 @@ Return structured status, current phase, selected route, warnings, next actions,
             self.tools = tools
         return self
 
+    def build_requirement_analysis_agent(self) -> LlmAgent:
+        """Build the product-internal ADK agent that writes ConfirmedRequirement JSON."""
+        return LlmAgent(
+            name="PptRequirementAnalysisAgent",
+            model=build_llm(),
+            instruction=(
+                "You are Creative Claw's PPT requirement analysis agent.\n"
+                "Normalize the user's PPT request into one complete ConfirmedRequirement JSON object.\n"
+                "For revision turns, start from the existing ConfirmedRequirement and apply only the user's requested changes.\n"
+                "Do not append revision text to the topic. Keep topic concise and audience-facing.\n"
+                "Separate task description from source documents: files and URLs are source_inputs, not slide content by themselves.\n"
+                "Preserve source_inputs, source_understanding, reference_assets, output_format, and safe defaults from the provided fallback JSON unless the user explicitly changes route, template, aspect ratio, language, page count, audience, scenario, topic, or style.\n"
+                "Always call save_ppt_confirmed_requirement_json with one argument named requirement_json.\n"
+                "The JSON must include route, request_brief, topic, audience, scenario, slide_count_policy, language, aspect_ratio, output_format, template_requirement, style_requirement, editability_requirement, and confirmed_by_user.\n"
+                "Use `html` route unless the user explicitly asks for svg or xml/template-native route.\n"
+                "If the user says 受众为/受众设置为, write that value to audience. If the user says 场景为/场景设置为, write that value to scenario.\n"
+                "For Chinese group meeting requests, scenario should be `组会`.\n"
+                "Do not invent source file paths or generated artifacts."
+            ),
+            tools=[self.save_ppt_confirmed_requirement_json],
+            output_key=PPT_REQUIREMENT_ANALYSIS_AGENT_MESSAGE_KEY,
+        )
+
     def build_html_mvp_workflow(self) -> SequentialAgent:
         """Build the intended ADK SequentialAgent skeleton for the HTML MVP route."""
         requirement_agent = LlmAgent(
@@ -154,6 +187,212 @@ Return structured status, current phase, selected route, warnings, next actions,
             name="PptHtmlMvpSequentialAgent",
             sub_agents=[requirement_agent, content_agent, quality_agent],
         )
+
+    def save_ppt_confirmed_requirement_json(
+        self,
+        requirement_json: dict[str, Any],
+        tool_context: ToolContext,
+    ) -> dict[str, Any]:
+        """Validate and save the requirement JSON produced by the requirement agent."""
+        raw_payload: Any = requirement_json
+        if isinstance(raw_payload, str):
+            raw_payload = json.loads(raw_payload)
+        if not isinstance(raw_payload, dict):
+            raise ValueError("requirement_json must be a JSON object.")
+
+        base_payload = dict(tool_context.state.get(PPT_REQUIREMENT_ANALYSIS_BASE_KEY) or {})
+        fallback_requirement = ConfirmedRequirement.model_validate(
+            base_payload.get("fallback_requirement") or {}
+        )
+        requirement = self._merge_requirement_payload(
+            raw_payload,
+            fallback_requirement=fallback_requirement,
+        )
+        requirement_payload = requirement.model_dump(mode="json")
+        tool_context.state[PPT_CONFIRMED_REQUIREMENT_STATE_KEY] = requirement_payload
+        tool_context.state["ppt_requirement_analysis_output"] = {
+            "status": "success",
+            "message": "PptRequirementAnalysisAgent saved ConfirmedRequirement.",
+            "source": "llm_agent",
+        }
+        return {
+            "status": "success",
+            "message": "ConfirmedRequirement saved.",
+            "confirmed_requirement": requirement_payload,
+        }
+
+    async def prepare_confirmed_requirement_with_agent(
+        self,
+        *,
+        task: str,
+        inputs: Any | None = None,
+        output: dict[str, Any] | None = None,
+        source_understanding: SourceUnderstanding | None = None,
+        tool_context: ToolContext,
+        app_name: str,
+        artifact_service: BaseArtifactService | None,
+    ) -> ConfirmedRequirement:
+        """Prepare ConfirmedRequirement through the ADK requirement agent when possible."""
+        fallback_requirement = self.prepare_confirmed_requirement(
+            task=task,
+            inputs=inputs,
+            output=output,
+            source_understanding=source_understanding,
+        )
+        return await self._run_requirement_analysis_agent(
+            mode="initial",
+            task=task,
+            raw_inputs=self._normalize_raw_inputs(inputs),
+            output=dict(output or {}),
+            fallback_requirement=fallback_requirement,
+            existing_requirement=None,
+            user_revision="",
+            tool_context=tool_context,
+            app_name=app_name,
+            artifact_service=artifact_service,
+        )
+
+    async def revise_confirmed_requirement_with_agent(
+        self,
+        *,
+        existing_requirement: ConfirmedRequirement,
+        user_response: str,
+        task: str,
+        raw_inputs: list[Any],
+        output: dict[str, Any],
+        source_understanding: SourceUnderstanding,
+        tool_context: ToolContext,
+        app_name: str,
+        artifact_service: BaseArtifactService | None,
+    ) -> ConfirmedRequirement:
+        """Revise ConfirmedRequirement through structured JSON instead of task appending."""
+        fallback_requirement = self._revise_confirmed_requirement_deterministically(
+            existing_requirement,
+            user_response=user_response,
+            raw_inputs=raw_inputs,
+            output=output,
+            source_understanding=source_understanding,
+        )
+        return await self._run_requirement_analysis_agent(
+            mode="revision",
+            task=task,
+            raw_inputs=raw_inputs,
+            output=output,
+            fallback_requirement=fallback_requirement,
+            existing_requirement=existing_requirement,
+            user_revision=user_response,
+            tool_context=tool_context,
+            app_name=app_name,
+            artifact_service=artifact_service,
+        )
+
+    async def _run_requirement_analysis_agent(
+        self,
+        *,
+        mode: str,
+        task: str,
+        raw_inputs: list[Any],
+        output: dict[str, Any],
+        fallback_requirement: ConfirmedRequirement,
+        existing_requirement: ConfirmedRequirement | None,
+        user_revision: str,
+        tool_context: ToolContext,
+        app_name: str,
+        artifact_service: BaseArtifactService | None,
+    ) -> ConfirmedRequirement:
+        """Run the internal requirement agent, falling back to deterministic JSON patches."""
+        if not hasattr(tool_context, "_invocation_context"):
+            tool_context.state["ppt_requirement_analysis_output"] = {
+                "status": "fallback",
+                "message": "Requirement analysis agent skipped because no ADK invocation context was available.",
+                "source": "deterministic_fallback",
+            }
+            return fallback_requirement
+
+        invocation_context = tool_context._invocation_context
+        child_session_service = InMemorySessionService()
+        child_artifact_service = _resolve_child_artifact_service(
+            tool_context=tool_context,
+            fallback_service=artifact_service or InMemoryArtifactService(),
+        )
+        requirement_agent = self.build_requirement_analysis_agent()
+        child_runner = _build_child_runner(
+            agent=requirement_agent,
+            app_name=app_name,
+            session_service=child_session_service,
+            artifact_service=child_artifact_service,
+            invocation_context=invocation_context,
+        )
+        child_state = _copy_state(tool_context.state)
+        child_state[PPT_REQUIREMENT_ANALYSIS_BASE_KEY] = {
+            "mode": mode,
+            "task": task,
+            "raw_inputs": raw_inputs,
+            "output": output,
+            "user_revision": user_revision,
+            "fallback_requirement": fallback_requirement.model_dump(mode="json"),
+            "existing_requirement": (
+                existing_requirement.model_dump(mode="json") if existing_requirement is not None else {}
+            ),
+        }
+
+        try:
+            child_session = await child_session_service.create_session(
+                app_name=app_name,
+                user_id=invocation_context.user_id,
+                state=child_state,
+            )
+            async for _event in child_runner.run_async(
+                user_id=child_session.user_id,
+                session_id=child_session.id,
+                new_message=Content(
+                    role="user",
+                    parts=[
+                        Part(
+                            text=_build_requirement_analysis_user_message(
+                                mode=mode,
+                                task=task,
+                                raw_inputs=raw_inputs,
+                                output=output,
+                                fallback_requirement=fallback_requirement,
+                                existing_requirement=existing_requirement,
+                                user_revision=user_revision,
+                            )
+                        )
+                    ],
+                ),
+            ):
+                pass
+            final_session = await child_session_service.get_session(
+                app_name=app_name,
+                user_id=child_session.user_id,
+                session_id=child_session.id,
+            )
+            final_state = final_session.state if final_session is not None else child_state
+            requirement_payload = final_state.get(PPT_CONFIRMED_REQUIREMENT_STATE_KEY)
+            if not requirement_payload:
+                raise ValueError("PptRequirementAnalysisAgent did not save ConfirmedRequirement.")
+            requirement = ConfirmedRequirement.model_validate(requirement_payload)
+            tool_context.state[PPT_CONFIRMED_REQUIREMENT_STATE_KEY] = requirement.model_dump(mode="json")
+            if final_state.get(PPT_REQUIREMENT_ANALYSIS_AGENT_MESSAGE_KEY):
+                tool_context.state[PPT_REQUIREMENT_ANALYSIS_AGENT_MESSAGE_KEY] = str(
+                    final_state.get(PPT_REQUIREMENT_ANALYSIS_AGENT_MESSAGE_KEY)
+                )
+            tool_context.state["ppt_requirement_analysis_output"] = {
+                "status": "success",
+                "message": "PptRequirementAnalysisAgent produced ConfirmedRequirement.",
+                "source": "llm_agent",
+            }
+            return requirement
+        except Exception as exc:
+            tool_context.state["ppt_requirement_analysis_output"] = {
+                "status": "fallback",
+                "message": f"Requirement analysis agent fallback: {type(exc).__name__}: {exc}",
+                "source": "deterministic_fallback",
+            }
+            return fallback_requirement
+        finally:
+            await child_runner.close()
 
     async def run_product_request(
         self,
@@ -204,11 +443,14 @@ Return structured status, current phase, selected route, warnings, next actions,
                 inputs=inputs,
                 output=output_options,
                 tool_context=tool_context,
+                app_name=app_name,
+                artifact_service=artifact_service,
             )
 
         try:
             raw_inputs = self._normalize_raw_inputs(inputs)
             source_inputs = self._normalize_source_inputs(raw_inputs)
+            source_inputs = self._stage_source_inputs_for_workspace(source_inputs, tool_context.state)
             source_converter = source_converter or self._build_source_converter(
                 tool_context=tool_context,
                 expert_agents=expert_agents or {},
@@ -225,12 +467,16 @@ Return structured status, current phase, selected route, warnings, next actions,
             tool_context.state["ppt_source_markdown_sources"] = source_materials.markdown_sources
             tool_context.state["ppt_source_figures"] = source_materials.figures
             tool_context.state["ppt_source_output_files"] = source_materials.output_files
-            requirement = self.prepare_confirmed_requirement(
+            requirement = await self.prepare_confirmed_requirement_with_agent(
                 task=clean_task,
                 inputs=raw_inputs,
                 output=output_options,
                 source_understanding=source_materials,
+                tool_context=tool_context,
+                app_name=app_name,
+                artifact_service=artifact_service,
             )
+            requirement = requirement.model_copy(update={"source_inputs": source_inputs})
             tool_context.state[PPT_CONFIRMED_REQUIREMENT_STATE_KEY] = requirement.model_dump(mode="json")
             clarification_questions = self.validate_confirmed_requirement(requirement)
             route_registration = self._route_registry.get(requirement.route)
@@ -266,6 +512,7 @@ Return structured status, current phase, selected route, warnings, next actions,
                     app_name=app_name,
                     artifact_service=artifact_service,
                 )
+                route_succeeded = bool(route_build.pptx_path)
                 output_files = self._record_output_files(
                     tool_context.state,
                     [
@@ -285,22 +532,26 @@ Return structured status, current phase, selected route, warnings, next actions,
                     output_files=output_files,
                 )
                 result = PptProductResult(
-                    status="success",
+                    status="success" if route_succeeded else "generation_failed",
                     phase="html_route_delivery",
-                    message="HTML route MVP generated an HTML deck, PNG previews, and an editable PPTX.",
+                    message=(
+                        "HTML route MVP generated an HTML deck, PNG previews, and an editable PPTX."
+                        if route_succeeded
+                        else "HTML route generated HTML and previews, but failed to export an editable PPTX. See the build log for conversion findings."
+                    ),
                     selected_route=requirement.route,
                     confirmed_requirement=requirement,
                     deck_content_plan=content_plan,
                     route_build=route_build,
                     quality_review=QualityReviewResult(
-                        status="pass",
-                        page_count_ok=True,
-                        file_open_ok=True,
-                        text_complete_ok=True,
-                        assets_ok=True,
-                        placeholder_free_ok=True,
+                        status="pass" if route_succeeded else "failed",
+                        page_count_ok=route_succeeded,
+                        file_open_ok=route_succeeded,
+                        text_complete_ok=route_succeeded,
+                        assets_ok=route_succeeded,
+                        placeholder_free_ok=route_succeeded,
                         overflow_ok=None,
-                        style_consistency_ok=True,
+                        style_consistency_ok=route_succeeded,
                     ),
                     delivery_manifest=delivery_manifest,
                     output_files=output_files,
@@ -309,7 +560,11 @@ Return structured status, current phase, selected route, warnings, next actions,
                         *list(requirement.source_understanding.extraction_warnings),
                         *list(tool_context.state.get("ppt_content_planning_warnings") or []),
                     ],
-                    next_actions=["Review the generated PPTX and previews; improve HTML template fidelity next."],
+                    next_actions=(
+                        ["Review the generated PPTX and previews; improve HTML template fidelity next."]
+                        if route_succeeded
+                        else ["Fix the HTML-to-PPTX conversion findings and retry PPTX export."]
+                    ),
                 )
         except Exception as exc:
             result = PptProductResult(
@@ -412,17 +667,22 @@ Return structured status, current phase, selected route, warnings, next actions,
         inputs: Any | None,
         output: dict[str, Any],
         tool_context: ToolContext,
+        app_name: str,
+        artifact_service: BaseArtifactService | None,
     ) -> dict[str, Any]:
         """Start a PPT workflow and stop at the requirement confirmation gate."""
         try:
             raw_inputs = self._normalize_raw_inputs(inputs)
-            requirement = self.prepare_confirmed_requirement(
+            requirement = await self.prepare_confirmed_requirement_with_agent(
                 task=task,
                 inputs=raw_inputs,
                 output=output,
                 source_understanding=SourceUnderstanding(
                     document_type=self._infer_document_type(self._normalize_source_inputs(raw_inputs)),
                 ),
+                tool_context=tool_context,
+                app_name=app_name,
+                artifact_service=artifact_service,
             )
             tool_context.state[PPT_CONFIRMED_REQUIREMENT_STATE_KEY] = requirement.model_dump(mode="json")
             clarification_questions = self.validate_confirmed_requirement(requirement)
@@ -481,6 +741,8 @@ Return structured status, current phase, selected route, warnings, next actions,
                 user_response=user_response,
                 workflow_state=workflow_state,
                 tool_context=tool_context,
+                app_name=app_name,
+                artifact_service=artifact_service,
             )
 
         requirement = ConfirmedRequirement.model_validate(workflow_state.get("confirmed_requirement") or {})
@@ -493,6 +755,7 @@ Return structured status, current phase, selected route, warnings, next actions,
 
         raw_inputs = list(workflow_state.get("raw_inputs") or [])
         source_inputs = self._normalize_source_inputs(raw_inputs)
+        source_inputs = self._stage_source_inputs_for_workspace(source_inputs, tool_context.state)
         source_converter = source_converter or self._build_source_converter(
             tool_context=tool_context,
             expert_agents=expert_agents,
@@ -505,7 +768,12 @@ Return structured status, current phase, selected route, warnings, next actions,
             tool_context=tool_context,
             source_converter=source_converter,
         )
-        requirement = requirement.model_copy(update={"source_understanding": source_materials})
+        requirement = requirement.model_copy(
+            update={
+                "source_inputs": source_inputs,
+                "source_understanding": source_materials,
+            }
+        )
         tool_context.state["ppt_source_materials"] = source_materials.model_dump(mode="json")
         tool_context.state["ppt_source_markdown_sources"] = source_materials.markdown_sources
         tool_context.state["ppt_source_figures"] = source_materials.figures
@@ -542,22 +810,31 @@ Return structured status, current phase, selected route, warnings, next actions,
         user_response: str,
         workflow_state: dict[str, Any],
         tool_context: ToolContext,
+        app_name: str,
+        artifact_service: BaseArtifactService | None,
     ) -> dict[str, Any]:
         """Apply user edits to the requirement draft and ask for confirmation again."""
-        revised_task = self._append_user_revision(str(workflow_state.get("task") or ""), user_response)
+        base_task = str(workflow_state.get("task") or "")
         raw_inputs = list(workflow_state.get("raw_inputs") or [])
         output = dict(workflow_state.get("output") or {})
-        requirement = self.prepare_confirmed_requirement(
-            task=revised_task,
-            inputs=raw_inputs,
+        existing_requirement = ConfirmedRequirement.model_validate(workflow_state.get("confirmed_requirement") or {})
+        source_understanding = existing_requirement.source_understanding or SourceUnderstanding(
+            document_type=self._infer_document_type(self._normalize_source_inputs(raw_inputs)),
+        )
+        requirement = await self.revise_confirmed_requirement_with_agent(
+            existing_requirement=existing_requirement,
+            user_response=user_response,
+            task=base_task,
+            raw_inputs=raw_inputs,
             output=output,
-            source_understanding=SourceUnderstanding(
-                document_type=self._infer_document_type(self._normalize_source_inputs(raw_inputs)),
-            ),
+            source_understanding=source_understanding,
+            tool_context=tool_context,
+            app_name=app_name,
+            artifact_service=artifact_service,
         )
         workflow_state.update(
             {
-                "task": revised_task,
+                "task": base_task,
                 "confirmed_requirement": requirement.model_dump(mode="json"),
                 "revision": int(workflow_state.get("revision", 1) or 1) + 1,
                 "stage": PPT_STAGE_AWAITING_REQUIREMENT_CONFIRMATION,
@@ -636,6 +913,7 @@ Return structured status, current phase, selected route, warnings, next actions,
             app_name=app_name,
             artifact_service=artifact_service,
         )
+        route_succeeded = bool(route_build.pptx_path)
         output_files = self._record_output_files(
             tool_context.state,
             [
@@ -663,22 +941,26 @@ Return structured status, current phase, selected route, warnings, next actions,
         )
         tool_context.state[PPT_WORKFLOW_STATE_KEY] = workflow_state
         result = PptProductResult(
-            status="success",
+            status="success" if route_succeeded else "generation_failed",
             phase="html_route_delivery",
-            message="HTML route generated the PPTX after requirement and content-plan confirmation.",
+            message=(
+                "HTML route generated the PPTX after requirement and content-plan confirmation."
+                if route_succeeded
+                else "HTML route generated HTML and previews, but failed to export an editable PPTX after confirmation."
+            ),
             selected_route=requirement.route,
             confirmed_requirement=requirement,
             deck_content_plan=resolved_plan,
             route_build=route_build,
             quality_review=QualityReviewResult(
-                status="pass",
-                page_count_ok=True,
-                file_open_ok=True,
-                text_complete_ok=True,
-                assets_ok=True,
-                placeholder_free_ok=True,
+                status="pass" if route_succeeded else "failed",
+                page_count_ok=route_succeeded,
+                file_open_ok=route_succeeded,
+                text_complete_ok=route_succeeded,
+                assets_ok=route_succeeded,
+                placeholder_free_ok=route_succeeded,
                 overflow_ok=None,
-                style_consistency_ok=True,
+                style_consistency_ok=route_succeeded,
             ),
             delivery_manifest=delivery_manifest,
             output_files=output_files,
@@ -687,7 +969,11 @@ Return structured status, current phase, selected route, warnings, next actions,
                 *list(requirement.source_understanding.extraction_warnings),
                 *list(tool_context.state.get("ppt_content_planning_warnings") or []),
             ],
-            next_actions=["Review the generated PPTX and previews."],
+            next_actions=(
+                ["Review the generated PPTX and previews."]
+                if route_succeeded
+                else ["Fix the HTML-to-PPTX conversion findings and retry PPTX export."]
+            ),
         )
         return self._persist_product_result(tool_context, result)
 
@@ -809,6 +1095,187 @@ Return structured status, current phase, selected route, warnings, next actions,
         if not clean_revision:
             return clean_base
         return f"{clean_base}\n{label}: {clean_revision}".strip()
+
+    def _revise_confirmed_requirement_deterministically(
+        self,
+        existing_requirement: ConfirmedRequirement,
+        *,
+        user_response: str,
+        raw_inputs: list[Any],
+        output: dict[str, Any],
+        source_understanding: SourceUnderstanding,
+    ) -> ConfirmedRequirement:
+        """Apply a conservative structured requirement patch without mutating the task text."""
+        clean_response = str(user_response or "").strip()
+        update: dict[str, Any] = {
+            "request_brief": self._merge_request_brief_revision(
+                existing_requirement.request_brief,
+                clean_response,
+            ),
+            "source_inputs": [
+                item.model_dump(mode="json") for item in self._normalize_source_inputs(raw_inputs)
+            ],
+            "reference_assets": [
+                item.model_dump(mode="json") for item in self._normalize_reference_assets(raw_inputs)
+            ],
+            "source_understanding": source_understanding.model_dump(mode="json"),
+        }
+
+        explicit_topic = self._extract_explicit_requirement_text(clean_response, ("主题", "题目", "topic"))
+        if explicit_topic:
+            update["topic"] = self._clean_public_topic(explicit_topic, original_task=clean_response) or explicit_topic
+
+        explicit_audience = self._extract_explicit_requirement_text(
+            clean_response,
+            ("受众", "听众", "对象", "目标受众", "面向对象", "audience"),
+        )
+        if explicit_audience:
+            update["audience"] = self._clean_audience(explicit_audience, split_possessive=False)
+
+        explicit_scenario = self._extract_explicit_requirement_text(
+            clean_response,
+            ("场景", "使用场景", "汇报场景", "scenario", "use case"),
+        )
+        inferred_scenario = explicit_scenario or self._infer_scenario(clean_response)
+        if inferred_scenario:
+            update["scenario"] = inferred_scenario
+
+        slide_policy = self._infer_slide_count_policy(clean_response, {})
+        if slide_policy.source == "user":
+            update["slide_count_policy"] = slide_policy.model_dump(mode="json")
+
+        explicit_language = self._extract_explicit_requirement_text(clean_response, ("语言", "language"))
+        if explicit_language:
+            update["language"] = explicit_language
+
+        aspect_ratio = self._select_aspect_ratio(clean_response, {})
+        if (
+            any(ratio_token in clean_response for ratio_token in ("16:9", "4:3"))
+            and aspect_ratio != existing_requirement.aspect_ratio
+            and aspect_ratio in {"16:9", "4:3"}
+        ):
+            update["aspect_ratio"] = aspect_ratio
+
+        route, route_confirmed = self._select_route(clean_response, output)
+        if route_confirmed:
+            update["route"] = route
+            update["confirmed_by_user"] = True
+            update["template_requirement"] = self._infer_template_requirement(
+                clean_response,
+                route,
+                self._normalize_source_inputs(raw_inputs),
+                output,
+            ).model_dump(mode="json")
+            update["editability_requirement"] = self._infer_editability_requirement(
+                clean_response,
+                route,
+                output,
+            ).model_dump(mode="json")
+
+        revised_style_keywords = self._infer_style_keywords(clean_response, output)
+        if revised_style_keywords:
+            existing_keywords = list(existing_requirement.style_requirement.style_keywords)
+            update["style_requirement"] = StyleRequirement(
+                style_keywords=self._dedupe_preserve_order([*existing_keywords, *revised_style_keywords]),
+                tone=existing_requirement.style_requirement.tone,
+                language_style=existing_requirement.style_requirement.language_style,
+                brand_notes=existing_requirement.style_requirement.brand_notes,
+            ).model_dump(mode="json")
+
+        payload = existing_requirement.model_dump(mode="json")
+        payload.update(update)
+        return ConfirmedRequirement.model_validate(payload)
+
+    @classmethod
+    def _merge_requirement_payload(
+        cls,
+        payload: dict[str, Any],
+        *,
+        fallback_requirement: ConfirmedRequirement,
+    ) -> ConfirmedRequirement:
+        """Merge an LLM-produced requirement JSON with validated fallback-owned fields."""
+        merged = fallback_requirement.model_dump(mode="json")
+        for field_name in ("topic", "audience", "scenario", "language", "request_brief"):
+            raw_value = payload.get(field_name)
+            if isinstance(raw_value, str) and raw_value.strip():
+                clean_value = cls._normalize_request_text(raw_value)
+                if field_name == "topic":
+                    clean_value = (
+                        cls._clean_public_topic(
+                            clean_value,
+                            original_task=fallback_requirement.request_brief,
+                        )
+                        or clean_value
+                    )
+                merged[field_name] = clean_value
+
+        raw_route = str(payload.get("route") or "").strip().lower()
+        if raw_route in {"html", "svg", "xml"}:
+            merged["route"] = raw_route
+
+        raw_aspect_ratio = str(payload.get("aspect_ratio") or "").strip()
+        if raw_aspect_ratio in {"16:9", "4:3"}:
+            merged["aspect_ratio"] = raw_aspect_ratio
+
+        raw_confirmed = payload.get("confirmed_by_user")
+        if isinstance(raw_confirmed, bool):
+            merged["confirmed_by_user"] = raw_confirmed
+
+        nested_models: tuple[tuple[str, type[Any]], ...] = (
+            ("slide_count_policy", SlideCountPolicy),
+            ("template_requirement", TemplateRequirement),
+            ("style_requirement", StyleRequirement),
+            ("editability_requirement", EditabilityRequirement),
+        )
+        for field_name, model_type in nested_models:
+            raw_nested = payload.get(field_name)
+            if isinstance(raw_nested, dict):
+                try:
+                    merged[field_name] = model_type.model_validate(raw_nested).model_dump(mode="json")
+                except Exception:
+                    pass
+
+        if not str(merged.get("topic") or "").strip():
+            merged["topic"] = fallback_requirement.topic
+
+        # File/material ownership stays in deterministic code so the LLM cannot invent paths.
+        merged["source_inputs"] = [
+            item.model_dump(mode="json") for item in fallback_requirement.source_inputs
+        ]
+        merged["source_understanding"] = fallback_requirement.source_understanding.model_dump(mode="json")
+        merged["reference_assets"] = [
+            item.model_dump(mode="json") for item in fallback_requirement.reference_assets
+        ]
+        merged["output_format"] = "pptx"
+        return ConfirmedRequirement.model_validate(merged)
+
+    @staticmethod
+    def _merge_request_brief_revision(base_text: str, user_response: str) -> str:
+        """Record a requirement revision in the planner brief without polluting display fields."""
+        clean_base = str(base_text or "").strip()
+        clean_revision = str(user_response or "").strip()
+        if not clean_revision:
+            return clean_base
+        if clean_revision in clean_base:
+            return clean_base
+        if not clean_base:
+            return clean_revision
+        return f"{clean_base}\n需求修订：{clean_revision}"
+
+    @staticmethod
+    def _extract_explicit_requirement_text(text: str, aliases: tuple[str, ...]) -> str:
+        """Extract `field is value` style requirement edits from one user response."""
+        clean_text = PptProductManager._normalize_request_text(text)
+        alias_pattern = "|".join(re.escape(alias) for alias in aliases)
+        match = re.search(
+            rf"(?:{alias_pattern})\s*(?:设置为|设为|改成|改为|调整为|指定为|为|是|:|：)\s*[\"“']?"
+            rf"(?P<value>[^，。,.；;\n\"”']{{1,80}})",
+            clean_text,
+            flags=re.IGNORECASE,
+        )
+        if not match:
+            return ""
+        return str(match.group("value") or "").strip(" ：:，。,.；;、-\"'“”‘’")
 
     def _build_requirement_confirmation_result(
         self,
@@ -1043,6 +1510,7 @@ Return structured status, current phase, selected route, warnings, next actions,
             app_name=str(getattr(getattr(tool_context, "_invocation_context", None), "app_name", "creative_claw")),
             artifact_service=None,
         )
+        route_succeeded = bool(route_build.pptx_path)
         output_files = self._record_output_files(
             tool_context.state,
             [
@@ -1054,7 +1522,7 @@ Return structured status, current phase, selected route, warnings, next actions,
             ],
         )
         payload = {
-            "status": "success",
+            "status": "success" if route_succeeded else "generation_failed",
             "selected_route": requirement.route,
             "route_build": route_build.model_dump(mode="json"),
             "output_files": output_files,
@@ -1162,6 +1630,63 @@ Return structured status, current phase, selected route, warnings, next actions,
         if final_pptx:
             state["final_file_paths"] = [final_pptx]
         return records
+
+    @classmethod
+    def _stage_source_inputs_for_workspace(
+        cls,
+        source_inputs: list[SourceInput],
+        state: dict[str, Any],
+    ) -> list[SourceInput]:
+        """Copy external local source files into the runtime workspace before expert use."""
+        staged_inputs: list[SourceInput] = []
+        for index, source_input in enumerate(source_inputs, start=1):
+            staged_inputs.append(cls._stage_source_input_for_workspace(source_input, state, index))
+        return staged_inputs
+
+    @classmethod
+    def _stage_source_input_for_workspace(
+        cls,
+        source_input: SourceInput,
+        state: dict[str, Any],
+        index: int,
+    ) -> SourceInput:
+        """Return a SourceInput whose local path is workspace-relative when possible."""
+        source_path = str(source_input.path or "").strip()
+        if not source_path or cls._looks_like_url(source_path):
+            return source_input
+
+        try:
+            workspace_path = resolve_workspace_path(source_path)
+            return source_input.model_copy(update={"path": workspace_relative_path(workspace_path)})
+        except ValueError:
+            pass
+
+        external_path = Path(source_path).expanduser()
+        if not external_path.exists() or not external_path.is_file():
+            return source_input
+
+        staged_path = stage_attachment_into_workspace(
+            external_path,
+            channel=str(state.get("channel") or "ppt"),
+            session_id=str(state.get("sid") or "ppt-session"),
+            turn_index=cls._coerce_optional_int(state.get("turn_index")),
+            attachment_index=index,
+            preferred_name=source_input.name or external_path.name,
+        )
+        return source_input.model_copy(
+            update={
+                "name": source_input.name or staged_path.name,
+                "path": workspace_relative_path(staged_path),
+            }
+        )
+
+    @staticmethod
+    def _coerce_optional_int(value: Any) -> int | None:
+        """Coerce an optional session index value for workspace staging paths."""
+        try:
+            return int(value)
+        except (TypeError, ValueError):
+            return None
 
     async def _prepare_source_materials(
         self,
@@ -1527,13 +2052,20 @@ Return structured status, current phase, selected route, warnings, next actions,
         source_understanding = source_understanding or SourceUnderstanding(
             document_type=self._infer_document_type(source_inputs),
         )
+        audience = self._select_output_text(output_options, ("audience", "target_audience"))
+        scenario_text = " ".join(
+            [
+                clean_task,
+                self._select_output_text(output_options, ("scenario", "use_case", "purpose", "occasion")),
+            ]
+        ).strip()
 
         return ConfirmedRequirement(
             route=route,
             request_brief=clean_task,
             topic=self._infer_topic(clean_task),
-            audience=self._infer_audience(clean_task),
-            scenario=self._infer_scenario(clean_task),
+            audience=audience or self._infer_audience(clean_task),
+            scenario=self._infer_scenario(scenario_text),
             slide_count_policy=slide_policy,
             language=self._infer_language(clean_task, output_options),
             aspect_ratio=self._select_aspect_ratio(clean_task, output_options),
@@ -1571,6 +2103,28 @@ Return structured status, current phase, selected route, warnings, next actions,
         return "html", False
 
     @staticmethod
+    def _select_output_text(output: dict[str, Any], keys: tuple[str, ...]) -> str:
+        """Return the first non-empty text value from output options."""
+        for key in keys:
+            raw_value = output.get(key)
+            if isinstance(raw_value, str) and raw_value.strip():
+                return raw_value.strip()
+        return ""
+
+    @staticmethod
+    def _dedupe_preserve_order(items: list[str]) -> list[str]:
+        """Deduplicate short string lists while preserving original order."""
+        seen: set[str] = set()
+        deduped: list[str] = []
+        for item in items:
+            clean_item = str(item or "").strip()
+            if not clean_item or clean_item in seen:
+                continue
+            seen.add(clean_item)
+            deduped.append(clean_item)
+        return deduped
+
+    @staticmethod
     def _normalize_raw_inputs(inputs: Any) -> list[Any]:
         """Normalize raw product inputs into a list while preserving only user-provided values."""
         if inputs is None:
@@ -1591,6 +2145,18 @@ Return structured status, current phase, selected route, warnings, next actions,
         """Normalize raw tool inputs into SourceInput records."""
         source_inputs: list[SourceInput] = []
         for index, item in enumerate(inputs, start=1):
+            if isinstance(item, str):
+                path = item.strip()
+                if not path:
+                    continue
+                source_inputs.append(
+                    SourceInput(
+                        name=PptProductManager._source_name_from_path(path, fallback=f"input_{index}"),
+                        path=path,
+                        role="source",
+                    )
+                )
+                continue
             if not isinstance(item, dict):
                 continue
             if not PptProductManager._looks_like_document_input(item):
@@ -1608,6 +2174,13 @@ Return structured status, current phase, selected route, warnings, next actions,
                 )
             )
         return source_inputs
+
+    @staticmethod
+    def _source_name_from_path(path: str, *, fallback: str) -> str:
+        """Infer a stable display name from a file path or URL."""
+        cleaned = str(path or "").split("?", 1)[0].rstrip("/")
+        name = Path(cleaned).name
+        return name or fallback
 
     @staticmethod
     def _looks_like_document_input(item: dict[str, Any]) -> bool:
@@ -1800,10 +2373,10 @@ Return structured status, current phase, selected route, warnings, next actions,
         return clean_topic[:60].strip()
 
     @staticmethod
-    def _clean_audience(audience: str) -> str:
+    def _clean_audience(audience: str, *, split_possessive: bool = True) -> str:
         """Clean audience text extracted from a PPT request."""
         clean_audience = PptProductManager._normalize_request_text(audience)
-        if "的" in clean_audience:
+        if split_possessive and "的" in clean_audience:
             clean_audience = clean_audience.split("的", 1)[0]
         clean_audience = re.sub(r"^(?:一个|一份|一套|的|给|向|面向)+", "", clean_audience)
         clean_audience = re.sub(r"(?i)pptx?|powerpoint|slides?", "", clean_audience)
@@ -1830,8 +2403,15 @@ Return structured status, current phase, selected route, warnings, next actions,
     def _infer_scenario(task: str) -> str:
         """Infer a coarse presentation scenario from the request text."""
         normalized = task.lower()
+        explicit_scenario = PptProductManager._extract_explicit_requirement_text(
+            task,
+            ("场景", "使用场景", "汇报场景", "scenario", "use case"),
+        )
+        if explicit_scenario:
+            return explicit_scenario
         scenario_keywords = {
             "课堂/讲座": ("课堂", "讲座", "课程", "教学", "class", "lecture"),
+            "组会": ("组会", "group meeting", "lab meeting"),
             "发布会": ("发布会", "launch", "发布"),
             "汇报": ("汇报", "review", "report"),
             "培训": ("培训", "training", "workshop"),
@@ -1967,3 +2547,109 @@ Return structured status, current phase, selected route, warnings, next actions,
             else ""
         )
         return EditabilityRequirement(level=level, must_preserve_template=route == "xml", notes=notes)
+
+
+def _build_requirement_analysis_user_message(
+    *,
+    mode: str,
+    task: str,
+    raw_inputs: list[Any],
+    output: dict[str, Any],
+    fallback_requirement: ConfirmedRequirement,
+    existing_requirement: ConfirmedRequirement | None,
+    user_revision: str,
+) -> str:
+    """Build the user message for the internal requirement analysis agent."""
+    payload = {
+        "mode": mode,
+        "user_task": task,
+        "user_revision": user_revision,
+        "raw_inputs": _summarize_raw_inputs(raw_inputs),
+        "output_options": output,
+        "fallback_requirement_json": fallback_requirement.model_dump(mode="json"),
+        "existing_requirement_json": (
+            existing_requirement.model_dump(mode="json") if existing_requirement is not None else {}
+        ),
+    }
+    return (
+        "Normalize or revise the PPT requirement.\n"
+        "Use the fallback JSON as schema/defaults. For revision mode, apply only the user_revision to the existing JSON.\n"
+        "Return the final requirement only by calling save_ppt_confirmed_requirement_json.\n\n"
+        f"{json.dumps(payload, ensure_ascii=False, indent=2)}"
+    )
+
+
+def _summarize_raw_inputs(raw_inputs: list[Any]) -> list[dict[str, Any]]:
+    """Return a compact, safe summary of raw source inputs for the requirement agent."""
+    summaries: list[dict[str, Any]] = []
+    for index, item in enumerate(raw_inputs, start=1):
+        if isinstance(item, str):
+            summaries.append(
+                {
+                    "index": index,
+                    "kind": "path",
+                    "name": PptProductManager._source_name_from_path(item, fallback=f"input_{index}"),
+                    "path": item,
+                }
+            )
+            continue
+        if isinstance(item, dict):
+            summaries.append(
+                {
+                    "index": index,
+                    "kind": "record",
+                    "name": str(item.get("name") or item.get("filename") or f"input_{index}"),
+                    "path": str(item.get("path") or item.get("url") or item.get("uri") or item.get("file_path") or ""),
+                    "role": str(item.get("role") or item.get("type") or ""),
+                    "mime_type": str(item.get("mime_type") or item.get("mime") or ""),
+                    "description": str(item.get("description") or ""),
+                }
+            )
+    return summaries
+
+
+def _copy_state(state: Any) -> dict[str, Any]:
+    """Return a deep copy of an ADK state object or plain dict."""
+    if hasattr(state, "to_dict"):
+        return copy.deepcopy(state.to_dict())
+    return copy.deepcopy(dict(state))
+
+
+def _resolve_child_artifact_service(
+    *,
+    tool_context: ToolContext,
+    fallback_service: BaseArtifactService,
+) -> BaseArtifactService:
+    """Pick the artifact service for the internal requirement-analysis runner."""
+    required_methods = ("save_artifact", "load_artifact", "list_artifacts")
+    if all(hasattr(tool_context, method_name) for method_name in required_methods):
+        return ToolContextArtifactService(tool_context)
+    return fallback_service
+
+
+def _build_child_runner(
+    *,
+    agent: LlmAgent,
+    app_name: str,
+    session_service: InMemorySessionService,
+    artifact_service: BaseArtifactService,
+    invocation_context: Any,
+) -> Runner:
+    """Create a child ADK runner for an internal PPT product agent."""
+    child_plugins = getattr(getattr(invocation_context, "plugin_manager", None), "plugins", None)
+    runner_kwargs = {
+        "app_name": app_name,
+        "session_service": session_service,
+        "artifact_service": artifact_service,
+        "memory_service": InMemoryMemoryService(),
+        "credential_service": getattr(invocation_context, "credential_service", None),
+    }
+    if child_plugins:
+        runner_kwargs["app"] = App(
+            name=app_name,
+            root_agent=agent,
+            plugins=list(child_plugins),
+        )
+    else:
+        runner_kwargs["agent"] = agent
+    return Runner(**runner_kwargs)

@@ -16,6 +16,7 @@ from pptx.enum.shapes import MSO_CONNECTOR, MSO_SHAPE
 from pptx.enum.text import MSO_AUTO_SIZE, MSO_VERTICAL_ANCHOR, PP_ALIGN
 from pptx.util import Inches, Pt
 
+from src.productions.ppt.routes.html.browser_html_to_pptx import convert_html_pages_with_browser
 from src.productions.ppt.schemas import HtmlTemplatePackage
 from src.runtime.workspace import resolve_workspace_path
 
@@ -184,15 +185,43 @@ def convert_html_pages_to_pptx(
             errors=["No generated HTML pages were available for structured PPTX conversion."],
         )
 
+    browser_result = convert_html_pages_with_browser(
+        html_pages=clean_pages,
+        pptx_path=pptx_path,
+        template=template,
+    )
+    browser_preflight_report = _browser_report_to_preflight_report(browser_result)
+    if browser_result.ok:
+        return HtmlToPptxConversionResult(
+            ok=True,
+            pptx_path=pptx_path,
+            engine=browser_result.engine,
+            warnings=browser_result.warnings,
+            preflight_report=browser_preflight_report,
+        )
+    if not browser_result.unavailable:
+        return HtmlToPptxConversionResult(
+            ok=False,
+            pptx_path=pptx_path,
+            engine=browser_result.engine,
+            warnings=browser_result.warnings,
+            errors=browser_result.errors,
+            preflight_report=browser_preflight_report,
+        )
+
     models = extract_html_slide_models(html_pages=clean_pages, template=template)
     report = preflight_html_slide_models(models=models, template=template)
     if not report.ok:
         return HtmlToPptxConversionResult(
             ok=False,
             pptx_path=pptx_path,
+            engine="python_structured_html",
             warnings=report.warnings(),
-            errors=report.errors(),
-            preflight_report=report.model_dump(),
+            errors=[*browser_result.errors, *report.errors()],
+            preflight_report=_merge_unavailable_browser_report(
+                browser_preflight_report,
+                report.model_dump(),
+            ),
         )
 
     try:
@@ -205,17 +234,96 @@ def convert_html_pages_to_pptx(
         return HtmlToPptxConversionResult(
             ok=False,
             pptx_path=pptx_path,
+            engine="python_structured_html",
             warnings=report.warnings(),
-            errors=[*report.errors(), f"Structured HTML-to-PPTX render error: {type(exc).__name__}: {exc}"],
-            preflight_report=report.model_dump(),
+            errors=[
+                *browser_result.errors,
+                *report.errors(),
+                f"Structured HTML-to-PPTX render error: {type(exc).__name__}: {exc}",
+            ],
+            preflight_report=_merge_unavailable_browser_report(
+                browser_preflight_report,
+                report.model_dump(),
+            ),
         )
 
     return HtmlToPptxConversionResult(
         ok=True,
         pptx_path=pptx_path,
-        warnings=report.warnings(),
-        preflight_report=report.model_dump(),
+        engine="python_structured_html",
+        warnings=[
+            "Browser HTML-to-PPTX converter was unavailable; used Python structured converter fallback.",
+            *report.warnings(),
+        ],
+        preflight_report=_merge_unavailable_browser_report(
+            browser_preflight_report,
+            report.model_dump(),
+        ),
     )
+
+
+def _browser_report_to_preflight_report(browser_result: object) -> dict[str, object]:
+    """Convert the browser converter report into the route preflight shape."""
+    raw_report = dict(getattr(browser_result, "report", {}) or {})
+    findings: list[dict[str, object]] = []
+    for page in raw_report.get("pages") or []:
+        try:
+            slide_number = int(page.get("slideNumber") or page.get("slide_number") or 0)
+        except (AttributeError, TypeError, ValueError):
+            slide_number = 0
+        if slide_number <= 0:
+            continue
+        for warning in page.get("warnings") or []:
+            findings.append(
+                {
+                    "severity": "warning",
+                    "slide_number": slide_number,
+                    "code": "browser_converter_warning",
+                    "message": str(warning),
+                }
+            )
+        for error in page.get("errors") or []:
+            findings.append(
+                {
+                    "severity": "error",
+                    "slide_number": slide_number,
+                    "code": "browser_converter_error",
+                    "message": str(error),
+                }
+            )
+    for error in getattr(browser_result, "errors", []) or []:
+        findings.append(
+            {
+                "severity": "error",
+                "slide_number": 0,
+                "code": "browser_converter_error",
+                "message": str(error),
+            }
+        )
+    return {
+        "ok": bool(getattr(browser_result, "ok", False)),
+        "engine": getattr(browser_result, "engine", "node_playwright_pptxgenjs"),
+        "browser_report": raw_report,
+        "findings": findings,
+    }
+
+
+def _merge_unavailable_browser_report(
+    browser_report: dict[str, object],
+    python_report: dict[str, object],
+) -> dict[str, object]:
+    """Merge unavailable-browser context with the Python fallback report."""
+    merged_findings = [
+        *(browser_report.get("findings") or []),
+        *(python_report.get("findings") or []),
+    ]
+    return {
+        "ok": python_report.get("ok", False),
+        "engine": "python_structured_html",
+        "browser_report": browser_report.get("browser_report") or {},
+        "python_report": python_report,
+        "findings": merged_findings,
+    }
 
 
 def extract_html_slide_models(
@@ -339,6 +447,18 @@ def _extract_single_slide_model(
             elements.append(PptxElement(kind="line", box=box, tag_name=tag_name, style=style, z_index=z_index))
             continue
 
+        flow_elements = _extract_positioned_flow_text_elements(
+            element,
+            container_box=box,
+            template=template,
+            base_z_index=z_index,
+        )
+        if flow_elements:
+            if tag_name in _CONTAINER_TAGS and _has_shape_style(style):
+                elements.append(PptxElement(kind="shape", box=box, tag_name=tag_name, style=style, z_index=z_index))
+            elements.extend(flow_elements)
+            continue
+
         text = _element_text(element)
         if text and _is_text_candidate(element):
             elements.append(PptxElement(kind="text", box=box, tag_name=tag_name, text=text, style=style, z_index=z_index))
@@ -389,6 +509,123 @@ def _extract_sequential_text_model(*, root: Tag, template: HtmlTemplatePackage) 
         if y > template.viewport_height * 0.9:
             break
     return elements
+
+
+def _extract_positioned_flow_text_elements(
+    container: Tag,
+    *,
+    container_box: PptxBox,
+    template: HtmlTemplatePackage,
+    base_z_index: int,
+) -> list[PptxElement]:
+    """Expand unpositioned text descendants inside a positioned HTML container."""
+    tag_name = str(container.name or "").lower()
+    if tag_name not in _CONTAINER_TAGS or _is_text_candidate(container):
+        return []
+
+    elements: list[PptxElement] = []
+    container_style = _parse_style(str(container.get("style") or ""))
+    padding_top = _css_edge_px(container_style, "padding", "top", template.viewport_height)
+    padding_right = _css_edge_px(container_style, "padding", "right", template.viewport_width)
+    padding_left = _css_edge_px(container_style, "padding", "left", template.viewport_width)
+    content_x = container_box.x + padding_left
+    content_y = container_box.y + padding_top
+    content_width = max(1.0, container_box.width - padding_left - padding_right)
+    cursor_y = content_y
+
+    for child in container.find_all(True, recursive=False):
+        if not isinstance(child, Tag) or str(child.name or "").lower() in _UNSUPPORTED_TAGS:
+            continue
+        child_style = _parse_style(str(child.get("style") or ""))
+        if _style_box(child_style, template=template) is not None:
+            continue
+        text = _element_text(child)
+        if not text:
+            continue
+        primary = _primary_flow_text_element(child) or child
+        primary_style = _parse_style(str(primary.get("style") or ""))
+        primary_tag = str(primary.name or child.name or "p").lower()
+        margin_top = _css_edge_px(child_style, "margin", "top", template.viewport_height)
+        margin_right = _css_edge_px(child_style, "margin", "right", template.viewport_width)
+        margin_bottom = _css_edge_px(child_style, "margin", "bottom", template.viewport_height)
+        margin_left = _css_edge_px(child_style, "margin", "left", template.viewport_width)
+        item_x = content_x + margin_left
+        item_y = cursor_y + margin_top + _flow_child_text_offset_y(child, primary)
+        item_width = max(1.0, content_width - margin_left - margin_right)
+        item_height = _estimate_flow_text_height_px(
+            text,
+            style=primary_style,
+            tag_name=primary_tag,
+            width_px=item_width,
+            template=template,
+        )
+        if item_y + item_height > template.viewport_height:
+            item_height = max(1.0, template.viewport_height - item_y)
+        elements.append(
+            PptxElement(
+                kind="text",
+                box=PptxBox(x=item_x, y=item_y, width=item_width, height=item_height),
+                tag_name=primary_tag,
+                text=text,
+                style=primary_style,
+                z_index=base_z_index + 1,
+            )
+        )
+        cursor_y = item_y + item_height + margin_bottom
+
+    return elements
+
+
+def _primary_flow_text_element(element: Tag) -> Tag | None:
+    """Return the descendant whose style best represents a flow text group."""
+    candidates = [
+        descendant
+        for descendant in element.find_all(True)
+        if isinstance(descendant, Tag)
+        and _element_text(descendant)
+        and _is_text_candidate(descendant)
+    ]
+    if not candidates:
+        return element if _is_text_candidate(element) and _element_text(element) else None
+    for candidate in candidates:
+        text = _element_text(candidate)
+        if str(candidate.name or "").lower() in _TEXT_TAGS and not _looks_like_marker_text(text):
+            return candidate
+    return candidates[0]
+
+
+def _looks_like_marker_text(text: str) -> bool:
+    """Return whether text is probably a numeric marker rather than body copy."""
+    clean = str(text or "").strip()
+    return bool(re.fullmatch(r"[\dA-Za-z一二三四五六七八九十]+[.)、]?", clean))
+
+
+def _flow_child_text_offset_y(child: Tag, primary: Tag) -> float:
+    """Return a small vertical offset for flex-style rows."""
+    child_style = _parse_style(str(child.get("style") or ""))
+    display = str(child_style.get("display") or "").lower()
+    if display != "flex":
+        return 0.0
+    primary_style = _parse_style(str(primary.get("style") or ""))
+    return _css_edge_px(primary_style, "margin", "top", 720)
+
+
+def _estimate_flow_text_height_px(
+    text: str,
+    *,
+    style: dict[str, str],
+    tag_name: str,
+    width_px: float,
+    template: HtmlTemplatePackage,
+) -> float:
+    """Estimate a flow text box height in slide pixels."""
+    font_size_pt = _font_size_pt(style, tag_name=tag_name)
+    font_size_px = font_size_pt / 0.75
+    slide_width_in = 13.333 if template.aspect_ratio == "16:9" else 10.0
+    usable_width_pt = max(1.0, width_px / template.viewport_width * slide_width_in * 72 - 8)
+    estimated_lines = max(1, math.ceil(_estimate_text_width_pt(text, font_size_pt) / usable_width_pt))
+    line_height_px = _css_line_height_px(style, font_size_px)
+    return max(_default_text_height_px(tag_name), estimated_lines * line_height_px + 8)
 
 
 def _preflight_element(
@@ -593,8 +830,41 @@ def _is_text_candidate(element: Tag) -> bool:
         return True
     if tag_name not in {"div", "label"}:
         return False
-    child_tags = [str(child.name or "").lower() for child in element.find_all(True, recursive=False)]
-    return not any(child in _TEXT_TAGS or child == "img" for child in child_tags)
+    if element.find(True, recursive=False):
+        return False
+    return bool(" ".join(element.find_all(string=True, recursive=False)).strip())
+
+
+def _css_edge_px(style: dict[str, str], prefix: str, edge: str, axis_px: int) -> float:
+    """Return one CSS margin/padding edge in pixels."""
+    explicit = _css_length_to_px(style.get(f"{prefix}-{edge}"), axis_px)
+    if explicit is not None:
+        return explicit
+    shorthand = str(style.get(prefix) or "").strip()
+    if not shorthand:
+        return 0.0
+    parts = shorthand.split()
+    if len(parts) == 1:
+        token = parts[0]
+    elif len(parts) == 2:
+        token = parts[0] if edge in {"top", "bottom"} else parts[1]
+    elif len(parts) == 3:
+        token = parts[0] if edge == "top" else parts[2] if edge == "bottom" else parts[1]
+    else:
+        token = {"top": parts[0], "right": parts[1], "bottom": parts[2], "left": parts[3]}[edge]
+    return _css_length_to_px(token, axis_px) or 0.0
+
+
+def _css_line_height_px(style: dict[str, str], font_size_px: float) -> float:
+    """Return CSS line-height in pixels."""
+    raw = str(style.get("line-height") or "").strip().lower()
+    if not raw:
+        return font_size_px * _LINE_HEIGHT
+    try:
+        return max(font_size_px, float(raw) * font_size_px)
+    except ValueError:
+        parsed = _css_length_to_px(raw, 720)
+        return max(font_size_px, parsed) if parsed is not None else font_size_px * _LINE_HEIGHT
 
 
 def _has_shape_style(style: dict[str, str]) -> bool:

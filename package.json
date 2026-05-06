@@ -1,0 +1,14 @@
+{
+  "name": "creative-claw-runtime-tools",
+  "version": "0.3.0",
+  "private": true,
+  "description": "Node runtime tools for Creative Claw production routes.",
+  "scripts": {
+    "install-browsers": "playwright install chromium"
+  },
+  "dependencies": {
+    "playwright": "^1.56.1",
+    "pptxgenjs": "^4.0.1",
+    "sharp": "^0.34.5"
+  }
+}

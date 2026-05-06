@@ -1,4 +1,6 @@
+import tempfile
 import unittest
+from pathlib import Path
 from types import SimpleNamespace
 
 from google.adk.agents import LlmAgent
@@ -111,6 +113,62 @@ class PptProductManagerTests(unittest.IsolatedAsyncioTestCase):
         )
         self.assertIn("do not force cover, toc, chapter_start", agent.instruction)
         self.assertIn("template requirements only", agent.instruction)
+
+    def test_requirement_analysis_agent_saves_confirmed_requirement_json(self) -> None:
+        manager = PptProductManager()
+
+        agent = manager.build_requirement_analysis_agent()
+
+        self.assertIsInstance(agent, LlmAgent)
+        self.assertEqual(agent.name, "PptRequirementAnalysisAgent")
+        self.assertEqual(agent.output_key, "ppt_requirement_analysis_agent_message")
+        self.assertEqual(
+            {tool.__name__ for tool in agent.tools},
+            {"save_ppt_confirmed_requirement_json"},
+        )
+        self.assertIn("ConfirmedRequirement JSON", agent.instruction)
+        self.assertIn("受众为", agent.instruction)
+
+    def test_requirement_analysis_save_tool_preserves_source_inputs(self) -> None:
+        source_path = _write_markdown_source("requirement_source.pdf", "%PDF test fixture")
+        manager = PptProductManager()
+        fallback_requirement = manager.prepare_confirmed_requirement(
+            task="针对这个素材，给我做一个ppt。",
+            inputs={"files": [source_path]},
+            output={"format": "pptx"},
+        )
+        tool_context = SimpleNamespace(
+            state={
+                "ppt_requirement_analysis_base": {
+                    "fallback_requirement": fallback_requirement.model_dump(mode="json"),
+                }
+            }
+        )
+
+        result = manager.save_ppt_confirmed_requirement_json(
+            {
+                "route": "html",
+                "topic": "视觉原语推理",
+                "audience": "同组的同学",
+                "scenario": "组会",
+                "slide_count_policy": {
+                    "minimum": 14,
+                    "maximum": 16,
+                    "target": 15,
+                    "source": "user",
+                },
+                "source_inputs": [{"name": "invented.pdf", "path": "missing.pdf"}],
+            },
+            tool_context,
+        )
+
+        self.assertEqual(result["status"], "success")
+        saved_requirement = tool_context.state["ppt_confirmed_requirement"]
+        self.assertEqual(saved_requirement["topic"], "视觉原语推理")
+        self.assertEqual(saved_requirement["audience"], "同组的同学")
+        self.assertEqual(saved_requirement["scenario"], "组会")
+        self.assertEqual(saved_requirement["slide_count_policy"]["target"], 15)
+        self.assertEqual(saved_requirement["source_inputs"][0]["path"], source_path)
 
     def test_content_planning_user_message_includes_requirement_json(self) -> None:
         manager = PptProductManager()
@@ -353,6 +411,22 @@ Visual:
         self.assertEqual(requirement.request_brief, task)
         self.assertEqual(requirement.source_inputs, [])
         self.assertEqual(requirement.source_understanding.document_type, "brief")
+
+    def test_prepare_confirmed_requirement_accepts_file_path_strings(self) -> None:
+        source_path = _write_markdown_source("creative_agent_NeurIPS_2026_10_.pdf", "%PDF test fixture")
+        manager = PptProductManager()
+
+        requirement = manager.prepare_confirmed_requirement(
+            task="针对这个素材，给我做一个ppt，用来组会上给团队的同学讲解。",
+            inputs={"files": [source_path]},
+            output={"format": "pptx", "language": "zh-CN", "purpose": "组会讲解"},
+        )
+
+        self.assertEqual(len(requirement.source_inputs), 1)
+        self.assertEqual(requirement.source_inputs[0].name, "creative_agent_NeurIPS_2026_10_.pdf")
+        self.assertEqual(requirement.source_inputs[0].path, source_path)
+        self.assertEqual(requirement.source_understanding.document_type, "pdf")
+        self.assertIn("| 输入材料 | 1 个 |", manager._format_requirement_confirmation(requirement))
 
     def test_prepare_confirmed_requirement_separates_task_documents_and_ignored_outline(self) -> None:
         source_path = _write_markdown_source("kid_words.md", "# Words\n\n- Apple\n")
@@ -628,6 +702,97 @@ Visual:
         self.assertIn("Content plan revision", tool_context.state["ppt_workflow_state"]["confirmed_requirement"]["request_brief"])
         self.assertNotIn("final_file_paths", tool_context.state)
 
+    async def test_requirement_confirmation_revision_updates_structured_fields(self) -> None:
+        source_path = _write_markdown_source("Thinking_with_Visual_Primitives.pdf", "%PDF test fixture")
+        manager = PptProductManager()
+        tool_context = SimpleNamespace(state={"sid": "ppt-manager-requirement-revision-test", "turn_index": 1, "step": 1})
+
+        initial_result = await manager.run_product_request(
+            task=(
+                "针对这个素材，做一个用于组会和同学讲解的 PPT。"
+                "素材为论文/文档 Thinking_with_Visual_Primitives.pdf，需要提炼内容。"
+            ),
+            inputs={"files": [source_path]},
+            output={"format": "pptx", "language": "zh-CN", "use_case": "组会讲解"},
+            tool_context=tool_context,
+        )
+
+        self.assertEqual(initial_result["status"], "awaiting_requirement_confirmation")
+        self.assertEqual(initial_result["confirmed_requirement"]["scenario"], "组会")
+        self.assertNotIn("User revision", initial_result["confirmed_requirement"]["topic"])
+        self.assertEqual(len(initial_result["confirmed_requirement"]["source_inputs"]), 1)
+
+        tool_context.state["turn_index"] = 2
+        page_count_result = await manager.continue_product_request(
+            user_response="页数改成15页左右。",
+            tool_context=tool_context,
+        )
+
+        self.assertEqual(page_count_result["status"], "awaiting_requirement_confirmation")
+        requirement_after_page_count = page_count_result["confirmed_requirement"]
+        self.assertEqual(requirement_after_page_count["slide_count_policy"]["target"], 15)
+        self.assertEqual(requirement_after_page_count["source_inputs"][0]["path"], source_path)
+        self.assertNotIn("User revision", requirement_after_page_count["topic"])
+        self.assertNotIn("User revision", requirement_after_page_count["request_brief"])
+
+        tool_context.state["turn_index"] = 3
+        audience_result = await manager.continue_product_request(
+            user_response="受众为同组的同学，场景为组会。",
+            tool_context=tool_context,
+        )
+
+        self.assertEqual(audience_result["status"], "awaiting_requirement_confirmation")
+        revised_requirement = audience_result["confirmed_requirement"]
+        self.assertEqual(revised_requirement["audience"], "同组的同学")
+        self.assertEqual(revised_requirement["scenario"], "组会")
+        self.assertEqual(revised_requirement["slide_count_policy"]["target"], 15)
+        self.assertEqual(revised_requirement["source_inputs"][0]["path"], source_path)
+        self.assertNotIn("User revision", revised_requirement["topic"])
+        self.assertIn("| 受众 | 同组的同学 |", audience_result["confirmation_request"]["summary_markdown"])
+        self.assertIn("| 场景 | 组会 |", audience_result["confirmation_request"]["summary_markdown"])
+
+    async def test_requirement_confirmation_stages_external_upload_before_source_conversion(self) -> None:
+        with tempfile.TemporaryDirectory(dir="/private/tmp") as temp_dir:
+            external_pdf = Path(temp_dir) / "Thinking_with_Visual_Primitives.pdf"
+            external_pdf.write_bytes(b"%PDF external upload fixture")
+
+            manager = PptProductManager()
+            tool_context = SimpleNamespace(
+                state={
+                    "sid": "ppt-manager-external-upload-test",
+                    "channel": "web",
+                    "turn_index": 1,
+                    "step": 1,
+                }
+            )
+            captured: dict[str, str] = {}
+
+            async def _capturing_source_converter(source_input, parameters: dict) -> dict:
+                captured["source_input_path"] = source_input.path
+                captured["input_path"] = parameters["input_path"]
+                return await _fake_source_converter(source_input, parameters)
+
+            await manager.run_product_request(
+                task="针对这个素材，给我做一个ppt，用于组会和同学讲解。",
+                inputs=[str(external_pdf)],
+                output={"format": "pptx", "language": "zh-CN", "usage": "组会讲解"},
+                tool_context=tool_context,
+            )
+
+            tool_context.state["turn_index"] = 2
+            result = await manager.continue_product_request(
+                user_response="确认",
+                tool_context=tool_context,
+                source_converter=_capturing_source_converter,
+            )
+
+        self.assertEqual(result["status"], "awaiting_content_plan_confirmation")
+        self.assertNotEqual(captured["input_path"], str(external_pdf))
+        self.assertTrue(captured["input_path"].startswith("inbox/web/ppt-manager-external-upload-test/turn_2/"))
+        self.assertTrue(resolve_workspace_path(captured["input_path"]).exists())
+        self.assertEqual(result["confirmed_requirement"]["source_inputs"][0]["path"], captured["source_input_path"])
+        self.assertEqual(result["confirmed_requirement"]["source_inputs"][0]["path"], captured["input_path"])
+
     async def test_run_returns_deferred_status_for_unimplemented_xml_route(self) -> None:
         manager = PptProductManager()
         tool_context = SimpleNamespace(state={"sid": "ppt-manager-test", "turn_index": 1, "step": 1})
@@ -714,6 +879,26 @@ Visual:
             if shape.shape_type == MSO_SHAPE_TYPE.PICTURE
         )
         self.assertGreaterEqual(picture_count, 1)
+
+    async def test_run_converts_web_uploaded_file_path_strings(self) -> None:
+        source_path = _write_markdown_source("creative_agent_NeurIPS_2026_10_.pdf", "%PDF test fixture")
+        manager = PptProductManager()
+        tool_context = SimpleNamespace(state={"sid": "ppt-manager-web-upload-test", "turn_index": 2, "step": 1})
+
+        result = await manager.run_product_request(
+            task="针对这个素材，给我做一个ppt，用来组会上给团队的同学讲解。",
+            inputs={"files": [source_path]},
+            output={"format": "pptx", "language": "zh-CN", "purpose": "组会讲解", "auto_confirm": True},
+            tool_context=tool_context,
+            source_converter=_fake_source_converter,
+        )
+
+        self.assertEqual(result["status"], "success")
+        self.assertEqual(result["confirmed_requirement"]["source_inputs"][0]["path"], source_path)
+        source_materials = result["confirmed_requirement"]["source_understanding"]
+        self.assertEqual(source_materials["document_type"], "pdf")
+        self.assertEqual(source_materials["markdown_sources"][0]["name"], "creative_agent_NeurIPS_2026_10_.pdf")
+        self.assertTrue(tool_context.state["ppt_source_markdown_sources"])
 
     async def test_run_uses_existing_markdown_source_without_anything_to_md(self) -> None:
         source_path = _write_markdown_source(

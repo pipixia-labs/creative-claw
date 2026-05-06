@@ -303,7 +303,10 @@ class PptHtmlRouteTests(unittest.TestCase):
             )
 
             self.assertEqual(pptx_stage.pptx_strategy, "html_to_pptx")
-            self.assertEqual(pptx_stage.warnings, [])
+            self.assertTrue(
+                pptx_stage.warnings == []
+                or any("Browser HTML-to-PPTX converter was unavailable" in warning for warning in pptx_stage.warnings)
+            )
             self.assertEqual(pptx_stage.conversion_report["final_strategy"], "html_to_pptx")
             self.assertFalse(pptx_stage.conversion_report["fallback_used"])
             self.assertEqual(pptx_stage.conversion_report["pages"][0]["status"], "html_to_pptx")
@@ -312,7 +315,7 @@ class PptHtmlRouteTests(unittest.TestCase):
             self.assertIn(content_plan.pages[0].title, pptx_text)
             self.assertEqual(picture_count, 0)
 
-    def test_html_pptx_output_falls_back_to_screenshot_without_html_pages(self) -> None:
+    def test_html_pptx_output_fails_without_html_pages_instead_of_screenshot_fallback(self) -> None:
         manager = PptProductManager()
         requirement = manager.prepare_confirmed_requirement(
             task="做一个 3 页 PPTX，用于产品发布。",
@@ -343,20 +346,13 @@ class PptHtmlRouteTests(unittest.TestCase):
                 paths=paths,
             )
 
-            prs = Presentation(str(pptx_stage.pptx_path))
-            picture_count = sum(
-                1
-                for slide in prs.slides
-                for shape in slide.shapes
-                if shape.shape_type == MSO_SHAPE_TYPE.PICTURE
-            )
-
-            self.assertEqual(pptx_stage.pptx_strategy, "screenshot")
+            self.assertEqual(pptx_stage.pptx_strategy, "html_to_pptx_failed")
             self.assertTrue(any("HTML-to-PPTX conversion failed" in warning for warning in pptx_stage.warnings))
-            self.assertTrue(pptx_stage.conversion_report["fallback_used"])
-            self.assertEqual(pptx_stage.conversion_report["pages"][0]["status"], "screenshot_fallback")
-            self.assertEqual(len(prs.slides), len(content_plan.pages))
-            self.assertEqual(picture_count, len(content_plan.pages))
+            self.assertFalse(pptx_stage.pptx_path.exists())
+            self.assertFalse(pptx_stage.conversion_report["fallback_used"])
+            self.assertEqual(pptx_stage.conversion_report["final_strategy"], "html_to_pptx_failed")
+            self.assertEqual(pptx_stage.conversion_report["pages"][0]["status"], "html_to_pptx_failed")
+            self.assertEqual(pptx_stage.conversion_report["pages"][0]["editable_level"], "none")
 
     def test_html_to_pptx_converts_text_shapes_lines_and_images(self) -> None:
         with tempfile.TemporaryDirectory(dir=workspace_root()) as tmpdir:
@@ -421,6 +417,59 @@ class PptHtmlRouteTests(unittest.TestCase):
         self.assertFalse(report.ok)
         self.assertTrue(any(finding.code == "text_overflow_risk" for finding in report.findings))
 
+    def test_html_to_pptx_expands_positioned_flow_text_to_editable_boxes(self) -> None:
+        with tempfile.TemporaryDirectory(dir=workspace_root()) as tmpdir:
+            tmp_path = Path(tmpdir)
+            template = prepare_html_template(template_id="", aspect_ratio="16:9").template
+            pptx_path = tmp_path / "flow_text.pptx"
+            html_pages = [
+                (
+                    "<section style='position:relative;width:1280px;height:720px;background:#f7f5ee;'>"
+                    "<div style='position:absolute;left:56px;top:42px;width:610px;z-index:2;'>"
+                    "<p style='margin:0 0 12px 0;font-size:18px;color:#2a8c93;font-weight:700;'>Thinking with Visual Primitives</p>"
+                    "<h1 style='margin:0;font-size:48px;line-height:1.12;font-weight:800;color:#172033;'>这篇论文在解决什么问题</h1>"
+                    "<p style='margin:24px 0 0 0;font-size:25px;line-height:1.42;font-weight:700;color:#c65a3b;'>核心不是让模型看得更多，而是让模型指得更准。</p>"
+                    "</div>"
+                    "<div style='position:absolute;left:57px;top:285px;width:500px;z-index:3;'>"
+                    "<div style='display:flex;align-items:flex-start;margin-bottom:18px;'>"
+                    "<div style='flex:0 0 32px;height:32px;font-size:18px;font-weight:700;'>1</div>"
+                    "<p style='margin:2px 0 0 0;font-size:21px;line-height:1.35;color:#172033;'>多模态大模型已经能看图问答，但复杂空间推理仍容易崩溃</p>"
+                    "</div>"
+                    "<div style='display:flex;align-items:flex-start;margin-bottom:18px;'>"
+                    "<div style='flex:0 0 32px;height:32px;font-size:18px;font-weight:700;'>2</div>"
+                    "<p style='margin:2px 0 0 0;font-size:21px;line-height:1.35;color:#172033;'>传统 CoT 主要发生在语言空间，难以精确绑定图像中的对象位置</p>"
+                    "</div>"
+                    "</div>"
+                    "</section>"
+                )
+            ]
+
+            result = convert_html_pages_to_pptx(
+                html_pages=html_pages,
+                pptx_path=pptx_path,
+                template=template,
+            )
+
+            prs = Presentation(str(pptx_path))
+            pptx_text = "\n".join(
+                shape.text
+                for slide in prs.slides
+                for shape in slide.shapes
+                if getattr(shape, "has_text_frame", False)
+            )
+            text_shape_count = sum(
+                1
+                for slide in prs.slides
+                for shape in slide.shapes
+                if getattr(shape, "has_text_frame", False) and str(shape.text or "").strip()
+            )
+
+            self.assertTrue(result.ok)
+            self.assertEqual(result.errors, [])
+            self.assertIn("这篇论文在解决什么问题", pptx_text)
+            self.assertIn("多模态大模型", pptx_text)
+            self.assertGreaterEqual(text_shape_count, 5)
+
     def test_html_pptx_output_falls_back_for_high_risk_html(self) -> None:
         manager = PptProductManager()
         requirement = manager.prepare_confirmed_requirement(
@@ -460,20 +509,12 @@ class PptHtmlRouteTests(unittest.TestCase):
                 paths=paths,
             )
 
-            prs = Presentation(str(pptx_stage.pptx_path))
-            picture_count = sum(
-                1
-                for slide in prs.slides
-                for shape in slide.shapes
-                if shape.shape_type == MSO_SHAPE_TYPE.PICTURE
-            )
-
-            self.assertEqual(pptx_stage.pptx_strategy, "screenshot")
+            self.assertEqual(pptx_stage.pptx_strategy, "html_to_pptx_failed")
             self.assertTrue(any("unsupported_css" in warning or "Gradient" in warning for warning in pptx_stage.warnings))
-            self.assertEqual(pptx_stage.conversion_report["final_strategy"], "screenshot")
-            self.assertTrue(pptx_stage.conversion_report["fallback_used"])
+            self.assertEqual(pptx_stage.conversion_report["final_strategy"], "html_to_pptx_failed")
+            self.assertFalse(pptx_stage.conversion_report["fallback_used"])
             self.assertTrue(pptx_stage.conversion_report["pages"][0]["errors"])
-            self.assertEqual(picture_count, len(content_plan.pages))
+            self.assertFalse(pptx_stage.pptx_path.exists())
 
 
 if __name__ == "__main__":

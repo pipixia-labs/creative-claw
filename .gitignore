@@ -171,6 +171,9 @@ cython_debug/
 # Ruff stuff:
 .ruff_cache/
 
+# Node tooling for route converters
+node_modules/
+
 # PyPI configuration file
 .pypirc
 
