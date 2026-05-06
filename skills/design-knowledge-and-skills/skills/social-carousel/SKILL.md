@@ -6,8 +6,7 @@ description: |
   across the series ("onwards." → "to the next one." → "looking ahead.").
   Each card has a brand mark, a number / total, a caption, and a "loop"
   affordance. Use when the brief asks for a "carousel post", "social
-  carousel", "Instagram carousel", "LinkedIn series", "X thread cards",
-  or "三连发".
+  carousel", "Instagram carousel", "LinkedIn series", or "X thread cards".
 triggers:
   - "social carousel"
   - "carousel post"
@@ -15,8 +14,6 @@ triggers:
   - "linkedin carousel"
   - "x thread cards"
   - "social series"
-  - "三连发"
-  - "轮播图"
 od:
   mode: prototype
   platform: desktop

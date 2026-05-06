@@ -273,6 +273,31 @@ class DesignProductManagerTests(unittest.TestCase):
         self.assertIn("会员", questions_text)
         self.assertIn("嫦娥奔月", questions_text)
 
+    def test_prepare_english_unknown_request_keeps_english_language(self) -> None:
+        manager = DesignProductManager()
+
+        brief = manager.prepare_brief(prompt="Design a Mother's Day card.")
+
+        self.assertTrue(brief.needs_clarification)
+        self.assertEqual(brief.design_brief["constraints"]["deliverable_language"], "English")
+        self.assertEqual(brief.assumptions["deliverable_language"], "English")
+        self.assertIn("Ask the user the clarification questions", brief.generation_prompt)
+        questions_text = "\n".join(question["question"] for question in brief.questions)
+        self.assertIn("What should this be", questions_text)
+        self.assertNotRegex(questions_text, r"[\u4e00-\u9fff]")
+
+    def test_resolve_deliverable_language_ignores_code_language_value(self) -> None:
+        state: dict[str, str] = {}
+
+        language = DesignProductManager._resolve_deliverable_language(
+            state=state,
+            prompt="Design a pricing page for an AI CRM.",
+            output={"language": "html"},
+        )
+
+        self.assertEqual(language, "English")
+        self.assertEqual(state["design_product_deliverable_language"], "English")
+
     def test_prepare_detailed_unknown_ui_request_can_generate_freeform(self) -> None:
         manager = DesignProductManager()
 

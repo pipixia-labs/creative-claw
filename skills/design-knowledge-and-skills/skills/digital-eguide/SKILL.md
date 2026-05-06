@@ -6,7 +6,7 @@ description: |
   spread (lesson body with pull-quote and a step list). Lifestyle / creator
   brand tone. Use when the brief asks for an "e-guide", "digital guide",
   "lookbook", "lead magnet", "creator guide", "playbook", "PDF guide",
-  or "电子指南".
+  or "ebook".
 triggers:
   - "e-guide"
   - "digital guide"
@@ -16,8 +16,6 @@ triggers:
   - "playbook"
   - "pdf guide"
   - "ebook"
-  - "电子指南"
-  - "电子书"
 od:
   mode: prototype
   platform: desktop

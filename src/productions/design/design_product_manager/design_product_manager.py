@@ -402,6 +402,11 @@ Turn a user's design request into one focused, resource-grounded production brie
         output_options = dict(output or {})
         output_format = str(output_options.get("format") or output_options.get("output_format") or "html")
         output_path = str(output_options.get("path") or output_options.get("output_path") or "")
+        deliverable_language = self._resolve_deliverable_language(
+            state=getattr(tool_context, "state", {}),
+            prompt=clean_task,
+            output=output_options,
+        )
         allow_assumptions = self._should_allow_assumptions(
             task=clean_task,
             inputs=inputs or [],
@@ -414,6 +419,7 @@ Turn a user's design request into one focused, resource-grounded production brie
                 output_format=output_format,
                 allow_assumptions=allow_assumptions,
                 output_path=output_path,
+                deliverable_language=deliverable_language,
             )
         except Exception as exc:
             return {
@@ -493,11 +499,13 @@ Turn a user's design request into one focused, resource-grounded production brie
         device_frame: str = "",
         output_path: str = "",
         max_questions: int = 6,
+        deliverable_language: str = "",
     ) -> DesignProductBrief:
         """Prepare one resource-grounded design brief and code generation request."""
         clean_prompt = str(prompt or "").strip()
         if not clean_prompt:
             raise ValueError("DesignProductManager requires a non-empty prompt.")
+        language = str(deliverable_language or "").strip() or self._infer_deliverable_language(clean_prompt)
 
         manifest = self._load_manifest()
         brief_resource = self._select_brief_resource(manifest, prompt=clean_prompt, scenario=scenario)
@@ -507,6 +515,7 @@ Turn a user's design request into one focused, resource-grounded production brie
                 output_format=output_format,
                 allow_assumptions=allow_assumptions,
                 max_questions=max_questions,
+                deliverable_language=language,
             )
 
         brief_schema = self._load_resource_json(str(brief_resource["path"]))
@@ -547,6 +556,7 @@ Turn a user's design request into one focused, resource-grounded production brie
             selected_task_skill=selected_task_skill,
             selected_design_system=selected_design_system,
             selected_device_frame=selected_device_frame,
+            deliverable_language=language,
         )
         design_brief = self._build_design_brief(
             user_prompt=clean_prompt,
@@ -557,6 +567,7 @@ Turn a user's design request into one focused, resource-grounded production brie
             selected_design_system=selected_design_system,
             selected_device_frame=selected_device_frame,
             output_format=output_format,
+            deliverable_language=language,
         )
         validate_design_brief_contract(design_brief, project_root=self.project_root)
         generation_prompt = self._build_generation_prompt(
@@ -567,6 +578,7 @@ Turn a user's design request into one focused, resource-grounded production brie
             design_brief=design_brief,
             questions=questions,
             needs_clarification=needs_clarification,
+            deliverable_language=language,
         )
         code_generation_request = {
             "prompt": generation_prompt,
@@ -727,6 +739,81 @@ Turn a user's design request into one focused, resource-grounded production brie
         return len(normalized_task) >= 40
 
     @staticmethod
+    def _resolve_deliverable_language(
+        *,
+        state: Any,
+        prompt: str,
+        output: dict[str, Any],
+    ) -> str:
+        """Resolve and persist the first-turn deliverable language for design output."""
+        explicit = str(output.get("deliverable_language") or output.get("output_language") or "").strip()
+        legacy_language = str(output.get("language") or "").strip()
+        if not explicit and DesignProductManager._looks_like_natural_language_name(legacy_language):
+            explicit = legacy_language
+        if explicit:
+            return explicit
+
+        state_get = getattr(state, "get", None)
+        existing = str(state_get("design_product_deliverable_language", "") if callable(state_get) else "").strip()
+        if existing:
+            return existing
+
+        inferred = DesignProductManager._infer_deliverable_language(prompt)
+        try:
+            state["design_product_deliverable_language"] = inferred
+        except Exception:
+            pass
+        return inferred
+
+    @staticmethod
+    def _looks_like_natural_language_name(value: str) -> bool:
+        """Return whether one output language value names a human language."""
+        normalized = DesignProductManager._normalize_match_text(value)
+        return normalized in {
+            "english",
+            "en",
+            "chinese",
+            "zh",
+            "zh-cn",
+            "simplified chinese",
+            "traditional chinese",
+            "mixed",
+        }
+
+    @staticmethod
+    def _infer_deliverable_language(prompt: str) -> str:
+        """Infer the natural language to use for visible artifact copy."""
+        normalized_prompt = DesignProductManager._normalize_match_text(prompt)
+        explicit_english_markers = (
+            "in english",
+            "use english",
+            "english copy",
+            "英文",
+            "英语",
+        )
+        explicit_chinese_markers = (
+            "in chinese",
+            "use chinese",
+            "chinese copy",
+            "中文",
+            "汉语",
+        )
+        if any(marker in normalized_prompt for marker in explicit_english_markers):
+            return "English"
+        if any(marker in normalized_prompt for marker in explicit_chinese_markers):
+            return "Chinese"
+
+        han_count = len(re.findall(r"[\u4e00-\u9fff]", prompt))
+        latin_count = len(re.findall(r"[A-Za-z]", prompt))
+        if han_count and latin_count:
+            return "Mixed; preserve the user's language choices for visible copy"
+        if han_count:
+            return "Chinese"
+        if latin_count:
+            return "English"
+        return "same language as the user's first design request"
+
+    @staticmethod
     def _input_context_files(inputs: list[Any]) -> list[str]:
         """Extract workspace file paths from concise DesignProductManager inputs."""
         context_files: list[str] = []
@@ -839,6 +926,7 @@ Turn a user's design request into one focused, resource-grounded production brie
         output_format: str,
         allow_assumptions: bool,
         max_questions: int,
+        deliverable_language: str,
     ) -> DesignProductBrief:
         """Build a clarification-only brief when no design scenario matches."""
         can_generate = allow_assumptions and self._unknown_brief_has_enough_detail(prompt)
@@ -851,6 +939,7 @@ Turn a user's design request into one focused, resource-grounded production brie
             "output_contract": "",
             "density": "",
             "platform": "",
+            "deliverable_language": deliverable_language,
         }
         design_brief = {
             "schema_version": DESIGN_BRIEF_SCHEMA_VERSION,
@@ -872,6 +961,7 @@ Turn a user's design request into one focused, resource-grounded production brie
                 "density": "",
                 "platform": "",
                 "task_skill": "",
+                "deliverable_language": deliverable_language,
             },
             "assumptions": assumptions,
         }
@@ -880,6 +970,7 @@ Turn a user's design request into one focused, resource-grounded production brie
             prompt=prompt,
             design_brief=design_brief,
             needs_clarification=not can_generate,
+            deliverable_language=deliverable_language,
         )
         return DesignProductBrief(
             user_prompt=prompt,
@@ -973,6 +1064,7 @@ Turn a user's design request into one focused, resource-grounded production brie
         prompt: str,
         design_brief: dict[str, Any],
         needs_clarification: bool,
+        deliverable_language: str,
     ) -> str:
         """Build a safe freeform generation prompt for unmatched design requests."""
         if needs_clarification:
@@ -986,6 +1078,7 @@ Turn a user's design request into one focused, resource-grounded production brie
                 "Create one polished, production-quality UI design artifact for Creative Claw.",
                 "No matching design brief schema was found, so use the user's request directly and make reasonable design assumptions.",
                 "Do not turn this into an operations dashboard or admin console unless the user explicitly asks for staff/admin management.",
+                f"Deliverable language: {deliverable_language}. All visible artifact copy must use this language unless the user explicitly requested another language.",
                 "",
                 "# User request",
                 prompt,
@@ -1007,10 +1100,35 @@ Turn a user's design request into one focused, resource-grounded production brie
     def _unknown_brief_questions(*, prompt: str, max_questions: int) -> list[dict[str, str]]:
         """Return clarification questions for an unmatched design request."""
         normalized_prompt = DesignProductManager._normalize_match_text(prompt)
+        use_english = DesignProductManager._infer_deliverable_language(prompt).startswith("English")
         if any(
             DesignProductManager._normalize_match_text(keyword) in normalized_prompt
             for keyword in _RESTAURANT_UI_KEYWORDS
         ):
+            if use_english:
+                questions = [
+                    {
+                        "field": "output_surface",
+                        "question": "What should this be: a website/brand page, mobile app, ordering kiosk, reservation page, or another surface?",
+                    },
+                    {
+                        "field": "primary_user",
+                        "question": "Who is it for: in-store or online guests, staff, or managers?",
+                    },
+                    {
+                        "field": "primary_flow",
+                        "question": "What is the core flow: menu browsing, booking, ordering, brand storytelling, campaign conversion, or membership benefits?",
+                    },
+                    {
+                        "field": "content_requirements",
+                        "question": "What content is required: prices, bundles, promotions, membership, space introduction, dish stories, contact details, or address?",
+                    },
+                    {
+                        "field": "visual_direction",
+                        "question": "What visual mood should guide the design, such as Chang'e flying to the moon, Moon Palace, Mid-Autumn, Chinese aesthetics, or premium dining?",
+                    },
+                ]
+                return questions[: max(1, max_questions)]
             questions = [
                 {
                     "field": "output_surface",
@@ -1031,6 +1149,31 @@ Turn a user's design request into one focused, resource-grounded production brie
                 {
                     "field": "visual_direction",
                     "question": "视觉氛围有什么要求？例如嫦娥奔月、月宫、中秋、国风或高级餐饮感如何体现？",
+                },
+            ]
+            return questions[: max(1, max_questions)]
+
+        if use_english:
+            questions = [
+                {
+                    "field": "output_surface",
+                    "question": "What should this be: a website or brand page, mobile app, content page, tool page, data page, or another surface?",
+                },
+                {
+                    "field": "primary_user",
+                    "question": "Who is the primary audience, and in what context will they use or view it?",
+                },
+                {
+                    "field": "primary_flow",
+                    "question": "What is the core flow or key action the audience should complete?",
+                },
+                {
+                    "field": "content_requirements",
+                    "question": "What content, data, modules, or states must be included?",
+                },
+                {
+                    "field": "visual_direction",
+                    "question": "What visual mood, brand style, and target size or platform should guide it?",
                 },
             ]
             return questions[: max(1, max_questions)]
@@ -1303,11 +1446,13 @@ Turn a user's design request into one focused, resource-grounded production brie
         selected_task_skill: str,
         selected_design_system: str,
         selected_device_frame: str,
+        deliverable_language: str,
     ) -> dict[str, Any]:
         """Build explicit assumptions used when the user skips clarification."""
         assumptions = dict(defaults)
         assumptions["selected_task_skill"] = selected_task_skill
         assumptions["selected_design_system"] = selected_design_system
+        assumptions["deliverable_language"] = deliverable_language
         if selected_device_frame:
             assumptions["selected_device_frame"] = selected_device_frame
         return assumptions
@@ -1323,6 +1468,7 @@ Turn a user's design request into one focused, resource-grounded production brie
         selected_design_system: str,
         selected_device_frame: str,
         output_format: str,
+        deliverable_language: str,
     ) -> dict[str, Any]:
         """Build the stable DesignProductManager brief contract."""
         required_fields = [str(field) for field in brief_schema.get("required_fields", []) if str(field).strip()]
@@ -1351,6 +1497,7 @@ Turn a user's design request into one focused, resource-grounded production brie
                 "density": str(assumptions.get("density", "") or ""),
                 "platform": str(assumptions.get("platform", "") or ""),
                 "task_skill": selected_task_skill,
+                "deliverable_language": deliverable_language,
             },
             "assumptions": assumptions,
         }
@@ -1365,12 +1512,15 @@ Turn a user's design request into one focused, resource-grounded production brie
         design_brief: dict[str, Any],
         questions: tuple[dict[str, str], ...],
         needs_clarification: bool,
+        deliverable_language: str,
     ) -> str:
         """Build the final prompt for code-backed design artifact generation."""
         lines = [
             "Create one polished, production-quality design artifact for Creative Claw.",
             f"Design surface: {surface}",
             f"Output contract: {assumptions.get('output_contract', 'standalone responsive HTML artifact')}",
+            f"Deliverable language: {deliverable_language}",
+            "All visible artifact copy, headings, labels, and final deliverable text must use the deliverable language unless the user explicitly requested another language.",
             "",
             "# User request",
             user_prompt,

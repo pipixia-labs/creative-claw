@@ -6,7 +6,7 @@ description: |
   scribbled chart placeholders, hatched fills. Reads like a designer's
   whiteboard before any pixels are committed. Use when the brief asks for
   "wireframe", "sketch wireframe", "hand-drawn", "lo-fi", "whiteboard",
-  "草稿", or "手绘原型".
+  or "rough prototype".
 triggers:
   - "wireframe"
   - "sketch wireframe"
@@ -14,9 +14,6 @@ triggers:
   - "hand drawn"
   - "whiteboard sketch"
   - "low fidelity"
-  - "手绘原型"
-  - "草图"
-  - "线框图"
 od:
   mode: prototype
   platform: desktop

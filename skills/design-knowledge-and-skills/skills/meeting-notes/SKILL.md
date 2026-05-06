@@ -4,13 +4,12 @@ description: |
   Meeting notes page — title bar with attendees, agenda checklist, decisions
   block, action items table with owners + dates, and a "next meeting" footer.
   Use when the brief mentions "meeting notes", "minutes", "1:1 notes",
-  "all-hands recap", or "会议纪要".
+  "all-hands recap", or "meeting recap".
 triggers:
   - "meeting notes"
   - "minutes"
   - "1:1 notes"
   - "all-hands recap"
-  - "会议纪要"
 od:
   mode: prototype
   platform: desktop

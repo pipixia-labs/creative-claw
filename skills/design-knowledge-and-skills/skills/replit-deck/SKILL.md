@@ -10,7 +10,6 @@ description: |
 triggers:
   - "replit deck"
   - "replit slides"
-  - "replit 风格 ppt"
   - "replit style deck"
   - "helix deck"
   - "holm memo"
@@ -206,7 +205,6 @@ $ curl -s localhost:7456/api/skills \
   "triggers": [
     "replit deck",
     "replit slides",
-    "replit 风格 ppt",
     "replit style deck",
     "helix deck",
     "holm memo",

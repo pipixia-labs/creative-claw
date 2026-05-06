@@ -3,13 +3,11 @@ name: invoice
 description: |
   A printable invoice page — sender + recipient block, line items table,
   tax breakdown, totals, and payment instructions. Use when the brief
-  mentions "invoice", "bill", "billing statement", or "发票".
+  mentions "invoice", "bill", or "billing statement".
 triggers:
   - "invoice"
   - "bill"
   - "billing statement"
-  - "发票"
-  - "账单"
 od:
   mode: prototype
   platform: desktop

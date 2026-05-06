@@ -12,8 +12,6 @@ triggers:
   - "clip"
   - "shortform"
   - "reel"
-  - "短视频"
-  - "动效"
 od:
   mode: video
   surface: video
