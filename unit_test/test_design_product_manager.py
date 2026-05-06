@@ -249,6 +249,45 @@ class DesignProductManagerTests(unittest.TestCase):
         self.assertEqual(brief.selection.brief_schema_id, "brief_elements.guizang_ppt")
         self.assertEqual(brief.selection.task_skill, "guizang-ppt")
 
+    def test_prepare_unknown_ui_request_asks_clarification_without_dashboard_fallback(self) -> None:
+        manager = DesignProductManager()
+
+        brief = manager.prepare_brief(prompt="设计个嫦娥奔月主题餐厅的UI")
+
+        self.assertTrue(brief.needs_clarification)
+        self.assertEqual(brief.selection.surface, "unknown")
+        self.assertEqual(brief.selection.brief_schema_id, "brief_elements.unknown")
+        self.assertEqual(brief.selection.task_skill, "")
+        self.assertEqual(brief.selection.context_files, ())
+        self.assertNotEqual(brief.design_brief["source_brief_schema_id"], "brief_elements.admin_console")
+        questions_text = "\n".join(question["question"] for question in brief.questions)
+        self.assertIn("官网/品牌页", questions_text)
+        self.assertIn("移动端 App", questions_text)
+        self.assertIn("点餐屏", questions_text)
+        self.assertIn("预约页", questions_text)
+        self.assertIn("顾客", questions_text)
+        self.assertIn("店员", questions_text)
+        self.assertIn("菜单浏览", questions_text)
+        self.assertIn("订座", questions_text)
+        self.assertIn("价格", questions_text)
+        self.assertIn("会员", questions_text)
+        self.assertIn("嫦娥奔月", questions_text)
+
+    def test_prepare_detailed_unknown_ui_request_can_generate_freeform(self) -> None:
+        manager = DesignProductManager()
+
+        brief = manager.prepare_brief(
+            prompt="设计一个嫦娥奔月主题餐厅点餐屏，面向顾客，包含菜单浏览、套餐价格、预约订座和会员活动。"
+        )
+
+        self.assertFalse(brief.needs_clarification)
+        self.assertEqual(brief.selection.surface, "unknown")
+        self.assertEqual(brief.selection.brief_schema_id, "brief_elements.unknown")
+        self.assertEqual(brief.questions, ())
+        self.assertIn("Do not turn this into an operations dashboard", brief.generation_prompt)
+        self.assertIn("点餐屏", brief.generation_prompt)
+        self.assertIn("菜单浏览", brief.generation_prompt)
+
     def test_select_brief_resource_raises_clear_error_without_runtime_brief_elements(self) -> None:
         manager = DesignProductManager()
 

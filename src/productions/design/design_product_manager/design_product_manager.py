@@ -25,6 +25,24 @@ _RESOURCE_ROOT = Path("skills/design-knowledge-and-skills")
 _MANIFEST_PATH = _RESOURCE_ROOT / "resource-manifest.json"
 DESIGN_BRIEF_SCHEMA_VERSION = "design-brief-v1"
 DESIGN_RESULT_SCHEMA_VERSION = "design-product-result-v1"
+_UNKNOWN_BRIEF_SCHEMA_ID = "brief_elements.unknown"
+_UNKNOWN_SURFACE = "unknown"
+_RESTAURANT_UI_KEYWORDS = (
+    "餐厅",
+    "饭店",
+    "餐饮",
+    "点餐",
+    "菜单",
+    "订座",
+    "预约",
+    "堂食",
+    "外卖",
+    "restaurant",
+    "dining",
+    "menu",
+    "reservation",
+    "hospitality",
+)
 
 _SURFACE_KEYWORDS = {
     "dashboard": (
@@ -483,6 +501,14 @@ Turn a user's design request into one focused, resource-grounded production brie
 
         manifest = self._load_manifest()
         brief_resource = self._select_brief_resource(manifest, prompt=clean_prompt, scenario=scenario)
+        if brief_resource is None:
+            return self._build_unknown_brief(
+                prompt=clean_prompt,
+                output_format=output_format,
+                allow_assumptions=allow_assumptions,
+                max_questions=max_questions,
+            )
+
         brief_schema = self._load_resource_json(str(brief_resource["path"]))
         defaults = dict(brief_schema.get("defaults") or brief_resource.get("defaults") or {})
         surface = str(brief_schema.get("surface") or brief_resource.get("surface") or "dashboard").strip()
@@ -684,6 +710,17 @@ Turn a user's design request into one focused, resource-grounded production brie
             "pricing",
             "deck",
             "landing",
+            "官网",
+            "移动端",
+            "点餐屏",
+            "预约页",
+            "菜单",
+            "订座",
+            "点餐",
+            "价格",
+            "套餐",
+            "活动",
+            "会员",
         )
         if any(marker in normalized_task for marker in concrete_markers):
             return True
@@ -780,7 +817,7 @@ Turn a user's design request into one focused, resource-grounded production brie
         *,
         prompt: str,
         scenario: str,
-    ) -> dict[str, Any]:
+    ) -> dict[str, Any] | None:
         """Select the most relevant brief element schema."""
         brief_resources = self._resources_by_type(manifest, "brief_element_schema")
         if not brief_resources:
@@ -793,14 +830,234 @@ Turn a user's design request into one focused, resource-grounded production brie
         for resource in brief_resources:
             if str(resource.get("surface", "")).strip() == explicit_surface:
                 return resource
-        return next(
-            (
-                resource
-                for resource in brief_resources
-                if str(resource.get("surface", "")).strip() == "dashboard"
-            ),
-            brief_resources[0],
+        return None
+
+    def _build_unknown_brief(
+        self,
+        *,
+        prompt: str,
+        output_format: str,
+        allow_assumptions: bool,
+        max_questions: int,
+    ) -> DesignProductBrief:
+        """Build a clarification-only brief when no design scenario matches."""
+        can_generate = allow_assumptions and self._unknown_brief_has_enough_detail(prompt)
+        questions = () if can_generate else tuple(self._unknown_brief_questions(prompt=prompt, max_questions=max_questions))
+        missing_fields = tuple(question["field"] for question in questions)
+        assumptions = {
+            "reason": "no_matching_brief_resource",
+            "selected_task_skill": "",
+            "selected_design_system": "",
+            "output_contract": "",
+            "density": "",
+            "platform": "",
+        }
+        design_brief = {
+            "schema_version": DESIGN_BRIEF_SCHEMA_VERSION,
+            "surface": _UNKNOWN_SURFACE,
+            "scenario": [],
+            "source_brief_schema_id": _UNKNOWN_BRIEF_SCHEMA_ID,
+            "user_prompt": prompt,
+            "primary_user": "",
+            "business_domain": "",
+            "goal": prompt,
+            "content_requirements": list(missing_fields or self._unknown_brief_default_fields()),
+            "visual_direction": "",
+            "design_system": "",
+            "device_frame": "",
+            "interactions": [],
+            "output_format": self._normalize_output_format(output_format),
+            "constraints": {
+                "output_contract": "",
+                "density": "",
+                "platform": "",
+                "task_skill": "",
+            },
+            "assumptions": assumptions,
+        }
+        validate_design_brief_contract(design_brief, project_root=self.project_root)
+        generation_prompt = self._build_unknown_generation_prompt(
+            prompt=prompt,
+            design_brief=design_brief,
+            needs_clarification=not can_generate,
         )
+        return DesignProductBrief(
+            user_prompt=prompt,
+            selection=DesignResourceSelection(
+                surface=_UNKNOWN_SURFACE,
+                brief_schema_id=_UNKNOWN_BRIEF_SCHEMA_ID,
+                task_skill="",
+                design_system="",
+                device_frame="",
+                context_files=(),
+            ),
+            questions=questions,
+            missing_fields=missing_fields,
+            assumptions=assumptions,
+            design_brief=design_brief,
+            needs_clarification=not can_generate,
+            generation_prompt=generation_prompt,
+            code_generation_request={
+                "prompt": generation_prompt,
+                "language": self._normalize_output_format(output_format),
+                "output_path": "",
+                "context_files": [],
+                "constraints": self._build_constraints(surface=_UNKNOWN_SURFACE, output_format=output_format),
+                "design_brief": design_brief,
+            },
+        )
+
+    @staticmethod
+    def _unknown_brief_default_fields() -> tuple[str, ...]:
+        """Return generic requirement fields for an unmatched but executable UI brief."""
+        return (
+            "output_surface",
+            "primary_user",
+            "primary_flow",
+            "content_requirements",
+            "visual_direction",
+        )
+
+    @staticmethod
+    def _unknown_brief_has_enough_detail(prompt: str) -> bool:
+        """Return whether an unmatched brief has enough detail for freeform generation."""
+        normalized_prompt = DesignProductManager._normalize_match_text(prompt)
+        marker_groups = (
+            (
+                "官网",
+                "品牌页",
+                "移动端",
+                "app",
+                "点餐屏",
+                "预约页",
+                "页面",
+                "界面",
+                "screen",
+                "page",
+            ),
+            (
+                "顾客",
+                "店员",
+                "店长",
+                "用户",
+                "客户",
+                "visitor",
+                "customer",
+                "staff",
+            ),
+            (
+                "菜单",
+                "菜单浏览",
+                "订座",
+                "预约",
+                "点餐",
+                "品牌展示",
+                "活动",
+                "会员",
+                "价格",
+                "套餐",
+                "地址",
+                "空间介绍",
+            ),
+        )
+        matched_group_count = sum(
+            1
+            for markers in marker_groups
+            if any(DesignProductManager._normalize_match_text(marker) in normalized_prompt for marker in markers)
+        )
+        return matched_group_count >= 2
+
+    @staticmethod
+    def _build_unknown_generation_prompt(
+        *,
+        prompt: str,
+        design_brief: dict[str, Any],
+        needs_clarification: bool,
+    ) -> str:
+        """Build a safe freeform generation prompt for unmatched design requests."""
+        if needs_clarification:
+            return (
+                "No matching design brief schema was found. Ask the user the clarification questions "
+                "before generating an artifact."
+            )
+
+        return "\n".join(
+            [
+                "Create one polished, production-quality UI design artifact for Creative Claw.",
+                "No matching design brief schema was found, so use the user's request directly and make reasonable design assumptions.",
+                "Do not turn this into an operations dashboard or admin console unless the user explicitly asks for staff/admin management.",
+                "",
+                "# User request",
+                prompt,
+                "",
+                "# Structured design brief contract",
+                json.dumps(design_brief, ensure_ascii=False, indent=2),
+                "",
+                "# Implementation requirements",
+                "- Generate a complete standalone HTML file with embedded CSS and JavaScript when useful.",
+                "- Let the model freely choose layout details that fit the user's theme and stated flow.",
+                "- Use realistic interface structure, content hierarchy, controls, data states, and responsive behavior.",
+                "- Do not include visible instructional copy explaining how the artifact was made.",
+                "- Keep typography, spacing, states, and visual hierarchy coherent across desktop and mobile sizes.",
+                "- Prefer accessible contrast and semantic HTML.",
+            ]
+        )
+
+    @staticmethod
+    def _unknown_brief_questions(*, prompt: str, max_questions: int) -> list[dict[str, str]]:
+        """Return clarification questions for an unmatched design request."""
+        normalized_prompt = DesignProductManager._normalize_match_text(prompt)
+        if any(
+            DesignProductManager._normalize_match_text(keyword) in normalized_prompt
+            for keyword in _RESTAURANT_UI_KEYWORDS
+        ):
+            questions = [
+                {
+                    "field": "output_surface",
+                    "question": "你想做哪种界面：官网/品牌页、移动端 App、点餐屏、预约页，还是其他？",
+                },
+                {
+                    "field": "primary_user",
+                    "question": "主要面向谁：到店/线上顾客、店员，还是店长？",
+                },
+                {
+                    "field": "primary_flow",
+                    "question": "核心流程是什么：菜单浏览、订座、点餐、品牌展示、活动转化，还是会员权益？",
+                },
+                {
+                    "field": "content_requirements",
+                    "question": "需要包含哪些内容：价格、套餐、活动、会员、空间介绍、菜品故事、联系方式或地址？",
+                },
+                {
+                    "field": "visual_direction",
+                    "question": "视觉氛围有什么要求？例如嫦娥奔月、月宫、中秋、国风或高级餐饮感如何体现？",
+                },
+            ]
+            return questions[: max(1, max_questions)]
+
+        questions = [
+            {
+                "field": "output_surface",
+                "question": "你想做哪种界面：官网/品牌页、移动端 App、内容页、工具页、数据页，还是其他？",
+            },
+            {
+                "field": "primary_user",
+                "question": "主要面向谁？他们在什么场景下使用这个界面？",
+            },
+            {
+                "field": "primary_flow",
+                "question": "核心流程或关键动作是什么？用户打开后最重要的任务是什么？",
+            },
+            {
+                "field": "content_requirements",
+                "question": "必须包含哪些内容、数据、模块或状态？",
+            },
+            {
+                "field": "visual_direction",
+                "question": "视觉氛围、品牌风格和平台尺寸有什么要求？",
+            },
+        ]
+        return questions[: max(1, max_questions)]
 
     @staticmethod
     def _build_design_issues(
