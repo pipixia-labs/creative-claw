@@ -687,6 +687,14 @@ button {
   background: rgba(255, 252, 249, 0.9);
 }
 
+.message-card.system {
+  border-left: 2px solid rgba(30, 40, 34, 0.18);
+  background: rgba(30, 40, 34, 0.045);
+  color: var(--text-soft);
+  font-size: 13px;
+  box-shadow: none;
+}
+
 .progress-card {
   overflow: hidden;
   padding: 0;
@@ -1194,6 +1202,32 @@ button {
   background: linear-gradient(135deg, var(--accent-dark), var(--accent));
   color: #f9fffb;
   font-weight: 800;
+}
+
+.send-button .stop-icon {
+  display: none;
+}
+
+.send-button[data-state="running"] {
+  background: var(--accent-dark);
+  border-radius: 7px;
+}
+
+.send-button[data-state="running"] .send-icon,
+.send-button[data-state="stopping"] .send-icon {
+  display: none;
+}
+
+.send-button[data-state="running"] .stop-icon,
+.send-button[data-state="stopping"] .stop-icon {
+  display: block;
+}
+
+.send-button[data-state="stopping"] {
+  background: var(--accent-dark);
+  border-radius: 7px;
+  cursor: progress;
+  opacity: 0.72;
 }
 
 .send-button:disabled {

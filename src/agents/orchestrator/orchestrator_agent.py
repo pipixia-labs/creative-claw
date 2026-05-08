@@ -36,6 +36,7 @@ from src.runtime.step_events import (
     append_orchestration_step_event,
     step_event_streaming_active,
 )
+from src.runtime.cancellation import get_cancellation_manager
 from src.runtime.tool_display import format_tool_args, stringify_value, summarize_tool_result
 from src.runtime.workspace import (
     build_workspace_file_record,
@@ -48,6 +49,7 @@ from src.runtime.workspace import (
 from src.skills import get_skill_registry
 from src.tools.builtin_tools import (
     BuiltinToolbox,
+    builtin_tool_scope,
 )
 
 _PLUGIN_MANAGED_TOOL_NAMES = {
@@ -934,6 +936,9 @@ Expert parameter contracts:
         """Execute one tool and record its start and finish events when context exists."""
         if tool_context is None:
             return runner()
+        session_id = self._resolve_tool_context_session_id(tool_context)
+        if session_id:
+            get_cancellation_manager().raise_if_cancelled(session_id)
         self._advance_tool_counters(tool_context.state, tool_name=tool_name)
         should_record_manually = (not step_event_streaming_active()) or tool_name not in _PLUGIN_MANAGED_TOOL_NAMES
         if should_record_manually:
@@ -943,7 +948,10 @@ Expert parameter contracts:
             if tool_name == "exec_command" and not bool(args.get("background"))
             else None
         )
-        result = runner()
+        with builtin_tool_scope(session_id):
+            result = runner()
+        if session_id:
+            get_cancellation_manager().raise_if_cancelled(session_id)
         result = self._normalize_generated_tool_result(
             tool_context.state,
             tool_name=tool_name,
@@ -996,11 +1004,16 @@ Expert parameter contracts:
         """Execute one async tool and record its lifecycle events when context exists."""
         if tool_context is None:
             return await runner()
+        session_id = self._resolve_tool_context_session_id(tool_context)
+        if session_id:
+            get_cancellation_manager().raise_if_cancelled(session_id)
         self._advance_tool_counters(tool_context.state, tool_name=tool_name)
         should_record_manually = (not step_event_streaming_active()) or tool_name not in _PLUGIN_MANAGED_TOOL_NAMES
         if should_record_manually:
             self._record_tool_started(tool_context.state, tool_name=tool_name, args=args, stage=stage)
         result = await runner()
+        if session_id:
+            get_cancellation_manager().raise_if_cancelled(session_id)
         if should_record_manually:
             self._record_tool_finished(
                 tool_context.state,

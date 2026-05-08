@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+import asyncio
 import json
 import uuid
 
@@ -13,6 +14,7 @@ from google.genai.types import Content, Part
 from conf.system import SYS_CONFIG
 from src.agents.orchestrator.orchestrator_agent import Orchestrator
 from src.logger import logger
+from src.runtime.cancellation import TaskCancelledError, get_cancellation_manager
 from src.runtime.expert_registry import build_expert_agents
 from src.runtime.models import InboundMessage, WorkflowEvent
 from src.runtime.step_events import reset_step_event_history, step_event_streaming_active
@@ -195,53 +197,67 @@ class CreativeClawRuntime:
             return
 
         user_id, session_id = await self._ensure_session(inbound)
-        current_turn = await self._next_turn_index(user_id, session_id)
+        run_id = str(inbound.metadata.get("run_id") or "").strip()
+        current_turn: int | None = None
+        try:
+            if run_id:
+                cancellation = get_cancellation_manager()
+                record = cancellation.bind_runtime_session(run_id, session_id)
+                if record is not None and record.requested:
+                    cancellation.request_cancel_by_session(session_id, reason=record.reason)
+                    logger.info(
+                        "Pending cancellation applied before workflow start: run_id={} session_id={}",
+                        run_id,
+                        session_id,
+                    )
+                    raise TaskCancelledError(session_id, reason=record.reason)
 
-        yield _build_progress_event(
-            "I'll start processing your request.",
-            session_id=session_id,
-            stage="started",
-            turn_index=current_turn,
-        )
-        reset_step_event_history(session_id=session_id, turn_index=current_turn)
-        for attachment in inbound.attachments:
+            current_turn = await self._next_turn_index(user_id, session_id)
+
             yield _build_progress_event(
-                f"Received attachment: {attachment.name}",
+                "I'll start processing your request.",
                 session_id=session_id,
-                stage="attachment_received",
+                stage="started",
                 turn_index=current_turn,
             )
+            reset_step_event_history(session_id=session_id, turn_index=current_turn)
+            for attachment in inbound.attachments:
+                yield _build_progress_event(
+                    f"Received attachment: {attachment.name}",
+                    session_id=session_id,
+                    stage="attachment_received",
+                    turn_index=current_turn,
+                )
 
-        try:
-            await self._set_initial_state(user_id, session_id, inbound, turn_index=current_turn)
-        except Exception as exc:
-            error_summary = _format_exception_summary(exc)
-            error_text = f"Init state failed (session_id={session_id}): {error_summary}"
-            logger.opt(exception=exc).error(
-                "Init state failed: session_id={} channel={} sender_id={} error_summary={}",
-                session_id,
-                inbound.channel,
-                inbound.sender_id or SYS_CONFIG.user_id_default,
-                error_summary,
+            try:
+                await self._set_initial_state(user_id, session_id, inbound, turn_index=current_turn)
+            except Exception as exc:
+                error_summary = _format_exception_summary(exc)
+                error_text = f"Init state failed (session_id={session_id}): {error_summary}"
+                logger.opt(exception=exc).error(
+                    "Init state failed: session_id={} channel={} sender_id={} error_summary={}",
+                    session_id,
+                    inbound.channel,
+                    inbound.sender_id or SYS_CONFIG.user_id_default,
+                    error_summary,
+                )
+                yield WorkflowEvent(
+                    event_type="error",
+                    text=error_text,
+                    metadata={"session_id": session_id, "turn_index": current_turn},
+                )
+                return
+
+            orchestrator_agent = Orchestrator(
+                session_service=self.session_service,
+                artifact_service=self.artifact_service,
+                expert_agents=self.expert_agents,
+                app_name=SYS_CONFIG.app_name,
+                save_dir=str(self.generated_dir),
             )
-            yield WorkflowEvent(
-                event_type="error",
-                text=error_text,
-                metadata={"session_id": session_id, "turn_index": current_turn},
-            )
-            return
+            orchestrator_agent.uid = user_id
+            orchestrator_agent.sid = session_id
 
-        orchestrator_agent = Orchestrator(
-            session_service=self.session_service,
-            artifact_service=self.artifact_service,
-            expert_agents=self.expert_agents,
-            app_name=SYS_CONFIG.app_name,
-            save_dir=str(self.generated_dir),
-        )
-        orchestrator_agent.uid = user_id
-        orchestrator_agent.sid = session_id
-
-        try:
             final_summary = "task workflow has started."
             orchestration_history: list[dict[str, str]] = []
             current_session = await self.session_service.get_session(
@@ -282,6 +298,10 @@ class CreativeClawRuntime:
                 turn_index=current_turn,
             )
             yield final_event
+        except TaskCancelledError:
+            raise
+        except asyncio.CancelledError:
+            raise
         except Exception as exc:
             error_summary = _format_exception_summary(exc)
             error_text = f"Workflow failed (session_id={session_id}): {error_summary}"
@@ -290,11 +310,17 @@ class CreativeClawRuntime:
                 session_id,
                 error_summary,
             )
+            error_metadata: dict[str, object] = {"session_id": session_id}
+            if current_turn is not None:
+                error_metadata["turn_index"] = current_turn
             yield WorkflowEvent(
                 event_type="error",
                 text=error_text,
-                metadata={"session_id": session_id, "turn_index": current_turn},
+                metadata=error_metadata,
             )
+        finally:
+            if run_id:
+                get_cancellation_manager().complete_run(run_id)
 
     async def reset_session(self, inbound: InboundMessage) -> tuple[str, str]:
         """Force-create a fresh ADK session for the current channel conversation."""

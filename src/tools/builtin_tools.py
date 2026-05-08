@@ -2,13 +2,18 @@
 
 from __future__ import annotations
 
+import contextlib
 import json
 import os
 import fnmatch
 import re
+import signal
 import subprocess
+import sys
 import tempfile
 import time
+from contextlib import contextmanager
+from contextvars import ContextVar
 from dataclasses import dataclass
 from fractions import Fraction
 from pathlib import Path
@@ -20,8 +25,26 @@ from urllib.request import Request, urlopen
 from PIL import ExifTags, Image, ImageOps
 
 from conf.api import API_CONFIG
+from src.runtime.cancellation import get_cancellation_manager
 from src.runtime.process_sessions import get_process_session_manager
 from src.runtime.workspace import workspace_root
+
+_TOOL_SCOPE_KEY: ContextVar[str] = ContextVar("creative_claw_builtin_tool_scope", default="")
+
+
+@contextmanager
+def builtin_tool_scope(scope_key: str | None):
+    """Bind the current ADK runtime session id for builtin subprocess helpers."""
+    token = _TOOL_SCOPE_KEY.set(str(scope_key or "").strip())
+    try:
+        yield
+    finally:
+        _TOOL_SCOPE_KEY.reset(token)
+
+
+def _current_tool_scope_key() -> str:
+    """Return the current builtin tool runtime scope, if any."""
+    return _TOOL_SCOPE_KEY.get("")
 
 
 def _default_workspace() -> Path:
@@ -63,6 +86,9 @@ class BuiltinToolbox:
         timeout: int = 120,
     ) -> subprocess.CompletedProcess[str]:
         """Run one subprocess command and raise a readable error on failure."""
+        scope_key = _current_tool_scope_key()
+        if scope_key:
+            return self._run_cancellable_subprocess_checked(args, timeout=timeout, scope_key=scope_key)
         try:
             completed = subprocess.run(
                 args,
@@ -81,6 +107,85 @@ class BuiltinToolbox:
             detail = (completed.stderr or completed.stdout).strip()
             raise RuntimeError(detail or f"Command failed with exit code {completed.returncode}")
         return completed
+
+    def _run_cancellable_subprocess_checked(
+        self,
+        args: list[str],
+        *,
+        timeout: int,
+        scope_key: str,
+    ) -> subprocess.CompletedProcess[str]:
+        """Run one subprocess with cooperative cancellation checks."""
+        popen_kwargs: dict[str, object] = {
+            "cwd": str(self.workspace_root),
+            "stdout": subprocess.PIPE,
+            "stderr": subprocess.PIPE,
+            "text": True,
+        }
+        if sys.platform == "win32":
+            popen_kwargs["creationflags"] = getattr(subprocess, "CREATE_NEW_PROCESS_GROUP", 0)
+        else:
+            popen_kwargs["start_new_session"] = True
+        try:
+            process = subprocess.Popen(args, **popen_kwargs)
+        except FileNotFoundError as exc:
+            raise RuntimeError(f"Required executable not found: {args[0]}") from exc
+
+        deadline = time.monotonic() + max(0, int(timeout))
+        cancellation = get_cancellation_manager()
+        while True:
+            if cancellation.is_cancel_requested(scope_key):
+                self._terminate_subprocess_group(process)
+                raise RuntimeError("Command cancelled")
+            try:
+                stdout, stderr = process.communicate(timeout=0.2)
+                break
+            except subprocess.TimeoutExpired:
+                if time.monotonic() > deadline:
+                    self._terminate_subprocess_group(process)
+                    raise RuntimeError(f"Command timed out after {timeout} seconds") from None
+
+        completed = subprocess.CompletedProcess(args=args, returncode=process.returncode, stdout=stdout, stderr=stderr)
+        if completed.returncode != 0:
+            detail = (completed.stderr or completed.stdout).strip()
+            raise RuntimeError(detail or f"Command failed with exit code {completed.returncode}")
+        return completed
+
+    @staticmethod
+    def _terminate_subprocess_group(process: subprocess.Popen[str]) -> None:
+        """Terminate a subprocess and its process group."""
+        try:
+            if sys.platform == "win32":
+                ctrl_break = getattr(signal, "CTRL_BREAK_EVENT", None)
+                if ctrl_break is not None:
+                    process.send_signal(ctrl_break)
+                else:
+                    process.terminate()
+            else:
+                os.killpg(process.pid, signal.SIGTERM)
+            process.wait(timeout=1.0)
+            return
+        except subprocess.TimeoutExpired:
+            pass
+        except ProcessLookupError:
+            return
+        except Exception:
+            with contextlib.suppress(Exception):
+                process.terminate()
+            try:
+                process.wait(timeout=1.0)
+                return
+            except subprocess.TimeoutExpired:
+                pass
+            except Exception:
+                return
+
+        with contextlib.suppress(Exception):
+            if sys.platform == "win32":
+                process.kill()
+            else:
+                os.killpg(process.pid, signal.SIGKILL)
+            process.wait(timeout=2.0)
 
     def _probe_media(self, source: Path) -> dict[str, Any]:
         """Run ffprobe for one media file and return parsed JSON metadata."""
@@ -803,26 +908,48 @@ class BuiltinToolbox:
                     "Use process_session(action='list'|'poll'|'log'|'write'|'kill'|'remove') for follow-up."
                 )
 
-            completed = subprocess.run(
-                command.strip(),
-                shell=True,
-                cwd=str(cwd),
-                capture_output=True,
-                text=True,
-                timeout=timeout,
-            )
-        except subprocess.TimeoutExpired:
-            return f"Error: Command timed out after {timeout} seconds"
+            manager = get_process_session_manager()
+            session = manager.start_session(command=command.strip(), cwd=cwd, scope_key=scope_key)
+            exit_code: int | None = None
+            deadline = time.monotonic() + max(0, int(timeout))
+            cancelled = False
+            timed_out = False
+            while True:
+                if scope_key and get_cancellation_manager().is_cancel_requested(scope_key):
+                    manager.kill_session(session.session_id, scope_key=scope_key)
+                    cancelled = True
+                    break
+                payload = manager.poll_session(session.session_id, timeout_ms=200, scope_key=scope_key)
+                if payload and payload.get("exited"):
+                    if scope_key and get_cancellation_manager().is_cancel_requested(scope_key):
+                        cancelled = True
+                    maybe_exit_code = payload.get("exit_code")
+                    exit_code = maybe_exit_code if isinstance(maybe_exit_code, int) else None
+                    break
+                if time.monotonic() > deadline:
+                    manager.kill_session(session.session_id, scope_key=scope_key)
+                    timed_out = True
+                    break
+            if cancelled:
+                manager.remove_session(session.session_id, scope_key=scope_key)
+                return "Error: Command cancelled"
+            if timed_out:
+                manager.remove_session(session.session_id, scope_key=scope_key)
+                return f"Error: Command timed out after {timeout} seconds"
+            result_payload = manager.collect_result(session.session_id, scope_key=scope_key) or {}
+            manager.remove_session(session.session_id, scope_key=scope_key)
         except Exception as exc:
             return f"Error executing command: {exc}"
 
         parts: list[str] = []
-        if completed.stdout:
-            parts.append(completed.stdout)
-        if completed.stderr:
-            parts.append(f"STDERR:\n{completed.stderr}")
-        if completed.returncode != 0:
-            parts.append(f"Exit code: {completed.returncode}")
+        stdout = str(result_payload.get("stdout") or "")
+        stderr = str(result_payload.get("stderr") or "")
+        if stdout:
+            parts.append(stdout)
+        if stderr:
+            parts.append(f"STDERR:\n{stderr}")
+        if isinstance(exit_code, int) and exit_code != 0:
+            parts.append(f"Exit code: {exit_code}")
 
         result = "\n".join(parts).strip() or "(no output)"
         max_len = 12000

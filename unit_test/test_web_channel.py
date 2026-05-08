@@ -102,10 +102,14 @@ class WebChannelTests(unittest.IsolatedAsyncioTestCase):
                 self.assertEqual(ready["sessionId"], "test-session")
 
                 await websocket.send(json.dumps({"type": "chat", "content": "hello web"}))
+                started = await self._recv_until(websocket, "task_started")
+                self.assertTrue(started["runId"])
                 inbound = await asyncio.wait_for(self._consume_inbound(), timeout=2)
                 self.assertEqual(inbound.channel, "web")
                 self.assertEqual(inbound.chat_id, "test-session")
                 self.assertEqual(inbound.text, "hello web")
+                self.assertEqual(inbound.metadata["run_id"], started["runId"])
+                await self._recv_until(websocket, "task_finished")
 
                 await self.channel.send(
                     OutboundMessage(
@@ -115,7 +119,7 @@ class WebChannelTests(unittest.IsolatedAsyncioTestCase):
                         metadata={"display_style": "progress", "stage_title": "Planning"},
                     )
                 )
-                progress = json.loads(await asyncio.wait_for(websocket.recv(), timeout=2))
+                progress = await self._recv_until(websocket, "progress")
                 self.assertEqual(progress["type"], "progress")
                 self.assertEqual(progress["metadata"]["stage_title"], "Planning")
 
@@ -128,7 +132,7 @@ class WebChannelTests(unittest.IsolatedAsyncioTestCase):
                         metadata={"display_style": "final"},
                     )
                 )
-                final_message = json.loads(await asyncio.wait_for(websocket.recv(), timeout=2))
+                final_message = await self._recv_until(websocket, "assistant_message")
                 self.assertEqual(final_message["type"], "assistant_message")
                 self.assertEqual(final_message["content"], "final answer")
                 self.assertEqual(len(final_message["artifacts"]), 1)
@@ -196,12 +200,54 @@ class WebChannelTests(unittest.IsolatedAsyncioTestCase):
             with contextlib.suppress(OSError):
                 uploaded_path.parent.rmdir()
 
+    async def test_web_channel_stop_cancels_active_run_without_blocking_read_loop(self) -> None:
+        started = asyncio.Event()
+        released = asyncio.Event()
+
+        async def _blocking_handler(message: InboundMessage) -> None:
+            self.inbound_messages.append(message)
+            started.set()
+            await released.wait()
+
+        self.channel.inbound_handler = _blocking_handler
+
+        async with websockets.connect(f"ws://127.0.0.1:{self.channel._port}/ws?session_id=stop-session") as websocket:
+            ready = json.loads(await asyncio.wait_for(websocket.recv(), timeout=2))
+            self.assertEqual(ready["type"], "ready")
+
+            run_id = f"run-{uuid.uuid4().hex}"
+            await websocket.send(json.dumps({"type": "chat", "content": "long task", "runId": run_id}))
+            started_payload = await self._recv_until(websocket, "task_started")
+            self.assertEqual(started_payload["runId"], run_id)
+            await asyncio.wait_for(started.wait(), timeout=2)
+
+            await websocket.send(json.dumps({"type": "stop", "runId": run_id}))
+            stopping = await self._recv_until(websocket, "task_stopping")
+            self.assertEqual(stopping["runId"], run_id)
+            finished = await self._recv_until(websocket, "task_finished")
+            self.assertEqual(finished["runId"], run_id)
+            self.assertEqual(finished["reason"], "cancelled")
+
+            next_run_id = f"run-{uuid.uuid4().hex}"
+            await websocket.send(json.dumps({"type": "chat", "content": "next task", "runId": next_run_id}))
+            next_started = await self._recv_until(websocket, "task_started")
+            self.assertEqual(next_started["runId"], next_run_id)
+
+        released.set()
+
     async def _consume_inbound(self) -> InboundMessage:
         for _ in range(20):
             if self.inbound_messages:
                 return self.inbound_messages.pop(0)
             await asyncio.sleep(0.01)
         raise AssertionError("Inbound message was not received.")
+
+    async def _recv_until(self, websocket, expected_type: str) -> dict[str, object]:
+        for _ in range(10):
+            payload = json.loads(await asyncio.wait_for(websocket.recv(), timeout=2))
+            if payload.get("type") == expected_type:
+                return payload
+        raise AssertionError(f"Did not receive payload type {expected_type!r}.")
 
 
 if __name__ == "__main__":

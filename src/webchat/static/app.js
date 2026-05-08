@@ -33,6 +33,8 @@ let sessionId = ensureSessionId();
 let socket = null;
 let activeProgressCard = null;
 let progressBodyCounter = 0;
+let currentRunId = null;
+let runState = "idle";
 let activePreviewTab = "tldraw";
 let previewArtifactsByTab = buildEmptyPreviewGroups();
 let selectedPreviewByTab = buildEmptyPreviewSelections();
@@ -318,10 +320,12 @@ function connect() {
 
   socket.addEventListener("close", () => {
     setStatus("disconnected");
+    setRunState("idle");
   });
 
   socket.addEventListener("error", () => {
     setStatus("error");
+    setRunState("idle");
   });
 
   socket.addEventListener("message", (event) => {
@@ -370,7 +374,29 @@ function handleEvent(payload) {
     return;
   }
 
+  if (payload.type === "task_started") {
+    handleTaskStarted(payload);
+    return;
+  }
+
+  if (payload.type === "task_stopping") {
+    handleTaskStopping(payload);
+    return;
+  }
+
+  if (payload.type === "task_finished") {
+    handleTaskFinished(payload);
+    return;
+  }
+
+  if (payload.type === "task_stop_ignored") {
+    return;
+  }
+
   if (payload.type === "progress") {
+    if (shouldIgnoreStaleRunEvent(payload)) {
+      return;
+    }
     upsertProgressCard(payload.content || "", payload.metadata || {});
     return;
   }
@@ -378,6 +404,9 @@ function handleEvent(payload) {
   activeProgressCard = null;
 
   if (payload.type === "assistant_message") {
+    if (shouldIgnoreStaleRunEvent(payload)) {
+      return;
+    }
     addMessageCard("assistant", "CreativeClaw", payload.content || "", payload.artifacts || []);
     appendHistory({
       type: "assistant",
@@ -389,6 +418,15 @@ function handleEvent(payload) {
   }
 
   if (payload.type === "error") {
+    if (payload.code === "task_running") {
+      if (payload.runId) {
+        setRunState("running", payload.runId);
+      }
+      return;
+    }
+    if (shouldIgnoreStaleRunEvent(payload)) {
+      return;
+    }
     addMessageCard("error", "CreativeClaw", payload.content || payload.message || "Unknown error.");
     appendHistory({
       type: "error",
@@ -397,6 +435,51 @@ function handleEvent(payload) {
       artifacts: [],
     });
   }
+}
+
+function setRunState(next, runId = currentRunId) {
+  runState = next;
+  currentRunId = next === "idle" ? null : runId;
+  sendButton.dataset.state = next;
+  const labels = {
+    idle: "Send message",
+    running: "Stop running task",
+    stopping: "Stopping...",
+  };
+  const label = labels[next] || labels.idle;
+  sendButton.setAttribute("aria-label", label);
+  sendButton.title = label;
+  updateComposerButtons();
+}
+
+function handleTaskStarted(payload) {
+  if (!payload.runId) {
+    return;
+  }
+  if (runState === "idle") {
+    setRunState("running", payload.runId);
+  }
+}
+
+function handleTaskStopping(payload) {
+  if (!payload.runId || payload.runId !== currentRunId) {
+    return;
+  }
+  setRunState("stopping", payload.runId);
+}
+
+function handleTaskFinished(payload) {
+  if (!payload.runId || payload.runId !== currentRunId) {
+    return;
+  }
+  if (payload.reason === "cancelled") {
+    addMessageCard("system", "CreativeClaw", "Task stopped.");
+  }
+  setRunState("idle");
+}
+
+function shouldIgnoreStaleRunEvent(payload) {
+  return Boolean(payload?.runId && currentRunId && payload.runId !== currentRunId);
 }
 
 function renderEmptyStateIfNeeded() {
@@ -1637,8 +1720,14 @@ function updateComposerButtons() {
   const hasUploadedAttachment = attachedFiles.some((attachment) => attachment.status === "uploaded" && attachment.path);
   const hasPromptText = promptInput.value.trim().length > 0;
   const isConnected = socket && socket.readyState === WebSocket.OPEN;
-  sendButton.disabled = hasUploadingAttachment || !isConnected || (!hasPromptText && !hasUploadedAttachment);
-  attachButton.disabled = !isConnected;
+  if (runState === "running") {
+    sendButton.disabled = !isConnected;
+  } else if (runState === "stopping") {
+    sendButton.disabled = true;
+  } else {
+    sendButton.disabled = hasUploadingAttachment || !isConnected || (!hasPromptText && !hasUploadedAttachment);
+  }
+  attachButton.disabled = !isConnected || runState !== "idle";
 }
 
 function renderAttachments() {
@@ -1840,6 +1929,9 @@ function contentWithAttachments(content, attachments) {
 }
 
 async function sendPrompt() {
+  if (runState !== "idle") {
+    return;
+  }
   const uploadedAttachments = attachedFiles.filter((attachment) => attachment.status === "uploaded" && attachment.path);
   const hasUploadingAttachment = attachedFiles.some((attachment) => attachment.status === "uploading");
   if (hasUploadingAttachment) {
@@ -1850,7 +1942,9 @@ async function sendPrompt() {
   if (!content || !socket || socket.readyState !== WebSocket.OPEN) {
     return;
   }
-  sendSocket({ type: "chat", content });
+  const runId = crypto.randomUUID();
+  sendSocket({ type: "chat", content, runId });
+  setRunState("running", runId);
   addMessageCard("user", "You", content);
   appendHistory({ type: "user", role: "You", content, artifacts: [] });
   promptInput.value = "";
@@ -1859,9 +1953,28 @@ async function sendPrompt() {
   activeProgressCard = null;
 }
 
+function stopCurrentTask() {
+  if (runState !== "running" || !currentRunId) {
+    return;
+  }
+  sendSocket({ type: "stop", runId: currentRunId });
+  setRunState("stopping", currentRunId);
+}
+
+async function handleComposerSubmit() {
+  if (runState === "running") {
+    stopCurrentTask();
+    return;
+  }
+  if (runState === "stopping") {
+    return;
+  }
+  await sendPrompt();
+}
+
 composer.addEventListener("submit", (event) => {
   event.preventDefault();
-  void sendPrompt();
+  void handleComposerSubmit();
 });
 
 promptInput.addEventListener("input", () => {
@@ -1873,7 +1986,7 @@ promptInput.addEventListener("input", () => {
 promptInput.addEventListener("keydown", (event) => {
   if (event.key === "Enter" && !event.shiftKey && !event.isComposing) {
     event.preventDefault();
-    void sendPrompt();
+    void handleComposerSubmit();
   }
 });
 
