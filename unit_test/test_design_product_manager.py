@@ -36,6 +36,9 @@ class DesignProductManagerTests(unittest.TestCase):
         )
         self.assertIn("private product-design skills", manager.instruction)
         self.assertIn("CodeGenerationExpert", manager.instruction)
+        self.assertIn("CodeGenerationExpert is the only producer", manager.instruction)
+        self.assertIn("ImageGenerationAgent output is normally an intermediate asset", manager.instruction)
+        self.assertIn("Do not use `save_design_artifact` to create the main final HTML", manager.instruction)
         self.assertIn("register_design_delivery", manager.instruction)
 
     def test_private_product_design_skill_registry_lists_standard_skill_folders(self) -> None:
