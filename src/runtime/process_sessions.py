@@ -6,12 +6,25 @@ import subprocess
 import threading
 import time
 import uuid
+import os
+import signal
+import sys
 from dataclasses import dataclass, field
 from pathlib import Path
 
 _MAX_OUTPUT_CHARS = 200_000
 _MAX_PENDING_CHARS = 30_000
 _TRUNCATED_BANNER = "... (truncated earlier output)\n"
+
+
+@dataclass(slots=True)
+class ProcessKillSummary:
+    """Summary for one scoped process cleanup operation."""
+
+    found: int = 0
+    killed: int = 0
+    failed: int = 0
+    session_ids: list[str] = field(default_factory=list)
 
 
 @dataclass(slots=True)
@@ -43,6 +56,8 @@ class ProcessSession:
     exit_code: int | None = None
     kill_requested: bool = False
     output: str = ""
+    stdout: str = ""
+    stderr: str = ""
     pending_output: str = ""
     output_truncated: bool = False
     lock: threading.Lock = field(default_factory=threading.Lock)
@@ -64,16 +79,20 @@ class ProcessSessionManager:
         scope_key: str | None = None,
     ) -> ProcessSession:
         """Start one background shell command."""
-        process = subprocess.Popen(
-            command,
-            shell=True,
-            cwd=str(cwd),
-            stdin=subprocess.PIPE,
-            stdout=subprocess.PIPE,
-            stderr=subprocess.PIPE,
-            text=True,
-            bufsize=1,
-        )
+        popen_kwargs: dict[str, object] = {
+            "shell": True,
+            "cwd": str(cwd),
+            "stdin": subprocess.PIPE,
+            "stdout": subprocess.PIPE,
+            "stderr": subprocess.PIPE,
+            "text": True,
+            "bufsize": 1,
+        }
+        if sys.platform == "win32":
+            popen_kwargs["creationflags"] = getattr(subprocess, "CREATE_NEW_PROCESS_GROUP", 0)
+        else:
+            popen_kwargs["start_new_session"] = True
+        process = subprocess.Popen(command, **popen_kwargs)
         session = ProcessSession(
             session_id=str(uuid.uuid4()),
             command=command,
@@ -179,6 +198,25 @@ class ProcessSessionManager:
                 "exit_code": session.exit_code,
             }
 
+    def collect_result(
+        self,
+        session_id: str,
+        *,
+        scope_key: str | None = None,
+    ) -> dict[str, object] | None:
+        """Return final stdout, stderr, and exit code for one session."""
+        session = self._lookup(session_id, scope_key=scope_key)
+        if session is None:
+            return None
+        with session.lock:
+            return {
+                "session_id": session.session_id,
+                "stdout": session.stdout,
+                "stderr": session.stderr,
+                "exit_code": session.exit_code,
+                "exited": session.exited,
+            }
+
     def write_session(
         self,
         session_id: str,
@@ -215,13 +253,43 @@ class ProcessSessionManager:
                 return True
             session.kill_requested = True
         try:
-            session.process.terminate()
+            self._terminate_process_group(session)
             session.process.wait(timeout=1.0)
         except subprocess.TimeoutExpired:
-            session.process.kill()
+            try:
+                self._kill_process_group(session)
+                session.process.wait(timeout=2.0)
+            except subprocess.TimeoutExpired:
+                return False
+            except ProcessLookupError:
+                return True
+            except Exception:
+                return False
+        except ProcessLookupError:
+            return True
         except Exception:
             return False
         return True
+
+    def kill_sessions(
+        self,
+        *,
+        scope_key: str | None = None,
+        include_finished: bool = False,
+    ) -> ProcessKillSummary:
+        """Terminate all process sessions visible to one scope."""
+        snapshots = self.list_sessions(scope_key=scope_key)
+        targets = [snapshot for snapshot in snapshots if include_finished or not snapshot.exited]
+        summary = ProcessKillSummary(
+            found=len(targets),
+            session_ids=[snapshot.session_id for snapshot in targets],
+        )
+        for snapshot in targets:
+            if self.kill_session(snapshot.session_id, scope_key=scope_key):
+                summary.killed += 1
+            else:
+                summary.failed += 1
+        return summary
 
     def remove_session(self, session_id: str, *, scope_key: str | None = None) -> bool:
         """Remove one finished session from the manager."""
@@ -259,6 +327,26 @@ class ProcessSessionManager:
         if session.kill_requested:
             return "killed"
         return "exited" if int(session.exit_code or 0) == 0 else "failed"
+
+    @staticmethod
+    def _terminate_process_group(session: ProcessSession) -> None:
+        """Send a graceful termination signal to a session process group."""
+        if sys.platform == "win32":
+            ctrl_break = getattr(signal, "CTRL_BREAK_EVENT", None)
+            if ctrl_break is not None:
+                session.process.send_signal(ctrl_break)
+            else:
+                session.process.terminate()
+            return
+        os.killpg(session.process.pid, signal.SIGTERM)
+
+    @staticmethod
+    def _kill_process_group(session: ProcessSession) -> None:
+        """Send a hard kill signal to a session process group."""
+        if sys.platform == "win32":
+            session.process.kill()
+            return
+        os.killpg(session.process.pid, signal.SIGKILL)
 
     def _start_reader(
         self,
@@ -306,6 +394,10 @@ class ProcessSessionManager:
             labeled = normalized
 
         with session.lock:
+            if stream_name == "stderr":
+                session.stderr += normalized
+            else:
+                session.stdout += normalized
             session.output += labeled
             if len(session.output) > _MAX_OUTPUT_CHARS:
                 session.output = _TRUNCATED_BANNER + session.output[-(_MAX_OUTPUT_CHARS - len(_TRUNCATED_BANNER)) :]

@@ -26,6 +26,8 @@ from websockets.legacy.server import WebSocketServerProtocol, serve
 
 from conf.channel import WebChannelConfig
 from src.logger import logger
+from src.runtime.cancellation import get_cancellation_manager
+from src.runtime.process_sessions import ProcessKillSummary
 from src.runtime import InboundMessage
 from src.runtime.workspace import looks_like_image, resolve_workspace_path, workspace_relative_path
 
@@ -59,6 +61,18 @@ class _PendingUpload:
     mime_type: str
     expected_size: int
     received_size: int = 0
+
+
+@dataclass(slots=True)
+class _ActiveRun:
+    """One run currently executing for a Web Chat session."""
+
+    task: asyncio.Task[None]
+    run_id: str
+    session_id: str
+    runtime_session_id: str | None = None
+    stopping: bool = False
+    cleanup_task: asyncio.Task[ProcessKillSummary | None] | None = None
 
 
 def _guess_content_type(filename: str) -> str:
@@ -435,6 +449,7 @@ class WebChannel(BaseChannel):
         self._host = config.host
         self._port = config.port
         self._pending_uploads: dict[str, _PendingUpload] = {}
+        self._active_runs: dict[str, _ActiveRun] = {}
 
     @property
     def url(self) -> str:
@@ -471,6 +486,18 @@ class WebChannel(BaseChannel):
     async def stop(self) -> None:
         """Stop the Web chat service and close active client sockets."""
         self._running = False
+        active_runs = list(self._active_runs.values())
+        for active in active_runs:
+            self._start_cancel_for_active_run(active, reason="server_shutdown")
+        pending_tasks = {active.task for active in active_runs if not active.task.done()}
+        if pending_tasks:
+            await asyncio.wait(
+                pending_tasks,
+                timeout=5.0,
+                return_when=asyncio.ALL_COMPLETED,
+            )
+        self._active_runs.clear()
+
         connections = [conn for conns in self._sessions.values() for conn in conns]
         for conn in connections:
             with contextlib.suppress(Exception):
@@ -521,13 +548,20 @@ class WebChannel(BaseChannel):
         elif str(message.text or "").startswith("Error:"):
             payload_type = "error"
 
-        return {
+        payload = {
             "type": payload_type,
             "content": message.text,
             "format": "markdown",
             "artifacts": self._build_artifacts(message.artifact_paths),
             "metadata": metadata,
         }
+        active = self._active_runs.get(message.chat_id)
+        if active is not None:
+            runtime_session_id = str(metadata.get("session_id") or "").strip()
+            if runtime_session_id:
+                active.runtime_session_id = runtime_session_id
+            payload["runId"] = active.run_id
+        return payload
 
     def _build_artifacts(self, artifact_paths: list[str]) -> list[dict[str, Any]]:
         """Build browser-facing artifact metadata for one outbound message."""
@@ -573,6 +607,10 @@ class WebChannel(BaseChannel):
                 stale.append(conn)
         for conn in stale:
             self._drop_connection(conn)
+
+    async def _send_to(self, conn: _ClientConnection, payload: dict[str, Any]) -> None:
+        """Send one JSON payload to a single browser client."""
+        await conn.websocket.send(json.dumps(payload, ensure_ascii=False))
 
     async def _handle_websocket(self, websocket: WebSocketServerProtocol) -> None:
         """Handle one browser websocket session."""
@@ -628,29 +666,172 @@ class WebChannel(BaseChannel):
         if event_type == "upload_cancel":
             await self._handle_upload_cancel(conn, payload)
             return
+        if event_type == "stop":
+            await self._handle_stop(conn, payload)
+            return
 
         if event_type != "chat":
-            await conn.websocket.send(
-                json.dumps({"type": "error", "message": "Unsupported event type"}, ensure_ascii=False)
+            await self._send_to(conn, {"type": "error", "message": "Unsupported event type"})
+            return
+
+        await self._dispatch_chat_task(conn, payload)
+
+    async def _dispatch_chat_task(self, conn: _ClientConnection, payload: dict[str, Any]) -> None:
+        """Start one Web Chat run without blocking the websocket read loop."""
+        existing = self._active_runs.get(conn.session_id)
+        if existing is not None and not existing.task.done():
+            await self._send_to(
+                conn,
+                {
+                    "type": "error",
+                    "code": "task_running",
+                    "runId": existing.run_id,
+                    "message": "当前任务仍在运行，请先停止后再提交。",
+                },
             )
             return
 
         content = str(payload.get("content") or "").strip()
         if not content:
-            await conn.websocket.send(
-                json.dumps({"type": "error", "message": "Message content is required"}, ensure_ascii=False)
+            await self._send_to(conn, {"type": "error", "message": "Message content is required"})
+            return
+
+        run_id = str(payload.get("runId") or "").strip() or uuid.uuid4().hex
+        get_cancellation_manager().register_run(
+            run_id=run_id,
+            channel=self.name,
+            chat_id=conn.session_id,
+        )
+        task = asyncio.create_task(
+            self._run_chat_task(conn, content, run_id),
+            name=f"web-chat-{conn.session_id}-{run_id}",
+        )
+        active = _ActiveRun(task=task, run_id=run_id, session_id=conn.session_id)
+        self._active_runs[conn.session_id] = active
+
+        def _cleanup(_task: asyncio.Task[None], *, ref: _ActiveRun = active) -> None:
+            if self._active_runs.get(ref.session_id) is ref:
+                self._active_runs.pop(ref.session_id, None)
+
+        task.add_done_callback(_cleanup)
+        await self._broadcast(conn.session_id, {"type": "task_started", "runId": run_id})
+
+    async def _run_chat_task(self, conn: _ClientConnection, content: str, run_id: str) -> None:
+        """Run one chat task and emit lifecycle events."""
+        reason = "completed"
+        try:
+            await self.inbound_handler(
+                InboundMessage(
+                    channel=self.name,
+                    sender_id=conn.client_id,
+                    chat_id=conn.session_id,
+                    text=content,
+                    metadata={"client_id": conn.client_id, "run_id": run_id},
+                )
+            )
+        except asyncio.CancelledError:
+            reason = "cancelled"
+        except Exception as exc:
+            reason = "error"
+            logger.opt(exception=exc).warning(
+                "Web chat task failed: session_id={} run_id={}",
+                conn.session_id,
+                run_id,
+            )
+        finally:
+            active = self._active_runs.get(conn.session_id)
+            if reason == "cancelled" and active is not None and active.cleanup_task is not None:
+                try:
+                    summary = await asyncio.wait_for(active.cleanup_task, timeout=3.0)
+                    logger.info(
+                        "Cancel cleanup finished: session_id={} run_id={} found={} killed={} failed={}",
+                        conn.session_id,
+                        run_id,
+                        summary.found if summary else 0,
+                        summary.killed if summary else 0,
+                        summary.failed if summary else 0,
+                    )
+                except asyncio.TimeoutError:
+                    logger.error("Cancel cleanup timed out: session_id={} run_id={}", conn.session_id, run_id)
+                except Exception as cleanup_exc:
+                    logger.opt(exception=cleanup_exc).warning(
+                        "Cancel cleanup failed: session_id={} run_id={}",
+                        conn.session_id,
+                        run_id,
+                    )
+
+            active = self._active_runs.get(conn.session_id)
+            if active is not None and active.run_id == run_id:
+                self._active_runs.pop(conn.session_id, None)
+
+            get_cancellation_manager().complete_run(run_id)
+            with contextlib.suppress(Exception):
+                await self._broadcast(
+                    conn.session_id,
+                    {"type": "task_finished", "runId": run_id, "reason": reason},
+                )
+
+    async def _handle_stop(self, conn: _ClientConnection, payload: dict[str, Any]) -> None:
+        """Stop the currently active run for one Web Chat session."""
+        requested_run_id = str(payload.get("runId") or "").strip()
+        active = self._active_runs.get(conn.session_id)
+        if active is None or active.task.done():
+            await self._send_to(
+                conn,
+                {"type": "task_finished", "runId": requested_run_id, "reason": "cancelled"},
             )
             return
 
-        await self.inbound_handler(
-            InboundMessage(
-                channel=self.name,
-                sender_id=conn.client_id,
-                chat_id=conn.session_id,
-                text=content,
-                metadata={"client_id": conn.client_id},
+        if requested_run_id and requested_run_id != active.run_id:
+            await self._send_to(
+                conn,
+                {
+                    "type": "task_stop_ignored",
+                    "runId": requested_run_id,
+                    "currentRunId": active.run_id,
+                },
             )
+            return
+
+        if active.stopping:
+            return
+
+        active.stopping = True
+        await self._broadcast(conn.session_id, {"type": "task_stopping", "runId": active.run_id})
+        self._start_cancel_for_active_run(active, reason="user_stop")
+
+    def _start_cancel_for_active_run(self, active: _ActiveRun, *, reason: str) -> None:
+        """Start best-effort cancellation for one active run."""
+        if active.cleanup_task is None or active.cleanup_task.done():
+            active.cleanup_task = asyncio.create_task(
+                self._cancel_background_work(active, reason=reason),
+                name=f"web-cancel-{active.session_id}-{active.run_id}",
+            )
+        if not active.task.done():
+            active.task.cancel()
+
+    async def _cancel_background_work(self, active: _ActiveRun, *, reason: str) -> ProcessKillSummary | None:
+        """Best-effort cancel local background work for one active run."""
+        cancellation = get_cancellation_manager()
+        summary = await asyncio.to_thread(
+            cancellation.request_cancel_by_run_id,
+            active.run_id,
+            reason,
         )
+        if summary is not None:
+            return summary
+        if active.runtime_session_id:
+            return await asyncio.to_thread(
+                cancellation.request_cancel_by_session,
+                active.runtime_session_id,
+                reason,
+            )
+        logger.info(
+            "Cancel requested before runtime session was known: session_id={} run_id={}",
+            active.session_id,
+            active.run_id,
+        )
+        return None
 
     async def _handle_upload_start(self, conn: _ClientConnection, payload: dict[str, Any]) -> None:
         """Initialize a streamed browser file upload."""
