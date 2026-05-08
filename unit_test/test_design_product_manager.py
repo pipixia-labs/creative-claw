@@ -1,9 +1,12 @@
+import asyncio
 import unittest
 from types import SimpleNamespace
+from unittest.mock import AsyncMock, patch
 
 from google.adk.agents import LlmAgent
 
 from src.productions.design.design_product_manager import (
+    DESIGN_PRODUCT_EXPERT_ALLOWLIST,
     DESIGN_PRODUCT_RESULT_SCHEMA_VERSION,
     DesignProductManager,
     ProductDesignSkillRegistry,
@@ -23,14 +26,16 @@ class DesignProductManagerTests(unittest.TestCase):
             {
                 "list_product_design_skills",
                 "read_product_design_skill",
+                "list_design_experts",
+                "invoke_design_expert",
                 "emit_design_progress",
-                "generate_design_artifact",
                 "save_design_artifact",
                 "validate_design_artifact",
                 "register_design_delivery",
             },
         )
         self.assertIn("private product-design skills", manager.instruction)
+        self.assertIn("CodeGenerationExpert", manager.instruction)
         self.assertIn("register_design_delivery", manager.instruction)
 
     def test_private_product_design_skill_registry_lists_standard_skill_folders(self) -> None:
@@ -65,6 +70,61 @@ class DesignProductManagerTests(unittest.TestCase):
         self.assertEqual(read["name"], "bbb-skill")
         self.assertIn("BBB Skill", read["content"])
         self.assertEqual(tool_context.state["active_product_design_skill"]["name"], "bbb-skill")
+
+    def test_private_design_expert_tools_list_allowlist_and_reject_other_experts(self) -> None:
+        manager = DesignProductManager()
+        tool_context = SimpleNamespace(state={})
+
+        listed = manager.list_design_experts(tool_context)
+        rejected = asyncio.run(
+            manager.invoke_design_expert(
+                agent_name="VideoGenerationAgent",
+                prompt="{}",
+                tool_context=tool_context,
+            )
+        )
+
+        self.assertEqual(listed["status"], "success")
+        self.assertEqual(
+            [expert["name"] for expert in listed["experts"]],
+            list(DESIGN_PRODUCT_EXPERT_ALLOWLIST),
+        )
+        self.assertEqual(rejected["status"], "error")
+        self.assertIn("Allowed experts", rejected["message"])
+
+    def test_invoke_design_expert_uses_shared_dispatcher(self) -> None:
+        manager = DesignProductManager()
+        manager._expert_agents = {"CodeGenerationExpert": object()}
+        tool_context = SimpleNamespace(state={})
+        expected_tool_result = {
+            "agent_name": "CodeGenerationExpert",
+            "status": "success",
+            "message": "generated",
+            "output_files": [{"path": "generated/design.html"}],
+        }
+        mocked_dispatch = AsyncMock(
+            return_value=SimpleNamespace(tool_result=expected_tool_result)
+        )
+
+        with patch(
+            "src.productions.design.design_product_manager.design_product_manager.dispatch_expert_call",
+            new=mocked_dispatch,
+        ):
+            result = asyncio.run(
+                manager.invoke_design_expert(
+                    agent_name="CodeGenerationExpert",
+                    prompt='{"prompt":"Build a landing page","language":"html"}',
+                    tool_context=tool_context,
+                )
+            )
+
+        self.assertEqual(result, expected_tool_result)
+        mocked_dispatch.assert_awaited_once()
+        self.assertEqual(
+            tool_context.state["design_product_last_expert_result"],
+            expected_tool_result,
+        )
+        self.assertEqual(tool_context.state["design_product_generation"], expected_tool_result)
 
     def test_progress_save_validate_and_register_delivery_tools(self) -> None:
         manager = DesignProductManager()
@@ -132,8 +192,6 @@ class DesignProductManagerTests(unittest.TestCase):
     def test_run_product_request_requires_adk_invocation_context(self) -> None:
         manager = DesignProductManager()
         tool_context = SimpleNamespace(state={})
-
-        import asyncio
 
         result = asyncio.run(
             manager.run_product_request(

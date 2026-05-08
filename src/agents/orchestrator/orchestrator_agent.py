@@ -1560,6 +1560,7 @@ Expert parameter contracts:
                 inputs=inputs or [],
                 output=output or {},
                 tool_context=tool_context,
+                expert_agents=self.expert_agents,
                 app_name=self.app_name,
                 artifact_service=self.artifact_service,
             )

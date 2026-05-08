@@ -51,6 +51,7 @@ class DesignProductToolTests(unittest.IsolatedAsyncioTestCase):
             inputs=[{"path": "input/example.md"}],
             output={"format": "html"},
             tool_context=tool_context,
+            expert_agents=orchestrator.expert_agents,
             app_name=orchestrator.app_name,
             artifact_service=orchestrator.artifact_service,
         )

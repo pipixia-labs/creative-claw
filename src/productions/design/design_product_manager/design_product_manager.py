@@ -6,7 +6,7 @@ import copy
 from pathlib import Path
 from typing import Any
 
-from google.adk.agents import LlmAgent
+from google.adk.agents import BaseAgent, LlmAgent
 from google.adk.apps import App
 from google.adk.artifacts import BaseArtifactService, InMemoryArtifactService
 from google.adk.memory import InMemoryMemoryService
@@ -18,11 +18,16 @@ from pydantic import PrivateAttr
 
 from conf.llm import build_llm
 from conf.path import PROJECT_PATH
+from src.productions.design.design_product_manager.design_product_experts import (
+    DESIGN_PRODUCT_EXPERT_ALLOWLIST,
+    build_design_expert_listing,
+    is_design_product_expert,
+)
 from src.productions.design.design_product_manager.product_design_skills import (
     ProductDesignSkillRegistry,
 )
 from src.productions.design.design_product_manager.validation import validate_design_artifacts
-from src.runtime.code_artifacts import generate_code_artifact
+from src.runtime.expert_dispatcher import dispatch_expert_call
 from src.runtime.step_events import append_orchestration_step_event
 from src.runtime.tool_context_artifact_service import ToolContextArtifactService
 from src.runtime.workspace import (
@@ -38,6 +43,9 @@ DESIGN_PRODUCT_REQUEST_STATE_KEY = "design_product_request"
 DESIGN_PRODUCT_PROGRESS_STATE_KEY = "design_product_progress"
 DESIGN_PRODUCT_SKILLS_STATE_KEY = "product_design_skills"
 DESIGN_PRODUCT_ACTIVE_SKILL_STATE_KEY = "active_product_design_skill"
+DESIGN_PRODUCT_EXPERTS_STATE_KEY = "design_product_experts"
+DESIGN_PRODUCT_EXPERT_HISTORY_STATE_KEY = "design_product_expert_history"
+DESIGN_PRODUCT_LAST_EXPERT_RESULT_STATE_KEY = "design_product_last_expert_result"
 
 
 class DesignProductManager(LlmAgent):
@@ -45,6 +53,9 @@ class DesignProductManager(LlmAgent):
 
     _project_root: Path = PrivateAttr()
     _skill_registry: ProductDesignSkillRegistry = PrivateAttr()
+    _expert_agents: dict[str, BaseAgent] = PrivateAttr(default_factory=dict)
+    _app_name: str = PrivateAttr(default="creative_claw")
+    _artifact_service: BaseArtifactService | None = PrivateAttr(default=None)
 
     def __init__(
         self,
@@ -71,8 +82,9 @@ class DesignProductManager(LlmAgent):
             self.tools = [
                 self.list_product_design_skills,
                 self.read_product_design_skill,
+                self.list_design_experts,
+                self.invoke_design_expert,
                 self.emit_design_progress,
-                self.generate_design_artifact,
                 self.save_design_artifact,
                 self.validate_design_artifact,
                 self.register_design_delivery,
@@ -103,14 +115,26 @@ Own design product tasks end to end. You are not a thin wrapper around the orche
 - Do not ask the orchestrator to read design skills for you.
 - Select the most relevant private skill yourself. If no private skill fits, proceed with your own design judgment and record that assumption.
 
+# Private experts
+- Use `list_design_experts` to inspect your private expert allowlist.
+- Use `invoke_design_expert` when the task needs a specialized design operation.
+- Allowed private experts: ImageGenerationAgent, CodeGenerationExpert, ImageUnderstandingAgent, AnythingToMD, SearchAgent.
+- Use CodeGenerationExpert for HTML, dashboards, landing pages, app screens, interactive prototypes, and other code-backed artifacts.
+- Use ImageUnderstandingAgent for uploaded reference images, screenshots, visual style analysis, OCR, and reverse-prompt extraction.
+- Use ImageGenerationAgent only when the design needs new bitmap assets such as hero images, poster visuals, illustrations, or backgrounds.
+- Use AnythingToMD for user-provided documents, web pages, spreadsheets, or slide files that should become Markdown design input.
+- Use SearchAgent only when external visual or textual reference is genuinely needed.
+- Do not call experts outside the private allowlist.
+
 # Workflow
 1. Call `emit_design_progress` when you start.
 2. Call `list_product_design_skills`.
-3. Read the best matching skill with `read_product_design_skill` when a skill is useful.
-4. Decide whether the task has enough information. If it does not, return a clarification result through `register_design_delivery` without generating a file.
-5. Generate or save one design artifact. Prefer `generate_design_artifact` for HTML/code-backed artifacts; use `save_design_artifact` only when you already have complete file content.
-6. Validate generated files with `validate_design_artifact`.
-7. Finish by calling `register_design_delivery`.
+3. Call `list_design_experts` before invoking a private expert.
+4. Read the best matching skill with `read_product_design_skill` when a skill is useful.
+5. Decide whether the task has enough information. If it does not, return a clarification result through `register_design_delivery` without generating a file.
+6. Generate code-backed design artifacts through `invoke_design_expert` with CodeGenerationExpert. Use `save_design_artifact` only when you already have complete file content.
+7. Validate generated files with `validate_design_artifact`.
+8. Finish by calling `register_design_delivery`.
 
 # Design scope
 You own websites, dashboards, landing pages, app screens, posters, cards, HTML decks, interactive tools, and other code-backed design artifacts when the user asks for a design deliverable. Do not route PPTX delivery here; PPTX belongs to the PPT product line.
@@ -130,6 +154,7 @@ Always call `register_design_delivery` before finishing. It must contain a user-
         inputs: list[Any] | None = None,
         output: dict[str, Any] | None = None,
         tool_context: ToolContext | None = None,
+        expert_agents: dict[str, BaseAgent] | None = None,
         app_name: str = "creative_claw",
         artifact_service: BaseArtifactService | None = None,
     ) -> dict[str, Any]:
@@ -142,6 +167,10 @@ Always call `register_design_delivery` before finishing. It must contain a user-
             return _error_result("DesignProductManager requires a non-empty task.")
         if not hasattr(tool_context, "_invocation_context"):
             return _error_result("DesignProductManager requires an ADK invocation context.")
+
+        self._expert_agents = _filter_design_expert_agents(expert_agents or self._expert_agents)
+        self._app_name = app_name
+        self._artifact_service = artifact_service
 
         invocation_context = tool_context._invocation_context
         child_session_service = InMemorySessionService()
@@ -162,6 +191,10 @@ Always call `register_design_delivery` before finishing. It must contain a user-
             "inputs": list(inputs or []),
             "output": dict(output or {}),
         }
+        child_state[DESIGN_PRODUCT_EXPERTS_STATE_KEY] = build_design_expert_listing(
+            self._available_design_expert_agents()
+        )
+        child_state["app_name"] = app_name
 
         try:
             child_session = await child_session_service.create_session(
@@ -217,6 +250,62 @@ Always call `register_design_delivery` before finishing. It must contain a user-
             "count": len(skills),
         }
 
+    def list_design_experts(self, tool_context: ToolContext) -> dict[str, Any]:
+        """List DesignProductManager-private experts available in this runtime."""
+        experts = build_design_expert_listing(self._available_design_expert_agents())
+        tool_context.state[DESIGN_PRODUCT_EXPERTS_STATE_KEY] = experts
+        return {
+            "status": "success",
+            "experts": experts,
+            "allowlist": list(DESIGN_PRODUCT_EXPERT_ALLOWLIST),
+            "count": len(experts),
+        }
+
+    async def invoke_design_expert(
+        self,
+        agent_name: str,
+        prompt: str,
+        tool_context: ToolContext,
+    ) -> dict[str, Any]:
+        """Invoke one DesignProductManager-private expert through the shared dispatcher."""
+        clean_agent_name = str(agent_name or "").strip()
+        if not is_design_product_expert(clean_agent_name):
+            return {
+                "status": "error",
+                "message": (
+                    f"DesignProductManager cannot invoke expert '{clean_agent_name}'. "
+                    f"Allowed experts: {', '.join(DESIGN_PRODUCT_EXPERT_ALLOWLIST)}."
+                ),
+                "allowed_experts": list(DESIGN_PRODUCT_EXPERT_ALLOWLIST),
+            }
+
+        design_expert_agents = self._available_design_expert_agents()
+        if clean_agent_name not in design_expert_agents:
+            return {
+                "status": "error",
+                "message": (
+                    f"Design expert '{clean_agent_name}' is allowed but not available "
+                    "in the current runtime."
+                ),
+                "allowed_experts": list(DESIGN_PRODUCT_EXPERT_ALLOWLIST),
+            }
+
+        invocation = await dispatch_expert_call(
+            agent_name=clean_agent_name,
+            prompt=str(prompt or "").strip(),
+            tool_context=tool_context,
+            expert_agents=design_expert_agents,
+            app_name=self._app_name,
+            artifact_service=self._artifact_service or InMemoryArtifactService(),
+        )
+        history = list(tool_context.state.get(DESIGN_PRODUCT_EXPERT_HISTORY_STATE_KEY) or [])
+        history.append(invocation.tool_result)
+        tool_context.state[DESIGN_PRODUCT_EXPERT_HISTORY_STATE_KEY] = history
+        tool_context.state[DESIGN_PRODUCT_LAST_EXPERT_RESULT_STATE_KEY] = invocation.tool_result
+        if invocation.tool_result.get("output_files"):
+            tool_context.state["design_product_generation"] = invocation.tool_result
+        return invocation.tool_result
+
     def read_product_design_skill(
         self,
         name: str,
@@ -263,35 +352,6 @@ Always call `register_design_delivery` before finishing. It must contain a user-
             "status": "success",
             "progress": progress_item,
         }
-
-    async def generate_design_artifact(
-        self,
-        prompt: str,
-        language: str,
-        output_path: str,
-        context_files: list[str],
-        constraints: list[str],
-        tool_context: ToolContext,
-    ) -> dict[str, Any]:
-        """Generate one code-backed design artifact."""
-        result = await generate_code_artifact(
-            tool_context,
-            prompt=str(prompt or "").strip(),
-            language=str(language or "html").strip() or "html",
-            output_path=str(output_path or "").strip(),
-            context_files=[str(item) for item in context_files or []],
-            constraints=[str(item) for item in constraints or []],
-            output_type="design",
-            output_description="Design artifact generated by DesignProductManager.",
-            output_source="design_product_manager",
-        )
-        if str(result.get("status", "")).strip().lower() == "success":
-            result["output_files"] = _record_output_files(
-                tool_context.state,
-                list(result.get("output_files") or []),
-            )
-        tool_context.state["design_product_generation"] = result
-        return result
 
     def save_design_artifact(
         self,
@@ -365,6 +425,9 @@ Always call `register_design_delivery` before finishing. It must contain a user-
             "final_file_paths": normalized_paths,
             "progress": list(tool_context.state.get(DESIGN_PRODUCT_PROGRESS_STATE_KEY) or []),
             "active_skill": tool_context.state.get(DESIGN_PRODUCT_ACTIVE_SKILL_STATE_KEY) or {},
+            "experts": tool_context.state.get(DESIGN_PRODUCT_EXPERTS_STATE_KEY) or [],
+            "expert_history": list(tool_context.state.get(DESIGN_PRODUCT_EXPERT_HISTORY_STATE_KEY) or []),
+            "last_expert_result": tool_context.state.get(DESIGN_PRODUCT_LAST_EXPERT_RESULT_STATE_KEY) or {},
             "generation": tool_context.state.get("design_product_generation") or {},
             "validation": tool_context.state.get("design_product_validation") or [],
             "output_files": _file_records_for_paths(normalized_paths, state=tool_context.state),
@@ -382,6 +445,10 @@ Always call `register_design_delivery` before finishing. It must contain a user-
             stage="finalizing",
         )
         return result
+
+    def _available_design_expert_agents(self) -> dict[str, BaseAgent]:
+        """Return runtime experts that DesignProductManager is allowed to invoke."""
+        return _filter_design_expert_agents(self._expert_agents)
 
 
 def _build_design_product_user_message(
@@ -404,7 +471,7 @@ def _build_design_product_user_message(
             "# Output request",
             repr(output),
             "",
-            "You own skill selection, design decisions, generation, validation, progress, and final registration.",
+            "You own skill selection, private expert usage, design decisions, generation, validation, progress, and final registration.",
             "Always call register_design_delivery before your final response.",
         ]
     )
@@ -420,6 +487,9 @@ def _error_result(message: str) -> dict[str, Any]:
         "final_file_paths": [],
         "progress": [],
         "active_skill": {},
+        "experts": [],
+        "expert_history": [],
+        "last_expert_result": {},
         "generation": {},
         "validation": [],
         "output_files": [],
@@ -483,6 +553,17 @@ def _copy_design_state_back(*, source: Any, target: Any) -> None:
             or key in {"current_output", "last_product_result", "final_response", "final_file_paths", "new_files", "generated", "files_history"}
         ):
             target[key] = value
+
+
+def _filter_design_expert_agents(
+    expert_agents: dict[str, BaseAgent] | None,
+) -> dict[str, BaseAgent]:
+    """Return only runtime experts exposed to DesignProductManager."""
+    return {
+        name: agent
+        for name, agent in dict(expert_agents or {}).items()
+        if is_design_product_expert(name)
+    }
 
 
 def _record_output_files(
