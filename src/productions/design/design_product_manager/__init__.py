@@ -1,9 +1,13 @@
-"""Design product manager agent and resource planning helpers."""
+"""Design product manager agent and validation helpers."""
 
 from src.productions.design.design_product_manager.design_product_manager import (
-    DesignProductBrief,
+    DESIGN_PRODUCT_RESULT_SCHEMA_VERSION,
     DesignProductManager,
-    DesignResourceSelection,
+)
+from src.productions.design.design_product_manager.product_design_skills import (
+    PRODUCT_DESIGN_SKILLS_DIR,
+    ProductDesignSkillInfo,
+    ProductDesignSkillRegistry,
 )
 from src.productions.design.design_product_manager.schema_validation import (
     DesignSchemaValidationError,
@@ -20,10 +24,12 @@ from src.productions.design.design_product_manager.validation import (
 
 __all__ = [
     "DesignArtifactValidation",
-    "DesignProductBrief",
+    "DESIGN_PRODUCT_RESULT_SCHEMA_VERSION",
     "DesignProductManager",
-    "DesignResourceSelection",
     "DesignSchemaValidationError",
+    "PRODUCT_DESIGN_SKILLS_DIR",
+    "ProductDesignSkillInfo",
+    "ProductDesignSkillRegistry",
     "BrowserViewport",
     "DEFAULT_BROWSER_VIEWPORTS",
     "validate_design_brief_contract",
