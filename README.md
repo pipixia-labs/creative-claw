@@ -18,8 +18,7 @@ No more jumping back and forth between different tools.
 With CreativeClaw, you can keep iterating around a single idea and move from inspiration to final output in one flow.
 
 ## 📰 News
- - 2026-05-09: Upgraded the Design and Web Chat workflow with a private `DesignCodeGenerationAgent`, Claude Design-style canvas prompts, canvas-like Design preview pan/zoom, and a tldraw-powered Visual Board for image annotation and selection-to-chat attachments.
- - 2026-05-09: Changed Web Chat image attachments to path-only workflow metadata, so selected Visual Board exports are passed through workspace file paths instead of inline/base64 model context.
+ - 2026-05-09: Upgraded the Design and Web Chat workflow with a tldraw-powered Visual Board, canvas-style Design previews, and path-based visual attachments.
  - 2026-05-05: Added interactive PPT generation and HTML-to-PPTX workflows, plus improved Web Chat previews for artifacts, media, PDF, and PPT outputs.
  - 2026-05-02: Released v0.3.0 with DeepSeek V4, Seedance 2.0, Seed TTS 2.0 multi-voice support, DashScope media models, and expanded 3D providers.
  - 2026-05-01: Added design product flow and CodeGenerationExpert routing.
