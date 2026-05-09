@@ -130,6 +130,7 @@ button {
   flex: 1;
   min-height: 0;
   padding: 8px;
+  overflow: hidden;
 }
 
 .preview-view {
@@ -154,6 +155,23 @@ button {
     #f3f5ef;
   background-size: auto, 28px 28px, 28px 28px, auto;
   box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.7);
+}
+
+.tldraw-sketch-shell,
+.tldraw-sketch-host {
+  flex: 1;
+  min-width: 0;
+  min-height: 0;
+  position: relative;
+}
+
+.tldraw-sketch-shell {
+  display: flex;
+}
+
+.tldraw-sketch-host {
+  overflow: hidden;
+  border-radius: 10px;
 }
 
 .preview-empty {
@@ -259,6 +277,7 @@ button {
 .preview-actions {
   flex-shrink: 0;
   display: flex;
+  align-items: center;
   gap: 8px;
 }
 
@@ -279,6 +298,21 @@ button {
 
 .preview-action:hover {
   background: rgba(47, 125, 116, 0.1);
+}
+
+.preview-zoom-label {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  min-width: 46px;
+  min-height: 28px;
+  padding: 0 6px;
+  color: var(--text-soft);
+  font-family: var(--font-ui);
+  font-size: 12px;
+  font-weight: 700;
+  font-variant-numeric: tabular-nums;
+  white-space: nowrap;
 }
 
 .media-canvas-board {
@@ -413,7 +447,59 @@ button {
   background: rgba(47, 125, 116, 0.1);
 }
 
-.html-preview-frame,
+.html-preview-viewport {
+  --html-preview-zoom: 1;
+  position: relative;
+  flex: 1;
+  min-height: 0;
+  overflow: hidden;
+  cursor: grab;
+  background:
+    linear-gradient(rgba(24, 33, 29, 0.035) 1px, transparent 1px),
+    linear-gradient(90deg, rgba(24, 33, 29, 0.035) 1px, transparent 1px),
+    #edf0e9;
+  background-size: 28px 28px, 28px 28px, auto;
+  touch-action: none;
+}
+
+.html-preview-stage {
+  position: absolute;
+  top: 0;
+  left: 0;
+  width: 100%;
+  height: 100%;
+  min-width: 1px;
+  min-height: 1px;
+  overflow: hidden;
+  background: #ffffff;
+  box-shadow: 0 12px 28px rgba(35, 42, 36, 0.1);
+  transform-origin: 0 0;
+  will-change: transform;
+}
+
+.html-preview-frame {
+  display: block;
+  width: 100%;
+  height: 100%;
+  min-width: 0;
+  min-height: 0;
+  border: 0;
+  background: #ffffff;
+  overflow: hidden;
+}
+
+.html-preview-interaction-layer {
+  position: absolute;
+  inset: 0;
+  z-index: 2;
+  cursor: grab;
+  touch-action: none;
+}
+
+.html-preview-interaction-layer.is-panning {
+  cursor: grabbing;
+}
+
 .ppt-preview-frame {
   flex: 1;
   width: 100%;

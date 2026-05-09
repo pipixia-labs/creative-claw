@@ -18,6 +18,9 @@ from pydantic import PrivateAttr
 
 from conf.llm import build_llm
 from conf.path import PROJECT_PATH
+from src.productions.design.design_product_manager.design_code_generation_agent import (
+    DesignCodeGenerationAgent,
+)
 from src.productions.design.design_product_manager.design_product_experts import (
     DESIGN_PRODUCT_EXPERT_ALLOWLIST,
     build_design_expert_listing,
@@ -46,6 +49,8 @@ DESIGN_PRODUCT_ACTIVE_SKILL_STATE_KEY = "active_product_design_skill"
 DESIGN_PRODUCT_EXPERTS_STATE_KEY = "design_product_experts"
 DESIGN_PRODUCT_EXPERT_HISTORY_STATE_KEY = "design_product_expert_history"
 DESIGN_PRODUCT_LAST_EXPERT_RESULT_STATE_KEY = "design_product_last_expert_result"
+DESIGN_PRODUCT_CODE_GENERATION_HISTORY_STATE_KEY = "design_product_code_generation_history"
+DESIGN_PRODUCT_LAST_CODE_GENERATION_RESULT_STATE_KEY = "design_product_last_code_generation_result"
 
 
 class DesignProductManager(LlmAgent):
@@ -54,6 +59,7 @@ class DesignProductManager(LlmAgent):
     _project_root: Path = PrivateAttr()
     _skill_registry: ProductDesignSkillRegistry = PrivateAttr()
     _expert_agents: dict[str, BaseAgent] = PrivateAttr(default_factory=dict)
+    _design_code_generation_agent: DesignCodeGenerationAgent = PrivateAttr()
     _app_name: str = PrivateAttr(default="creative_claw")
     _artifact_service: BaseArtifactService | None = PrivateAttr(default=None)
 
@@ -78,12 +84,14 @@ class DesignProductManager(LlmAgent):
             project_root=self._project_root,
             skills_dir=skills_dir,
         )
+        self._design_code_generation_agent = DesignCodeGenerationAgent()
         if provided_tools is None:
             self.tools = [
                 self.list_product_design_skills,
                 self.read_product_design_skill,
                 self.list_design_experts,
                 self.invoke_design_expert,
+                self.invoke_design_code_generation,
                 self.emit_design_progress,
                 self.save_design_artifact,
                 self.validate_design_artifact,
@@ -119,7 +127,8 @@ Own design product tasks end to end. You are not a thin wrapper around the orche
 - Use `list_design_experts` to inspect your private expert allowlist.
 - Use `invoke_design_expert` when the task needs a specialized design operation.
 - Allowed private experts: ImageGenerationAgent, CodeGenerationExpert, ImageUnderstandingAgent, AnythingToMD, SearchAgent.
-- Use CodeGenerationExpert for HTML, dashboards, landing pages, app screens, interactive prototypes, and other code-backed artifacts.
+- Use `invoke_design_code_generation` for final HTML, dashboards, landing pages, app screens, interactive prototypes, and other code-backed design artifacts.
+- Use CodeGenerationExpert only for supporting non-final code snippets or auxiliary code files when the design-specific generator is not appropriate.
 - Use ImageUnderstandingAgent for uploaded reference images, screenshots, visual style analysis, OCR, and reverse-prompt extraction.
 - Use ImageGenerationAgent only when the design needs new bitmap assets such as hero images, poster visuals, illustrations, or backgrounds.
 - Use AnythingToMD for user-provided documents, web pages, spreadsheets, or slide files that should become Markdown design input.
@@ -129,11 +138,11 @@ Own design product tasks end to end. You are not a thin wrapper around the orche
 # Final artifact ownership
 - DesignProductManager is a code-backed design product line.
 - The primary final deliverable must be a code-backed design artifact, usually standalone HTML, unless the user explicitly requests a different supporting asset and you decide it still belongs inside the design product line.
-- CodeGenerationExpert is the only producer of final code-backed design artifacts.
-- Use CodeGenerationExpert for final standalone HTML, landing pages, dashboards, app screen prototypes, interactive tools, HTML posters/cards, HTML decks, and CSS/JS/HTML design artifacts.
+- DesignCodeGenerationAgent is the default and preferred producer of final code-backed design artifacts.
+- Use `invoke_design_code_generation` for final standalone HTML, landing pages, dashboards, app screen prototypes, interactive tools, HTML posters/cards, HTML decks, and CSS/JS/HTML design artifacts.
 - Do not use `save_design_artifact` to create the main final HTML or code artifact. Use it only for auxiliary files or already-complete small supporting files.
 - Other private experts are supporting experts. AnythingToMD prepares source material, ImageUnderstandingAgent analyzes visual references, SearchAgent gathers external references, and ImageGenerationAgent creates image assets for the final code-backed artifact.
-- ImageGenerationAgent output is normally an intermediate asset, not the primary final design product. If image assets are generated, pass their workspace paths and intended usage to CodeGenerationExpert.
+- ImageGenerationAgent output is normally an intermediate asset, not the primary final design product. If image assets are generated, pass their workspace paths and intended usage to `invoke_design_code_generation`.
 - If the user asks only for a standalone image, treat it as a design asset request and prefer producing a code-backed final artifact when the request belongs to the design product line.
 
 # Workflow
@@ -142,9 +151,16 @@ Own design product tasks end to end. You are not a thin wrapper around the orche
 3. Call `list_design_experts` before invoking a private expert.
 4. Read the best matching skill with `read_product_design_skill` when a skill is useful.
 5. Decide whether the task has enough information. If it does not, return a clarification result through `register_design_delivery` without generating a file.
-6. Generate code-backed design artifacts through `invoke_design_expert` with CodeGenerationExpert. Use `save_design_artifact` only when you already have complete file content.
+6. Generate final code-backed design artifacts through `invoke_design_code_generation`. Use `save_design_artifact` only when you already have complete supporting file content.
 7. Validate generated files with `validate_design_artifact`.
 8. Finish by calling `register_design_delivery`.
+
+# Design artifact generation contract
+- Treat generated HTML as a design canvas, not a production application.
+- Prefer visible sections and artboards for screens, states, and visual variants.
+- Keep artboard identifiers, labels, and component names stable for future AI edits.
+- When sketch annotations or screenshots are present, pass them as concrete design critique/edit context to `invoke_design_code_generation`.
+- Do not hide design alternatives behind app routing when the user needs design review.
 
 # Design scope
 You own websites, dashboards, landing pages, app screens, posters, cards, HTML decks, interactive tools, and other code-backed design artifacts when the user asks for a design deliverable. Do not route PPTX delivery here; PPTX belongs to the PPT product line.
@@ -316,6 +332,41 @@ Always call `register_design_delivery` before finishing. It must contain a user-
             tool_context.state["design_product_generation"] = invocation.tool_result
         return invocation.tool_result
 
+    async def invoke_design_code_generation(
+        self,
+        prompt: str,
+        tool_context: ToolContext,
+        language: str = "html",
+        output_path: str = "",
+        context_files: list[str] | str | None = None,
+        constraints: list[str] | str | None = None,
+    ) -> dict[str, Any]:
+        """Invoke the DesignProductManager-private code generation agent."""
+        current_output = await self._design_code_generation_agent.run_generation(
+            tool_context,
+            prompt=str(prompt or "").strip(),
+            language=str(language or "html").strip() or "html",
+            output_path=str(output_path or "").strip(),
+            context_files=_coerce_string_list(context_files),
+            constraints=_coerce_string_list(constraints),
+        )
+        if current_output.get("output_files"):
+            current_output = {
+                **current_output,
+                "output_files": _record_output_files(
+                    tool_context.state,
+                    list(current_output.get("output_files") or []),
+                ),
+            }
+            tool_context.state["design_product_generation"] = current_output
+
+        history = list(tool_context.state.get(DESIGN_PRODUCT_CODE_GENERATION_HISTORY_STATE_KEY) or [])
+        history.append(current_output)
+        tool_context.state[DESIGN_PRODUCT_CODE_GENERATION_HISTORY_STATE_KEY] = history
+        tool_context.state[DESIGN_PRODUCT_LAST_CODE_GENERATION_RESULT_STATE_KEY] = current_output
+        tool_context.state["current_output"] = current_output
+        return current_output
+
     def read_product_design_skill(
         self,
         name: str,
@@ -438,6 +489,13 @@ Always call `register_design_delivery` before finishing. It must contain a user-
             "experts": tool_context.state.get(DESIGN_PRODUCT_EXPERTS_STATE_KEY) or [],
             "expert_history": list(tool_context.state.get(DESIGN_PRODUCT_EXPERT_HISTORY_STATE_KEY) or []),
             "last_expert_result": tool_context.state.get(DESIGN_PRODUCT_LAST_EXPERT_RESULT_STATE_KEY) or {},
+            "code_generation_history": list(
+                tool_context.state.get(DESIGN_PRODUCT_CODE_GENERATION_HISTORY_STATE_KEY) or []
+            ),
+            "last_code_generation_result": tool_context.state.get(
+                DESIGN_PRODUCT_LAST_CODE_GENERATION_RESULT_STATE_KEY
+            )
+            or {},
             "generation": tool_context.state.get("design_product_generation") or {},
             "validation": tool_context.state.get("design_product_validation") or [],
             "output_files": _file_records_for_paths(normalized_paths, state=tool_context.state),
@@ -500,6 +558,8 @@ def _error_result(message: str) -> dict[str, Any]:
         "experts": [],
         "expert_history": [],
         "last_expert_result": {},
+        "code_generation_history": [],
+        "last_code_generation_result": {},
         "generation": {},
         "validation": [],
         "output_files": [],
@@ -613,6 +673,15 @@ def _record_output_files(
     state["new_files"] = file_records
     state["files_history"] = history
     return file_records
+
+
+def _coerce_string_list(value: list[str] | str | None) -> list[str]:
+    """Normalize a scalar or sequence value into a list of non-empty strings."""
+    if value is None:
+        return []
+    if isinstance(value, str):
+        return [value] if value.strip() else []
+    return [str(item) for item in value if str(item).strip()]
 
 
 def _normalize_final_paths(paths: list[str]) -> list[str]:

@@ -1,5 +1,10 @@
 """Design product manager agent and validation helpers."""
 
+from src.productions.design.design_product_manager.design_code_generation_agent import (
+    DesignCodeGenerationAgent,
+    build_design_code_generation_constraints,
+    build_design_code_generation_prompt,
+)
 from src.productions.design.design_product_manager.design_product_manager import (
     DESIGN_PRODUCT_RESULT_SCHEMA_VERSION,
     DesignProductManager,
@@ -31,6 +36,7 @@ __all__ = [
     "DesignArtifactValidation",
     "DESIGN_PRODUCT_RESULT_SCHEMA_VERSION",
     "DESIGN_PRODUCT_EXPERT_ALLOWLIST",
+    "DesignCodeGenerationAgent",
     "DesignProductManager",
     "DesignSchemaValidationError",
     "PRODUCT_DESIGN_SKILLS_DIR",
@@ -38,6 +44,8 @@ __all__ = [
     "ProductDesignSkillRegistry",
     "BrowserViewport",
     "DEFAULT_BROWSER_VIEWPORTS",
+    "build_design_code_generation_constraints",
+    "build_design_code_generation_prompt",
     "build_design_expert_listing",
     "is_design_product_expert",
     "validate_design_brief_contract",

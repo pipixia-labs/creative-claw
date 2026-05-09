@@ -28,6 +28,10 @@ const AUTO_PREVIEW_PRIORITY = ["ppt", "html", "tldraw"];
 const UPLOAD_CHUNK_SIZE = 512 * 1024;
 const MEDIA_CANVAS_MIN_ZOOM = 0.45;
 const MEDIA_CANVAS_MAX_ZOOM = 2.4;
+const HTML_PREVIEW_MIN_ZOOM = 0.1;
+const HTML_PREVIEW_MAX_ZOOM = 4;
+const HTML_PREVIEW_ZOOM_STEP = 0.1;
+const HTML_PREVIEW_MAX_STAGE_SIZE = 40000;
 
 let sessionId = ensureSessionId();
 let socket = null;
@@ -36,6 +40,9 @@ let progressBodyCounter = 0;
 let currentRunId = null;
 let runState = "idle";
 let activePreviewTab = "tldraw";
+let htmlPreviewZoom = 1;
+let htmlPreviewPanX = 0;
+let htmlPreviewPanY = 0;
 let previewArtifactsByTab = buildEmptyPreviewGroups();
 let selectedPreviewByTab = buildEmptyPreviewSelections();
 const attachedFiles = [];
@@ -48,6 +55,7 @@ const mediaCanvasState = {
   fitSignature: "",
   positions: new Map(),
 };
+let tldrawCanvasUnmount = null;
 
 connect();
 restoreHistory();
@@ -796,6 +804,7 @@ function buildEmptyPreviewSelections() {
 function clearPreviewState(options = {}) {
   previewArtifactsByTab = buildEmptyPreviewGroups();
   selectedPreviewByTab = buildEmptyPreviewSelections();
+  unmountTldrawCanvas();
   resetMediaCanvasState();
   if (!options.keepActiveTab) {
     activePreviewTab = "tldraw";
@@ -918,10 +927,45 @@ function renderPreviewView(tabName) {
 }
 
 function renderTldrawPreview() {
+  unmountTldrawCanvas();
   tldrawPreview.innerHTML = "";
   const artifacts = previewArtifactsByTab.tldraw;
+  const imageArtifacts = artifacts.filter((artifact) => artifact.isImage && !isVideoArtifact(artifact));
+
+  if (window.CreativeClawTldraw?.mount) {
+    const shell = document.createElement("div");
+    shell.className = "tldraw-sketch-shell";
+    const host = document.createElement("div");
+    host.className = "tldraw-sketch-host";
+    shell.appendChild(host);
+    tldrawPreview.appendChild(shell);
+    tldrawCanvasUnmount = window.CreativeClawTldraw.mount(host, {
+      artifacts: imageArtifacts,
+      sessionId,
+      onSubmitSketch: handleTldrawSketchSubmit,
+    });
+    return;
+  }
+
   if (!artifacts.length) {
-    tldrawPreview.appendChild(previewEmpty("No image/video preview"));
+    tldrawPreview.appendChild(previewEmpty("No sketch preview"));
+    return;
+  }
+
+  renderMediaCanvasPreview(artifacts);
+}
+
+function unmountTldrawCanvas() {
+  if (typeof tldrawCanvasUnmount === "function") {
+    tldrawCanvasUnmount();
+  }
+  tldrawCanvasUnmount = null;
+}
+
+function renderMediaCanvasPreview(artifacts = previewArtifactsByTab.tldraw) {
+  tldrawPreview.innerHTML = "";
+  if (!artifacts.length) {
+    tldrawPreview.appendChild(previewEmpty("No media preview"));
     return;
   }
 
@@ -1238,17 +1282,401 @@ function renderHtmlPreview() {
   refreshButton.type = "button";
   refreshButton.textContent = "Refresh";
 
-  htmlPreview.appendChild(buildPreviewToolbar(artifact, [refreshButton]));
+  const viewport = document.createElement("div");
+  viewport.className = "html-preview-viewport";
+
+  const stage = document.createElement("div");
+  stage.className = "html-preview-stage";
+
+  const interactionLayer = document.createElement("div");
+  interactionLayer.className = "html-preview-interaction-layer";
+  interactionLayer.setAttribute("aria-label", "Design preview canvas controls");
 
   const iframe = document.createElement("iframe");
   iframe.className = "html-preview-frame";
   iframe.src = artifact.url;
-  iframe.setAttribute("sandbox", "allow-scripts allow-forms allow-popups allow-downloads");
+  iframe.setAttribute("sandbox", "allow-scripts allow-same-origin allow-forms allow-popups allow-downloads");
+  iframe.setAttribute("scrolling", "no");
   iframe.title = artifact.name || "HTML preview";
+
+  const zoomLabel = document.createElement("span");
+  zoomLabel.className = "preview-zoom-label";
+  const zoomOutButton = buildHtmlPreviewZoomButton("−", "Zoom out", () => {
+    setHtmlPreviewZoom(htmlPreviewZoom - HTML_PREVIEW_ZOOM_STEP, viewport, zoomLabel, htmlPreviewViewportCenter(viewport));
+  });
+  const zoomInButton = buildHtmlPreviewZoomButton("+", "Zoom in", () => {
+    setHtmlPreviewZoom(htmlPreviewZoom + HTML_PREVIEW_ZOOM_STEP, viewport, zoomLabel, htmlPreviewViewportCenter(viewport));
+  });
+  const fitButton = buildHtmlPreviewZoomButton("Fit", "Fit preview", () => {
+    fitHtmlPreviewToViewport(viewport, zoomLabel);
+  });
+
   refreshButton.addEventListener("click", () => {
     iframe.src = artifact.url;
   });
-  htmlPreview.appendChild(iframe);
+  iframe.addEventListener("load", () => {
+    syncHtmlPreviewDocumentSize(iframe, viewport, zoomLabel);
+  });
+
+  htmlPreview.appendChild(buildPreviewToolbar(artifact, [refreshButton, zoomOutButton, zoomLabel, zoomInButton, fitButton]));
+  stage.appendChild(iframe);
+  viewport.appendChild(stage);
+  viewport.appendChild(interactionLayer);
+  htmlPreview.appendChild(viewport);
+  applyHtmlPreviewZoom(viewport, zoomLabel);
+  setupHtmlPreviewCanvasInteractions(viewport, interactionLayer, zoomLabel);
+}
+
+function buildHtmlPreviewZoomButton(label, title, onClick) {
+  const button = document.createElement("button");
+  button.className = "preview-action";
+  button.type = "button";
+  button.textContent = label;
+  button.title = title;
+  button.setAttribute("aria-label", title);
+  button.addEventListener("click", onClick);
+  return button;
+}
+
+function setHtmlPreviewZoom(nextZoom, viewport, zoomLabel, options = {}) {
+  const previousZoom = htmlPreviewZoom;
+  htmlPreviewZoom = Math.round(clamp(nextZoom, HTML_PREVIEW_MIN_ZOOM, HTML_PREVIEW_MAX_ZOOM) * 100) / 100;
+  const focalPoint = typeof options.clientX === "number" && typeof options.clientY === "number"
+    ? options
+    : htmlPreviewViewportCenter(viewport);
+  if (viewport && focalPoint && typeof focalPoint.clientX === "number" && typeof focalPoint.clientY === "number") {
+    preserveHtmlPreviewZoomPoint(viewport, previousZoom, htmlPreviewZoom, focalPoint.clientX, focalPoint.clientY);
+  }
+  applyHtmlPreviewZoom(viewport, zoomLabel);
+}
+
+function resetHtmlPreviewZoom(viewport, zoomLabel) {
+  htmlPreviewZoom = 1;
+  htmlPreviewPanX = 0;
+  htmlPreviewPanY = 0;
+  applyHtmlPreviewZoom(viewport, zoomLabel);
+}
+
+function fitHtmlPreviewToViewport(viewport, zoomLabel) {
+  const stage = viewport?.querySelector(".html-preview-stage");
+  const viewportRect = viewport?.getBoundingClientRect();
+  if (!stage || !viewportRect?.width || !viewportRect?.height) {
+    resetHtmlPreviewZoom(viewport, zoomLabel);
+    return;
+  }
+  const stageWidth = Number(stage.dataset.contentWidth) || stage.offsetWidth || viewportRect.width;
+  const stageHeight = Number(stage.dataset.contentHeight) || stage.offsetHeight || viewportRect.height;
+  const nextZoom = clamp(
+    Math.min(viewportRect.width / stageWidth, viewportRect.height / stageHeight, 1),
+    HTML_PREVIEW_MIN_ZOOM,
+    HTML_PREVIEW_MAX_ZOOM
+  );
+  htmlPreviewZoom = Math.round(nextZoom * 100) / 100;
+  htmlPreviewPanX = (viewportRect.width - stageWidth * htmlPreviewZoom) / 2;
+  htmlPreviewPanY = (viewportRect.height - stageHeight * htmlPreviewZoom) / 2;
+  applyHtmlPreviewZoom(viewport, zoomLabel);
+}
+
+function htmlPreviewViewportCenter(viewport) {
+  if (!viewport) {
+    return {};
+  }
+  const rect = viewport.getBoundingClientRect();
+  return {
+    clientX: rect.left + rect.width / 2,
+    clientY: rect.top + rect.height / 2,
+  };
+}
+
+function preserveHtmlPreviewZoomPoint(viewport, previousZoom, nextZoom, clientX, clientY) {
+  if (!previousZoom || previousZoom === nextZoom) {
+    return;
+  }
+  const rect = viewport.getBoundingClientRect();
+  const originX = clientX - rect.left;
+  const originY = clientY - rect.top;
+  const contentX = (originX - htmlPreviewPanX) / previousZoom;
+  const contentY = (originY - htmlPreviewPanY) / previousZoom;
+  htmlPreviewPanX = originX - contentX * nextZoom;
+  htmlPreviewPanY = originY - contentY * nextZoom;
+}
+
+function applyHtmlPreviewZoom(viewport, zoomLabel) {
+  if (viewport) {
+    viewport.style.setProperty("--html-preview-zoom", htmlPreviewZoom.toFixed(2));
+    const stage = viewport.querySelector(".html-preview-stage");
+    if (stage) {
+      stage.style.transform = `translate3d(${htmlPreviewPanX}px, ${htmlPreviewPanY}px, 0) scale(${htmlPreviewZoom})`;
+    }
+  }
+  if (zoomLabel) {
+    zoomLabel.textContent = `${Math.round(htmlPreviewZoom * 100)}%`;
+  }
+}
+
+function syncHtmlPreviewDocumentSize(iframe, viewport, zoomLabel) {
+  const stage = viewport?.querySelector(".html-preview-stage");
+  if (!iframe || !viewport || !stage) {
+    return;
+  }
+
+  const setStageSize = (width, height) => {
+    const viewportRect = viewport.getBoundingClientRect();
+    const nextWidth = clamp(
+      Math.ceil(Math.max(width || 0, viewportRect.width || 1)),
+      1,
+      HTML_PREVIEW_MAX_STAGE_SIZE
+    );
+    const nextHeight = clamp(
+      Math.ceil(Math.max(height || 0, viewportRect.height || 1)),
+      1,
+      HTML_PREVIEW_MAX_STAGE_SIZE
+    );
+    stage.style.width = `${nextWidth}px`;
+    stage.style.height = `${nextHeight}px`;
+    stage.dataset.contentWidth = String(nextWidth);
+    stage.dataset.contentHeight = String(nextHeight);
+    iframe.style.width = `${nextWidth}px`;
+    iframe.style.height = `${nextHeight}px`;
+    applyHtmlPreviewZoom(viewport, zoomLabel);
+  };
+
+  setStageSize(viewport.clientWidth, viewport.clientHeight);
+
+  let doc;
+  try {
+    doc = iframe.contentDocument || iframe.contentWindow?.document;
+  } catch {
+    return;
+  }
+  if (!doc?.documentElement) {
+    return;
+  }
+
+  injectHtmlPreviewNoScrollStyle(doc);
+
+  const measure = () => {
+    const root = doc.documentElement;
+    const body = doc.body;
+    let width = Math.max(root.scrollWidth, root.offsetWidth, root.clientWidth);
+    let height = Math.max(root.scrollHeight, root.offsetHeight, root.clientHeight);
+    if (body) {
+      width = Math.max(width, body.scrollWidth, body.offsetWidth, body.clientWidth);
+      height = Math.max(height, body.scrollHeight, body.offsetHeight, body.clientHeight);
+      for (const element of body.querySelectorAll("*")) {
+        const rect = element.getBoundingClientRect();
+        if (!rect.width && !rect.height) {
+          continue;
+        }
+        width = Math.max(width, rect.right);
+        height = Math.max(height, rect.bottom);
+      }
+    }
+    setStageSize(width, height);
+  };
+
+  requestAnimationFrame(measure);
+  window.setTimeout(measure, 120);
+  window.setTimeout(measure, 600);
+  window.setTimeout(measure, 1600);
+}
+
+function injectHtmlPreviewNoScrollStyle(doc) {
+  if (!doc.getElementById("creative-claw-preview-no-scroll")) {
+    const style = doc.createElement("style");
+    style.id = "creative-claw-preview-no-scroll";
+    style.textContent = `
+      html, body {
+        scrollbar-width: none !important;
+        -ms-overflow-style: none !important;
+      }
+      html::-webkit-scrollbar,
+      body::-webkit-scrollbar,
+      *::-webkit-scrollbar {
+        display: none !important;
+        width: 0 !important;
+        height: 0 !important;
+      }
+      html,
+      body {
+        overflow: hidden !important;
+      }
+    `;
+    (doc.head || doc.documentElement).appendChild(style);
+  }
+  doc.documentElement.style.overflow = "hidden";
+  doc.documentElement.style.scrollbarWidth = "none";
+  if (doc.body) {
+    doc.body.style.overflow = "hidden";
+    doc.body.style.scrollbarWidth = "none";
+  }
+}
+
+function setupHtmlPreviewCanvasInteractions(viewport, interactionLayer, zoomLabel) {
+  const handleWheel = (event) => {
+    event.preventDefault();
+    event.stopPropagation();
+    if (event.ctrlKey || event.metaKey) {
+      const factor = Math.exp(-event.deltaY * 0.002);
+      setHtmlPreviewZoom(htmlPreviewZoom * factor, viewport, zoomLabel, {
+        clientX: event.clientX,
+        clientY: event.clientY,
+      });
+      return;
+    }
+    htmlPreviewPanX -= event.deltaX;
+    htmlPreviewPanY -= event.deltaY;
+    applyHtmlPreviewZoom(viewport, zoomLabel);
+  };
+
+  viewport.addEventListener("wheel", handleWheel, { passive: false });
+  interactionLayer.addEventListener("wheel", handleWheel, { passive: false });
+
+  let panStart = null;
+  const activePointers = new Map();
+  let pinchStart = null;
+
+  interactionLayer.addEventListener("pointerdown", (event) => {
+    event.preventDefault();
+    try {
+      interactionLayer.setPointerCapture(event.pointerId);
+    } catch {
+      // Some synthetic events used by browser tests do not register as active pointers.
+    }
+    activePointers.set(event.pointerId, { x: event.clientX, y: event.clientY });
+    interactionLayer.classList.add("is-panning");
+    if (activePointers.size === 1) {
+      panStart = {
+        pointerId: event.pointerId,
+        startX: event.clientX,
+        startY: event.clientY,
+        panX: htmlPreviewPanX,
+        panY: htmlPreviewPanY,
+      };
+      pinchStart = null;
+    } else if (activePointers.size === 2) {
+      panStart = null;
+      pinchStart = buildHtmlPreviewPinchState(activePointers, viewport);
+    }
+  });
+
+  interactionLayer.addEventListener("pointermove", (event) => {
+    if (!activePointers.has(event.pointerId)) {
+      return;
+    }
+    event.preventDefault();
+    activePointers.set(event.pointerId, { x: event.clientX, y: event.clientY });
+    if (activePointers.size >= 2 && pinchStart) {
+      const current = buildHtmlPreviewPinchState(activePointers, viewport);
+      if (current.distance > 0 && pinchStart.distance > 0) {
+        htmlPreviewZoom = Math.round(
+          clamp(
+            pinchStart.zoom * (current.distance / pinchStart.distance),
+            HTML_PREVIEW_MIN_ZOOM,
+            HTML_PREVIEW_MAX_ZOOM
+          ) * 100
+        ) / 100;
+        htmlPreviewPanX = current.originX - pinchStart.contentX * htmlPreviewZoom;
+        htmlPreviewPanY = current.originY - pinchStart.contentY * htmlPreviewZoom;
+        applyHtmlPreviewZoom(viewport, zoomLabel);
+      }
+      return;
+    }
+    if (panStart && event.pointerId === panStart.pointerId) {
+      htmlPreviewPanX = panStart.panX + event.clientX - panStart.startX;
+      htmlPreviewPanY = panStart.panY + event.clientY - panStart.startY;
+      applyHtmlPreviewZoom(viewport, zoomLabel);
+    }
+  });
+
+  const finishPointer = (event) => {
+    activePointers.delete(event.pointerId);
+    if (interactionLayer.hasPointerCapture(event.pointerId)) {
+      try {
+        interactionLayer.releasePointerCapture(event.pointerId);
+      } catch {
+        // Pointer capture may already be gone after cancellation.
+      }
+    }
+    if (activePointers.size === 0) {
+      panStart = null;
+      pinchStart = null;
+      interactionLayer.classList.remove("is-panning");
+    } else if (activePointers.size === 1) {
+      const [remaining] = activePointers.entries();
+      panStart = {
+        pointerId: remaining[0],
+        startX: remaining[1].x,
+        startY: remaining[1].y,
+        panX: htmlPreviewPanX,
+        panY: htmlPreviewPanY,
+      };
+      pinchStart = null;
+    }
+  };
+
+  interactionLayer.addEventListener("pointerup", finishPointer);
+  interactionLayer.addEventListener("pointercancel", finishPointer);
+
+  let gestureStartZoom = htmlPreviewZoom;
+  viewport.addEventListener(
+    "gesturestart",
+    (event) => {
+      gestureStartZoom = htmlPreviewZoom;
+      event.preventDefault();
+    },
+    { passive: false }
+  );
+  viewport.addEventListener(
+    "gesturechange",
+    (event) => {
+      event.preventDefault();
+      setHtmlPreviewZoom(gestureStartZoom * Number(event.scale || 1), viewport, zoomLabel, {
+        clientX: event.clientX,
+        clientY: event.clientY,
+      });
+    },
+    { passive: false }
+  );
+}
+
+function buildHtmlPreviewPinchState(activePointers, viewport) {
+  const points = Array.from(activePointers.values()).slice(0, 2);
+  const rect = viewport?.getBoundingClientRect();
+  if (points.length < 2) {
+    const centerX = points[0]?.x || 0;
+    const centerY = points[0]?.y || 0;
+    const originX = rect ? centerX - rect.left : centerX;
+    const originY = rect ? centerY - rect.top : centerY;
+    return {
+      centerX,
+      centerY,
+      originX,
+      originY,
+      contentX: (originX - htmlPreviewPanX) / htmlPreviewZoom,
+      contentY: (originY - htmlPreviewPanY) / htmlPreviewZoom,
+      distance: 0,
+      zoom: htmlPreviewZoom,
+      panX: htmlPreviewPanX,
+      panY: htmlPreviewPanY,
+    };
+  }
+  const centerX = (points[0].x + points[1].x) / 2;
+  const centerY = (points[0].y + points[1].y) / 2;
+  const originX = rect ? centerX - rect.left : centerX;
+  const originY = rect ? centerY - rect.top : centerY;
+  return {
+    centerX,
+    centerY,
+    originX,
+    originY,
+    contentX: (originX - htmlPreviewPanX) / htmlPreviewZoom,
+    contentY: (originY - htmlPreviewPanY) / htmlPreviewZoom,
+    distance: Math.hypot(points[0].x - points[1].x, points[0].y - points[1].y),
+    zoom: htmlPreviewZoom,
+    panX: htmlPreviewPanX,
+    panY: htmlPreviewPanY,
+  };
 }
 
 function renderPptPreview() {
@@ -1841,6 +2269,78 @@ function sendSocket(payload) {
     throw new Error("Web chat is not connected.");
   }
   socket.send(JSON.stringify(payload));
+}
+
+async function handleTldrawSketchSubmit(payload) {
+  if (runState !== "idle") {
+    throw new Error("Wait for the current run to finish before sending a sketch.");
+  }
+  if (!socket || socket.readyState !== WebSocket.OPEN) {
+    throw new Error("Web chat is not connected.");
+  }
+
+  const imageBlob = payload?.imageBlob;
+  if (!(imageBlob instanceof Blob)) {
+    throw new Error("Sketch export did not include a PNG image.");
+  }
+
+  const imageFile = new File([imageBlob], payload.imageName || buildSketchUploadName("png"), { type: "image/png" });
+  const snapshotBody = JSON.stringify(payload?.snapshot || {}, null, 2);
+  const snapshotFile = new File([snapshotBody], payload.snapshotName || buildSketchUploadName("tldr.json"), {
+    type: "application/json",
+  });
+
+  await uploadGeneratedFile(imageFile);
+  await uploadGeneratedFile(snapshotFile);
+
+  const note = String(payload?.note || "").trim();
+  const sketchPrompt =
+    note ||
+    "请根据 tldraw 草图导出的 PNG 和 JSON 快照优化当前设计。优先理解红线、箭头、圈注、手写标注和布局批注，并把修改落实到 HTML 设计画布。";
+  const existingPrompt = promptInput.value.trim();
+  promptInput.value = existingPrompt ? `${existingPrompt}\n\n${sketchPrompt}` : sketchPrompt;
+  promptInput.style.height = "";
+  promptInput.style.height = `${Math.min(promptInput.scrollHeight, 220)}px`;
+  await sendPrompt();
+}
+
+async function uploadGeneratedFile(file) {
+  const attachment = {
+    id: crypto.randomUUID(),
+    name: file.name || "sketch-export",
+    size: file.size,
+    mimeType: file.type || "",
+    status: "uploading",
+    progress: 0,
+    path: "",
+  };
+  attachedFiles.push(attachment);
+  renderAttachments();
+
+  try {
+    const uploaded = await uploadFile(file, attachment);
+    if (attachment.cancelled || !attachedFiles.includes(attachment)) {
+      throw new Error("Sketch upload was cancelled.");
+    }
+    attachment.status = "uploaded";
+    attachment.progress = 100;
+    attachment.path = uploaded.path || "";
+    attachment.mimeType = uploaded.mimeType || attachment.mimeType;
+    renderAttachments();
+    return attachment;
+  } catch (error) {
+    if (!attachment.cancelled && attachedFiles.includes(attachment)) {
+      attachment.status = "error";
+      attachment.error = error instanceof Error ? error.message : "Upload failed.";
+      renderAttachments();
+    }
+    throw error;
+  }
+}
+
+function buildSketchUploadName(extension) {
+  const stamp = new Date().toISOString().replace(/[:.]/g, "-");
+  return `sketch-${stamp}.${extension}`;
 }
 
 async function uploadSelectedFiles(files) {
