@@ -621,7 +621,7 @@ class OrchestratorCallbackTests(unittest.IsolatedAsyncioTestCase):
                     {
                         "name": "sketch-selection.png",
                         "path": "inbox/web/web-session/turn_1/01_sketch-selection.png",
-                        "description": "Selected tldraw sketch export for design feedback.",
+                        "description": "Selected tldraw canvas export.",
                     }
                 ],
                 "generated": [],
@@ -634,7 +634,7 @@ class OrchestratorCallbackTests(unittest.IsolatedAsyncioTestCase):
         all_parts = [part for content in llm_request.contents for part in content.parts]
         prompt_text = "\n".join(part.text for part in all_parts if getattr(part, "text", None))
         self.assertIn("sketch-selection.png", prompt_text)
-        self.assertIn("Selected tldraw sketch export", prompt_text)
+        self.assertIn("Selected tldraw canvas export", prompt_text)
         self.assertFalse(any(getattr(part, "inline_data", None) is not None for part in all_parts))
 
     async def test_run_agent_stops_after_tool_confirmation_request(self) -> None:

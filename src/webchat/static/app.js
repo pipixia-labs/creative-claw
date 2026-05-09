@@ -2286,20 +2286,9 @@ async function handleTldrawSketchSubmit(payload) {
 
   const imageFile = new File([imageBlob], payload.imageName || buildSketchUploadName("png"), { type: "image/png" });
   const uploaded = await uploadGeneratedFile(imageFile, {
-    description: "Selected tldraw sketch export for design feedback.",
+    description: "Selected tldraw canvas export.",
   });
 
-  const note = String(payload?.note || "").trim();
-  if (note) {
-    const existingPrompt = promptInput.value.trim();
-    promptInput.value = existingPrompt ? `${existingPrompt}\n\n${note}` : note;
-    promptInput.style.height = "";
-    promptInput.style.height = `${Math.min(promptInput.scrollHeight, 220)}px`;
-  } else if (!promptInput.value.trim()) {
-    promptInput.value = "请根据附件里的 tldraw 选区草图优化当前设计。";
-    promptInput.style.height = "";
-    promptInput.style.height = `${Math.min(promptInput.scrollHeight, 220)}px`;
-  }
   promptInput.focus();
   updateComposerButtons();
   return uploaded;

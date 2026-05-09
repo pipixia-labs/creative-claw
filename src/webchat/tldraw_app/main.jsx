@@ -1,4 +1,4 @@
-import React, { useCallback, useMemo, useRef, useState } from "react";
+import React, { useCallback, useMemo, useRef } from "react";
 import { createRoot } from "react-dom/client";
 import {
   AssetRecordType,
@@ -11,6 +11,7 @@ import {
   TldrawUiMenuItem,
   createShapeId,
   useEditor,
+  useToasts,
   useValue,
 } from "tldraw";
 import "tldraw/tldraw.css";
@@ -20,9 +21,6 @@ const MAX_IMAGE_WIDTH = 920;
 const IMAGE_GAP = 96;
 
 function CreativeClawSketchCanvas({ artifacts = [], onSubmitSketch }) {
-  const [editor, setEditor] = useState(null);
-  const [status, setStatus] = useState("Draw or annotate, then send the sketch.");
-  const [note, setNote] = useState("");
   const loadedSignatureRef = useRef("");
 
   const imageArtifacts = useMemo(
@@ -32,88 +30,62 @@ function CreativeClawSketchCanvas({ artifacts = [], onSubmitSketch }) {
 
   const handleMount = useCallback(
     (mountedEditor) => {
-      setEditor(mountedEditor);
-      void seedImageArtifacts(mountedEditor, imageArtifacts, loadedSignatureRef, setStatus);
+      void seedImageArtifacts(mountedEditor, imageArtifacts, loadedSignatureRef);
     },
     [imageArtifacts]
   );
 
-  const handleExportPng = useCallback(async () => {
-    if (!editor) {
-      return;
-    }
-    const imageBlob = await exportCurrentPageAsPng(editor);
-    downloadBlob(imageBlob, buildSketchFileName("png"));
-  }, [editor]);
-
-  const handleAttachSelection = useCallback(async () => {
-    if (!editor || !onSubmitSketch) {
-      return;
-    }
-    setStatus("Exporting selection...");
-    try {
-      const imageBlob = await exportSelectedShapesAsPng(editor);
-      await onSubmitSketch({
-        imageBlob,
-        note,
-        imageName: buildSketchFileName("selection.png"),
-      });
-      setStatus("Selection attached to the chat composer.");
-    } catch (error) {
-      setStatus(error instanceof Error ? error.message : "Could not export the selection.");
-    }
-  }, [editor, note, onSubmitSketch]);
-
   const tldrawComponents = useMemo(
     () => ({
-      ContextMenu: (props) => <CreativeClawContextMenu {...props} onAttachSelection={handleAttachSelection} />,
+      ContextMenu: (props) => <CreativeClawContextMenu {...props} onSubmitSketch={onSubmitSketch} />,
       HelperButtons: null,
       SharePanel: null,
       Toolbar: CreativeClawToolbar,
     }),
-    [handleAttachSelection]
+    [onSubmitSketch]
   );
 
   return (
     <div className="cc-sketch-root">
       <Tldraw onMount={handleMount} components={tldrawComponents} />
-      <div className="cc-sketch-panel" aria-label="Sketch actions">
-        <textarea
-          className="cc-sketch-note"
-          value={note}
-          placeholder="Optional instruction for the design agent"
-          rows={2}
-          onChange={(event) => setNote(event.target.value)}
-        />
-        <div className="cc-sketch-actions">
-          <button type="button" className="cc-sketch-button" onClick={handleExportPng}>
-            Export PNG
-          </button>
-          <button type="button" className="cc-sketch-button cc-sketch-button-primary" onClick={handleAttachSelection}>
-            Attach selection
-          </button>
-        </div>
-        <div className="cc-sketch-status" aria-live="polite">
-          {status}
-        </div>
-      </div>
     </div>
   );
 }
 
-function CreativeClawContextMenu({ onAttachSelection, ...props }) {
+function CreativeClawContextMenu({ onSubmitSketch, ...props }) {
   const editor = useEditor();
+  const { addToast } = useToasts();
   const hasSelection = useValue(
     "creativeClawHasSelection",
     () => editor.getSelectedShapeIds().length > 0,
     [editor]
   );
 
-  const handleSelect = useCallback(() => {
-    if (hasSelection) {
-      void onAttachSelection?.();
+  const handleSelect = useCallback(async () => {
+    if (!hasSelection || !onSubmitSketch) {
+      return;
     }
-  }, [hasSelection, onAttachSelection]);
+    try {
+      const imageBlob = await exportSelectedShapesAsPng(editor);
+      await onSubmitSketch({
+        imageBlob,
+        imageName: buildSketchFileName("selection.png"),
+      });
+      addToast({
+        id: "creative-claw-selection-attached",
+        title: "已添加到对话",
+        description: "选区已作为图片附件添加。",
+        severity: "success",
+      });
+    } catch (error) {
+      addToast({
+        id: "creative-claw-selection-attach-failed",
+        title: "发送失败",
+        description: error instanceof Error ? error.message : "Could not export the selected sketch items as PNG.",
+        severity: "error",
+      });
+    }
+  }, [addToast, editor, hasSelection, onSubmitSketch]);
 
   return (
     <DefaultContextMenu {...props}>
@@ -121,7 +93,7 @@ function CreativeClawContextMenu({ onAttachSelection, ...props }) {
         <TldrawUiMenuGroup id="creative-claw">
           <TldrawUiMenuItem
             id="creative-claw-attach-selection"
-            label="Attach selection"
+            label="发送到对话"
             readonlyOk
             onSelect={handleSelect}
           />
@@ -140,13 +112,12 @@ function CreativeClawToolbar() {
   );
 }
 
-async function seedImageArtifacts(editor, artifacts, loadedSignatureRef, setStatus) {
+async function seedImageArtifacts(editor, artifacts, loadedSignatureRef) {
   const signature = artifacts.map((artifact) => `${artifact.url}|${artifact.name || ""}`).join("\n");
   if (!signature || loadedSignatureRef.current === signature) {
     return;
   }
   loadedSignatureRef.current = signature;
-  setStatus("Loading generated images into the sketch canvas...");
 
   try {
     let cursorX = 0;
@@ -208,10 +179,9 @@ async function seedImageArtifacts(editor, artifacts, loadedSignatureRef, setStat
       editor.zoomToSelection({ animation: { duration: 220 } });
       editor.selectNone();
     }
-    setStatus("Draw or annotate, then send the sketch.");
   } catch (error) {
     loadedSignatureRef.current = "";
-    setStatus(error instanceof Error ? error.message : "Could not load images into tldraw.");
+    console.warn(error instanceof Error ? error.message : "Could not load images into tldraw.");
   }
 }
 
@@ -240,25 +210,6 @@ function loadImageDimensions(src) {
   });
 }
 
-async function exportCurrentPageAsPng(editor) {
-  const shapes = editor.getCurrentPageShapesSorted();
-  if (shapes.length === 0) {
-    throw new Error("Sketch canvas is empty.");
-  }
-
-  const exported = await editor.toImage(shapes, {
-    background: true,
-    format: "png",
-    padding: 48,
-    pixelRatio: 2,
-  });
-  const imageBlob = exported instanceof Blob ? exported : exported?.blob;
-  if (!(imageBlob instanceof Blob)) {
-    throw new Error("Could not export the sketch as PNG.");
-  }
-  return imageBlob;
-}
-
 async function exportSelectedShapesAsPng(editor) {
   const selectedIds = editor.getSelectedShapeIds();
   if (selectedIds.length === 0) {
@@ -276,15 +227,6 @@ async function exportSelectedShapesAsPng(editor) {
     throw new Error("Could not export the selected sketch items as PNG.");
   }
   return imageBlob;
-}
-
-function downloadBlob(blob, name) {
-  const url = URL.createObjectURL(blob);
-  const anchor = document.createElement("a");
-  anchor.href = url;
-  anchor.download = name;
-  anchor.click();
-  window.setTimeout(() => URL.revokeObjectURL(url), 1000);
 }
 
 function buildSketchFileName(extension) {
