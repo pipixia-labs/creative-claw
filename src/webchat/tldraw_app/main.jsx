@@ -2,15 +2,24 @@ import React, { useCallback, useMemo, useRef } from "react";
 import { createRoot } from "react-dom/client";
 import {
   AssetRecordType,
+  DefaultColorStyle,
   DefaultContextMenu,
   DefaultContextMenuContent,
+  DefaultStylePanel,
   DefaultToolbar,
   DefaultToolbarContent,
   Tldraw,
+  TldrawUiButtonIcon,
   TldrawUiMenuGroup,
   TldrawUiMenuItem,
+  TldrawUiPopover,
+  TldrawUiPopoverContent,
+  TldrawUiPopoverTrigger,
+  TldrawUiToolbarButton,
   createShapeId,
+  getColorValue,
   useEditor,
+  useRelevantStyles,
   useToasts,
   useValue,
 } from "tldraw";
@@ -40,6 +49,7 @@ function CreativeClawSketchCanvas({ artifacts = [], onSubmitSketch }) {
       ContextMenu: (props) => <CreativeClawContextMenu {...props} onSubmitSketch={onSubmitSketch} />,
       HelperButtons: null,
       SharePanel: null,
+      StylePanel: null,
       Toolbar: CreativeClawToolbar,
     }),
     [onSubmitSketch]
@@ -107,8 +117,57 @@ function CreativeClawContextMenu({ onSubmitSketch, ...props }) {
 function CreativeClawToolbar() {
   return (
     <DefaultToolbar orientation="vertical">
+      <CreativeClawStyleToolbarButton />
       <DefaultToolbarContent />
     </DefaultToolbar>
+  );
+}
+
+function CreativeClawStyleToolbarButton() {
+  const editor = useEditor();
+  const relevantStyles = useRelevantStyles();
+  const color = relevantStyles?.get(DefaultColorStyle);
+  const currentColor = useValue(
+    "creativeClawStyleButtonColor",
+    () => {
+      const colors = editor.getCurrentTheme().colors[editor.getColorMode()];
+      return color?.type === "shared" ? getColorValue(colors, color.value, "solid") : getColorValue(colors, "black", "solid");
+    },
+    [color, editor]
+  );
+  const disabled = useValue(
+    "creativeClawStyleButtonDisabled",
+    () => editor.isInAny("hand", "zoom", "eraser", "laser"),
+    [editor]
+  );
+
+  const handleOpenChange = useCallback(
+    (isOpen) => {
+      if (!isOpen) {
+        editor.updateInstanceState({ isChangingStyle: false });
+      }
+    },
+    [editor]
+  );
+
+  return (
+    <TldrawUiPopover id="creative-claw-style-panel" className="cc-sketch-style-popover" onOpenChange={handleOpenChange}>
+      <TldrawUiPopoverTrigger>
+        <TldrawUiToolbarButton
+          type="tool"
+          tooltip="样式"
+          disabled={disabled}
+          style={{
+            color: disabled ? "var(--tl-color-muted-1)" : currentColor,
+          }}
+        >
+          <TldrawUiButtonIcon icon={color?.type === "mixed" ? "mixed" : "blob"} />
+        </TldrawUiToolbarButton>
+      </TldrawUiPopoverTrigger>
+      <TldrawUiPopoverContent side="right" align="start" sideOffset={10}>
+        <DefaultStylePanel isMobile />
+      </TldrawUiPopoverContent>
+    </TldrawUiPopover>
   );
 }
 
