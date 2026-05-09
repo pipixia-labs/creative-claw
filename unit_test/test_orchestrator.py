@@ -608,6 +608,35 @@ class OrchestratorCallbackTests(unittest.IsolatedAsyncioTestCase):
         self.assertIn("final_file_paths", prompt_text)
         self.assertIn("list_session_files(section=\"latest_output\")", prompt_text)
 
+    async def test_before_model_callback_keeps_uploaded_images_as_path_references(self) -> None:
+        callback_context = SimpleNamespace(
+            state={
+                "workflow_status": "running",
+                "step": 0,
+                "user_prompt": "Use this tldraw selection.",
+                "channel": "web",
+                "chat_id": "web-session",
+                "sender_id": "browser",
+                "uploaded": [
+                    {
+                        "name": "sketch-selection.png",
+                        "path": "inbox/web/web-session/turn_1/01_sketch-selection.png",
+                        "description": "Selected tldraw sketch export for design feedback.",
+                    }
+                ],
+                "generated": [],
+            }
+        )
+        llm_request = SimpleNamespace(contents=[])
+
+        await orchestrator_before_model_callback(callback_context, llm_request)
+
+        all_parts = [part for content in llm_request.contents for part in content.parts]
+        prompt_text = "\n".join(part.text for part in all_parts if getattr(part, "text", None))
+        self.assertIn("sketch-selection.png", prompt_text)
+        self.assertIn("Selected tldraw sketch export", prompt_text)
+        self.assertFalse(any(getattr(part, "inline_data", None) is not None for part in all_parts))
+
     async def test_run_agent_stops_after_tool_confirmation_request(self) -> None:
         session_service = InMemorySessionService()
         orchestrator = Orchestrator(

@@ -2,11 +2,16 @@ import React, { useCallback, useMemo, useRef, useState } from "react";
 import { createRoot } from "react-dom/client";
 import {
   AssetRecordType,
+  DefaultContextMenu,
+  DefaultContextMenuContent,
   DefaultToolbar,
   DefaultToolbarContent,
   Tldraw,
+  TldrawUiMenuGroup,
+  TldrawUiMenuItem,
   createShapeId,
-  getSnapshot,
+  useEditor,
+  useValue,
 } from "tldraw";
 import "tldraw/tldraw.css";
 import "./styles.css";
@@ -41,37 +46,37 @@ function CreativeClawSketchCanvas({ artifacts = [], onSubmitSketch }) {
     downloadBlob(imageBlob, buildSketchFileName("png"));
   }, [editor]);
 
-  const handleSubmit = useCallback(async () => {
+  const handleAttachSelection = useCallback(async () => {
     if (!editor || !onSubmitSketch) {
       return;
     }
-    setStatus("Exporting sketch...");
+    setStatus("Exporting selection...");
     try {
-      const imageBlob = await exportCurrentPageAsPng(editor);
-      const snapshot = getSnapshot(editor.store);
+      const imageBlob = await exportSelectedShapesAsPng(editor);
       await onSubmitSketch({
         imageBlob,
-        snapshot,
         note,
-        imageName: buildSketchFileName("png"),
-        snapshotName: buildSketchFileName("tldr.json"),
+        imageName: buildSketchFileName("selection.png"),
       });
-      setStatus("Sketch sent to the design agent.");
+      setStatus("Selection attached to the chat composer.");
     } catch (error) {
-      setStatus(error instanceof Error ? error.message : "Could not export the sketch.");
+      setStatus(error instanceof Error ? error.message : "Could not export the selection.");
     }
   }, [editor, note, onSubmitSketch]);
 
+  const tldrawComponents = useMemo(
+    () => ({
+      ContextMenu: (props) => <CreativeClawContextMenu {...props} onAttachSelection={handleAttachSelection} />,
+      HelperButtons: null,
+      SharePanel: null,
+      Toolbar: CreativeClawToolbar,
+    }),
+    [handleAttachSelection]
+  );
+
   return (
     <div className="cc-sketch-root">
-      <Tldraw
-        onMount={handleMount}
-        components={{
-          HelperButtons: null,
-          SharePanel: null,
-          Toolbar: CreativeClawToolbar,
-        }}
-      />
+      <Tldraw onMount={handleMount} components={tldrawComponents} />
       <div className="cc-sketch-panel" aria-label="Sketch actions">
         <textarea
           className="cc-sketch-note"
@@ -84,8 +89,8 @@ function CreativeClawSketchCanvas({ artifacts = [], onSubmitSketch }) {
           <button type="button" className="cc-sketch-button" onClick={handleExportPng}>
             Export PNG
           </button>
-          <button type="button" className="cc-sketch-button cc-sketch-button-primary" onClick={handleSubmit}>
-            Send sketch
+          <button type="button" className="cc-sketch-button cc-sketch-button-primary" onClick={handleAttachSelection}>
+            Attach selection
           </button>
         </div>
         <div className="cc-sketch-status" aria-live="polite">
@@ -93,6 +98,37 @@ function CreativeClawSketchCanvas({ artifacts = [], onSubmitSketch }) {
         </div>
       </div>
     </div>
+  );
+}
+
+function CreativeClawContextMenu({ onAttachSelection, ...props }) {
+  const editor = useEditor();
+  const hasSelection = useValue(
+    "creativeClawHasSelection",
+    () => editor.getSelectedShapeIds().length > 0,
+    [editor]
+  );
+
+  const handleSelect = useCallback(() => {
+    if (hasSelection) {
+      void onAttachSelection?.();
+    }
+  }, [hasSelection, onAttachSelection]);
+
+  return (
+    <DefaultContextMenu {...props}>
+      {hasSelection ? (
+        <TldrawUiMenuGroup id="creative-claw">
+          <TldrawUiMenuItem
+            id="creative-claw-attach-selection"
+            label="Attach selection"
+            readonlyOk
+            onSelect={handleSelect}
+          />
+        </TldrawUiMenuGroup>
+      ) : null}
+      <DefaultContextMenuContent />
+    </DefaultContextMenu>
   );
 }
 
@@ -219,6 +255,25 @@ async function exportCurrentPageAsPng(editor) {
   const imageBlob = exported instanceof Blob ? exported : exported?.blob;
   if (!(imageBlob instanceof Blob)) {
     throw new Error("Could not export the sketch as PNG.");
+  }
+  return imageBlob;
+}
+
+async function exportSelectedShapesAsPng(editor) {
+  const selectedIds = editor.getSelectedShapeIds();
+  if (selectedIds.length === 0) {
+    throw new Error("Select one or more sketch items first.");
+  }
+
+  const exported = await editor.toImage(selectedIds, {
+    background: true,
+    format: "png",
+    padding: 48,
+    pixelRatio: 1,
+  });
+  const imageBlob = exported instanceof Blob ? exported : exported?.blob;
+  if (!(imageBlob instanceof Blob)) {
+    throw new Error("Could not export the selected sketch items as PNG.");
   }
   return imageBlob;
 }

@@ -194,6 +194,32 @@ class WebChannelTests(unittest.IsolatedAsyncioTestCase):
             uploaded_path = Path(complete["path"])
             self.assertEqual(uploaded_path.read_bytes(), body)
 
+            await websocket.send(
+                json.dumps(
+                    {
+                        "type": "chat",
+                        "content": "use this uploaded note",
+                        "attachments": [
+                            {
+                                "name": "note.txt",
+                                "path": complete["path"],
+                                "mimeType": "text/plain",
+                                "description": "uploaded test note",
+                            }
+                        ],
+                    }
+                )
+            )
+            await self._recv_until(websocket, "task_started")
+            inbound = await asyncio.wait_for(self._consume_inbound(), timeout=2)
+            self.assertEqual(inbound.text, "use this uploaded note")
+            self.assertEqual(len(inbound.attachments), 1)
+            self.assertEqual(Path(inbound.attachments[0].path).resolve(), uploaded_path.resolve())
+            self.assertEqual(inbound.attachments[0].name, "note.txt")
+            self.assertEqual(inbound.attachments[0].mime_type, "text/plain")
+            self.assertEqual(inbound.attachments[0].description, "uploaded test note")
+            await self._recv_until(websocket, "task_finished")
+
         if uploaded_path is not None:
             with contextlib.suppress(FileNotFoundError):
                 uploaded_path.unlink()

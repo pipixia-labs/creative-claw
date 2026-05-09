@@ -40,8 +40,6 @@ from src.runtime.cancellation import get_cancellation_manager
 from src.runtime.tool_display import format_tool_args, stringify_value, summarize_tool_result
 from src.runtime.workspace import (
     build_workspace_file_record,
-    load_local_file_part,
-    looks_like_image,
     relocate_generated_output,
     resolve_workspace_path,
     workspace_relative_path,
@@ -346,9 +344,6 @@ async def orchestrator_before_model_callback(
                     )
                 )
             )
-            file_path = str(file_info.get("path", "")).strip()
-            if file_path and looks_like_image(file_path):
-                file_parts.append(load_local_file_part(file_path))
 
     llm_request.contents.append(Content(role="user", parts=file_parts))
 

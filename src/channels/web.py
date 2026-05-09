@@ -28,7 +28,7 @@ from conf.channel import WebChannelConfig
 from src.logger import logger
 from src.runtime.cancellation import get_cancellation_manager
 from src.runtime.process_sessions import ProcessKillSummary
-from src.runtime import InboundMessage
+from src.runtime import InboundMessage, MessageAttachment
 from src.runtime.workspace import looks_like_image, resolve_workspace_path, workspace_relative_path
 
 from .base import BaseChannel
@@ -696,6 +696,12 @@ class WebChannel(BaseChannel):
             await self._send_to(conn, {"type": "error", "message": "Message content is required"})
             return
 
+        try:
+            attachments = self._attachments_from_chat_payload(payload)
+        except ValueError as exc:
+            await self._send_to(conn, {"type": "error", "message": str(exc)})
+            return
+
         run_id = str(payload.get("runId") or "").strip() or uuid.uuid4().hex
         get_cancellation_manager().register_run(
             run_id=run_id,
@@ -703,7 +709,7 @@ class WebChannel(BaseChannel):
             chat_id=conn.session_id,
         )
         task = asyncio.create_task(
-            self._run_chat_task(conn, content, run_id),
+            self._run_chat_task(conn, content, run_id, attachments),
             name=f"web-chat-{conn.session_id}-{run_id}",
         )
         active = _ActiveRun(task=task, run_id=run_id, session_id=conn.session_id)
@@ -716,7 +722,13 @@ class WebChannel(BaseChannel):
         task.add_done_callback(_cleanup)
         await self._broadcast(conn.session_id, {"type": "task_started", "runId": run_id})
 
-    async def _run_chat_task(self, conn: _ClientConnection, content: str, run_id: str) -> None:
+    async def _run_chat_task(
+        self,
+        conn: _ClientConnection,
+        content: str,
+        run_id: str,
+        attachments: list[MessageAttachment] | None = None,
+    ) -> None:
         """Run one chat task and emit lifecycle events."""
         reason = "completed"
         try:
@@ -726,6 +738,7 @@ class WebChannel(BaseChannel):
                     sender_id=conn.client_id,
                     chat_id=conn.session_id,
                     text=content,
+                    attachments=list(attachments or []),
                     metadata={"client_id": conn.client_id, "run_id": run_id},
                 )
             )
@@ -770,6 +783,40 @@ class WebChannel(BaseChannel):
                     conn.session_id,
                     {"type": "task_finished", "runId": run_id, "reason": reason},
                 )
+
+    def _attachments_from_chat_payload(self, payload: dict[str, Any]) -> list[MessageAttachment]:
+        """Normalize browser-uploaded attachment records from one chat payload."""
+        raw_attachments = payload.get("attachments") or []
+        if not isinstance(raw_attachments, list):
+            raise ValueError("Chat attachments must be a list.")
+        if len(raw_attachments) > 20:
+            raise ValueError("Too many attachments in one message.")
+
+        attachments: list[MessageAttachment] = []
+        upload_root = UPLOAD_ROOT.resolve()
+        for index, item in enumerate(raw_attachments, start=1):
+            if not isinstance(item, dict):
+                raise ValueError(f"Attachment {index} is not valid.")
+            raw_path = str(item.get("path") or "").strip()
+            if not raw_path:
+                raise ValueError(f"Attachment {index} is missing a path.")
+            try:
+                resolved_path = Path(raw_path).resolve()
+                resolved_path.relative_to(upload_root)
+            except Exception as exc:
+                raise ValueError(f"Attachment {index} is not a valid uploaded file.") from exc
+            if not resolved_path.is_file():
+                raise ValueError(f"Attachment {index} does not exist.")
+
+            attachments.append(
+                MessageAttachment(
+                    path=str(resolved_path),
+                    name=str(item.get("name") or resolved_path.name).strip() or resolved_path.name,
+                    mime_type=str(item.get("mimeType") or "").strip(),
+                    description=str(item.get("description") or "").strip(),
+                )
+            )
+        return attachments
 
     async def _handle_stop(self, conn: _ClientConnection, payload: dict[str, Any]) -> None:
         """Stop the currently active run for one Web Chat session."""

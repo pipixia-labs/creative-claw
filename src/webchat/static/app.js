@@ -2273,7 +2273,7 @@ function sendSocket(payload) {
 
 async function handleTldrawSketchSubmit(payload) {
   if (runState !== "idle") {
-    throw new Error("Wait for the current run to finish before sending a sketch.");
+    throw new Error("Wait for the current run to finish before attaching a sketch.");
   }
   if (!socket || socket.readyState !== WebSocket.OPEN) {
     throw new Error("Web chat is not connected.");
@@ -2285,31 +2285,33 @@ async function handleTldrawSketchSubmit(payload) {
   }
 
   const imageFile = new File([imageBlob], payload.imageName || buildSketchUploadName("png"), { type: "image/png" });
-  const snapshotBody = JSON.stringify(payload?.snapshot || {}, null, 2);
-  const snapshotFile = new File([snapshotBody], payload.snapshotName || buildSketchUploadName("tldr.json"), {
-    type: "application/json",
+  const uploaded = await uploadGeneratedFile(imageFile, {
+    description: "Selected tldraw sketch export for design feedback.",
   });
 
-  await uploadGeneratedFile(imageFile);
-  await uploadGeneratedFile(snapshotFile);
-
   const note = String(payload?.note || "").trim();
-  const sketchPrompt =
-    note ||
-    "请根据 tldraw 草图导出的 PNG 和 JSON 快照优化当前设计。优先理解红线、箭头、圈注、手写标注和布局批注，并把修改落实到 HTML 设计画布。";
-  const existingPrompt = promptInput.value.trim();
-  promptInput.value = existingPrompt ? `${existingPrompt}\n\n${sketchPrompt}` : sketchPrompt;
-  promptInput.style.height = "";
-  promptInput.style.height = `${Math.min(promptInput.scrollHeight, 220)}px`;
-  await sendPrompt();
+  if (note) {
+    const existingPrompt = promptInput.value.trim();
+    promptInput.value = existingPrompt ? `${existingPrompt}\n\n${note}` : note;
+    promptInput.style.height = "";
+    promptInput.style.height = `${Math.min(promptInput.scrollHeight, 220)}px`;
+  } else if (!promptInput.value.trim()) {
+    promptInput.value = "请根据附件里的 tldraw 选区草图优化当前设计。";
+    promptInput.style.height = "";
+    promptInput.style.height = `${Math.min(promptInput.scrollHeight, 220)}px`;
+  }
+  promptInput.focus();
+  updateComposerButtons();
+  return uploaded;
 }
 
-async function uploadGeneratedFile(file) {
+async function uploadGeneratedFile(file, options = {}) {
   const attachment = {
     id: crypto.randomUUID(),
     name: file.name || "sketch-export",
     size: file.size,
     mimeType: file.type || "",
+    description: String(options.description || "").trim(),
     status: "uploading",
     progress: 0,
     path: "",
@@ -2424,8 +2426,18 @@ function contentWithAttachments(content, attachments) {
     return content;
   }
   const prompt = content || "Please use the attached file(s).";
-  const fileLines = attachments.map((attachment) => `- ${attachment.path}`);
+  const fileLines = attachments.map((attachment) => `- ${attachment.name || attachment.path}`);
   return `${prompt}\n\nAttached files:\n${fileLines.join("\n")}`;
+}
+
+function serializeAttachmentsForRuntime(attachments) {
+  return attachments.map((attachment) => ({
+    name: attachment.name || "attachment",
+    path: attachment.path,
+    mimeType: attachment.mimeType || "",
+    size: attachment.size || 0,
+    description: attachment.description || "",
+  }));
 }
 
 async function sendPrompt() {
@@ -2438,15 +2450,21 @@ async function sendPrompt() {
     return;
   }
 
-  const content = contentWithAttachments(promptInput.value.trim(), uploadedAttachments);
+  const content = promptInput.value.trim() || (uploadedAttachments.length ? "Please use the attached file(s)." : "");
   if (!content || !socket || socket.readyState !== WebSocket.OPEN) {
     return;
   }
+  const displayContent = contentWithAttachments(content, uploadedAttachments);
   const runId = crypto.randomUUID();
-  sendSocket({ type: "chat", content, runId });
+  sendSocket({
+    type: "chat",
+    content,
+    runId,
+    attachments: serializeAttachmentsForRuntime(uploadedAttachments),
+  });
   setRunState("running", runId);
-  addMessageCard("user", "You", content);
-  appendHistory({ type: "user", role: "You", content, artifacts: [] });
+  addMessageCard("user", "You", displayContent);
+  appendHistory({ type: "user", role: "You", content: displayContent, artifacts: [] });
   promptInput.value = "";
   promptInput.style.height = "";
   clearAttachments();
