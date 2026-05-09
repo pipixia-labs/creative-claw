@@ -948,7 +948,7 @@ function renderTldrawPreview() {
   }
 
   if (!artifacts.length) {
-    tldrawPreview.appendChild(previewEmpty("No sketch preview"));
+    tldrawPreview.appendChild(previewEmpty("No visual board preview"));
     return;
   }
 
