@@ -1,0 +1,174 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Kraken Design System Preview</title>
+  <style>
+    :root {
+      --primary: #7132f5;
+      --on-primary: #ffffff;
+      --canvas: #0f1115;
+      --surface: #181b22;
+      --surface-strong: #20242d;
+      --ink: #f7f7f8;
+      --body: rgba(255,255,255,0.76);
+      --muted: rgba(255,255,255,0.52);
+      --border: #ebebeb;
+      --display: Inter, system-ui, -apple-system, BlinkMacSystemFont, sans-serif;
+      --text: Inter, system-ui, -apple-system, BlinkMacSystemFont, sans-serif;
+      --mono: ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, monospace;
+    }
+    * { box-sizing: border-box; margin: 0; padding: 0; }
+    html, body { background: var(--canvas); color: var(--ink); font-family: var(--text); font-size: 16px; line-height: 1.5; }
+    body { min-width: 320px; }
+    .nav { position: sticky; top: 0; z-index: 20; display: grid; grid-template-columns: 1fr auto 1fr; align-items: center; gap: 20px; height: 64px; padding: 0 48px; background: color-mix(in srgb, var(--canvas) 92%, transparent); border-bottom: 1px solid var(--border); backdrop-filter: blur(14px); }
+    .brand { font-family: var(--display); font-weight: 700; letter-spacing: -0.02em; color: var(--ink); }
+    .nav-links { list-style: none; display: flex; gap: 24px; justify-content: center; }
+    .nav-links a { color: var(--body); text-decoration: none; font-size: 14px; font-weight: 600; }
+    .nav-cta { justify-self: end; border: 0; background: var(--primary); color: var(--on-primary); border-radius: 8px; padding: 11px 18px; font: 700 13px/1 var(--text); }
+    .hero { max-width: 1440px; margin: 0 auto; padding: 84px 48px 72px; display: grid; grid-template-columns: minmax(0, 1.1fr) minmax(320px, 0.9fr); gap: 48px; align-items: center; }
+    .eyebrow { color: var(--muted); font: 700 11px/1.2 var(--mono); letter-spacing: 0.12em; text-transform: uppercase; margin-bottom: 18px; }
+    h1 { font-family: var(--display); font-size: clamp(40px, 6vw, 72px); line-height: 1.04; letter-spacing: -0.045em; font-weight: 750; max-width: 980px; }
+    .hero p { margin-top: 26px; max-width: 760px; color: var(--body); font-size: 18px; line-height: 1.65; }
+    .hero-actions { margin-top: 34px; display: flex; gap: 12px; flex-wrap: wrap; }
+    .btn { display: inline-flex; align-items: center; justify-content: center; min-height: 44px; border-radius: 8px; padding: 0 20px; border: 1px solid var(--border); font: 700 14px/1 var(--text); color: var(--ink); background: var(--surface); }
+    .btn.primary { background: var(--primary); color: var(--on-primary); border-color: var(--primary); }
+    .hero-panel { background: var(--surface); border: 1px solid var(--border); border-radius: 18px; overflow: hidden; box-shadow: 0 24px 70px rgba(0,0,0,.12); }
+    .panel-top { height: 44px; display: flex; align-items: center; gap: 7px; padding: 0 16px; border-bottom: 1px solid var(--border); background: var(--surface-strong); }
+    .dot { width: 10px; height: 10px; border-radius: 999px; background: var(--primary); opacity: .85; }
+    .panel-body { padding: 22px; display: grid; gap: 14px; }
+    .metric { display: grid; grid-template-columns: 88px 1fr; gap: 14px; align-items: center; padding: 14px; border: 1px solid var(--border); border-radius: 12px; background: var(--canvas); }
+    .metric strong { color: var(--primary); font-family: var(--mono); font-size: 22px; }
+    .metric span { color: var(--body); font-size: 13px; }
+    section { max-width: 1440px; margin: 0 auto; padding: 78px 48px; border-top: 1px solid var(--border); }
+    .section-label { color: var(--muted); font: 800 11px/1.2 var(--mono); letter-spacing: .12em; text-transform: uppercase; margin-bottom: 12px; }
+    .section-heading { font-family: var(--display); font-size: clamp(26px, 3.5vw, 42px); line-height: 1.12; letter-spacing: -.025em; margin-bottom: 16px; }
+    .section-intro { color: var(--body); max-width: 760px; margin-bottom: 42px; line-height: 1.65; }
+    .palette-grid, .button-grid, .card-grid, .form-grid, .elevation-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(230px, 1fr)); gap: 18px; }
+    .swatch, .component-cell, .feature-card, .form-cell, .elevation-card { background: var(--surface); border: 1px solid var(--border); border-radius: 14px; overflow: hidden; min-width: 0; }
+    .swatch-color { height: 108px; border-bottom: 1px solid var(--border); }
+    .swatch-meta, .component-cell, .feature-card, .form-cell, .elevation-card { padding: 18px; }
+    .swatch-name, .button-label { font-weight: 800; font-size: 13px; color: var(--ink); margin-bottom: 5px; overflow-wrap: anywhere; }
+    .swatch-hex, .button-meta, .type-meta, .spacing-label { font-family: var(--mono); font-size: 12px; color: var(--muted); overflow-wrap: anywhere; }
+    .type-row { display: grid; grid-template-columns: 300px 1fr; gap: 32px; align-items: baseline; padding: 20px 0; border-bottom: 1px solid var(--border); }
+    .type-sample { color: var(--ink); overflow-wrap: anywhere; }
+    .demo-button { display: inline-flex; align-items: center; justify-content: center; min-height: 40px; border-radius: 8px; border: 1px solid var(--border); padding: 0 16px; font-weight: 700; max-width: 100%; }
+    .feature-card h4, .elevation-card h4 { font-size: 18px; margin-bottom: 8px; }
+    .feature-card p, .elevation-card p { color: var(--body); font-size: 14px; line-height: 1.55; }
+    .text-input { width: 100%; min-height: 44px; border-radius: 8px; border: 1px solid var(--border); background: var(--canvas); color: var(--ink); padding: 0 14px; font: 500 15px/1 var(--text); }
+    .badge { display: inline-flex; align-items: center; border-radius: 999px; background: var(--surface-strong); color: var(--ink); min-height: 28px; padding: 0 12px; font: 800 11px/1 var(--mono); letter-spacing: .08em; text-transform: uppercase; }
+    .spacing-row, .radius-row { display: flex; flex-wrap: wrap; gap: 18px; align-items: end; }
+    .spacing-block { display: grid; justify-items: center; gap: 8px; }
+    .spacing-bar { width: 54px; min-height: 4px; background: var(--primary); border-radius: 6px; }
+    .radius-block { width: 96px; height: 96px; display: grid; place-items: center; background: var(--surface); border: 1px solid var(--border); color: var(--muted); font: 700 12px/1 var(--mono); }
+    .responsive-table { width: 100%; border-collapse: collapse; background: var(--surface); border: 1px solid var(--border); border-radius: 14px; overflow: hidden; }
+    .responsive-table th, .responsive-table td { text-align: left; padding: 14px 16px; border-bottom: 1px solid var(--border); color: var(--body); }
+    .responsive-table th { color: var(--ink); font: 800 11px/1.2 var(--mono); letter-spacing: .1em; text-transform: uppercase; }
+    .footer { padding: 34px 48px; border-top: 1px solid var(--border); color: var(--muted); text-align: center; font-size: 13px; }
+    @media (max-width: 900px) { .nav { grid-template-columns: 1fr auto; padding: 0 20px; } .nav-links { display: none; } .nav-cta { display: none; } .hero { grid-template-columns: 1fr; padding: 56px 20px; } section { padding: 56px 20px; } .type-row { grid-template-columns: 1fr; gap: 8px; } }
+  </style>
+</head>
+<body>
+  <nav class="nav">
+    <div class="brand">Kraken</div>
+    <ul class="nav-links"><li><a href="#colors">Colors</a></li><li><a href="#type">Typography</a></li><li><a href="#components">Components</a></li><li><a href="#responsive">Responsive</a></li></ul>
+    <button class="nav-cta">Preview</button>
+  </nav>
+
+  <main>
+    <div class="hero">
+      <div>
+        <div class="eyebrow">Design System Preview</div>
+        <h1>Kraken visual system</h1>
+        <p>Kraken&#39;s website is a clean, trustworthy crypto exchange that uses purple as its commanding brand color. The design operates on white backgrounds with Kraken Purple (#7132f5, #5741d8, #5b1ecf) creating a.</p>
+        <div class="hero-actions"><span class="btn primary">Primary action</span><span class="btn">Secondary action</span></div>
+      </div>
+      <div class="hero-panel" aria-label="Interface sample">
+        <div class="panel-top"><span class="dot"></span><span class="dot"></span><span class="dot"></span></div>
+        <div class="panel-body">
+          <div class="metric"><strong>01</strong><span>Token driven color, type, spacing, and component decisions.</span></div>
+          <div class="metric"><strong>AA</strong><span>Preview surfaces highlight contrast, hierarchy, and UI rhythm.</span></div>
+          <div class="metric"><strong>UI</strong><span>Reusable cards, controls, form fields, labels, and responsive states.</span></div>
+        </div>
+      </div>
+    </div>
+
+    <section id="colors">
+      <div class="section-label">01 - Color Palette</div>
+      <h2 class="section-heading">Core colors and semantic surfaces</h2>
+      <p class="section-intro">The palette below is extracted from the structured design tokens. Swatches show the available roles and their exact CSS values.</p>
+      <div class="palette-grid">
+        <div class="swatch"><div class="swatch-color" style="background:#7132f5"></div><div class="swatch-meta"><div class="swatch-name">primary</div><div class="swatch-hex">#7132f5</div></div></div><div class="swatch"><div class="swatch-color" style="background:#ffffff"></div><div class="swatch-meta"><div class="swatch-name">on-primary</div><div class="swatch-hex">#ffffff</div></div></div><div class="swatch"><div class="swatch-color" style="background:#ffffff"></div><div class="swatch-meta"><div class="swatch-name">canvas</div><div class="swatch-hex">#ffffff</div></div></div><div class="swatch"><div class="swatch-color" style="background:#ffffff"></div><div class="swatch-meta"><div class="swatch-name">surface</div><div class="swatch-hex">#ffffff</div></div></div><div class="swatch"><div class="swatch-color" style="background:#171717"></div><div class="swatch-meta"><div class="swatch-name">ink</div><div class="swatch-hex">#171717</div></div></div><div class="swatch"><div class="swatch-color" style="background:#4d4d4d"></div><div class="swatch-meta"><div class="swatch-name">body</div><div class="swatch-hex">#4d4d4d</div></div></div><div class="swatch"><div class="swatch-color" style="background:#666666"></div><div class="swatch-meta"><div class="swatch-name">muted</div><div class="swatch-hex">#666666</div></div></div><div class="swatch"><div class="swatch-color" style="background:#ebebeb"></div><div class="swatch-meta"><div class="swatch-name">hairline</div><div class="swatch-hex">#ebebeb</div></div></div><div class="swatch"><div class="swatch-color" style="background:#5741d8"></div><div class="swatch-meta"><div class="swatch-name">accent</div><div class="swatch-hex">#5741d8</div></div></div>
+      </div>
+    </section>
+
+    <section id="type">
+      <div class="section-label">02 - Typography</div>
+      <h2 class="section-heading">Type scale and voice</h2>
+      <p class="section-intro">Typography samples show how major text levels render when the token values are applied to real interface copy.</p>
+      <div class="type-row"><div class="type-meta"><strong>display-hero</strong>48px / 700 / 1.15 / -1px</div><div class="type-sample" style="font-family:Inter, system-ui, -apple-system, BlinkMacSystemFont, sans-serif;font-size:48px;font-weight:700;line-height:1.15;letter-spacing:-1px">Build a clear product interface with Kraken rhythm.</div></div><div class="type-row"><div class="type-meta"><strong>heading-lg</strong>32px / 700 / 1.25 / -0.5px</div><div class="type-sample" style="font-family:Inter, system-ui, -apple-system, BlinkMacSystemFont, sans-serif;font-size:32px;font-weight:700;line-height:1.25;letter-spacing:-0.5px">Build a clear product interface with Kraken rhythm.</div></div><div class="type-row"><div class="type-meta"><strong>body-md</strong>16px / 400 / 1.5 / 0px</div><div class="type-sample" style="font-family:Inter, system-ui, -apple-system, BlinkMacSystemFont, sans-serif;font-size:16px;font-weight:400;line-height:1.5;letter-spacing:0px">Build a clear product interface with Kraken rhythm.</div></div><div class="type-row"><div class="type-meta"><strong>button</strong>14px / 600 / 1.2 / 0px</div><div class="type-sample" style="font-family:Inter, system-ui, -apple-system, BlinkMacSystemFont, sans-serif;font-size:14px;font-weight:600;line-height:1.2;letter-spacing:0px">Build a clear product interface with Kraken rhythm.</div></div><div class="type-row"><div class="type-meta"><strong>caption</strong>12px / 500 / 1.33 / 0px</div><div class="type-sample" style="font-family:Inter, system-ui, -apple-system, BlinkMacSystemFont, sans-serif;font-size:12px;font-weight:500;line-height:1.33;letter-spacing:0px">Build a clear product interface with Kraken rhythm.</div></div>
+    </section>
+
+    <section id="components">
+      <div class="section-label">03 - Components</div>
+      <h2 class="section-heading">Buttons, cards, labels, and controls</h2>
+      <p class="section-intro">Component samples apply available token references where possible, with neutral fallbacks for properties not present in the source system.</p>
+      <div class="button-grid">
+        <div class="component-cell"><div class="button-label">button-primary</div><span class="demo-button" style="background:#7132f5;color:#ffffff;border-radius:8px;padding:0 16px">Sample action</span><div class="button-meta">#7132f5 / #ffffff</div></div><div class="component-cell"><div class="button-label">button-secondary</div><span class="demo-button" style="background:#ffffff;color:#171717;border-radius:8px;padding:0 16px">Sample action</span><div class="button-meta">#ffffff / #171717</div></div><div class="component-cell"><div class="button-label">card</div><span class="demo-button" style="background:#ffffff;color:#171717;border-radius:12px;padding:0 24px">Sample action</span><div class="button-meta">#ffffff / #171717</div></div><div class="component-cell"><div class="button-label">text-body</div><span class="demo-button" style="background:#ffffff;color:#4d4d4d;border-radius:4px;padding:0 8px">Sample action</span><div class="button-meta">#ffffff / #4d4d4d</div></div><div class="component-cell"><div class="button-label">muted-label</div><span class="demo-button" style="background:#ffffff;color:#666666;border-radius:4px;padding:0 4px">Sample action</span><div class="button-meta">#ffffff / #666666</div></div><div class="component-cell"><div class="button-label">link</div><span class="demo-button" style="background:#ffffff;color:#5741d8;border-radius:4px;padding:0 4px">Sample action</span><div class="button-meta">#ffffff / #5741d8</div></div><div class="component-cell"><div class="button-label">divider</div><span class="demo-button" style="background:#ebebeb;color:#171717;border-radius:4px;padding:0 14px">Sample action</span><div class="button-meta">#ebebeb / #171717</div></div>
+      </div>
+    </section>
+
+    <section>
+      <div class="section-label">04 - Interface Samples</div>
+      <h2 class="section-heading">Reusable product surfaces</h2>
+      <div class="card-grid">
+        <div class="feature-card"><h4>Feature card</h4><p>Use this card treatment for summaries, benefits, or product modules with concise supporting text.</p><span class="badge">New</span></div>
+        <div class="feature-card"><h4>Data card</h4><p>Pair a strong heading with a compact metric and muted explanatory copy.</p><div style="font:800 36px/1 var(--display);color:var(--primary);margin-top:14px">24%</div></div>
+        <div class="feature-card"><h4>Content card</h4><p>Keep content blocks aligned to the design system's spacing and type hierarchy.</p><span class="btn primary" style="margin-top:14px">Continue</span></div>
+      </div>
+    </section>
+
+    <section>
+      <div class="section-label">05 - Forms</div>
+      <h2 class="section-heading">Inputs and inline feedback</h2>
+      <div class="form-grid">
+        <div class="form-cell"><label class="button-label">Email</label><input class="text-input" value="team@example.com" aria-label="Email sample"></div>
+        <div class="form-cell"><label class="button-label">Status</label><span class="badge">Active</span></div>
+        <div class="form-cell"><label class="button-label">Action group</label><div style="display:flex;gap:10px;flex-wrap:wrap"><span class="btn primary">Save</span><span class="btn">Cancel</span></div></div>
+      </div>
+    </section>
+
+    <section>
+      <div class="section-label">06 - Spacing</div>
+      <h2 class="section-heading">Spacing scale</h2>
+      <div class="spacing-row">
+        <div class="spacing-block"><div class="spacing-bar" style="height:4px"></div><div class="spacing-label">xs · 4px</div></div><div class="spacing-block"><div class="spacing-bar" style="height:8px"></div><div class="spacing-label">sm · 8px</div></div><div class="spacing-block"><div class="spacing-bar" style="height:16px"></div><div class="spacing-label">md · 16px</div></div><div class="spacing-block"><div class="spacing-bar" style="height:24px"></div><div class="spacing-label">lg · 24px</div></div><div class="spacing-block"><div class="spacing-bar" style="height:32px"></div><div class="spacing-label">xl · 32px</div></div><div class="spacing-block"><div class="spacing-bar" style="height:80px"></div><div class="spacing-label">section · 80px</div></div>
+      </div>
+    </section>
+
+    <section>
+      <div class="section-label">07 - Radius</div>
+      <h2 class="section-heading">Shape language</h2>
+      <div class="radius-row">
+        <div class="radius-block" style="border-radius:4px">sm</div><div class="radius-block" style="border-radius:8px">md</div><div class="radius-block" style="border-radius:12px">lg</div><div class="radius-block" style="border-radius:9999px">pill</div>
+      </div>
+    </section>
+
+    <section id="responsive">
+      <div class="section-label">08 - Responsive Behavior</div>
+      <h2 class="section-heading">Layout strategy</h2>
+      <table class="responsive-table">
+        <thead><tr><th>Viewport</th><th>Behavior</th></tr></thead>
+        <tbody>
+          <tr><td>Mobile</td><td>Single column layout, compact nav, tighter section padding.</td></tr>
+          <tr><td>Tablet</td><td>Two-column component grids and readable type hierarchy.</td></tr>
+          <tr><td>Desktop</td><td>Wide token catalog, multi-column cards, expanded whitespace.</td></tr>
+        </tbody>
+      </table>
+    </section>
+  </main>
+
+  <footer class="footer">Generated from DESIGN.md tokens for local preview and review.</footer>
+</body>
+</html>

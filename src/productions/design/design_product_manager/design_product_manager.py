@@ -21,6 +21,15 @@ from conf.path import PROJECT_PATH
 from src.productions.design.design_product_manager.design_code_generation_agent import (
     DesignCodeGenerationAgent,
 )
+from src.productions.design.design_product_manager.brief_form import (
+    DESIGN_BRIEF_FORM_ANSWERS_STATE_KEY,
+    DESIGN_BRIEF_FORM_PENDING_TASK_STATE_KEY,
+    DESIGN_BRIEF_FORM_SCHEMA_VERSION,
+    DESIGN_BRIEF_FORM_STATE_KEY,
+    DesignBriefFormExpert,
+    build_task_with_form_answers,
+    parse_form_answers,
+)
 from src.productions.design.design_product_manager.design_product_experts import (
     DESIGN_PRODUCT_EXPERT_ALLOWLIST,
     build_design_expert_listing,
@@ -59,6 +68,7 @@ class DesignProductManager(LlmAgent):
     _project_root: Path = PrivateAttr()
     _skill_registry: ProductDesignSkillRegistry = PrivateAttr()
     _expert_agents: dict[str, BaseAgent] = PrivateAttr(default_factory=dict)
+    _brief_form_expert: DesignBriefFormExpert = PrivateAttr()
     _design_code_generation_agent: DesignCodeGenerationAgent = PrivateAttr()
     _app_name: str = PrivateAttr(default="creative_claw")
     _artifact_service: BaseArtifactService | None = PrivateAttr(default=None)
@@ -84,6 +94,7 @@ class DesignProductManager(LlmAgent):
             project_root=self._project_root,
             skills_dir=skills_dir,
         )
+        self._brief_form_expert = DesignBriefFormExpert()
         self._design_code_generation_agent = DesignCodeGenerationAgent()
         if provided_tools is None:
             self.tools = [
@@ -193,6 +204,44 @@ Always call `register_design_delivery` before finishing. It must contain a user-
             return _error_result("DesignProductManager requires a non-empty task.")
         if not hasattr(tool_context, "_invocation_context"):
             return _error_result("DesignProductManager requires an ADK invocation context.")
+
+        try:
+            answer_payload = parse_form_answers(clean_task)
+        except ValueError as exc:
+            return _error_result(f"Invalid design brief form answers: {exc}")
+        if answer_payload is not None:
+            original_task = str(
+                tool_context.state.get(DESIGN_BRIEF_FORM_PENDING_TASK_STATE_KEY) or ""
+            ).strip()
+            tool_context.state[DESIGN_BRIEF_FORM_ANSWERS_STATE_KEY] = answer_payload
+            clean_task = build_task_with_form_answers(
+                original_task=original_task or clean_task,
+                answer_payload=answer_payload,
+            )
+        elif _should_request_web_brief_form(tool_context.state):
+            invocation_context = tool_context._invocation_context
+            try:
+                form_message = await self._brief_form_expert.generate_form(
+                    task=clean_task,
+                    app_name=app_name,
+                    user_id=invocation_context.user_id,
+                )
+            except Exception as exc:
+                return _error_result(
+                    f"Design brief form generation failed: {type(exc).__name__}: {exc}"
+                )
+            result = _brief_form_result(form_message)
+            tool_context.state[DESIGN_BRIEF_FORM_PENDING_TASK_STATE_KEY] = clean_task
+            tool_context.state[DESIGN_BRIEF_FORM_STATE_KEY] = {
+                "schema_version": DESIGN_BRIEF_FORM_SCHEMA_VERSION,
+                "message": form_message,
+            }
+            tool_context.state[DESIGN_PRODUCT_RESULT_STATE_KEY] = result
+            tool_context.state["current_output"] = result
+            tool_context.state["final_response"] = form_message
+            tool_context.state["final_file_paths"] = []
+            tool_context.state["last_output_message"] = form_message
+            return result
 
         self._expert_agents = _filter_design_expert_agents(expert_agents or self._expert_agents)
         self._app_name = app_name
@@ -564,6 +613,45 @@ def _error_result(message: str) -> dict[str, Any]:
         "validation": [],
         "output_files": [],
     }
+
+
+def _brief_form_result(form_message: str) -> dict[str, Any]:
+    """Build a DesignProductManager result that asks the Web UI for form answers."""
+    return {
+        "result_schema_version": DESIGN_PRODUCT_RESULT_SCHEMA_VERSION,
+        "status": "needs_input",
+        "product_line": "design",
+        "message": form_message,
+        "final_file_paths": [],
+        "progress": [
+            {
+                "stage": "brief_form",
+                "status": "needs_input",
+                "message": "已生成设计需求确认表单，等待用户在 Web 前端提交。",
+            }
+        ],
+        "active_skill": {},
+        "experts": [],
+        "expert_history": [],
+        "last_expert_result": {},
+        "code_generation_history": [],
+        "last_code_generation_result": {},
+        "generation": {},
+        "validation": [],
+        "output_files": [],
+    }
+
+
+def _should_request_web_brief_form(state: Any) -> bool:
+    """Return whether the Web design flow should ask for a generated brief form."""
+    channel = str(state.get("channel", "") or "").strip().lower()
+    if channel != "web":
+        return False
+    if state.get(DESIGN_BRIEF_FORM_ANSWERS_STATE_KEY):
+        return False
+    if state.get(DESIGN_BRIEF_FORM_PENDING_TASK_STATE_KEY):
+        return False
+    return True
 
 
 def _copy_state(state: Any) -> dict[str, Any]:

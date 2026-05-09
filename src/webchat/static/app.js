@@ -634,7 +634,7 @@ function addMessageCard(type, role, content, artifacts = [], scroll = true) {
   const root = fragment.querySelector(".message-card");
   root.classList.add(type);
   fragment.querySelector(".message-role").textContent = role;
-  fragment.querySelector(".message-body").innerHTML = renderMarkdown(content || "");
+  renderMessageContent(fragment.querySelector(".message-body"), content || "");
   const artifactGrid = fragment.querySelector(".artifact-grid");
   renderArtifacts(artifactGrid, artifacts);
   timeline.appendChild(fragment);
@@ -644,6 +644,372 @@ function addMessageCard(type, role, content, artifacts = [], scroll = true) {
   if (scroll) {
     scrollToBottom();
   }
+}
+
+function renderMessageContent(container, content) {
+  container.innerHTML = "";
+  const blocks = splitQuestionFormBlocks(content);
+  for (const block of blocks) {
+    if (block.type === "markdown") {
+      const html = renderMarkdown(block.content);
+      if (html) {
+        const wrapper = document.createElement("div");
+        wrapper.innerHTML = html;
+        container.append(...Array.from(wrapper.childNodes));
+      }
+      continue;
+    }
+    const form = parseQuestionForm(block.content);
+    if (!form) {
+      const pre = document.createElement("pre");
+      const code = document.createElement("code");
+      code.textContent = block.raw;
+      pre.appendChild(code);
+      container.appendChild(pre);
+      continue;
+    }
+    container.appendChild(renderQuestionForm(form));
+  }
+}
+
+function splitQuestionFormBlocks(content) {
+  const text = String(content || "");
+  const blocks = [];
+  const openRe = /<cc-question-form(?:\s+[^>]*)?>/gi;
+  let cursor = 0;
+  let match = openRe.exec(text);
+  while (match) {
+    if (match.index > cursor) {
+      blocks.push({ type: "markdown", content: text.slice(cursor, match.index) });
+    }
+    const closeIndex = text.toLowerCase().indexOf("</cc-question-form>", openRe.lastIndex);
+    if (closeIndex < 0) {
+      blocks.push({ type: "markdown", content: text.slice(match.index) });
+      cursor = text.length;
+      break;
+    }
+    const body = text.slice(openRe.lastIndex, closeIndex).trim();
+    const raw = text.slice(match.index, closeIndex + "</cc-question-form>".length);
+    blocks.push({ type: "question_form", content: body, raw });
+    cursor = closeIndex + "</cc-question-form>".length;
+    openRe.lastIndex = cursor;
+    match = openRe.exec(text);
+  }
+  if (cursor < text.length) {
+    blocks.push({ type: "markdown", content: text.slice(cursor) });
+  }
+  return blocks.length ? blocks : [{ type: "markdown", content: text }];
+}
+
+function parseQuestionForm(rawJson) {
+  try {
+    const form = JSON.parse(stripMarkdownFence(rawJson));
+    if (!form || typeof form !== "object" || !Array.isArray(form.questions)) {
+      return null;
+    }
+    return {
+      id: String(form.id || "design-brief"),
+      version: String(form.version || "design-brief-form-v1"),
+      title: String(form.title || "确认需求"),
+      description: String(form.description || ""),
+      submitLabel: String(form.submitLabel || "确认并继续"),
+      questions: form.questions
+        .filter((question) => question && typeof question === "object")
+        .slice(0, 7)
+        .map((question) => ({
+          id: String(question.id || ""),
+          label: String(question.label || ""),
+          type: String(question.type || ""),
+          required: Boolean(question.required),
+          placeholder: String(question.placeholder || ""),
+          maxSelections: Number.isFinite(Number(question.maxSelections)) ? Number(question.maxSelections) : null,
+          allowOther: Boolean(question.allowOther),
+          min: Number.isFinite(Number(question.min)) ? Number(question.min) : 0,
+          max: Number.isFinite(Number(question.max)) ? Number(question.max) : 10,
+          default: Number.isFinite(Number(question.default)) ? Number(question.default) : null,
+          options: Array.isArray(question.options)
+            ? question.options.map((option) => ({
+                value: String(option?.value || ""),
+                label: String(option?.label || ""),
+                description: String(option?.description || ""),
+              }))
+            : [],
+        }))
+        .filter((question) => question.id && question.label),
+    };
+  } catch {
+    return null;
+  }
+}
+
+function stripMarkdownFence(value) {
+  const text = String(value || "").trim();
+  if (!text.startsWith("```")) {
+    return text;
+  }
+  const lines = text.split(/\r?\n/);
+  if (lines.length >= 2 && lines[0].trim().startsWith("```") && lines[lines.length - 1].trim() === "```") {
+    return lines.slice(1, -1).join("\n").trim();
+  }
+  return text;
+}
+
+function renderQuestionForm(form) {
+  const root = document.createElement("form");
+  root.className = "cc-question-form";
+  root.dataset.formId = form.id;
+  root.dataset.formVersion = form.version;
+
+  if (form.description) {
+    const header = document.createElement("div");
+    header.className = "cc-question-form-head";
+    const description = document.createElement("div");
+    description.className = "cc-question-form-description";
+    description.textContent = form.description;
+    header.appendChild(description);
+    root.appendChild(header);
+  }
+
+  for (const question of form.questions) {
+    root.appendChild(renderQuestionField(form, question));
+  }
+
+  const footer = document.createElement("div");
+  footer.className = "cc-question-form-footer";
+  const status = document.createElement("span");
+  status.className = "cc-question-form-status";
+  status.textContent = "提交后会继续生成设计产物。";
+  const submit = document.createElement("button");
+  submit.className = "cc-question-form-submit";
+  submit.type = "submit";
+  submit.textContent = form.submitLabel || "确认并继续";
+  footer.appendChild(status);
+  footer.appendChild(submit);
+  root.appendChild(footer);
+
+  root.addEventListener("submit", (event) => {
+    event.preventDefault();
+    const result = collectQuestionFormAnswers(root, form);
+    status.textContent = result.error || "";
+    root.classList.toggle("has-error", Boolean(result.error));
+    if (result.error) {
+      return;
+    }
+    submitQuestionForm(root, form, result.answers);
+  });
+  return root;
+}
+
+function renderQuestionField(form, question) {
+  const field = document.createElement("fieldset");
+  field.className = "cc-question-field";
+  field.dataset.questionId = question.id;
+  field.dataset.questionType = question.type;
+
+  const legend = document.createElement("legend");
+  legend.className = "cc-question-label";
+  legend.textContent = question.required ? `${question.label} *` : question.label;
+  field.appendChild(legend);
+
+  if (question.type === "single_choice" || question.type === "multi_choice") {
+    const options = document.createElement("div");
+    options.className = "cc-question-options";
+    for (const option of question.options || []) {
+      if (!option.value) continue;
+      const label = document.createElement("label");
+      label.className = "cc-question-option";
+      const input = document.createElement("input");
+      input.type = question.type === "single_choice" ? "radio" : "checkbox";
+      input.name = `${form.id}-${question.id}`;
+      input.value = option.value;
+      input.addEventListener("change", () => syncChoiceState(field, question, input));
+      const optionBody = document.createElement("span");
+      optionBody.className = "cc-question-option-body";
+      const optionLabel = document.createElement("span");
+      optionLabel.className = "cc-question-option-label";
+      optionLabel.textContent = option.label || option.value;
+      optionBody.appendChild(optionLabel);
+      if (option.description) {
+        const optionDescription = document.createElement("span");
+        optionDescription.className = "cc-question-option-description";
+        optionDescription.textContent = option.description;
+        optionBody.appendChild(optionDescription);
+      }
+      label.appendChild(input);
+      label.appendChild(optionBody);
+      options.appendChild(label);
+    }
+    if (question.allowOther) {
+      const other = document.createElement("input");
+      other.className = "cc-question-other";
+      other.type = "text";
+      other.name = `${form.id}-${question.id}-other`;
+      other.placeholder = question.placeholder || "Other...";
+      other.addEventListener("input", () => syncChoiceState(field, question, other));
+      options.appendChild(other);
+    }
+    field.appendChild(options);
+    return field;
+  }
+
+  if (question.type === "range") {
+    const min = Number.isFinite(question.min) ? question.min : 0;
+    const max = Number.isFinite(question.max) ? question.max : 10;
+    const fallback = Math.round((min + max) / 2);
+    const value = question.default === null ? fallback : Math.min(Math.max(question.default, min), max);
+    const rangeWrap = document.createElement("div");
+    rangeWrap.className = "cc-question-range";
+
+    const minLabel = document.createElement("span");
+    minLabel.className = "cc-question-range-bound";
+    minLabel.textContent = String(min);
+    const input = document.createElement("input");
+    input.className = "cc-question-range-input";
+    input.type = "range";
+    input.id = `${form.id}-${question.id}`;
+    input.name = question.id;
+    input.min = String(min);
+    input.max = String(max);
+    input.value = String(value);
+    const maxLabel = document.createElement("span");
+    maxLabel.className = "cc-question-range-bound";
+    maxLabel.textContent = String(max);
+    const current = document.createElement("output");
+    current.className = "cc-question-range-value";
+    current.htmlFor = input.id;
+    current.textContent = String(value);
+    input.addEventListener("input", () => {
+      current.textContent = input.value;
+    });
+    rangeWrap.appendChild(minLabel);
+    rangeWrap.appendChild(input);
+    rangeWrap.appendChild(maxLabel);
+    rangeWrap.appendChild(current);
+    field.appendChild(rangeWrap);
+    return field;
+  }
+
+  if (question.type === "long_text") {
+    const textarea = document.createElement("textarea");
+    textarea.className = "cc-question-textarea";
+    textarea.name = question.id;
+    textarea.placeholder = question.placeholder || "";
+    textarea.rows = 3;
+    field.appendChild(textarea);
+    return field;
+  }
+
+  const input = document.createElement("input");
+  input.className = "cc-question-input";
+  input.type = "text";
+  input.name = question.id;
+  input.placeholder = question.placeholder || "";
+  field.appendChild(input);
+  return field;
+}
+
+function collectQuestionFormAnswers(root, form) {
+  const answers = {};
+  for (const question of form.questions) {
+    if (question.type === "single_choice") {
+      const selected = root.querySelector(`input[name="${cssEscape(`${form.id}-${question.id}`)}"]:checked`);
+      if (selected) answers[question.id] = selected.value;
+      const other = root.querySelector(`input[name="${cssEscape(`${form.id}-${question.id}-other`)}"]`);
+      const otherValue = String(other?.value || "").trim();
+      if (otherValue) {
+        answers[question.id] = "other";
+        answers[`${question.id}_other`] = otherValue;
+      }
+    } else if (question.type === "multi_choice") {
+      const selected = Array.from(root.querySelectorAll(`input[name="${cssEscape(`${form.id}-${question.id}`)}"]:checked`)).map(
+        (item) => item.value
+      );
+      const other = root.querySelector(`input[name="${cssEscape(`${form.id}-${question.id}-other`)}"]`);
+      const otherValue = String(other?.value || "").trim();
+      const selectionCount = selected.length + (otherValue ? 1 : 0);
+      if (question.maxSelections && selectionCount > question.maxSelections) {
+        return { error: `${question.label} 最多选择 ${question.maxSelections} 项。`, answers: {} };
+      }
+      if (selected.length > 0) answers[question.id] = selected;
+      if (otherValue) {
+        answers[question.id] = [...selected, "other"];
+        answers[`${question.id}_other`] = otherValue;
+      }
+    } else if (question.type === "range") {
+      const input = root.querySelector(`[name="${cssEscape(question.id)}"]`);
+      if (input) answers[question.id] = Number(input.value);
+    } else {
+      const input = root.querySelector(`[name="${cssEscape(question.id)}"]`);
+      const value = String(input?.value || "").trim();
+      if (value) answers[question.id] = value;
+    }
+    const value = answers[question.id];
+    const empty = Array.isArray(value) ? value.length === 0 : !String(value || "").trim();
+    if (question.required && empty) {
+      return { error: `请填写：${question.label}`, answers: {} };
+    }
+  }
+  return { error: "", answers };
+}
+
+function syncChoiceState(field, question, source = null) {
+  if (!field || question.type !== "multi_choice") {
+    return;
+  }
+  const choiceName = field.querySelector("input[type='checkbox']")?.name;
+  if (!choiceName) {
+    return;
+  }
+  const inputs = Array.from(field.querySelectorAll(`input[name="${cssEscape(choiceName)}"]`));
+  const decideInput = inputs.find((input) => input.value === "decide_for_me");
+  if (!decideInput) {
+    return;
+  }
+  if (source === decideInput && decideInput.checked) {
+    for (const input of inputs) {
+      if (input !== decideInput) input.checked = false;
+    }
+    const other = field.querySelector(".cc-question-other");
+    if (other) other.value = "";
+    return;
+  }
+  if (source !== decideInput) {
+    decideInput.checked = false;
+  }
+}
+
+function cssEscape(value) {
+  if (window.CSS && typeof window.CSS.escape === "function") {
+    return window.CSS.escape(value);
+  }
+  return String(value).replace(/["\\]/g, "\\$&");
+}
+
+function submitQuestionForm(root, form, answers) {
+  if (runState !== "idle") {
+    const status = root.querySelector(".cc-question-form-status");
+    if (status) status.textContent = "当前任务还在运行，稍后再提交。";
+    return;
+  }
+  const content = `[cc-form-answers id="${form.id}" version="${form.version}"]\n${JSON.stringify(answers, null, 2)}\n[/cc-form-answers]`;
+  const displayContent = "已提交需求确认表单";
+  const runId = crypto.randomUUID();
+  sendSocket({
+    type: "chat",
+    content,
+    runId,
+    attachments: [],
+  });
+  setRunState("running", runId);
+  addMessageCard("user", "You", displayContent);
+  appendHistory({ type: "user", role: "You", content: displayContent, artifacts: [] });
+  root.classList.add("submitted");
+  for (const element of root.querySelectorAll("input, textarea, button")) {
+    element.disabled = true;
+  }
+  const status = root.querySelector(".cc-question-form-status");
+  if (status) status.textContent = "已提交，正在继续处理。";
+  activeProgressCard = null;
 }
 
 function upsertProgressCard(content, metadata) {

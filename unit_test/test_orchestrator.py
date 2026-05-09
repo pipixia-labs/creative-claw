@@ -21,7 +21,9 @@ from src.agents.orchestrator.final_response import (
 from src.agents.orchestrator.orchestrator_agent import (
     Orchestrator,
     _extract_confirmation_tool_result,
+    _extract_question_form_tool_result,
     _format_confirmation_reply,
+    _format_question_form_reply,
     _normalize_final_response_paths,
     orchestrator_before_model_callback,
 )
@@ -704,6 +706,82 @@ class OrchestratorCallbackTests(unittest.IsolatedAsyncioTestCase):
         )
         structured = session.state[ORCHESTRATOR_FINAL_RESPONSE_OUTPUT_KEY]
         self.assertEqual(structured["reply_text"], reply)
+        self.assertEqual(structured["final_file_paths"], [])
+
+    async def test_run_agent_stops_after_design_question_form_request(self) -> None:
+        session_service = InMemorySessionService()
+        orchestrator = Orchestrator(
+            session_service=session_service,
+            artifact_service=InMemoryArtifactService(),
+            expert_agents={},
+        )
+        user_id = "user-design-form"
+        session_id = "session-design-form"
+        await session_service.create_session(
+            app_name=SYS_CONFIG.app_name,
+            user_id=user_id,
+            session_id=session_id,
+            state={},
+        )
+
+        form_message = (
+            "<cc-question-form>\n"
+            '{"id":"design-brief","version":"design-brief-form-v1","title":"确认需求","questions":['
+            '{"id":"goal","label":"目标","type":"short_text","required":false}'
+            "]}\n"
+            "</cc-question-form>"
+        )
+        tool_result = {
+            "status": "needs_input",
+            "message": form_message,
+            "final_file_paths": [],
+        }
+
+        class _FakeRunner:
+            def __init__(self) -> None:
+                self.continued_after_question_form = False
+
+            async def run_async(self, **_kwargs):
+                event = Event(
+                    author="CreativeClawOrchestrator",
+                    content=Content(
+                        role="user",
+                        parts=[
+                            Part.from_function_response(
+                                name="run_design_product",
+                                response=tool_result,
+                            )
+                        ],
+                    ),
+                )
+                self.extracted_result = _extract_question_form_tool_result(event)
+                yield event
+                self.continued_after_question_form = True
+                yield Event(
+                    author="CreativeClawOrchestrator",
+                    content=Content(role="model", parts=[Part(text="should not continue")]),
+                )
+
+        fake_runner = _FakeRunner()
+        orchestrator.runner = fake_runner
+
+        reply = await orchestrator.run_agent_and_log_events(
+            user_id=user_id,
+            session_id=session_id,
+            new_message=Content(role="user", parts=[Part(text="设计一个餐厅 App")]),
+        )
+
+        self.assertFalse(fake_runner.continued_after_question_form)
+        self.assertEqual(fake_runner.extracted_result, tool_result)
+        self.assertEqual(_format_question_form_reply(tool_result), form_message)
+        self.assertEqual(reply, form_message)
+        session = await session_service.get_session(
+            app_name=SYS_CONFIG.app_name,
+            user_id=user_id,
+            session_id=session_id,
+        )
+        structured = session.state[ORCHESTRATOR_FINAL_RESPONSE_OUTPUT_KEY]
+        self.assertEqual(structured["reply_text"], form_message)
         self.assertEqual(structured["final_file_paths"], [])
 
     async def test_run_until_done_uses_structured_final_response(self) -> None:

@@ -1,4 +1,5 @@
 import asyncio
+import json
 import unittest
 from types import SimpleNamespace
 from unittest.mock import AsyncMock, patch
@@ -6,13 +7,18 @@ from unittest.mock import AsyncMock, patch
 from google.adk.agents import LlmAgent
 
 from src.productions.design.design_product_manager import (
+    DESIGN_BRIEF_FORM_SCHEMA_VERSION,
     DESIGN_PRODUCT_EXPERT_ALLOWLIST,
     DESIGN_PRODUCT_RESULT_SCHEMA_VERSION,
     DesignCodeGenerationAgent,
+    DesignBriefFormExpert,
     build_design_code_generation_constraints,
     build_design_code_generation_prompt,
     DesignProductManager,
     ProductDesignSkillRegistry,
+    normalize_question_form_block,
+    parse_form_answers,
+    validate_question_form_schema,
 )
 from src.runtime.workspace import resolve_workspace_path
 from src.skills.registry import SkillRegistry
@@ -105,6 +111,91 @@ class DesignProductManagerTests(unittest.TestCase):
         self.assertEqual(read["name"], "bbb-skill")
         self.assertIn("BBB Skill", read["content"])
         self.assertEqual(tool_context.state["active_product_design_skill"]["name"], "bbb-skill")
+
+    def test_design_brief_question_form_schema_helpers(self) -> None:
+        expert = DesignBriefFormExpert()
+
+        self.assertIsInstance(expert, LlmAgent)
+        self.assertIn("cross-task common question framework", expert.instruction)
+        self.assertIn("default coverage framework", expert.instruction)
+        self.assertIn("up to 5 task-specific questions", expert.instruction)
+        self.assertNotIn("Never exceed 7 questions", expert.instruction)
+
+        form = validate_question_form_schema(
+            {
+                "id": "design-brief",
+                "title": "确认设计需求",
+                "questions": [
+                    {
+                        "id": "tone",
+                        "label": "视觉调性",
+                        "type": "multi_choice",
+                        "required": True,
+                        "maxSelections": 2,
+                        "allowOther": True,
+                        "options": [
+                            {"value": "minimal", "label": "极简"},
+                            {"value": "editorial", "label": "杂志风"},
+                            {"value": "decide_for_me", "label": "为我决定"},
+                        ],
+                    },
+                    {
+                        "id": "screen_count",
+                        "label": "想看几个屏幕？",
+                        "type": "range",
+                        "required": False,
+                        "min": 3,
+                        "max": 12,
+                        "default": 6,
+                    },
+                ],
+            }
+        )
+        block = normalize_question_form_block(
+            f"<cc-question-form>{json.dumps(form, ensure_ascii=False)}</cc-question-form>"
+        )
+        fenced_block = normalize_question_form_block(
+            f"<cc-question-form>\n```json\n{json.dumps(form, ensure_ascii=False)}\n```\n</cc-question-form>"
+        )
+        answers = parse_form_answers(
+            '[cc-form-answers id="design-brief" version="design-brief-form-v1"]\n'
+            '{"tone":["minimal"]}\n'
+            "[/cc-form-answers]"
+        )
+
+        self.assertEqual(form["version"], DESIGN_BRIEF_FORM_SCHEMA_VERSION)
+        self.assertTrue(form["questions"][0]["allowOther"])
+        self.assertEqual(form["questions"][1]["type"], "range")
+        self.assertEqual(form["questions"][1]["default"], 6)
+        self.assertIn("<cc-question-form>", block)
+        self.assertIn("<cc-question-form>", fenced_block)
+        self.assertEqual(answers["id"], "design-brief")
+        self.assertEqual(answers["answers"]["tone"], ["minimal"])
+
+    def test_design_brief_question_form_allows_more_than_seven_questions(self) -> None:
+        questions = [
+            {
+                "id": f"question_{index}",
+                "label": f"问题 {index}",
+                "type": "single_choice",
+                "required": False,
+                "options": [
+                    {"value": "decide_for_me", "label": "为我决定"},
+                    {"value": "custom", "label": "自定义"},
+                ],
+            }
+            for index in range(1, 10)
+        ]
+
+        form = validate_question_form_schema(
+            {
+                "id": "expanded-design-brief",
+                "title": "确认设计需求",
+                "questions": questions,
+            }
+        )
+
+        self.assertEqual(len(form["questions"]), 9)
 
     def test_private_design_expert_tools_list_allowlist_and_reject_other_experts(self) -> None:
         manager = DesignProductManager()
@@ -286,6 +377,36 @@ class DesignProductManagerTests(unittest.TestCase):
 
         self.assertEqual(result["status"], "error")
         self.assertIn("ADK invocation context", result["message"])
+
+    def test_web_design_product_request_returns_generated_brief_form_first(self) -> None:
+        manager = DesignProductManager()
+        tool_context = SimpleNamespace(
+            state={"channel": "web"},
+            _invocation_context=SimpleNamespace(user_id="user-1"),
+        )
+        form_message = (
+            "<cc-question-form>\n"
+            '{"id":"design-brief","version":"design-brief-form-v1","title":"确认需求","questions":['
+            '{"id":"goal","label":"目标","type":"short_text","required":true}'
+            "]}\n"
+            "</cc-question-form>"
+        )
+
+        with patch.object(DesignBriefFormExpert, "generate_form", new=AsyncMock(return_value=form_message)):
+            result = asyncio.run(
+                manager.run_product_request(
+                    task="设计一个 AI 产品落地页。",
+                    tool_context=tool_context,
+                )
+            )
+
+        self.assertEqual(result["status"], "needs_input")
+        self.assertIn("<cc-question-form>", result["message"])
+        self.assertEqual(
+            tool_context.state["design_product_brief_form_pending_task"],
+            "设计一个 AI 产品落地页。",
+        )
+        self.assertEqual(tool_context.state["final_file_paths"], [])
 
 
 if __name__ == "__main__":

@@ -1,0 +1,174 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Coinbase Design System Preview</title>
+  <style>
+    :root {
+      --primary: #0052ff;
+      --on-primary: #ffffff;
+      --canvas: #ffffff;
+      --surface: #ffffff;
+      --surface-strong: #f3f3f3;
+      --ink: #0a0b0d;
+      --body: #5b616e;
+      --muted: #7c828a;
+      --border: #dee1e6;
+      --display: 'Coinbase Display', -apple-system, system-ui, 'Segoe UI', Roboto, Helvetica, Arial, sans-serif;
+      --text: 'Coinbase Display', -apple-system, system-ui, 'Segoe UI', Roboto, Helvetica, Arial, sans-serif;
+      --mono: ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, monospace;
+    }
+    * { box-sizing: border-box; margin: 0; padding: 0; }
+    html, body { background: var(--canvas); color: var(--ink); font-family: var(--text); font-size: 16px; line-height: 1.5; }
+    body { min-width: 320px; }
+    .nav { position: sticky; top: 0; z-index: 20; display: grid; grid-template-columns: 1fr auto 1fr; align-items: center; gap: 20px; height: 64px; padding: 0 48px; background: color-mix(in srgb, var(--canvas) 92%, transparent); border-bottom: 1px solid var(--border); backdrop-filter: blur(14px); }
+    .brand { font-family: var(--display); font-weight: 700; letter-spacing: -0.02em; color: var(--ink); }
+    .nav-links { list-style: none; display: flex; gap: 24px; justify-content: center; }
+    .nav-links a { color: var(--body); text-decoration: none; font-size: 14px; font-weight: 600; }
+    .nav-cta { justify-self: end; border: 0; background: var(--primary); color: var(--on-primary); border-radius: 8px; padding: 11px 18px; font: 700 13px/1 var(--text); }
+    .hero { max-width: 1440px; margin: 0 auto; padding: 84px 48px 72px; display: grid; grid-template-columns: minmax(0, 1.1fr) minmax(320px, 0.9fr); gap: 48px; align-items: center; }
+    .eyebrow { color: var(--muted); font: 700 11px/1.2 var(--mono); letter-spacing: 0.12em; text-transform: uppercase; margin-bottom: 18px; }
+    h1 { font-family: var(--display); font-size: clamp(40px, 6vw, 72px); line-height: 1.04; letter-spacing: -0.045em; font-weight: 750; max-width: 980px; }
+    .hero p { margin-top: 26px; max-width: 760px; color: var(--body); font-size: 18px; line-height: 1.65; }
+    .hero-actions { margin-top: 34px; display: flex; gap: 12px; flex-wrap: wrap; }
+    .btn { display: inline-flex; align-items: center; justify-content: center; min-height: 44px; border-radius: 8px; padding: 0 20px; border: 1px solid var(--border); font: 700 14px/1 var(--text); color: var(--ink); background: var(--surface); }
+    .btn.primary { background: var(--primary); color: var(--on-primary); border-color: var(--primary); }
+    .hero-panel { background: var(--surface); border: 1px solid var(--border); border-radius: 18px; overflow: hidden; box-shadow: 0 24px 70px rgba(0,0,0,.12); }
+    .panel-top { height: 44px; display: flex; align-items: center; gap: 7px; padding: 0 16px; border-bottom: 1px solid var(--border); background: var(--surface-strong); }
+    .dot { width: 10px; height: 10px; border-radius: 999px; background: var(--primary); opacity: .85; }
+    .panel-body { padding: 22px; display: grid; gap: 14px; }
+    .metric { display: grid; grid-template-columns: 88px 1fr; gap: 14px; align-items: center; padding: 14px; border: 1px solid var(--border); border-radius: 12px; background: var(--canvas); }
+    .metric strong { color: var(--primary); font-family: var(--mono); font-size: 22px; }
+    .metric span { color: var(--body); font-size: 13px; }
+    section { max-width: 1440px; margin: 0 auto; padding: 78px 48px; border-top: 1px solid var(--border); }
+    .section-label { color: var(--muted); font: 800 11px/1.2 var(--mono); letter-spacing: .12em; text-transform: uppercase; margin-bottom: 12px; }
+    .section-heading { font-family: var(--display); font-size: clamp(26px, 3.5vw, 42px); line-height: 1.12; letter-spacing: -.025em; margin-bottom: 16px; }
+    .section-intro { color: var(--body); max-width: 760px; margin-bottom: 42px; line-height: 1.65; }
+    .palette-grid, .button-grid, .card-grid, .form-grid, .elevation-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(230px, 1fr)); gap: 18px; }
+    .swatch, .component-cell, .feature-card, .form-cell, .elevation-card { background: var(--surface); border: 1px solid var(--border); border-radius: 14px; overflow: hidden; min-width: 0; }
+    .swatch-color { height: 108px; border-bottom: 1px solid var(--border); }
+    .swatch-meta, .component-cell, .feature-card, .form-cell, .elevation-card { padding: 18px; }
+    .swatch-name, .button-label { font-weight: 800; font-size: 13px; color: var(--ink); margin-bottom: 5px; overflow-wrap: anywhere; }
+    .swatch-hex, .button-meta, .type-meta, .spacing-label { font-family: var(--mono); font-size: 12px; color: var(--muted); overflow-wrap: anywhere; }
+    .type-row { display: grid; grid-template-columns: 300px 1fr; gap: 32px; align-items: baseline; padding: 20px 0; border-bottom: 1px solid var(--border); }
+    .type-sample { color: var(--ink); overflow-wrap: anywhere; }
+    .demo-button { display: inline-flex; align-items: center; justify-content: center; min-height: 40px; border-radius: 8px; border: 1px solid var(--border); padding: 0 16px; font-weight: 700; max-width: 100%; }
+    .feature-card h4, .elevation-card h4 { font-size: 18px; margin-bottom: 8px; }
+    .feature-card p, .elevation-card p { color: var(--body); font-size: 14px; line-height: 1.55; }
+    .text-input { width: 100%; min-height: 44px; border-radius: 8px; border: 1px solid var(--border); background: var(--canvas); color: var(--ink); padding: 0 14px; font: 500 15px/1 var(--text); }
+    .badge { display: inline-flex; align-items: center; border-radius: 999px; background: var(--surface-strong); color: var(--ink); min-height: 28px; padding: 0 12px; font: 800 11px/1 var(--mono); letter-spacing: .08em; text-transform: uppercase; }
+    .spacing-row, .radius-row { display: flex; flex-wrap: wrap; gap: 18px; align-items: end; }
+    .spacing-block { display: grid; justify-items: center; gap: 8px; }
+    .spacing-bar { width: 54px; min-height: 4px; background: var(--primary); border-radius: 6px; }
+    .radius-block { width: 96px; height: 96px; display: grid; place-items: center; background: var(--surface); border: 1px solid var(--border); color: var(--muted); font: 700 12px/1 var(--mono); }
+    .responsive-table { width: 100%; border-collapse: collapse; background: var(--surface); border: 1px solid var(--border); border-radius: 14px; overflow: hidden; }
+    .responsive-table th, .responsive-table td { text-align: left; padding: 14px 16px; border-bottom: 1px solid var(--border); color: var(--body); }
+    .responsive-table th { color: var(--ink); font: 800 11px/1.2 var(--mono); letter-spacing: .1em; text-transform: uppercase; }
+    .footer { padding: 34px 48px; border-top: 1px solid var(--border); color: var(--muted); text-align: center; font-size: 13px; }
+    @media (max-width: 900px) { .nav { grid-template-columns: 1fr auto; padding: 0 20px; } .nav-links { display: none; } .nav-cta { display: none; } .hero { grid-template-columns: 1fr; padding: 56px 20px; } section { padding: 56px 20px; } .type-row { grid-template-columns: 1fr; gap: 8px; } }
+  </style>
+</head>
+<body>
+  <nav class="nav">
+    <div class="brand">Coinbase</div>
+    <ul class="nav-links"><li><a href="#colors">Colors</a></li><li><a href="#type">Typography</a></li><li><a href="#components">Components</a></li><li><a href="#responsive">Responsive</a></li></ul>
+    <button class="nav-cta">Preview</button>
+  </nav>
+
+  <main>
+    <div class="hero">
+      <div>
+        <div class="eyebrow">Design System Preview</div>
+        <h1>Coinbase visual system</h1>
+        <p>An institutional-grade crypto exchange whose marketing surfaces read like a quietly-confident financial-services brand. The base canvas is pure white; Coinbase Blue (#0052ff) is the single brand voltage, used scarcely on.</p>
+        <div class="hero-actions"><span class="btn primary">Primary action</span><span class="btn">Secondary action</span></div>
+      </div>
+      <div class="hero-panel" aria-label="Interface sample">
+        <div class="panel-top"><span class="dot"></span><span class="dot"></span><span class="dot"></span></div>
+        <div class="panel-body">
+          <div class="metric"><strong>01</strong><span>Token driven color, type, spacing, and component decisions.</span></div>
+          <div class="metric"><strong>AA</strong><span>Preview surfaces highlight contrast, hierarchy, and UI rhythm.</span></div>
+          <div class="metric"><strong>UI</strong><span>Reusable cards, controls, form fields, labels, and responsive states.</span></div>
+        </div>
+      </div>
+    </div>
+
+    <section id="colors">
+      <div class="section-label">01 - Color Palette</div>
+      <h2 class="section-heading">Core colors and semantic surfaces</h2>
+      <p class="section-intro">The palette below is extracted from the structured design tokens. Swatches show the available roles and their exact CSS values.</p>
+      <div class="palette-grid">
+        <div class="swatch"><div class="swatch-color" style="background:#0052ff"></div><div class="swatch-meta"><div class="swatch-name">primary</div><div class="swatch-hex">#0052ff</div></div></div><div class="swatch"><div class="swatch-color" style="background:#003ecc"></div><div class="swatch-meta"><div class="swatch-name">primary-active</div><div class="swatch-hex">#003ecc</div></div></div><div class="swatch"><div class="swatch-color" style="background:#a8b8cc"></div><div class="swatch-meta"><div class="swatch-name">primary-disabled</div><div class="swatch-hex">#a8b8cc</div></div></div><div class="swatch"><div class="swatch-color" style="background:#0a0b0d"></div><div class="swatch-meta"><div class="swatch-name">ink</div><div class="swatch-hex">#0a0b0d</div></div></div><div class="swatch"><div class="swatch-color" style="background:#5b616e"></div><div class="swatch-meta"><div class="swatch-name">body</div><div class="swatch-hex">#5b616e</div></div></div><div class="swatch"><div class="swatch-color" style="background:#0a0b0d"></div><div class="swatch-meta"><div class="swatch-name">body-strong</div><div class="swatch-hex">#0a0b0d</div></div></div><div class="swatch"><div class="swatch-color" style="background:#7c828a"></div><div class="swatch-meta"><div class="swatch-name">muted</div><div class="swatch-hex">#7c828a</div></div></div><div class="swatch"><div class="swatch-color" style="background:#a8acb3"></div><div class="swatch-meta"><div class="swatch-name">muted-soft</div><div class="swatch-hex">#a8acb3</div></div></div><div class="swatch"><div class="swatch-color" style="background:#dee1e6"></div><div class="swatch-meta"><div class="swatch-name">hairline</div><div class="swatch-hex">#dee1e6</div></div></div><div class="swatch"><div class="swatch-color" style="background:#eef0f3"></div><div class="swatch-meta"><div class="swatch-name">hairline-soft</div><div class="swatch-hex">#eef0f3</div></div></div><div class="swatch"><div class="swatch-color" style="background:#ffffff"></div><div class="swatch-meta"><div class="swatch-name">canvas</div><div class="swatch-hex">#ffffff</div></div></div><div class="swatch"><div class="swatch-color" style="background:#f7f7f7"></div><div class="swatch-meta"><div class="swatch-name">surface-soft</div><div class="swatch-hex">#f7f7f7</div></div></div><div class="swatch"><div class="swatch-color" style="background:#ffffff"></div><div class="swatch-meta"><div class="swatch-name">surface-card</div><div class="swatch-hex">#ffffff</div></div></div><div class="swatch"><div class="swatch-color" style="background:#eef0f3"></div><div class="swatch-meta"><div class="swatch-name">surface-strong</div><div class="swatch-hex">#eef0f3</div></div></div><div class="swatch"><div class="swatch-color" style="background:#0a0b0d"></div><div class="swatch-meta"><div class="swatch-name">surface-dark</div><div class="swatch-hex">#0a0b0d</div></div></div><div class="swatch"><div class="swatch-color" style="background:#16181c"></div><div class="swatch-meta"><div class="swatch-name">surface-dark-elevated</div><div class="swatch-hex">#16181c</div></div></div><div class="swatch"><div class="swatch-color" style="background:#ffffff"></div><div class="swatch-meta"><div class="swatch-name">on-primary</div><div class="swatch-hex">#ffffff</div></div></div><div class="swatch"><div class="swatch-color" style="background:#ffffff"></div><div class="swatch-meta"><div class="swatch-name">on-dark</div><div class="swatch-hex">#ffffff</div></div></div><div class="swatch"><div class="swatch-color" style="background:#a8acb3"></div><div class="swatch-meta"><div class="swatch-name">on-dark-soft</div><div class="swatch-hex">#a8acb3</div></div></div><div class="swatch"><div class="swatch-color" style="background:#05b169"></div><div class="swatch-meta"><div class="swatch-name">semantic-up</div><div class="swatch-hex">#05b169</div></div></div><div class="swatch"><div class="swatch-color" style="background:#cf202f"></div><div class="swatch-meta"><div class="swatch-name">semantic-down</div><div class="swatch-hex">#cf202f</div></div></div><div class="swatch"><div class="swatch-color" style="background:#f4b000"></div><div class="swatch-meta"><div class="swatch-name">accent-yellow</div><div class="swatch-hex">#f4b000</div></div></div>
+      </div>
+    </section>
+
+    <section id="type">
+      <div class="section-label">02 - Typography</div>
+      <h2 class="section-heading">Type scale and voice</h2>
+      <p class="section-intro">Typography samples show how major text levels render when the token values are applied to real interface copy.</p>
+      <div class="type-row"><div class="type-meta"><strong>display-mega</strong>80px / 400 / 1.0 / -2px</div><div class="type-sample" style="font-family:&#39;Coinbase Display&#39;, -apple-system, system-ui, &#39;Segoe UI&#39;, Roboto, Helvetica, Arial, sans-serif;font-size:80px;font-weight:400;line-height:1.0;letter-spacing:-2px">Build a clear product interface with Coinbase rhythm.</div></div><div class="type-row"><div class="type-meta"><strong>display-xl</strong>64px / 400 / 1.0 / -1.6px</div><div class="type-sample" style="font-family:&#39;Coinbase Display&#39;, sans-serif;font-size:64px;font-weight:400;line-height:1.0;letter-spacing:-1.6px">Build a clear product interface with Coinbase rhythm.</div></div><div class="type-row"><div class="type-meta"><strong>display-lg</strong>52px / 400 / 1.0 / -1.3px</div><div class="type-sample" style="font-family:&#39;Coinbase Display&#39;, sans-serif;font-size:52px;font-weight:400;line-height:1.0;letter-spacing:-1.3px">Build a clear product interface with Coinbase rhythm.</div></div><div class="type-row"><div class="type-meta"><strong>display-md</strong>44px / 400 / 1.09 / -1px</div><div class="type-sample" style="font-family:&#39;Coinbase Display&#39;, sans-serif;font-size:44px;font-weight:400;line-height:1.09;letter-spacing:-1px">Build a clear product interface with Coinbase rhythm.</div></div><div class="type-row"><div class="type-meta"><strong>display-sm</strong>36px / 400 / 1.11 / -0.5px</div><div class="type-sample" style="font-family:&#39;Coinbase Sans&#39;, sans-serif;font-size:36px;font-weight:400;line-height:1.11;letter-spacing:-0.5px">Build a clear product interface with Coinbase rhythm.</div></div><div class="type-row"><div class="type-meta"><strong>title-lg</strong>32px / 400 / 1.13 / -0.4px</div><div class="type-sample" style="font-family:&#39;Coinbase Sans&#39;, sans-serif;font-size:32px;font-weight:400;line-height:1.13;letter-spacing:-0.4px">Build a clear product interface with Coinbase rhythm.</div></div><div class="type-row"><div class="type-meta"><strong>title-md</strong>18px / 600 / 1.33 / 0px</div><div class="type-sample" style="font-family:&#39;Coinbase Sans&#39;, sans-serif;font-size:18px;font-weight:600;line-height:1.33;letter-spacing:0px">Build a clear product interface with Coinbase rhythm.</div></div><div class="type-row"><div class="type-meta"><strong>title-sm</strong>16px / 600 / 1.25 / 0px</div><div class="type-sample" style="font-family:&#39;Coinbase Sans&#39;, sans-serif;font-size:16px;font-weight:600;line-height:1.25;letter-spacing:0px">Build a clear product interface with Coinbase rhythm.</div></div><div class="type-row"><div class="type-meta"><strong>body-md</strong>16px / 400 / 1.5 / 0px</div><div class="type-sample" style="font-family:&#39;Coinbase Sans&#39;, sans-serif;font-size:16px;font-weight:400;line-height:1.5;letter-spacing:0px">Build a clear product interface with Coinbase rhythm.</div></div><div class="type-row"><div class="type-meta"><strong>body-strong</strong>16px / 700 / 1.5 / 0px</div><div class="type-sample" style="font-family:&#39;Coinbase Sans&#39;, sans-serif;font-size:16px;font-weight:700;line-height:1.5;letter-spacing:0px">Build a clear product interface with Coinbase rhythm.</div></div>
+    </section>
+
+    <section id="components">
+      <div class="section-label">03 - Components</div>
+      <h2 class="section-heading">Buttons, cards, labels, and controls</h2>
+      <p class="section-intro">Component samples apply available token references where possible, with neutral fallbacks for properties not present in the source system.</p>
+      <div class="button-grid">
+        <div class="component-cell"><div class="button-label">top-nav-light</div><span class="demo-button" style="background:#ffffff;color:#0a0b0d;border-radius:8px;padding:0 14px">Sample action</span><div class="button-meta">#ffffff / #0a0b0d</div></div><div class="component-cell"><div class="button-label">top-nav-on-dark</div><span class="demo-button" style="background:#0a0b0d;color:#ffffff;border-radius:8px;padding:0 14px">Sample action</span><div class="button-meta">#0a0b0d / #ffffff</div></div><div class="component-cell"><div class="button-label">button-primary</div><span class="demo-button" style="background:#0052ff;color:#ffffff;border-radius:100px;padding:0 14px">Sample action</span><div class="button-meta">#0052ff / #ffffff</div></div><div class="component-cell"><div class="button-label">button-primary-active</div><span class="demo-button" style="background:#003ecc;color:#ffffff;border-radius:100px;padding:0 14px">Sample action</span><div class="button-meta">#003ecc / #ffffff</div></div><div class="component-cell"><div class="button-label">button-primary-disabled</div><span class="demo-button" style="background:#a8b8cc;color:#ffffff;border-radius:100px;padding:0 14px">Sample action</span><div class="button-meta">#a8b8cc / #ffffff</div></div><div class="component-cell"><div class="button-label">button-secondary-light</div><span class="demo-button" style="background:#eef0f3;color:#0a0b0d;border-radius:100px;padding:0 14px">Sample action</span><div class="button-meta">#eef0f3 / #0a0b0d</div></div><div class="component-cell"><div class="button-label">button-secondary-dark</div><span class="demo-button" style="background:#16181c;color:#ffffff;border-radius:100px;padding:0 14px">Sample action</span><div class="button-meta">#16181c / #ffffff</div></div><div class="component-cell"><div class="button-label">button-outline-on-dark</div><span class="demo-button" style="background:transparent;color:#ffffff;border-radius:100px;padding:0 14px">Sample action</span><div class="button-meta">transparent / #ffffff</div></div><div class="component-cell"><div class="button-label">button-tertiary-text</div><span class="demo-button" style="background:transparent;color:#0052ff;border-radius:8px;padding:0 14px">Sample action</span><div class="button-meta">transparent / #0052ff</div></div><div class="component-cell"><div class="button-label">button-pill-cta</div><span class="demo-button" style="background:#0052ff;color:#ffffff;border-radius:100px;padding:0 14px">Sample action</span><div class="button-meta">#0052ff / #ffffff</div></div><div class="component-cell"><div class="button-label">hero-band-dark</div><span class="demo-button" style="background:#0a0b0d;color:#ffffff;border-radius:8px;padding:0 96px">Sample action</span><div class="button-meta">#0a0b0d / #ffffff</div></div><div class="component-cell"><div class="button-label">hero-band-light</div><span class="demo-button" style="background:#ffffff;color:#0a0b0d;border-radius:8px;padding:0 96px">Sample action</span><div class="button-meta">#ffffff / #0a0b0d</div></div>
+      </div>
+    </section>
+
+    <section>
+      <div class="section-label">04 - Interface Samples</div>
+      <h2 class="section-heading">Reusable product surfaces</h2>
+      <div class="card-grid">
+        <div class="feature-card"><h4>Feature card</h4><p>Use this card treatment for summaries, benefits, or product modules with concise supporting text.</p><span class="badge">New</span></div>
+        <div class="feature-card"><h4>Data card</h4><p>Pair a strong heading with a compact metric and muted explanatory copy.</p><div style="font:800 36px/1 var(--display);color:var(--primary);margin-top:14px">24%</div></div>
+        <div class="feature-card"><h4>Content card</h4><p>Keep content blocks aligned to the design system's spacing and type hierarchy.</p><span class="btn primary" style="margin-top:14px">Continue</span></div>
+      </div>
+    </section>
+
+    <section>
+      <div class="section-label">05 - Forms</div>
+      <h2 class="section-heading">Inputs and inline feedback</h2>
+      <div class="form-grid">
+        <div class="form-cell"><label class="button-label">Email</label><input class="text-input" value="team@example.com" aria-label="Email sample"></div>
+        <div class="form-cell"><label class="button-label">Status</label><span class="badge">Active</span></div>
+        <div class="form-cell"><label class="button-label">Action group</label><div style="display:flex;gap:10px;flex-wrap:wrap"><span class="btn primary">Save</span><span class="btn">Cancel</span></div></div>
+      </div>
+    </section>
+
+    <section>
+      <div class="section-label">06 - Spacing</div>
+      <h2 class="section-heading">Spacing scale</h2>
+      <div class="spacing-row">
+        <div class="spacing-block"><div class="spacing-bar" style="height:4px"></div><div class="spacing-label">xxs · 4px</div></div><div class="spacing-block"><div class="spacing-bar" style="height:8px"></div><div class="spacing-label">xs · 8px</div></div><div class="spacing-block"><div class="spacing-bar" style="height:12px"></div><div class="spacing-label">sm · 12px</div></div><div class="spacing-block"><div class="spacing-bar" style="height:16px"></div><div class="spacing-label">base · 16px</div></div><div class="spacing-block"><div class="spacing-bar" style="height:20px"></div><div class="spacing-label">md · 20px</div></div><div class="spacing-block"><div class="spacing-bar" style="height:24px"></div><div class="spacing-label">lg · 24px</div></div><div class="spacing-block"><div class="spacing-bar" style="height:32px"></div><div class="spacing-label">xl · 32px</div></div><div class="spacing-block"><div class="spacing-bar" style="height:48px"></div><div class="spacing-label">xxl · 48px</div></div>
+      </div>
+    </section>
+
+    <section>
+      <div class="section-label">07 - Radius</div>
+      <h2 class="section-heading">Shape language</h2>
+      <div class="radius-row">
+        <div class="radius-block" style="border-radius:0px">none</div><div class="radius-block" style="border-radius:4px">xs</div><div class="radius-block" style="border-radius:8px">sm</div><div class="radius-block" style="border-radius:12px">md</div><div class="radius-block" style="border-radius:16px">lg</div><div class="radius-block" style="border-radius:24px">xl</div><div class="radius-block" style="border-radius:100px">pill</div><div class="radius-block" style="border-radius:9999px">full</div>
+      </div>
+    </section>
+
+    <section id="responsive">
+      <div class="section-label">08 - Responsive Behavior</div>
+      <h2 class="section-heading">Layout strategy</h2>
+      <table class="responsive-table">
+        <thead><tr><th>Viewport</th><th>Behavior</th></tr></thead>
+        <tbody>
+          <tr><td>Mobile</td><td>Single column layout, compact nav, tighter section padding.</td></tr>
+          <tr><td>Tablet</td><td>Two-column component grids and readable type hierarchy.</td></tr>
+          <tr><td>Desktop</td><td>Wide token catalog, multi-column cards, expanded whitespace.</td></tr>
+        </tbody>
+      </table>
+    </section>
+  </main>
+
+  <footer class="footer">Generated from DESIGN.md tokens for local preview and review.</footer>
+</body>
+</html>

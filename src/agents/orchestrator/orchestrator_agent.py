@@ -4,7 +4,7 @@ from __future__ import annotations
 
 import json
 from pathlib import Path
-from typing import Any, Optional
+from typing import Any, Iterator, Optional
 
 from google.adk.agents import BaseAgent, LlmAgent
 from google.adk.agents.callback_context import CallbackContext
@@ -429,10 +429,10 @@ def _select_fallback_final_response_paths(state: dict[str, Any]) -> list[str]:
     return _normalize_final_response_paths(latest_paths, state=state)
 
 
-def _extract_confirmation_tool_result(event: Event) -> dict[str, Any] | None:
-    """Return a tool result that asks the user to confirm before continuing."""
+def _iter_function_response_results(event: Event) -> Iterator[dict[str, Any]]:
+    """Yield normalized function response payloads from one ADK event."""
     if not event.content or not event.content.parts:
-        return None
+        return
     for part in event.content.parts:
         function_response = getattr(part, "function_response", None)
         if not function_response:
@@ -440,8 +440,21 @@ def _extract_confirmation_tool_result(event: Event) -> dict[str, Any] | None:
         response = getattr(function_response, "response", None)
         if not isinstance(response, dict):
             continue
-        result = response.get("result") if isinstance(response.get("result"), dict) else response
+        yield response.get("result") if isinstance(response.get("result"), dict) else response
+
+
+def _extract_confirmation_tool_result(event: Event) -> dict[str, Any] | None:
+    """Return a tool result that asks the user to confirm before continuing."""
+    for result in _iter_function_response_results(event):
         if _format_confirmation_reply(result):
+            return result
+    return None
+
+
+def _extract_question_form_tool_result(event: Event) -> dict[str, Any] | None:
+    """Return a tool result that asks the Web UI to collect form input."""
+    for result in _iter_function_response_results(event):
+        if _format_question_form_reply(result):
             return result
     return None
 
@@ -460,6 +473,18 @@ def _format_confirmation_reply(result: Any) -> str:
     expected_user_action = str(confirmation_request.get("expected_user_action") or "").strip()
     reply_parts = [part for part in [message, summary_markdown, expected_user_action] if part]
     return "\n\n".join(reply_parts)
+
+
+def _format_question_form_reply(result: Any) -> str:
+    """Render a Web question-form request as one user-facing reply."""
+    if not isinstance(result, dict):
+        return ""
+    if str(result.get("status") or "").strip().lower() != "needs_input":
+        return ""
+    message = str(result.get("message") or "").strip()
+    if "<cc-question-form" not in message.lower():
+        return ""
+    return message
 
 
 class Orchestrator:
@@ -1649,6 +1674,15 @@ Expert parameter contracts:
             confirmation_result = _extract_confirmation_tool_result(event)
             if confirmation_result is not None:
                 final_reply = _format_confirmation_reply(confirmation_result)
+                await self._persist_confirmation_final_response(
+                    user_id=user_id,
+                    session_id=session_id,
+                    reply_text=final_reply,
+                )
+                return final_reply
+            question_form_result = _extract_question_form_tool_result(event)
+            if question_form_result is not None:
+                final_reply = _format_question_form_reply(question_form_result)
                 await self._persist_confirmation_final_response(
                     user_id=user_id,
                     session_id=session_id,

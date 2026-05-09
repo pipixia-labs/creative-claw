@@ -1023,6 +1023,221 @@ button {
   font-size: 13px;
 }
 
+.cc-question-form {
+  display: grid;
+  gap: 22px;
+  margin-top: 2px;
+  padding: 2px 0 0;
+}
+
+.cc-question-form-head {
+  display: grid;
+  gap: 3px;
+}
+
+.cc-question-form-description,
+.cc-question-form-status {
+  color: var(--text-soft);
+  font-family: var(--font-ui);
+  font-size: 14px;
+  line-height: 1.45;
+}
+
+.cc-question-field {
+  display: grid;
+  gap: 10px;
+  min-width: 0;
+  margin: 0;
+  padding: 0;
+  border: 0;
+}
+
+.cc-question-label {
+  padding: 0;
+  color: rgba(24, 33, 29, 0.86);
+  font-family: var(--font-ui);
+  font-size: 14px;
+  font-weight: 500;
+  line-height: 1.3;
+}
+
+.cc-question-options {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px 10px;
+  align-items: center;
+}
+
+.cc-question-option {
+  display: inline-flex;
+  min-width: 0;
+  cursor: pointer;
+}
+
+.cc-question-option:hover {
+  color: var(--accent-dark);
+}
+
+.cc-question-option input {
+  position: absolute;
+  width: 1px;
+  height: 1px;
+  opacity: 0;
+  pointer-events: none;
+}
+
+.cc-question-option-body {
+  min-width: 0;
+  display: inline-flex;
+  align-items: center;
+  min-height: 35px;
+  padding: 0 15px;
+  border: 1px solid rgba(30, 40, 34, 0.1);
+  border-radius: 999px;
+  background: rgba(255, 255, 252, 0.88);
+  box-shadow: 0 1px 2px rgba(30, 40, 34, 0.045), inset 0 1px 0 rgba(255, 255, 255, 0.78);
+  transition: background 0.16s ease, border-color 0.16s ease, color 0.16s ease, box-shadow 0.16s ease;
+}
+
+.cc-question-option:hover .cc-question-option-body {
+  border-color: rgba(47, 125, 116, 0.26);
+  background: rgba(255, 255, 252, 0.98);
+}
+
+.cc-question-option input:checked + .cc-question-option-body {
+  border-color: rgba(47, 125, 116, 0.3);
+  background: rgba(47, 125, 116, 0.08);
+  color: var(--accent-dark);
+  box-shadow: 0 0 0 2px rgba(47, 125, 116, 0.055), inset 0 1px 0 rgba(255, 255, 255, 0.78);
+}
+
+.cc-question-option-label {
+  color: rgba(24, 33, 29, 0.82);
+  font-family: var(--font-ui);
+  font-size: 14px;
+  font-weight: 400;
+  line-height: 1.2;
+  white-space: nowrap;
+}
+
+.cc-question-option input:checked + .cc-question-option-body .cc-question-option-label {
+  color: rgba(31, 93, 86, 0.94);
+}
+
+.cc-question-option-description {
+  display: none;
+}
+
+.cc-question-input,
+.cc-question-textarea,
+.cc-question-other {
+  width: 100%;
+  min-width: 0;
+  border: 1px solid rgba(30, 40, 34, 0.12);
+  background: rgba(255, 255, 252, 0.96);
+  color: var(--text);
+  font: inherit;
+  font-family: var(--font-ui);
+  font-size: 14px;
+  outline: none;
+  box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.86);
+}
+
+.cc-question-input {
+  height: 38px;
+  border-radius: 999px;
+  padding: 0 14px;
+}
+
+.cc-question-other {
+  flex: 0 1 220px;
+  width: auto;
+  height: 35px;
+  border-radius: 999px;
+  padding: 0 15px;
+}
+
+.cc-question-textarea {
+  min-height: 86px;
+  resize: vertical;
+  border-radius: 10px;
+  padding: 11px 12px;
+  line-height: 1.5;
+}
+
+.cc-question-input:focus,
+.cc-question-textarea:focus,
+.cc-question-other:focus {
+  border-color: rgba(47, 125, 116, 0.42);
+  box-shadow: 0 0 0 3px rgba(47, 125, 116, 0.1);
+}
+
+.cc-question-range {
+  display: grid;
+  grid-template-columns: auto minmax(140px, 1fr) auto minmax(24px, auto);
+  gap: 12px;
+  align-items: center;
+}
+
+.cc-question-range-input {
+  width: 100%;
+  accent-color: var(--accent-warm);
+}
+
+.cc-question-range-bound,
+.cc-question-range-value {
+  color: var(--text-soft);
+  font-family: var(--font-ui);
+  font-size: 14px;
+  font-variant-numeric: tabular-nums;
+  line-height: 1;
+}
+
+.cc-question-range-value {
+  color: var(--text);
+  font-size: 14px;
+  font-weight: 500;
+  text-align: right;
+}
+
+.cc-question-form-footer {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  padding-top: 4px;
+}
+
+.cc-question-form-submit {
+  flex: 0 0 auto;
+  min-height: 36px;
+  padding: 0 15px;
+  border: 1px solid rgba(47, 125, 116, 0.24);
+  border-radius: 999px;
+  background: var(--accent);
+  color: #fff;
+  font-family: var(--font-ui);
+  font-size: 14px;
+  font-weight: 650;
+}
+
+.cc-question-form-submit:hover {
+  background: var(--accent-dark);
+}
+
+.cc-question-form.has-error .cc-question-form-status {
+  color: var(--danger);
+}
+
+.cc-question-form.submitted {
+  opacity: 0.72;
+}
+
+.cc-question-form.submitted .cc-question-form-submit {
+  background: var(--text-muted);
+  border-color: transparent;
+}
+
 .markdown a {
   color: var(--accent-dark);
 }
