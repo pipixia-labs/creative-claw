@@ -5,6 +5,7 @@ from types import SimpleNamespace
 from unittest.mock import AsyncMock, patch
 
 from google.adk.agents import LlmAgent
+from google.adk.events import Event, EventActions
 
 from src.productions.design.design_product_manager import (
     DESIGN_BRIEF_FORM_SCHEMA_VERSION,
@@ -19,6 +20,10 @@ from src.productions.design.design_product_manager import (
     normalize_question_form_block,
     parse_form_answers,
     validate_question_form_schema,
+)
+from src.productions.design.design_product_manager.brief_form import (
+    DESIGN_BRIEF_FORM_PENDING_TASK_STATE_KEY,
+    DESIGN_BRIEF_FORM_STATE_KEY,
 )
 from src.productions.design.design_systems import list_design_systems
 from src.runtime.workspace import resolve_workspace_path
@@ -65,10 +70,34 @@ class DesignProductManagerTests(unittest.TestCase):
         self.assertIn("ImageGenerationAgent output is normally an intermediate asset", manager.instruction)
         self.assertIn("Do not use `save_design_artifact` to create the main final HTML", manager.instruction)
         self.assertIn("register_design_delivery", manager.instruction)
+        self.assertIn("HTML is the tool, not the medium", manager.instruction)
+        self.assertIn("interaction designer posture", manager.instruction)
+        self.assertIn("systems designer posture", manager.instruction)
+        self.assertIn("style exploration", manager.instruction)
+        self.assertIn("comparison canvas", manager.instruction)
+        self.assertIn("brief/design-system artboard", manager.instruction)
+        self.assertIn("SCREENS", manager.instruction)
+        self.assertIn("VARIANTS", manager.instruction)
+        self.assertIn("philosophy, hierarchy, execution, specificity, and restraint", manager.instruction)
 
     def test_design_code_generation_prompt_uses_design_canvas_contract(self) -> None:
         prompt = build_design_code_generation_prompt("Design a mobile ordering flow.")
 
+        self.assertIn("Design Medium Posture", prompt)
+        self.assertIn("Visual Direction Framework", prompt)
+        self.assertIn("Style Exploration and Variants", prompt)
+        self.assertIn("Multi-Direction Canvas Protocol", prompt)
+        self.assertIn("Code Organization for Reviewable Design Artifacts", prompt)
+        self.assertIn("Quality Self-Check Before Finalizing", prompt)
+        self.assertIn("editorial_monocle", prompt)
+        self.assertIn("modern_minimal", prompt)
+        self.assertIn("brutalist_experimental", prompt)
+        self.assertIn("brief/design-system artboard", prompt)
+        self.assertIn("Default to 3 directions", prompt)
+        self.assertIn("SCREENS", prompt)
+        self.assertIn("VARIANTS", prompt)
+        self.assertIn("same domain data", prompt)
+        self.assertIn("differ in more than color", prompt)
         self.assertIn("design canvas", prompt.lower())
         self.assertIn("artboards", prompt)
         self.assertIn("not a production application", prompt)
@@ -90,6 +119,18 @@ class DesignProductManagerTests(unittest.TestCase):
             constraints,
         )
         self.assertIn("Support host zoom synchronization messages: __dc_present, __dc_zoom, and __dc_set_zoom.", constraints)
+        self.assertIn(
+            "For style exploration, include a brief/design-system artboard and 2-3 visible direction sections with the same screens/content.",
+            constraints,
+        )
+        self.assertIn(
+            "Keep multi-direction variants aligned by information architecture while making the visual systems meaningfully different.",
+            constraints,
+        )
+        self.assertIn(
+            "Use named local structures such as SCREENS, VARIANTS, shared domain data, and stable artboard ids.",
+            constraints,
+        )
         self.assertIn("show three variants", constraints)
 
     def test_private_product_design_skill_registry_lists_standard_skill_folders(self) -> None:
@@ -137,6 +178,9 @@ class DesignProductManagerTests(unittest.TestCase):
         self.assertIn("exactly 6 recommended design systems", expert.instruction)
         self.assertIn("content, mode, workflow, platform", expert.instruction)
         self.assertIn("visual style, color, design system", expert.instruction)
+        self.assertIn("visual_direction", expert.instruction)
+        self.assertIn("style_exploration", expert.instruction)
+        self.assertIn("explore_2_3_directions", expert.instruction)
         self.assertNotIn("Never exceed 7 questions", expert.instruction)
 
         form = validate_question_form_schema(
@@ -472,6 +516,51 @@ class DesignProductManagerTests(unittest.TestCase):
         self.assertEqual(tool_context.state["design_product_generation"]["language"], "html")
         self.assertEqual(tool_context.state["new_files"][0]["source"], "design_code_generation_agent")
 
+    def test_invoke_design_code_generation_injects_selected_design_system_state(self) -> None:
+        manager = DesignProductManager()
+        tool_context = SimpleNamespace(
+            state={
+                "design_product_selected_design_system": {
+                    "id": "claude",
+                    "title": "Claude",
+                    "body": "# Claude\n\nAuthoritative palette and typography rules.",
+                }
+            }
+        )
+        expected_output = {
+            "status": "success",
+            "message": "Generated html code at generated/design-canvas.html.",
+            "output_path": "generated/design-canvas.html",
+            "output_files": [],
+            "language": "html",
+            "error_type": "",
+            "retryable": False,
+            "raw_error_summary": "",
+            "warnings": [],
+        }
+        mocked_generation = AsyncMock(return_value=expected_output)
+
+        with patch.object(DesignCodeGenerationAgent, "run_generation", new=mocked_generation):
+            result = asyncio.run(
+                manager.invoke_design_code_generation(
+                    prompt="Build a compact design canvas.",
+                    output_path="generated/design-canvas.html",
+                    constraints=["Use visible artboards."],
+                    tool_context=tool_context,
+                )
+            )
+
+        self.assertEqual(result["status"], "success")
+        mocked_generation.assert_awaited_once()
+        kwargs = mocked_generation.await_args.kwargs
+        self.assertIn("# Selected design system (authoritative DESIGN.md)", kwargs["prompt"])
+        self.assertIn("Design system: Claude (claude)", kwargs["prompt"])
+        self.assertIn("Authoritative palette and typography rules.", kwargs["prompt"])
+        self.assertIn(
+            "Use the selected design system Claude (claude) as the authoritative visual system.",
+            kwargs["constraints"],
+        )
+
     def test_progress_save_validate_and_register_delivery_tools(self) -> None:
         manager = DesignProductManager()
         tool_context = SimpleNamespace(
@@ -578,6 +667,95 @@ class DesignProductManagerTests(unittest.TestCase):
             "设计一个 AI 产品落地页。",
         )
         self.assertEqual(tool_context.state["final_file_paths"], [])
+
+    def test_submitted_web_form_answers_clear_pending_brief_form_state(self) -> None:
+        manager = DesignProductManager()
+        answer_block = (
+            '[cc-form-answers id="design-brief" version="design-brief-form-v1"]\n'
+            '{"visual_direction":"decide_for_me"}\n'
+            "[/cc-form-answers]"
+        )
+        result_payload = {
+            "result_schema_version": DESIGN_PRODUCT_RESULT_SCHEMA_VERSION,
+            "status": "success",
+            "product_line": "design",
+            "message": "设计产物已完成。",
+            "final_file_paths": [],
+            "progress": [],
+            "active_skill": {},
+            "experts": [],
+            "expert_history": [],
+            "last_expert_result": {},
+            "code_generation_history": [],
+            "last_code_generation_result": {},
+            "generation": {},
+            "validation": [],
+            "output_files": [],
+        }
+        tool_context = SimpleNamespace(
+            state={
+                "channel": "web",
+                DESIGN_BRIEF_FORM_PENDING_TASK_STATE_KEY: "设计一个股票新闻 App。",
+                DESIGN_BRIEF_FORM_STATE_KEY: {
+                    "schema_version": DESIGN_BRIEF_FORM_SCHEMA_VERSION,
+                    "message": "<cc-question-form>{}</cc-question-form>",
+                },
+            },
+            _invocation_context=SimpleNamespace(user_id="user-1"),
+        )
+
+        class _FakeChildRunner:
+            def __init__(self, *, app_name, session_service) -> None:
+                self.app_name = app_name
+                self.session_service = session_service
+                self.closed = False
+
+            async def run_async(self, *, user_id, session_id, new_message):
+                session = await self.session_service.get_session(
+                    app_name=self.app_name,
+                    user_id=user_id,
+                    session_id=session_id,
+                )
+                await self.session_service.append_event(
+                    session,
+                    Event(
+                        author="unit_test",
+                        actions=EventActions(
+                            state_delta={
+                                "design_product_result": result_payload,
+                                "final_response": result_payload["message"],
+                                "final_file_paths": [],
+                            }
+                        ),
+                    ),
+                )
+                if False:
+                    yield Event(author="unit_test")
+
+            async def close(self) -> None:
+                self.closed = True
+
+        def _fake_build_child_runner(**kwargs):
+            return _FakeChildRunner(
+                app_name=kwargs["app_name"],
+                session_service=kwargs["session_service"],
+            )
+
+        with patch(
+            "src.productions.design.design_product_manager.design_product_manager._build_child_runner",
+            side_effect=_fake_build_child_runner,
+        ):
+            result = asyncio.run(
+                manager.run_product_request(
+                    task=answer_block,
+                    tool_context=tool_context,
+                )
+            )
+
+        self.assertEqual(result["status"], "success")
+        self.assertEqual(tool_context.state["design_product_brief_form_answers"]["id"], "design-brief")
+        self.assertNotIn(DESIGN_BRIEF_FORM_PENDING_TASK_STATE_KEY, tool_context.state)
+        self.assertNotIn(DESIGN_BRIEF_FORM_STATE_KEY, tool_context.state)
 
 
 if __name__ == "__main__":

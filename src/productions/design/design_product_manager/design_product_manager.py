@@ -61,6 +61,7 @@ DESIGN_PRODUCT_EXPERT_HISTORY_STATE_KEY = "design_product_expert_history"
 DESIGN_PRODUCT_LAST_EXPERT_RESULT_STATE_KEY = "design_product_last_expert_result"
 DESIGN_PRODUCT_CODE_GENERATION_HISTORY_STATE_KEY = "design_product_code_generation_history"
 DESIGN_PRODUCT_LAST_CODE_GENERATION_RESULT_STATE_KEY = "design_product_last_code_generation_result"
+DESIGN_PRODUCT_SELECTED_DESIGN_SYSTEM_STATE_KEY = "design_product_selected_design_system"
 
 
 class DesignProductManager(LlmAgent):
@@ -129,6 +130,14 @@ You are Creative Claw's DesignProductManager.
 # Role
 Own design product tasks end to end. You are not a thin wrapper around the orchestrator. The orchestrator only hands you the user's design request and relays your progress, status, and final result.
 
+# Design medium posture
+- HTML is the tool, not the medium. Before choosing skills or experts, decide what kind of designer this task needs.
+- Mobile app and product prototypes require an interaction designer posture: user flows, states, hit targets, screen relationships, and reviewable artboards matter more than building a routed app.
+- Dashboards and internal tools require a systems designer posture: information density, hierarchy, scanning speed, tabular numerics, and operational clarity are the design.
+- Landing pages and marketing sites require a brand designer posture: narrative, audience, proof, conversion path, and one memorable visual move matter more than generic sections.
+- Posters, cards, editorial pages, and decks require a visual communication posture: composition, rhythm, contrast, typography, and message hierarchy drive the artifact.
+- Do not let every task collapse into a generic SaaS landing page or app shell.
+
 # Private skills
 - Use only your private product-design skills, exposed through `list_product_design_skills` and `read_product_design_skill`.
 - Private skills live under `skills/product-design-skills/<skill-name>/SKILL.md`.
@@ -162,7 +171,7 @@ Own design product tasks end to end. You are not a thin wrapper around the orche
 2. Call `list_product_design_skills`.
 3. Call `list_design_experts` before invoking a private expert.
 4. Read the best matching skill with `read_product_design_skill` when a skill is useful.
-5. Decide whether the task has enough information. If it does not, return a clarification result through `register_design_delivery` without generating a file.
+5. Decide whether the task has enough information. Lock the design medium, content structure, visual direction, design system, scale, and whether the user expects style exploration. If it does not have enough information, return a clarification result through `register_design_delivery` without generating a file.
 6. Generate final code-backed design artifacts through `invoke_design_code_generation`. Use `save_design_artifact` only when you already have complete supporting file content.
 7. Validate generated files with `validate_design_artifact`.
 8. Finish by calling `register_design_delivery`.
@@ -173,6 +182,17 @@ Own design product tasks end to end. You are not a thin wrapper around the orche
 - Keep artboard identifiers, labels, and component names stable for future AI edits.
 - When sketch annotations or screenshots are present, pass them as concrete design critique/edit context to `invoke_design_code_generation`.
 - Do not hide design alternatives behind app routing when the user needs design review.
+- When the user asks to explore styles, request 2-3 differentiated visual directions by default. Keep the same information architecture and content across directions so the comparison is meaningful.
+- For style exploration, instruct code generation to produce a comparison canvas: one compact brief/design-system artboard first, then one visible section per direction using the same screens or sections.
+- Ask each direction to state its title, design intent, token summary, and why it is different. The directions should differ in typography, density, radius/border model, image strategy, layout rhythm, or domain metaphor, not only in color.
+- Keep shared screen lists, domain data, and variant metadata explicit with stable names such as `SCREENS`, `VARIANTS`, and human-readable artboard ids.
+- When a design system is selected, treat its DESIGN.md as authoritative for palette, typography, spacing, and component posture. Use visual direction only to organize composition choices that do not conflict with the selected system.
+- If no brand or design system is selected, choose and state a clear visual direction instead of improvising a vague style.
+
+# Quality bar
+- Before delivery, expect the generated artifact to pass a silent five-dimensional design self-check: philosophy, hierarchy, execution, specificity, and restraint.
+- Avoid AI-slop patterns: aggressive purple gradients, filler metrics, generic feature cards, emoji-as-icons, overdecorated shadows, and every screen using the same rounded-card layout.
+- Prefer honest placeholders over invented facts when the user has not supplied real copy, data, names, or metrics.
 
 # Design scope
 You own websites, dashboards, landing pages, app screens, posters, cards, HTML decks, interactive tools, and other code-backed design artifacts when the user asks for a design deliverable. Do not route PPTX delivery here; PPTX belongs to the PPT product line.
@@ -219,7 +239,14 @@ Always call `register_design_delivery` before finishing. It must contain a user-
                 original_task=original_task or clean_task,
                 answer_payload=answer_payload,
             )
-            clean_task = _append_selected_design_system_context(clean_task, answer_payload)
+            tool_context.state.pop(DESIGN_BRIEF_FORM_PENDING_TASK_STATE_KEY, None)
+            tool_context.state.pop(DESIGN_BRIEF_FORM_STATE_KEY, None)
+            selected_design_system = _resolve_selected_design_system_context(answer_payload)
+            if selected_design_system:
+                tool_context.state[DESIGN_PRODUCT_SELECTED_DESIGN_SYSTEM_STATE_KEY] = selected_design_system
+                clean_task = _append_selected_design_system_summary(clean_task, selected_design_system)
+            else:
+                tool_context.state.pop(DESIGN_PRODUCT_SELECTED_DESIGN_SYSTEM_STATE_KEY, None)
         elif _should_request_web_brief_form(tool_context.state):
             invocation_context = tool_context._invocation_context
             try:
@@ -393,13 +420,21 @@ Always call `register_design_delivery` before finishing. It must contain a user-
         constraints: list[str] | str | None = None,
     ) -> dict[str, Any]:
         """Invoke the DesignProductManager-private code generation agent."""
+        clean_prompt = _append_selected_design_system_context_to_codegen_prompt(
+            str(prompt or "").strip(),
+            tool_context.state,
+        )
+        clean_constraints = _append_selected_design_system_constraints(
+            _coerce_string_list(constraints),
+            tool_context.state,
+        )
         current_output = await self._design_code_generation_agent.run_generation(
             tool_context,
-            prompt=str(prompt or "").strip(),
+            prompt=clean_prompt,
             language=str(language or "html").strip() or "html",
             output_path=str(output_path or "").strip(),
             context_files=_coerce_string_list(context_files),
-            constraints=_coerce_string_list(constraints),
+            constraints=clean_constraints,
         )
         if current_output.get("output_files"):
             current_output = {
@@ -656,34 +691,103 @@ def _should_request_web_brief_form(state: Any) -> bool:
     return True
 
 
-def _append_selected_design_system_context(task: str, answer_payload: dict[str, Any]) -> str:
-    """Append full DESIGN.md context when the Web brief selects one local design system."""
+def _resolve_selected_design_system_context(answer_payload: dict[str, Any]) -> dict[str, str] | None:
+    """Resolve the selected local design system from submitted Web form answers."""
     answers = answer_payload.get("answers")
     if not isinstance(answers, dict):
-        return task
+        return None
     raw_value = answers.get("design_system_reference")
     if isinstance(raw_value, list):
         raw_value = raw_value[0] if raw_value else ""
     design_system_id = str(raw_value or "").strip()
     if not design_system_id or design_system_id in {"decide_for_me", "other"}:
-        return task
+        return None
 
     design_system_body = read_design_system(design_system_id)
     if not design_system_body:
-        return task
+        return None
 
     title = next(
         (item.title for item in list_design_systems() if item.id == design_system_id),
         design_system_id,
     )
+    return {
+        "id": design_system_id,
+        "title": title,
+        "body": design_system_body.strip(),
+    }
+
+
+def _append_selected_design_system_summary(task: str, selected_design_system: dict[str, str]) -> str:
+    """Append a lightweight selected design-system summary to the manager task."""
+    design_system_id = str(selected_design_system.get("id") or "").strip()
+    title = str(selected_design_system.get("title") or design_system_id).strip()
+    if not design_system_id or "# Selected design system" in str(task or ""):
+        return task
     return "\n".join(
         [
             task.strip(),
             "",
-            f"# Selected design system: {title} ({design_system_id})",
-            design_system_body.strip(),
+            "# Selected design system",
+            f"Use {title} ({design_system_id}). The full DESIGN.md is stored in session state and will be injected automatically when invoking design code generation.",
         ]
     ).strip()
+
+
+def _append_selected_design_system_context_to_codegen_prompt(prompt: str, state: Any) -> str:
+    """Append authoritative DESIGN.md context to the private code-generation prompt."""
+    selected_design_system = _selected_design_system_from_state(state)
+    if not selected_design_system:
+        return prompt
+    design_system_id = selected_design_system["id"]
+    title = selected_design_system["title"]
+    body = selected_design_system["body"]
+    marker = "# Selected design system (authoritative DESIGN.md)"
+    if marker in prompt and design_system_id in prompt:
+        return prompt
+    return "\n".join(
+        [
+            prompt.strip(),
+            "",
+            marker,
+            f"Design system: {title} ({design_system_id})",
+            "Treat this DESIGN.md as authoritative for palette, typography, spacing, component posture, and design tokens. Do not invent conflicting tokens unless the user explicitly asks to override it.",
+            body,
+        ]
+    ).strip()
+
+
+def _append_selected_design_system_constraints(constraints: list[str], state: Any) -> list[str]:
+    """Add a hard code-generation constraint for the selected design system."""
+    selected_design_system = _selected_design_system_from_state(state)
+    if not selected_design_system:
+        return constraints
+    constraint = (
+        f"Use the selected design system {selected_design_system['title']} "
+        f"({selected_design_system['id']}) as the authoritative visual system."
+    )
+    if any("selected design system" in item.lower() for item in constraints):
+        return constraints
+    return [*constraints, constraint]
+
+
+def _selected_design_system_from_state(state: Any) -> dict[str, str] | None:
+    """Return selected design-system context from ADK session state."""
+    value = state.get(DESIGN_PRODUCT_SELECTED_DESIGN_SYSTEM_STATE_KEY)
+    if not isinstance(value, dict):
+        return None
+    design_system_id = str(value.get("id") or "").strip()
+    if not design_system_id:
+        return None
+    title = str(value.get("title") or design_system_id).strip()
+    body = str(value.get("body") or "").strip() or read_design_system(design_system_id)
+    if not body:
+        return None
+    return {
+        "id": design_system_id,
+        "title": title,
+        "body": body.strip(),
+    }
 
 
 def _copy_state(state: Any) -> dict[str, Any]:

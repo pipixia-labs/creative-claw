@@ -14,6 +14,10 @@ from google.genai.types import Content, Part
 from conf.system import SYS_CONFIG
 from src.agents.orchestrator.orchestrator_agent import Orchestrator
 from src.logger import logger
+from src.productions.design.design_product_manager.brief_form import (
+    DESIGN_BRIEF_FORM_PENDING_TASK_STATE_KEY,
+    DESIGN_BRIEF_FORM_STATE_KEY,
+)
 from src.runtime.cancellation import TaskCancelledError, get_cancellation_manager
 from src.runtime.expert_registry import build_expert_agents
 from src.runtime.models import InboundMessage, WorkflowEvent
@@ -79,16 +83,38 @@ def _should_preserve_ppt_product_state(state: dict[str, object]) -> bool:
     return stage in _PENDING_PPT_WORKFLOW_STAGES
 
 
+def _should_preserve_design_product_state(state: dict[str, object]) -> bool:
+    """Return whether a Design brief form is waiting for submitted answers."""
+    pending_task = str(state.get(DESIGN_BRIEF_FORM_PENDING_TASK_STATE_KEY) or "").strip()
+    return bool(pending_task)
+
+
 def _collect_persistent_product_state(state: dict[str, object]) -> dict[str, object]:
     """Collect product-owned state that must survive a channel message reset."""
-    if not _should_preserve_ppt_product_state(state):
-        return {}
-    persistent_state = {
-        key: value
-        for key, value in state.items()
-        if key.startswith("ppt_") and value is not None
-    }
-    if state.get("last_product_result") is not None:
+    persistent_state: dict[str, object] = {}
+
+    if _should_preserve_ppt_product_state(state):
+        persistent_state.update(
+            {
+                key: value
+                for key, value in state.items()
+                if key.startswith("ppt_") and value is not None
+            }
+        )
+
+    if _should_preserve_design_product_state(state):
+        persistent_state.update(
+            {
+                key: value
+                for key, value in state.items()
+                if key.startswith("design_product") and value is not None
+            }
+        )
+        if state.get(DESIGN_BRIEF_FORM_STATE_KEY) is not None:
+            persistent_state[DESIGN_BRIEF_FORM_STATE_KEY] = state[DESIGN_BRIEF_FORM_STATE_KEY]
+        persistent_state["product_line"] = "design"
+
+    if persistent_state and state.get("last_product_result") is not None:
         persistent_state["last_product_result"] = state["last_product_result"]
     return persistent_state
 

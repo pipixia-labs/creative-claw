@@ -7,6 +7,11 @@ from google.adk.events import Event, EventActions
 from google.adk.runners import Runner
 
 from conf.system import SYS_CONFIG
+from src.productions.design.design_product_manager.brief_form import (
+    DESIGN_BRIEF_FORM_PENDING_TASK_STATE_KEY,
+    DESIGN_BRIEF_FORM_SCHEMA_VERSION,
+    DESIGN_BRIEF_FORM_STATE_KEY,
+)
 from src.runtime.models import InboundMessage, MessageAttachment
 from src.runtime.workflow_service import CreativeClawRuntime
 from src.runtime.workspace import build_workspace_file_record, workspace_relative_path, workspace_root
@@ -257,6 +262,72 @@ class RuntimeSessionTests(unittest.IsolatedAsyncioTestCase):
         self.assertEqual(
             updated_session.state["ppt_product_result"]["status"],
             "awaiting_requirement_confirmation",
+        )
+        self.assertIsNone(updated_session.state["current_output"])
+
+    async def test_initial_state_preserves_pending_design_brief_form_across_answer_turn(self) -> None:
+        runtime = CreativeClawRuntime()
+        user_id, session_id = await runtime._ensure_session(
+            InboundMessage(
+                channel="web",
+                sender_id="web-client",
+                chat_id="design-chat",
+                text="帮我做一个股票新闻 App 的移动端 UI 设计。",
+            )
+        )
+        session = await runtime.session_service.get_session(
+            app_name=SYS_CONFIG.app_name,
+            user_id=user_id,
+            session_id=session_id,
+        )
+        await runtime.session_service.append_event(
+            session,
+            Event(
+                author="unit_test",
+                actions=EventActions(
+                    state_delta={
+                        "turn_index": 1,
+                        DESIGN_BRIEF_FORM_PENDING_TASK_STATE_KEY: "帮我做一个股票新闻 App 的移动端 UI 设计。",
+                        DESIGN_BRIEF_FORM_STATE_KEY: {
+                            "schema_version": DESIGN_BRIEF_FORM_SCHEMA_VERSION,
+                            "message": "<cc-question-form>{}</cc-question-form>",
+                        },
+                        "design_product_result": {"status": "needs_input"},
+                        "last_product_result": {"status": "needs_input"},
+                        "current_output": {"status": "needs_input"},
+                    }
+                ),
+            ),
+        )
+        answer_block = (
+            '[cc-form-answers id="design-brief" version="design-brief-form-v1"]\n'
+            '{"visual_direction":"decide_for_me"}\n'
+            "[/cc-form-answers]"
+        )
+        inbound = InboundMessage(
+            channel="web",
+            sender_id="web-client",
+            chat_id="design-chat",
+            text=answer_block,
+        )
+
+        await runtime._set_initial_state(user_id, session_id, inbound)
+        updated_session = await runtime.session_service.get_session(
+            app_name=SYS_CONFIG.app_name,
+            user_id=user_id,
+            session_id=session_id,
+        )
+
+        self.assertEqual(updated_session.state["turn_index"], 2)
+        self.assertEqual(updated_session.state["user_prompt"], answer_block)
+        self.assertEqual(updated_session.state["product_line"], "design")
+        self.assertEqual(
+            updated_session.state[DESIGN_BRIEF_FORM_PENDING_TASK_STATE_KEY],
+            "帮我做一个股票新闻 App 的移动端 UI 设计。",
+        )
+        self.assertEqual(
+            updated_session.state[DESIGN_BRIEF_FORM_STATE_KEY]["schema_version"],
+            DESIGN_BRIEF_FORM_SCHEMA_VERSION,
         )
         self.assertIsNone(updated_session.state["current_output"])
 

@@ -28,6 +28,9 @@ from src.agents.orchestrator.final_response import (
 )
 from src.logger import logger
 from src.productions.design.design_product_manager import DesignProductManager
+from src.productions.design.design_product_manager.brief_form import (
+    DESIGN_BRIEF_FORM_PENDING_TASK_STATE_KEY,
+)
 from src.productions.ppt.ppt_product_manager import PptProductManager
 from src.runtime.expert_dispatcher import dispatch_expert_call
 from src.runtime.expert_registry import build_expert_contract_summary
@@ -233,6 +236,7 @@ async def orchestrator_before_model_callback(
     product_line = str(state.get("product_line", "") or "").strip()
     product_line_options = state.get("product_line_options") or {}
     ppt_workflow_state = state.get("ppt_workflow_state") or {}
+    design_brief_pending_task = str(state.get(DESIGN_BRIEF_FORM_PENDING_TASK_STATE_KEY) or "").strip()
     uploaded = list(state.get("uploaded") or state.get("input_files") or state.get("input_artifacts") or [])
     uploaded_history = list(state.get("uploaded_history") or [])
     generated = list(state.get("generated") or [])
@@ -270,6 +274,16 @@ async def orchestrator_before_model_callback(
         }
         summary_lines.append(
             "# Active PPT workflow:\n"
+            f"{json.dumps(pending_summary, ensure_ascii=False, indent=2)}"
+        )
+
+    if design_brief_pending_task:
+        pending_summary = {
+            "stage": "awaiting_brief_form_answers",
+            "pending_task": design_brief_pending_task,
+        }
+        summary_lines.append(
+            "# Active Design brief form:\n"
             f"{json.dumps(pending_summary, ensure_ascii=False, indent=2)}"
         )
 
@@ -667,6 +681,7 @@ PPT workflow routing hints:
 
 Design workflow routing hints:
 - If runtime context says `Product line: design`, call `run_design_product` as the primary execution path before considering lower-level tools.
+- If the user task is a `[cc-form-answers ...]` block and runtime context shows an active Design brief form, call `run_design_product` with the exact answer block as `task`.
 - When `Product line options` includes a `design` object, pass only the concise task, relevant inputs, and explicit output request into `run_design_product`.
 - If the user asks for UI design, product design, dashboard, landing page, mobile app, deck, poster, social creative, greeting card, holiday card, invitation card, visual prototype, website mockup, or HTML design artifact, prefer `run_design_product` only when the requested final deliverable is not a PPTX/PowerPoint file.
 - Do not route a Design product request to a standalone skill or expert just because a skill trigger matches; product first, skills second.
