@@ -55,9 +55,13 @@ class WebChannelTests(unittest.IsolatedAsyncioTestCase):
         self.assertIn('data-preview-tab="tldraw"', body)
         self.assertIn('data-preview-tab="html"', body)
         self.assertIn('data-preview-tab="ppt"', body)
+        self.assertIn('data-preview-tab="model3d"', body)
         self.assertIn("Visual Board", body)
         self.assertIn("Design", body)
+        self.assertIn("3D", body)
         self.assertIn("No Design preview", body)
+        self.assertIn("No 3D preview", body)
+        self.assertIn("/model3d-assets/creative-claw-model3d.js", body)
         self.assertNotIn("No HTML preview", body)
         self.assertIn('aria-label="Send message"', body)
         self.assertIn('aria-label="Attach files"', body)
@@ -87,6 +91,44 @@ class WebChannelTests(unittest.IsolatedAsyncioTestCase):
             self.assertIn("text/html", content_type)
             self.assertIn("Quarterly roadmap preview", body)
             self.assertIn("Slide 1", body)
+        finally:
+            with contextlib.suppress(FileNotFoundError):
+                generated_file.unlink()
+
+    async def test_web_channel_serves_3d_artifact_metadata_and_asset(self) -> None:
+        generated_file = generated_root() / f"web_channel_{uuid.uuid4().hex[:8]}.glb"
+        generated_file.write_bytes(b"fake-glb")
+
+        try:
+            async with websockets.connect(f"ws://127.0.0.1:{self.channel._port}/ws?session_id=model-session") as websocket:
+                ready = json.loads(await asyncio.wait_for(websocket.recv(), timeout=2))
+                self.assertEqual(ready["type"], "ready")
+
+                await self.channel.send(
+                    OutboundMessage(
+                        channel="web",
+                        chat_id="model-session",
+                        text="model ready",
+                        artifact_paths=[str(generated_file)],
+                        metadata={"display_style": "final"},
+                    )
+                )
+                final_message = await self._recv_until(websocket, "assistant_message")
+                self.assertEqual(len(final_message["artifacts"]), 1)
+                artifact = final_message["artifacts"][0]
+                self.assertEqual(artifact["name"], generated_file.name)
+                self.assertFalse(artifact["isImage"])
+                self.assertTrue(artifact["is3D"])
+                self.assertEqual(artifact["mimeType"], "model/gltf-binary")
+
+                def fetch_artifact():
+                    with urlopen(f"{self.channel.url}{artifact['url']}") as response:  # noqa: S310 - local test server
+                        return response.status, response.headers.get("Content-Type", ""), response.read()
+
+                status, content_type, body = await asyncio.to_thread(fetch_artifact)
+                self.assertEqual(status, 200)
+                self.assertIn("model/gltf-binary", content_type)
+                self.assertEqual(body, b"fake-glb")
         finally:
             with contextlib.suppress(FileNotFoundError):
                 generated_file.unlink()
