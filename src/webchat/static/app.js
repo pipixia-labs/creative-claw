@@ -18,13 +18,16 @@ const previewViews = Array.from(document.querySelectorAll("[data-preview-view]")
 const tldrawPreview = document.getElementById("tldraw-preview");
 const htmlPreview = document.getElementById("html-preview");
 const pptPreview = document.getElementById("ppt-preview");
+const model3dPreview = document.getElementById("model3d-preview");
 
 const STORAGE_KEY = "creative_claw_webchat_session_id";
 const HISTORY_KEY_PREFIX = "creative_claw_webchat_history:";
 const SESSION_INDEX_KEY = "creative_claw_webchat_sessions";
 const HIDDEN_PROGRESS_TITLES = new Set(["Starting", "Finalize Result"]);
-const PREVIEW_TABS = ["tldraw", "html", "ppt"];
-const AUTO_PREVIEW_PRIORITY = ["ppt", "html", "tldraw"];
+const PREVIEW_TABS = ["tldraw", "html", "ppt", "model3d"];
+const AUTO_PREVIEW_PRIORITY = ["model3d", "ppt", "html", "tldraw"];
+const INLINE_3D_EXTENSIONS = new Set([".glb", ".gltf"]);
+const MODEL_3D_EXTENSIONS = new Set([".glb", ".gltf", ".obj", ".stl", ".fbx", ".usdz", ".usd"]);
 const UPLOAD_CHUNK_SIZE = 512 * 1024;
 const MEDIA_CANVAS_MIN_ZOOM = 0.45;
 const MEDIA_CANVAS_MAX_ZOOM = 2.4;
@@ -56,6 +59,7 @@ const mediaCanvasState = {
   positions: new Map(),
 };
 let tldrawCanvasUnmount = null;
+let model3dViewerController = null;
 let designSystemsCache = null;
 let designSystemsPromise = null;
 
@@ -196,6 +200,7 @@ function sessionArtifactTypes(artifacts) {
     if (tab === "tldraw") labels.add("Image");
     if (tab === "html") labels.add("Design");
     if (tab === "ppt") labels.add("PPT");
+    if (tab === "model3d") labels.add("3D");
   }
   return Array.from(labels);
 }
@@ -1343,8 +1348,9 @@ function renderArtifacts(container, artifacts) {
   for (const artifact of artifacts) {
     const previewTab = previewTabForArtifact(artifact);
     const hasMedia = artifact.isImage || isVideoArtifact(artifact);
+    const hasModel = is3DArtifact(artifact);
     const anchor = document.createElement("a");
-    anchor.className = `artifact-card${previewTab ? " previewable" : ""}${hasMedia ? " has-media" : " file-artifact"}`;
+    anchor.className = `artifact-card${previewTab ? " previewable" : ""}${hasMedia ? " has-media" : " file-artifact"}${hasModel ? " model-artifact" : ""}`;
     anchor.href = artifact.url;
     anchor.target = "_blank";
     anchor.rel = "noreferrer";
@@ -1371,6 +1377,11 @@ function renderArtifacts(container, artifacts) {
       video.playsInline = true;
       video.preload = "metadata";
       anchor.appendChild(video);
+    } else if (hasModel) {
+      const badge = document.createElement("div");
+      badge.className = "artifact-file-icon";
+      badge.textContent = inline3DArtifactSupported(artifact) ? "3D" : artifactExtension(artifact).replace(".", "").toUpperCase();
+      anchor.appendChild(badge);
     }
 
     const name = document.createElement("div");
@@ -1405,6 +1416,7 @@ function clearPreviewState(options = {}) {
   previewArtifactsByTab = buildEmptyPreviewGroups();
   selectedPreviewByTab = buildEmptyPreviewSelections();
   unmountTldrawCanvas();
+  unmountModel3dViewer();
   resetMediaCanvasState();
   if (!options.keepActiveTab) {
     activePreviewTab = "tldraw";
@@ -1428,6 +1440,7 @@ function previewArtifactSet(artifacts) {
   }
   mergedGroups.html = groups.html.length > 0 ? groups.html : previewArtifactsByTab.html;
   mergedGroups.ppt = groups.ppt.length > 0 ? groups.ppt : previewArtifactsByTab.ppt;
+  mergedGroups.model3d = groups.model3d.length > 0 ? groups.model3d : previewArtifactsByTab.model3d;
 
   previewArtifactsByTab = mergedGroups;
   const previousSelections = { ...selectedPreviewByTab };
@@ -1523,6 +1536,10 @@ function renderPreviewView(tabName) {
   }
   if (tabName === "ppt") {
     renderPptPreview();
+    return;
+  }
+  if (tabName === "model3d") {
+    renderModel3dPreview();
   }
 }
 
@@ -2322,6 +2339,76 @@ function renderPptPreview() {
   pptPreview.appendChild(card);
 }
 
+function renderModel3dPreview() {
+  unmountModel3dViewer();
+  model3dPreview.innerHTML = "";
+  const artifact = selectedPreviewByTab.model3d;
+  if (!artifact) {
+    model3dPreview.appendChild(previewEmpty("No 3D preview"));
+    return;
+  }
+
+  const canPreviewInline = inline3DArtifactSupported(artifact);
+  const resetButton = document.createElement("button");
+  resetButton.className = "preview-action";
+  resetButton.type = "button";
+  resetButton.textContent = "Reset";
+  resetButton.addEventListener("click", () => {
+    model3dViewerController?.resetCamera?.();
+  });
+  model3dPreview.appendChild(buildPreviewToolbar(artifact, canPreviewInline ? [resetButton] : []));
+
+  if (!canPreviewInline) {
+    model3dPreview.appendChild(buildUnsupportedModelCard(artifact));
+    return;
+  }
+
+  const host = document.createElement("div");
+  host.className = "model3d-viewer-host";
+  model3dPreview.appendChild(host);
+
+  if (!window.CreativeClaw3D?.mount) {
+    host.appendChild(previewEmpty("3D viewer unavailable"));
+    return;
+  }
+
+  model3dViewerController = window.CreativeClaw3D.mount(host, {
+    src: artifact.url,
+    name: artifact.name || "3D model",
+  });
+}
+
+function unmountModel3dViewer() {
+  if (model3dViewerController?.unmount) {
+    model3dViewerController.unmount();
+  }
+  model3dViewerController = null;
+}
+
+function buildUnsupportedModelCard(artifact) {
+  const card = document.createElement("div");
+  card.className = "document-preview-card model3d-unsupported-card";
+
+  const icon = document.createElement("div");
+  icon.className = "document-preview-icon model3d-document-icon";
+  icon.textContent = artifactExtension(artifact).replace(".", "").toUpperCase() || "3D";
+
+  const copy = document.createElement("div");
+  copy.className = "document-preview-copy";
+  const title = document.createElement("div");
+  title.className = "document-preview-title";
+  title.textContent = "Inline 3D preview is not available for this format.";
+  const meta = document.createElement("div");
+  meta.className = "document-preview-meta";
+  meta.textContent = artifact.path || artifact.mimeType || artifact.name || "";
+  copy.appendChild(title);
+  copy.appendChild(meta);
+
+  card.appendChild(icon);
+  card.appendChild(copy);
+  return card;
+}
+
 function hideEmbeddedPptChrome(iframe) {
   try {
     const document = iframe.contentDocument;
@@ -2410,6 +2497,9 @@ function previewTabForArtifact(artifact) {
   if (isHtmlArtifact(artifact)) {
     return "html";
   }
+  if (is3DArtifact(artifact)) {
+    return "model3d";
+  }
   if (artifact.isImage || isVideoArtifact(artifact)) {
     return "tldraw";
   }
@@ -2448,14 +2538,37 @@ function isVideoArtifact(artifact) {
   return artifactMimeType(artifact).startsWith("video/");
 }
 
+function is3DArtifact(artifact) {
+  const extension = artifactExtension(artifact);
+  const mimeType = artifactMimeType(artifact);
+  return Boolean(artifact?.is3D) || MODEL_3D_EXTENSIONS.has(extension) || mimeType.startsWith("model/") || isLikely3DZipArtifact(artifact);
+}
+
+function inline3DArtifactSupported(artifact) {
+  const extension = artifactExtension(artifact);
+  const mimeType = artifactMimeType(artifact);
+  return INLINE_3D_EXTENSIONS.has(extension) || mimeType === "model/gltf-binary" || mimeType === "model/gltf+json";
+}
+
+function isLikely3DZipArtifact(artifact) {
+  if (artifactExtension(artifact) !== ".zip") {
+    return false;
+  }
+  return /(^|[._/-])(3d|hy3d|seed3d|hyper3d|hitem3d|model|mesh)([._/-]|$)/i.test(artifactSourceText(artifact));
+}
+
 function artifactMimeType(artifact) {
   return String(artifact?.mimeType || "").toLowerCase();
 }
 
 function artifactExtension(artifact) {
-  const source = String(artifact?.name || artifact?.path || artifact?.url || "").split("?")[0].split("#")[0];
+  const source = artifactSourceText(artifact).split("?")[0].split("#")[0];
   const dotIndex = source.lastIndexOf(".");
   return dotIndex >= 0 ? source.slice(dotIndex).toLowerCase() : "";
+}
+
+function artifactSourceText(artifact) {
+  return String(artifact?.name || artifact?.path || artifact?.url || "");
 }
 
 function mimeTypeForExtension(extension) {
@@ -2467,13 +2580,21 @@ function mimeTypeForExtension(extension) {
     ".jpg": "image/jpeg",
     ".mov": "video/quicktime",
     ".mp4": "video/mp4",
+    ".fbx": "application/octet-stream",
+    ".glb": "model/gltf-binary",
+    ".gltf": "model/gltf+json",
+    ".obj": "model/obj",
     ".pdf": "application/pdf",
     ".png": "image/png",
     ".ppt": "application/vnd.ms-powerpoint",
     ".pptx": "application/vnd.openxmlformats-officedocument.presentationml.presentation",
+    ".stl": "model/stl",
     ".svg": "image/svg+xml",
+    ".usd": "model/vnd.usd",
+    ".usdz": "model/vnd.usdz+zip",
     ".webm": "video/webm",
     ".webp": "image/webp",
+    ".zip": "application/zip",
   };
   return types[extension] || "";
 }

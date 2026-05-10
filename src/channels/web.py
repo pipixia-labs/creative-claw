@@ -46,6 +46,14 @@ PPTX_PREVIEW_ERROR_TITLE = "PPTX preview unavailable"
 PDF_PREVIEW_ERROR_TITLE = "PDF preview unavailable"
 UPLOAD_SIZE_LIMIT = 100 * 1024 * 1024
 UPLOAD_ROOT = Path(tempfile.gettempdir()) / "creative-claw-web-uploads"
+MODEL_MIME_TYPES = {
+    ".glb": "model/gltf-binary",
+    ".gltf": "model/gltf+json",
+    ".obj": "model/obj",
+    ".stl": "model/stl",
+    ".usd": "model/vnd.usd",
+    ".usdz": "model/vnd.usdz+zip",
+}
 
 
 @dataclass(slots=True)
@@ -82,8 +90,16 @@ class _ActiveRun:
 
 def _guess_content_type(filename: str) -> str:
     """Guess one response content type from a file name."""
+    model_mime_type = MODEL_MIME_TYPES.get(Path(filename).suffix.lower())
+    if model_mime_type:
+        return model_mime_type
     guessed, _ = mimetypes.guess_type(filename)
     return guessed or "application/octet-stream"
+
+
+def _looks_like_3d_model(filename: str) -> bool:
+    """Return whether one file name appears to be a 3D model artifact."""
+    return Path(filename).suffix.lower() in MODEL_MIME_TYPES or Path(filename).suffix.lower() == ".fbx"
 
 
 def _normalize_static_path(raw_path: str) -> str:
@@ -602,6 +618,7 @@ class WebChannel(BaseChannel):
                     "path": relative_path,
                     "url": url,
                     "isImage": looks_like_image(resolved),
+                    "is3D": _looks_like_3d_model(resolved.name),
                     "mimeType": _guess_content_type(resolved.name),
                 }
             )

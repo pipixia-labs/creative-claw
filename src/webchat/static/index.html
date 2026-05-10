@@ -14,6 +14,7 @@
           <button id="tab-tldraw" class="preview-tab active" type="button" role="tab" aria-selected="true" aria-controls="preview-tldraw" data-preview-tab="tldraw">Visual Board</button>
           <button id="tab-html" class="preview-tab" type="button" role="tab" aria-selected="false" aria-controls="preview-html" data-preview-tab="html">Design</button>
           <button id="tab-ppt" class="preview-tab" type="button" role="tab" aria-selected="false" aria-controls="preview-ppt" data-preview-tab="ppt">PPT</button>
+          <button id="tab-model3d" class="preview-tab" type="button" role="tab" aria-selected="false" aria-controls="preview-model3d" data-preview-tab="model3d">3D</button>
         </div>
 
         <div class="preview-body">
@@ -32,6 +33,12 @@
           <section id="preview-ppt" class="preview-view" role="tabpanel" aria-labelledby="tab-ppt" data-preview-view="ppt" hidden>
             <div id="ppt-preview" class="preview-slot">
               <div class="preview-empty">No PPT preview</div>
+            </div>
+          </section>
+
+          <section id="preview-model3d" class="preview-view" role="tabpanel" aria-labelledby="tab-model3d" data-preview-view="model3d" hidden>
+            <div id="model3d-preview" class="preview-slot">
+              <div class="preview-empty">No 3D preview</div>
             </div>
           </section>
         </div>
@@ -115,6 +122,7 @@
     </template>
 
     <script defer src="/tldraw-assets/creative-claw-tldraw.js"></script>
+    <script defer src="/model3d-assets/creative-claw-model3d.js"></script>
     <script type="module" src="/app.js"></script>
   </body>
 </html>

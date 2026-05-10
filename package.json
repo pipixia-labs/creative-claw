@@ -4,6 +4,8 @@
   "private": true,
   "description": "Node runtime tools for Creative Claw production routes.",
   "scripts": {
+    "build:webchat-3d": "vite build --config vite.webchat-model3d.config.js",
+    "build:webchat-assets": "npm run build:webchat-tldraw && npm run build:webchat-3d",
     "build:webchat-tldraw": "vite build --config vite.webchat-tldraw.config.js",
     "install-browsers": "playwright install chromium"
   },
@@ -14,6 +16,7 @@
     "react": "^19.2.6",
     "react-dom": "^19.2.6",
     "sharp": "^0.34.5",
+    "three": "^0.184.0",
     "tldraw": "^5.0.0",
     "vite": "^8.0.11"
   }

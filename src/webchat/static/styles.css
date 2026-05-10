@@ -508,6 +508,51 @@ button {
   background: #ffffff;
 }
 
+.model3d-viewer-host {
+  position: relative;
+  flex: 1;
+  min-height: 0;
+  overflow: hidden;
+  border-radius: 0 0 11px 11px;
+  background:
+    radial-gradient(circle at 50% 40%, rgba(255, 255, 252, 0.74), transparent 42%),
+    linear-gradient(rgba(24, 33, 29, 0.035) 1px, transparent 1px),
+    linear-gradient(90deg, rgba(24, 33, 29, 0.035) 1px, transparent 1px),
+    #f3f5ef;
+  background-size: auto, 28px 28px, 28px 28px, auto;
+}
+
+.model3d-canvas {
+  display: block;
+  width: 100%;
+  height: 100%;
+  outline: none;
+}
+
+.model3d-status {
+  position: absolute;
+  left: 50%;
+  top: 50%;
+  max-width: min(360px, calc(100% - 32px));
+  transform: translate(-50%, -50%);
+  padding: 10px 14px;
+  border: 1px solid rgba(30, 40, 34, 0.1);
+  border-radius: 999px;
+  background: rgba(255, 255, 252, 0.78);
+  color: var(--text-soft);
+  font-family: var(--font-ui);
+  font-size: 12px;
+  font-weight: 700;
+  text-align: center;
+  box-shadow: 0 10px 28px rgba(35, 42, 36, 0.1);
+  backdrop-filter: blur(14px);
+}
+
+.model3d-status.error {
+  border-color: rgba(179, 72, 64, 0.2);
+  color: var(--danger);
+}
+
 .document-preview-card {
   margin: auto;
   width: min(520px, calc(100% - 32px));
@@ -534,6 +579,15 @@ button {
   font-family: var(--font-mono);
   font-size: 16px;
   font-weight: 800;
+}
+
+.model3d-document-icon {
+  background: rgba(47, 125, 116, 0.14);
+  color: var(--accent-dark);
+}
+
+.model3d-unsupported-card {
+  align-self: center;
 }
 
 .document-preview-copy {
@@ -1549,6 +1603,11 @@ button {
   align-items: center;
 }
 
+.artifact-card.model-artifact {
+  grid-template-columns: 48px minmax(0, 1fr);
+  align-items: center;
+}
+
 .artifact-card.previewable:hover {
   transform: translateY(-1px);
   border-color: rgba(47, 125, 116, 0.3);
@@ -1563,6 +1622,22 @@ button {
   border-radius: 8px;
   background: rgba(24, 33, 29, 0.06);
   object-fit: cover;
+}
+
+.artifact-file-icon {
+  grid-row: 1 / span 2;
+  width: 48px;
+  height: 44px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  border: 1px solid rgba(47, 125, 116, 0.14);
+  border-radius: 8px;
+  background: rgba(47, 125, 116, 0.1);
+  color: var(--accent-dark);
+  font-family: var(--font-mono);
+  font-size: 11px;
+  font-weight: 800;
 }
 
 .artifact-name {
