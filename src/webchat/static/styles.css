@@ -1097,6 +1097,17 @@ button {
   line-height: 1.45;
 }
 
+.cc-question-form-reveal-item {
+  opacity: 0;
+  transform: translateY(7px);
+  transition: opacity 0.2s ease, transform 0.2s ease;
+}
+
+.cc-question-form-reveal-item.visible {
+  opacity: 1;
+  transform: translateY(0);
+}
+
 .cc-question-field {
   display: grid;
   gap: 10px;

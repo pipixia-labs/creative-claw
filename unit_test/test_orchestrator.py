@@ -6,6 +6,7 @@ from pathlib import Path
 from types import SimpleNamespace
 from unittest.mock import AsyncMock, patch
 
+from google.adk.agents.run_config import StreamingMode
 from google.adk.artifacts import InMemoryArtifactService
 from google.adk.events import Event
 from google.adk.sessions import InMemorySessionService
@@ -20,6 +21,7 @@ from src.agents.orchestrator.final_response import (
 )
 from src.agents.orchestrator.orchestrator_agent import (
     Orchestrator,
+    _ReplyTextStreamExtractor,
     _extract_confirmation_tool_result,
     _extract_question_form_tool_result,
     _format_confirmation_reply,
@@ -28,6 +30,8 @@ from src.agents.orchestrator.orchestrator_agent import (
     orchestrator_before_model_callback,
 )
 from src.runtime.adk_compat import annotate_agent_origin
+from src.runtime.step_events import configure_step_event_publisher
+from src.runtime.tool_context import route_context
 from src.runtime.workspace import build_workspace_file_record, workspace_relative_path, workspace_root
 
 
@@ -165,6 +169,18 @@ class OrchestratorTests(unittest.TestCase):
             orchestrator.agent.output_key,
             ORCHESTRATOR_FINAL_RESPONSE_OUTPUT_KEY,
         )
+
+    def test_reply_text_stream_extractor_only_emits_reply_text(self) -> None:
+        extractor = _ReplyTextStreamExtractor()
+
+        chunks = [
+            '{"reply_text":"Hi',
+            ', I am CreativeClaw',
+            '.\\nNice to meet you", "final_file_paths":[]}',
+        ]
+        deltas = [delta for chunk in chunks if (delta := extractor.append(chunk))]
+
+        self.assertEqual(deltas, ["Hi", ", I am CreativeClaw", ".\nNice to meet you"])
 
     def test_list_skills_records_orchestration_step(self) -> None:
         orchestrator = Orchestrator(
@@ -784,6 +800,104 @@ class OrchestratorCallbackTests(unittest.IsolatedAsyncioTestCase):
         structured = session.state[ORCHESTRATOR_FINAL_RESPONSE_OUTPUT_KEY]
         self.assertEqual(structured["reply_text"], form_message)
         self.assertEqual(structured["final_file_paths"], [])
+
+    async def test_run_agent_streams_reply_text_deltas_with_adk_sse(self) -> None:
+        session_service = InMemorySessionService()
+        orchestrator = Orchestrator(
+            session_service=session_service,
+            artifact_service=InMemoryArtifactService(),
+            expert_agents={},
+        )
+        user_id = "user-stream"
+        session_id = "session-stream"
+        await session_service.create_session(
+            app_name=SYS_CONFIG.app_name,
+            user_id=user_id,
+            session_id=session_id,
+            state={"turn_index": 3},
+        )
+
+        class _FakeRunner:
+            def __init__(self) -> None:
+                self.run_config = None
+
+            async def run_async(self, **kwargs):
+                self.run_config = kwargs["run_config"]
+                yield Event(
+                    author="CreativeClawOrchestrator",
+                    partial=True,
+                    content=Content(role="model", parts=[Part(text='{"reply_text":"Hel')]),
+                )
+                yield Event(
+                    author="CreativeClawOrchestrator",
+                    partial=True,
+                    content=Content(role="model", parts=[Part(text='lo", "final_file_paths":[]}')]),
+                )
+                yield Event(
+                    author="CreativeClawOrchestrator",
+                    content=Content(role="model", parts=[Part(text='{"reply_text":"Hello","final_file_paths":[]}')]),
+                )
+
+        published = []
+
+        async def _publisher(message):
+            published.append(message)
+
+        fake_runner = _FakeRunner()
+        orchestrator.runner = fake_runner
+        configure_step_event_publisher(_publisher)
+        try:
+            with route_context("web", "chat-stream"):
+                await orchestrator.run_agent_and_log_events(
+                    user_id=user_id,
+                    session_id=session_id,
+                    new_message=Content(role="user", parts=[Part(text="hi")]),
+                )
+        finally:
+            configure_step_event_publisher(None)
+
+        self.assertIs(fake_runner.run_config.streaming_mode, StreamingMode.SSE)
+        self.assertEqual([message.text for message in published], ["Hel", "lo"])
+        self.assertEqual(published[0].metadata["display_style"], "assistant_delta")
+        self.assertEqual(published[0].metadata["turn_index"], 3)
+
+    async def test_design_brief_form_tool_call_streams_placeholder(self) -> None:
+        orchestrator = Orchestrator(
+            session_service=InMemorySessionService(),
+            artifact_service=InMemoryArtifactService(),
+            expert_agents={},
+        )
+        tool_context = SimpleNamespace(
+            state={"channel": "web", "turn_index": 5},
+            session=SimpleNamespace(id="session-design-placeholder"),
+        )
+
+        async def _runner() -> dict[str, str]:
+            return {"status": "needs_input", "message": "<cc-question-form>{}</cc-question-form>"}
+
+        published = []
+
+        async def _publisher(message):
+            published.append(message)
+
+        configure_step_event_publisher(_publisher)
+        try:
+            with route_context("web", "chat-design-placeholder"):
+                result = await orchestrator._run_async_tool_with_events(
+                    tool_context=tool_context,
+                    tool_name="run_design_product",
+                    stage="design_planning",
+                    args={"task": "帮我设计一个中餐馆的手机app的UI"},
+                    runner=_runner,
+                )
+        finally:
+            configure_step_event_publisher(None)
+
+        self.assertEqual(result["status"], "needs_input")
+        self.assertTrue(orchestrator._last_run_streamed_reply_text)
+        self.assertEqual([message.text for message in published], ["正在准备需求确认表单..."])
+        self.assertEqual(published[0].metadata["display_style"], "assistant_delta")
+        self.assertEqual(published[0].metadata["turn_index"], 5)
 
     async def test_run_until_done_uses_structured_final_response(self) -> None:
         session_service = InMemorySessionService()

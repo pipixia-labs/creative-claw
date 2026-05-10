@@ -6,6 +6,7 @@ from src.runtime.step_events import (
     CreativeClawStepEventPlugin,
     append_orchestration_step_event,
     configure_step_event_publisher,
+    publish_assistant_delta,
     publish_orchestration_step_event,
     reset_step_event_history,
 )
@@ -91,6 +92,21 @@ class StepEventPluginTests(unittest.IsolatedAsyncioTestCase):
         self.assertEqual(len(self.messages), 1)
         self.assertEqual(self.messages[0].metadata["stage_title"], "Call Expert Agent")
         self.assertIn("Calling `ImageGenerationAgent`", self.messages[0].text)
+
+    async def test_assistant_delta_only_publishes_for_web_channel(self) -> None:
+        with route_context("cli", "chat-cli"):
+            published = await publish_assistant_delta(session_id="session-cli", delta="Hello", turn_index=1)
+        self.assertFalse(published)
+        self.assertEqual(self.messages, [])
+
+        with route_context("web", "chat-web"):
+            published = await publish_assistant_delta(session_id="session-web", delta="Hello", turn_index=2)
+
+        self.assertTrue(published)
+        self.assertEqual(len(self.messages), 1)
+        self.assertEqual(self.messages[0].text, "Hello")
+        self.assertEqual(self.messages[0].metadata["display_style"], "assistant_delta")
+        self.assertEqual(self.messages[0].metadata["turn_index"], 2)
 
     async def test_append_orchestration_step_event_updates_state_and_publishes(self) -> None:
         state = {"sid": "session-append", "turn_index": 3, "orchestration_events": []}

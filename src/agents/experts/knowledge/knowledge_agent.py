@@ -88,6 +88,9 @@ class KnowledgeAgent(BaseAgent):
         
         text_list = []
         async for event in self.llm.run_async(ctx):
+            if event.partial:
+                yield event
+                continue
             if event.is_final_response() and event.content and event.content.parts:
                 generated_text = next((part.text for part in event.content.parts if part.text), None)
                 if not generated_text:

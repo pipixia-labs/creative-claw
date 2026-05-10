@@ -148,6 +148,40 @@ async def _publish_step_event(
         await maybe_awaitable
 
 
+async def publish_assistant_delta(
+    *,
+    session_id: str,
+    delta: str,
+    turn_index: int | None = None,
+) -> bool:
+    """Publish one realtime Web assistant text delta through the configured publisher."""
+    publisher = _STEP_EVENT_PUBLISHER
+    channel, chat_id = get_route()
+    normalized_delta = str(delta or "")
+    if publisher is None or channel != "web" or not chat_id or not normalized_delta:
+        return False
+
+    metadata: dict[str, Any] = {
+        "session_id": session_id,
+        "display_style": "assistant_delta",
+    }
+    normalized_turn = _normalize_turn_index(turn_index)
+    if normalized_turn is not None:
+        metadata["turn_index"] = normalized_turn
+
+    maybe_awaitable = publisher(
+        OutboundMessage(
+            channel=channel,
+            chat_id=chat_id,
+            text=normalized_delta,
+            metadata=metadata,
+        )
+    )
+    if inspect.isawaitable(maybe_awaitable):
+        await maybe_awaitable
+    return True
+
+
 def reset_step_event_history(*, session_id: str, turn_index: int | None = None) -> None:
     """Reset the in-memory realtime history for the current routed turn."""
     channel, chat_id = get_route()

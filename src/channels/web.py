@@ -597,12 +597,15 @@ class WebChannel(BaseChannel):
         payload_type = "assistant_message"
         if metadata.get("display_style") == "progress":
             payload_type = "progress"
+        elif metadata.get("display_style") == "assistant_delta":
+            payload_type = "assistant_delta"
         elif str(message.text or "").startswith("Error:"):
             payload_type = "error"
 
         payload = {
             "type": payload_type,
             "content": message.text,
+            "delta": message.text if payload_type == "assistant_delta" else "",
             "format": "markdown",
             "artifacts": self._build_artifacts(message.artifact_paths),
             "metadata": metadata,

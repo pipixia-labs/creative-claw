@@ -243,6 +243,24 @@ class WebChannelTests(unittest.IsolatedAsyncioTestCase):
             self.assertEqual(final_message["content"], form_message)
             self.assertTrue(final_message["streamComplete"])
 
+    async def test_web_channel_forwards_realtime_assistant_delta(self) -> None:
+        async with websockets.connect(f"ws://127.0.0.1:{self.channel._port}/ws?session_id=delta-session") as websocket:
+            ready = json.loads(await asyncio.wait_for(websocket.recv(), timeout=2))
+            self.assertEqual(ready["type"], "ready")
+
+            await self.channel.send(
+                OutboundMessage(
+                    channel="web",
+                    chat_id="delta-session",
+                    text="Hel",
+                    metadata={"display_style": "assistant_delta", "session_id": "runtime-session"},
+                )
+            )
+            delta = await self._recv_until(websocket, "assistant_delta")
+            self.assertEqual(delta["delta"], "Hel")
+            self.assertEqual(delta["content"], "Hel")
+            self.assertEqual(delta["metadata"]["session_id"], "runtime-session")
+
     async def test_web_channel_accepts_chunked_file_uploads(self) -> None:
         upload_id = f"upload-{uuid.uuid4().hex[:8]}"
         body = b"hello uploaded file"

@@ -4,15 +4,19 @@ from types import SimpleNamespace
 from unittest.mock import patch
 
 from google.adk.agents import BaseAgent
+from google.adk.agents.run_config import StreamingMode
 from google.adk.artifacts import InMemoryArtifactService
 from google.adk.events import Event, EventActions
 from google.adk.sessions.state import State
+from google.genai.types import Content, Part
 
+from src.runtime.step_events import configure_step_event_publisher
 from src.runtime.expert_registry import build_expert_contract_summary
 from src.runtime.expert_dispatcher import (
     dispatch_expert_call,
     normalize_invoke_agent_parameters,
 )
+from src.runtime.tool_context import route_context
 
 
 class _FakeExpertAgent(BaseAgent):
@@ -57,6 +61,37 @@ class _ParentStateInspectingExpertAgent(BaseAgent):
                     "current_output": {
                         "status": "success",
                         "message": message,
+                    }
+                }
+            ),
+        )
+
+
+class _StreamingTextExpertAgent(BaseAgent):
+    def __init__(self, name: str) -> None:
+        super().__init__(name=name, description="streaming text expert")
+        object.__setattr__(self, "streaming_mode", None)
+
+    async def _run_async_impl(self, ctx):
+        object.__setattr__(self, "streaming_mode", ctx.run_config.streaming_mode)
+        yield Event(
+            author=self.name,
+            partial=True,
+            content=Content(role="model", parts=[Part(text="streamed ")]),
+        )
+        yield Event(
+            author=self.name,
+            partial=True,
+            content=Content(role="model", parts=[Part(text="expert text")]),
+        )
+        yield Event(
+            author=self.name,
+            actions=EventActions(
+                state_delta={
+                    "current_output": {
+                        "status": "success",
+                        "message": "expert finished",
+                        "output_text": "streamed expert text",
                     }
                 }
             ),
@@ -317,6 +352,51 @@ class ExpertDispatcherTests(unittest.IsolatedAsyncioTestCase):
             parent_state["current_output"]["message"],
             "child saw filtered state",
         )
+
+    async def test_dispatch_expert_call_relays_allowlisted_expert_partials_to_web(self) -> None:
+        artifact_service = InMemoryArtifactService()
+        parent_state = State(
+            {
+                "sid": "parent-session",
+                "turn_index": 7,
+                "files_history": [],
+                "summary_history": [],
+                "text_history": [],
+                "message_history": [],
+                "expert_history": [],
+            },
+            {},
+        )
+        tool_context = SimpleNamespace(
+            state=parent_state,
+            _invocation_context=SimpleNamespace(user_id="user-1"),
+        )
+        expert = _StreamingTextExpertAgent(name="KnowledgeAgent")
+        published = []
+
+        async def _publisher(message):
+            published.append(message)
+
+        configure_step_event_publisher(_publisher)
+        try:
+            with route_context("web", "chat-1"):
+                result = await dispatch_expert_call(
+                    agent_name="KnowledgeAgent",
+                    prompt='{"prompt":"analyze the request"}',
+                    tool_context=tool_context,
+                    expert_agents={"KnowledgeAgent": expert},
+                    app_name="creative-claw-test",
+                    artifact_service=artifact_service,
+                )
+        finally:
+            configure_step_event_publisher(None)
+
+        self.assertTrue(result.assistant_text_streamed)
+        self.assertIs(expert.streaming_mode, StreamingMode.SSE)
+        self.assertEqual([message.text for message in published], ["streamed ", "expert text"])
+        self.assertEqual(published[0].metadata["display_style"], "assistant_delta")
+        self.assertEqual(published[0].metadata["session_id"], "parent-session")
+        self.assertEqual(published[0].metadata["turn_index"], 7)
 
 
 if __name__ == "__main__":

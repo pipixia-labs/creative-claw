@@ -36,6 +36,7 @@ const HTML_PREVIEW_MIN_ZOOM = 0.1;
 const HTML_PREVIEW_MAX_ZOOM = 4;
 const HTML_PREVIEW_ZOOM_STEP = 0.1;
 const HTML_PREVIEW_MAX_STAGE_SIZE = 40000;
+const QUESTION_FORM_REVEAL_STEP_MS = 85;
 
 let sessionId = ensureSessionId();
 let socket = null;
@@ -443,7 +444,9 @@ function handleEvent(payload) {
     if (finalizeAssistantStream(payload)) {
       return;
     }
-    addMessageCard("assistant", "CreativeClaw", payload.content || "", payload.artifacts || []);
+    addMessageCard("assistant", "CreativeClaw", payload.content || "", payload.artifacts || [], true, {
+      revealQuestionForms: isQuestionFormStreamContent(payload.content || ""),
+    });
     appendHistory({
       type: "assistant",
       role: "CreativeClaw",
@@ -654,13 +657,13 @@ function removeEmptyState() {
   }
 }
 
-function addMessageCard(type, role, content, artifacts = [], scroll = true) {
+function addMessageCard(type, role, content, artifacts = [], scroll = true, options = {}) {
   removeEmptyState();
   const fragment = messageTemplate.content.cloneNode(true);
   const root = fragment.querySelector(".message-card");
   root.classList.add(type);
   fragment.querySelector(".message-role").textContent = role;
-  renderMessageContent(fragment.querySelector(".message-body"), content || "");
+  renderMessageContent(fragment.querySelector(".message-body"), content || "", options);
   const artifactGrid = fragment.querySelector(".artifact-grid");
   renderArtifacts(artifactGrid, artifacts);
   timeline.appendChild(fragment);
@@ -703,7 +706,9 @@ function finalizeAssistantStream(payload) {
   }
   const content = String(payload.content || activeAssistantStream.content || "");
   const artifacts = payload.artifacts || [];
-  updateMessageCard(activeAssistantStream.card, content, artifacts);
+  updateMessageCard(activeAssistantStream.card, content, artifacts, {
+    revealQuestionForms: isQuestionFormStreamContent(content),
+  });
   previewArtifactSet(artifacts);
   appendHistory({
     type: "assistant",
@@ -716,11 +721,11 @@ function finalizeAssistantStream(payload) {
   return true;
 }
 
-function updateMessageCard(card, content, artifacts = []) {
+function updateMessageCard(card, content, artifacts = [], options = {}) {
   if (!card) {
     return;
   }
-  renderMessageContent(card.querySelector(".message-body"), content || "");
+  renderMessageContent(card.querySelector(".message-body"), content || "", options);
   renderArtifacts(card.querySelector(".artifact-grid"), artifacts);
 }
 
@@ -737,7 +742,7 @@ function pendingQuestionFormStreamText(content) {
   return `正在准备需求确认表单${".".repeat(step + 1)}`;
 }
 
-function renderMessageContent(container, content) {
+function renderMessageContent(container, content, options = {}) {
   container.innerHTML = "";
   const blocks = splitQuestionFormBlocks(content);
   for (const block of blocks) {
@@ -759,7 +764,11 @@ function renderMessageContent(container, content) {
       container.appendChild(pre);
       continue;
     }
-    container.appendChild(renderQuestionForm(form));
+    container.appendChild(
+      renderQuestionForm(form, {
+        reveal: Boolean(options.revealQuestionForms),
+      })
+    );
   }
 }
 
@@ -850,7 +859,7 @@ function stripMarkdownFence(value) {
   return text;
 }
 
-function renderQuestionForm(form) {
+function renderQuestionForm(form, options = {}) {
   const root = document.createElement("form");
   root.className = "cc-question-form";
   root.dataset.formId = form.id;
@@ -893,7 +902,41 @@ function renderQuestionForm(form) {
     }
     submitQuestionForm(root, form, result.answers);
   });
+  if (options.reveal) {
+    revealQuestionForm(root);
+  }
   return root;
+}
+
+function revealQuestionForm(root) {
+  const items = Array.from(root.children).filter((item) =>
+    item.matches(".cc-question-form-head, .cc-question-field, .cc-question-form-footer")
+  );
+  if (!items.length) {
+    return;
+  }
+  root.classList.add("cc-question-form-revealing");
+  items.forEach((item) => {
+    item.classList.add("cc-question-form-reveal-item");
+    item.hidden = true;
+  });
+  items.forEach((item, index) => {
+    window.setTimeout(() => {
+      if (!document.contains(item)) {
+        return;
+      }
+      item.hidden = false;
+      window.requestAnimationFrame(() => {
+        item.classList.add("visible");
+      });
+    }, index * QUESTION_FORM_REVEAL_STEP_MS);
+  });
+  window.setTimeout(() => {
+    if (!document.contains(root)) {
+      return;
+    }
+    root.classList.remove("cc-question-form-revealing");
+  }, items.length * QUESTION_FORM_REVEAL_STEP_MS + 180);
 }
 
 function renderQuestionField(form, question) {

@@ -509,6 +509,7 @@ class RuntimeSessionTests(unittest.IsolatedAsyncioTestCase):
                     "final_summary": "Design request routed through Orchestrator.",
                     "final_response": "Design request routed through Orchestrator.",
                     "last_output_message": "",
+                    "assistant_text_streamed": True,
                     "new_orchestration_events": [],
                 }
 
@@ -519,6 +520,7 @@ class RuntimeSessionTests(unittest.IsolatedAsyncioTestCase):
         self.assertEqual(events[0].event_type, "status")
         self.assertEqual(events[-1].event_type, "final")
         self.assertEqual(events[-1].text, "Design request routed through Orchestrator.")
+        self.assertTrue(events[-1].metadata["disable_stream"])
 
         session_id = events[-1].metadata["session_id"]
         session = await runtime.session_service.get_session(

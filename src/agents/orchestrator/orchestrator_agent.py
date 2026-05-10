@@ -8,7 +8,7 @@ from typing import Any, Iterator, Optional
 
 from google.adk.agents import BaseAgent, LlmAgent
 from google.adk.agents.callback_context import CallbackContext
-from google.adk.agents.run_config import RunConfig
+from google.adk.agents.run_config import RunConfig, StreamingMode
 from google.adk.apps import App
 from google.adk.artifacts import InMemoryArtifactService
 from google.adk.events import Event, EventActions
@@ -29,6 +29,7 @@ from src.agents.orchestrator.final_response import (
 from src.logger import logger
 from src.productions.design.design_product_manager import DesignProductManager
 from src.productions.design.design_product_manager.brief_form import (
+    DESIGN_BRIEF_FORM_ANSWERS_STATE_KEY,
     DESIGN_BRIEF_FORM_PENDING_TASK_STATE_KEY,
 )
 from src.productions.ppt.ppt_product_manager import PptProductManager
@@ -37,6 +38,7 @@ from src.runtime.expert_registry import build_expert_contract_summary
 from src.runtime.step_events import (
     CreativeClawStepEventPlugin,
     append_orchestration_step_event,
+    publish_assistant_delta,
     step_event_streaming_active,
 )
 from src.runtime.cancellation import get_cancellation_manager
@@ -501,6 +503,112 @@ def _format_question_form_reply(result: Any) -> str:
     return message
 
 
+class _ReplyTextStreamExtractor:
+    """Extract safe `reply_text` deltas from a streamed structured response."""
+
+    def __init__(self) -> None:
+        self._raw_text = ""
+        self._published_text = ""
+        self._plain_text_mode = False
+
+    def append(self, text: str) -> str:
+        """Append one partial model text chunk and return newly safe user-visible text."""
+        chunk = str(text or "")
+        if not chunk:
+            return ""
+        self._raw_text += chunk
+
+        if self._plain_text_mode:
+            self._published_text += chunk
+            return chunk
+
+        stripped = self._raw_text.lstrip()
+        if stripped and not stripped.startswith("{") and '"reply_text"' not in stripped:
+            self._plain_text_mode = True
+            self._published_text += self._raw_text
+            return self._raw_text
+
+        reply_prefix = _extract_reply_text_prefix(self._raw_text)
+        if not reply_prefix.startswith(self._published_text):
+            return ""
+        delta = reply_prefix[len(self._published_text) :]
+        if delta:
+            self._published_text = reply_prefix
+        return delta
+
+
+def _extract_reply_text_prefix(text: str) -> str:
+    """Return the currently available `reply_text` string prefix from JSON text."""
+    key_index = text.find('"reply_text"')
+    if key_index < 0:
+        return ""
+    colon_index = text.find(":", key_index + len('"reply_text"'))
+    if colon_index < 0:
+        return ""
+    cursor = colon_index + 1
+    while cursor < len(text) and text[cursor].isspace():
+        cursor += 1
+    if cursor >= len(text) or text[cursor] != '"':
+        return ""
+    return _decode_json_string_prefix(text, cursor + 1)
+
+
+def _decode_json_string_prefix(text: str, start: int) -> str:
+    """Decode the available prefix of one JSON string without requiring closing JSON."""
+    chars: list[str] = []
+    cursor = start
+    while cursor < len(text):
+        char = text[cursor]
+        if char == '"':
+            return "".join(chars)
+        if char != "\\":
+            chars.append(char)
+            cursor += 1
+            continue
+
+        cursor += 1
+        if cursor >= len(text):
+            break
+        escaped = text[cursor]
+        if escaped in {'"', "\\", "/"}:
+            chars.append(escaped)
+        elif escaped == "b":
+            chars.append("\b")
+        elif escaped == "f":
+            chars.append("\f")
+        elif escaped == "n":
+            chars.append("\n")
+        elif escaped == "r":
+            chars.append("\r")
+        elif escaped == "t":
+            chars.append("\t")
+        elif escaped == "u":
+            hex_digits = text[cursor + 1 : cursor + 5]
+            if len(hex_digits) < 4 or any(digit not in "0123456789abcdefABCDEF" for digit in hex_digits):
+                break
+            chars.append(chr(int(hex_digits, 16)))
+            cursor += 4
+        cursor += 1
+    return "".join(chars)
+
+
+def _should_stream_design_brief_form_placeholder(
+    *,
+    tool_name: str,
+    state: Any,
+) -> bool:
+    """Return whether a design tool call should immediately show a form placeholder."""
+    if tool_name != "run_design_product":
+        return False
+    if str(state.get("channel", "") or "").strip().lower() != "web":
+        return False
+    if state.get(DESIGN_BRIEF_FORM_ANSWERS_STATE_KEY):
+        return False
+    if state.get(DESIGN_BRIEF_FORM_PENDING_TASK_STATE_KEY):
+        return False
+    return True
+
+
 class Orchestrator:
     """Plan one workflow step at a time with skills and builtin tools."""
 
@@ -520,6 +628,7 @@ class Orchestrator:
         self.save_dir = save_dir
         self.uid = ""
         self.sid = ""
+        self._last_run_streamed_reply_text = False
         self.skill_registry = get_skill_registry()
         self.toolbox = BuiltinToolbox()
         self.ppt_product_manager = PptProductManager()
@@ -1047,6 +1156,17 @@ Expert parameter contracts:
         should_record_manually = (not step_event_streaming_active()) or tool_name not in _PLUGIN_MANAGED_TOOL_NAMES
         if should_record_manually:
             self._record_tool_started(tool_context.state, tool_name=tool_name, args=args, stage=stage)
+        if session_id and _should_stream_design_brief_form_placeholder(
+            tool_name=tool_name,
+            state=tool_context.state,
+        ):
+            published = await publish_assistant_delta(
+                session_id=session_id,
+                turn_index=int(tool_context.state.get("turn_index", 0) or 0),
+                delta="正在准备需求确认表单...",
+            )
+            if published:
+                self._last_run_streamed_reply_text = True
         result = await runner()
         if session_id:
             get_cancellation_manager().raise_if_cancelled(session_id)
@@ -1664,6 +1784,8 @@ Expert parameter contracts:
                 artifact_service=self.artifact_service,
             ),
         )
+        if invocation.assistant_text_streamed:
+            self._last_run_streamed_reply_text = True
         return invocation.tool_result
 
     async def run_agent_and_log_events(
@@ -1674,11 +1796,22 @@ Expert parameter contracts:
     ) -> str:
         """Run one orchestrator turn and collect the final text response."""
         final_response_text = ""
+        self._last_run_streamed_reply_text = False
+        current_session = await self.session_service.get_session(
+            app_name=self.app_name,
+            user_id=user_id,
+            session_id=session_id,
+        )
+        turn_index = int((current_session.state if current_session else {}).get("turn_index", 0) or 0)
+        reply_stream = _ReplyTextStreamExtractor()
         async for event in self.runner.run_async(
             user_id=user_id,
             session_id=session_id,
             new_message=new_message,
-            run_config=RunConfig(max_llm_calls=SYS_CONFIG.max_iterations_orchestrator),
+            run_config=RunConfig(
+                max_llm_calls=SYS_CONFIG.max_iterations_orchestrator,
+                streaming_mode=StreamingMode.SSE,
+            ),
         ):
             logger.debug(
                 "uid: {}, sid: {}, Event: {}",
@@ -1686,6 +1819,17 @@ Expert parameter contracts:
                 session_id,
                 event.model_dump_json(indent=2, exclude_none=True),
             )
+            if getattr(event, "partial", False) and event.content and event.content.parts:
+                text_delta = "".join(part.text or "" for part in event.content.parts if part.text)
+                safe_delta = reply_stream.append(text_delta)
+                if safe_delta:
+                    published = await publish_assistant_delta(
+                        session_id=session_id,
+                        turn_index=turn_index,
+                        delta=safe_delta,
+                    )
+                    if published:
+                        self._last_run_streamed_reply_text = True
             confirmation_result = _extract_confirmation_tool_result(event)
             if confirmation_result is not None:
                 final_reply = _format_confirmation_reply(confirmation_result)
@@ -1831,5 +1975,6 @@ Expert parameter contracts:
             "final_response": normalized_response,
             "final_file_paths": normalized_final_paths,
             "last_output_message": normalized_response,
+            "assistant_text_streamed": self._last_run_streamed_reply_text,
             "new_orchestration_events": orchestration_events[previous_event_count:],
         }

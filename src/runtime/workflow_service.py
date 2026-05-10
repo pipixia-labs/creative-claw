@@ -336,6 +336,8 @@ class CreativeClawRuntime:
                 final_response or final_summary,
                 turn_index=current_turn,
             )
+            if step_result.get("assistant_text_streamed"):
+                final_event.metadata["disable_stream"] = True
             yield final_event
         except TaskCancelledError:
             raise
