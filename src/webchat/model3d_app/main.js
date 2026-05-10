@@ -1,8 +1,10 @@
 import * as THREE from "three";
 import { OrbitControls } from "three/examples/jsm/controls/OrbitControls.js";
 import { GLTFLoader } from "three/examples/jsm/loaders/GLTFLoader.js";
+import { OBJLoader } from "three/examples/jsm/loaders/OBJLoader.js";
+import { STLLoader } from "three/examples/jsm/loaders/STLLoader.js";
 
-const SUPPORTED_EXTENSIONS = [".glb", ".gltf"];
+const SUPPORTED_EXTENSIONS = [".glb", ".gltf", ".obj", ".stl"];
 
 function mount(element, options = {}) {
   const viewer = new CreativeClawModelViewer(element, options);
@@ -41,7 +43,9 @@ class CreativeClawModelViewer {
     this.controls.dampingFactor = 0.08;
     this.controls.screenSpacePanning = true;
 
-    this.loader = new GLTFLoader();
+    this.gltfLoader = new GLTFLoader();
+    this.objLoader = new OBJLoader();
+    this.stlLoader = new STLLoader();
     this.status = document.createElement("div");
     this.status.className = "model3d-status";
     this.status.textContent = "Loading model...";
@@ -84,8 +88,26 @@ class CreativeClawModelViewer {
       this.showError("No model source was provided.");
       return;
     }
+    const extension = extensionFromSource(src) || extensionFromSource(this.name);
+    if (!SUPPORTED_EXTENSIONS.includes(extension)) {
+      this.showError("Inline preview is not available for this 3D format.");
+      return;
+    }
     this.showStatus("Loading model...");
-    this.loader.load(
+
+    if (extension === ".obj") {
+      this.loadObj(src);
+      return;
+    }
+    if (extension === ".stl") {
+      this.loadStl(src);
+      return;
+    }
+    this.loadGltf(src);
+  }
+
+  loadGltf(src) {
+    this.gltfLoader.load(
       src,
       (gltf) => {
         if (this.disposed) {
@@ -95,18 +117,62 @@ class CreativeClawModelViewer {
         this.setModel(gltf.scene);
         this.showStatus("");
       },
-      (event) => {
-        if (!event.total) {
-          return;
-        }
-        const percent = Math.round((event.loaded / event.total) * 100);
-        this.showStatus(`Loading model... ${percent}%`);
-      },
+      (event) => this.updateLoadingProgress(event),
       (error) => {
         console.warn(error);
         this.showError("Could not load this 3D model.");
       }
     );
+  }
+
+  loadObj(src) {
+    this.objLoader.load(
+      src,
+      (object) => {
+        if (this.disposed) {
+          disposeObject(object);
+          return;
+        }
+        applyFallbackMaterial(object);
+        this.setModel(object);
+        this.showStatus("");
+      },
+      (event) => this.updateLoadingProgress(event),
+      (error) => {
+        console.warn(error);
+        this.showError("Could not load this OBJ model.");
+      }
+    );
+  }
+
+  loadStl(src) {
+    this.stlLoader.load(
+      src,
+      (geometry) => {
+        if (this.disposed) {
+          geometry.dispose();
+          return;
+        }
+        geometry.computeVertexNormals();
+        const mesh = new THREE.Mesh(geometry, createFallbackMaterial());
+        mesh.name = this.name;
+        this.setModel(mesh);
+        this.showStatus("");
+      },
+      (event) => this.updateLoadingProgress(event),
+      (error) => {
+        console.warn(error);
+        this.showError("Could not load this STL model.");
+      }
+    );
+  }
+
+  updateLoadingProgress(event) {
+    if (!event.total) {
+      return;
+    }
+    const percent = Math.round((event.loaded / event.total) * 100);
+    this.showStatus(`Loading model... ${percent}%`);
   }
 
   setModel(model) {
@@ -224,8 +290,31 @@ function disposeObject(object) {
   });
 }
 
+function applyFallbackMaterial(object) {
+  object.traverse((child) => {
+    if (!child.isMesh || child.material) {
+      return;
+    }
+    child.material = createFallbackMaterial();
+  });
+}
+
+function createFallbackMaterial() {
+  return new THREE.MeshStandardMaterial({
+    color: 0xd8ded6,
+    roughness: 0.82,
+    metalness: 0.05,
+    side: THREE.DoubleSide,
+  });
+}
+
+function extensionFromSource(source) {
+  const cleaned = String(source || "").split("?")[0].split("#")[0].toLowerCase();
+  const dotIndex = cleaned.lastIndexOf(".");
+  return dotIndex >= 0 ? cleaned.slice(dotIndex) : "";
+}
+
 window.CreativeClaw3D = {
   mount,
   supportedExtensions: SUPPORTED_EXTENSIONS,
 };
-
