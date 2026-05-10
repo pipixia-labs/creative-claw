@@ -46,6 +46,7 @@ PPTX_PREVIEW_ERROR_TITLE = "PPTX preview unavailable"
 PDF_PREVIEW_ERROR_TITLE = "PDF preview unavailable"
 UPLOAD_SIZE_LIMIT = 100 * 1024 * 1024
 UPLOAD_ROOT = Path(tempfile.gettempdir()) / "creative-claw-web-uploads"
+ASSISTANT_STREAM_CHUNK_SIZE = 96
 
 
 @dataclass(slots=True)
@@ -84,6 +85,25 @@ def _guess_content_type(filename: str) -> str:
     """Guess one response content type from a file name."""
     guessed, _ = mimetypes.guess_type(filename)
     return guessed or "application/octet-stream"
+
+
+def _should_stream_assistant_payload(payload: dict[str, Any]) -> bool:
+    """Return whether one browser payload should be sent as assistant text deltas."""
+    if payload.get("type") != "assistant_message":
+        return False
+    text = str(payload.get("content") or "")
+    if not text.strip():
+        return False
+    if payload.get("metadata", {}).get("disable_stream"):
+        return False
+    return True
+
+
+def _chunk_text(text: str, size: int) -> list[str]:
+    """Split text into stable non-empty chunks for browser streaming."""
+    chunk_size = max(1, int(size or ASSISTANT_STREAM_CHUNK_SIZE))
+    value = str(text or "")
+    return [value[index : index + chunk_size] for index in range(0, len(value), chunk_size)]
 
 
 def _normalize_static_path(raw_path: str) -> str:
@@ -531,7 +551,11 @@ class WebChannel(BaseChannel):
 
     async def send(self, message: OutboundMessage) -> None:
         """Send one outbound message to browser clients."""
-        await self._broadcast(message.chat_id, self._build_event(message))
+        payload = self._build_event(message)
+        if _should_stream_assistant_payload(payload):
+            await self._stream_assistant_message(message.chat_id, payload)
+            return
+        await self._broadcast(message.chat_id, payload)
 
     async def _run_server(self) -> None:
         """Run the combined HTTP and WebSocket server."""
@@ -576,6 +600,29 @@ class WebChannel(BaseChannel):
                 active.runtime_session_id = runtime_session_id
             payload["runId"] = active.run_id
         return payload
+
+    async def _stream_assistant_message(self, session_id: str, payload: dict[str, Any]) -> None:
+        """Broadcast one assistant message as text deltas followed by the final payload."""
+        text = str(payload.get("content") or "")
+        stream_base = {
+            "format": payload.get("format", "markdown"),
+            "metadata": dict(payload.get("metadata") or {}),
+        }
+        if payload.get("runId"):
+            stream_base["runId"] = payload["runId"]
+        for chunk in _chunk_text(text, ASSISTANT_STREAM_CHUNK_SIZE):
+            await self._broadcast(
+                session_id,
+                {
+                    **stream_base,
+                    "type": "assistant_delta",
+                    "delta": chunk,
+                },
+            )
+            await asyncio.sleep(0)
+        final_payload = dict(payload)
+        final_payload["streamComplete"] = True
+        await self._broadcast(session_id, final_payload)
 
     def _build_artifacts(self, artifact_paths: list[str]) -> list[dict[str, Any]]:
         """Build browser-facing artifact metadata for one outbound message."""

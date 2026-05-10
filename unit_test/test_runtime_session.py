@@ -444,6 +444,41 @@ class RuntimeSessionTests(unittest.IsolatedAsyncioTestCase):
         self.assertEqual(events[-1].text, "The image is ready.")
         self.assertNotIn("Image generation is complete.", events[-1].text)
 
+    async def test_run_message_reports_submitted_design_form_progress(self) -> None:
+        runtime = CreativeClawRuntime()
+        inbound = InboundMessage(
+            channel="web",
+            sender_id="web-user",
+            chat_id="web-chat",
+            text=(
+                '[cc-form-answers id="design-brief" version="design-brief-form-v1"]\n'
+                '{"visual_direction":"decide_for_me"}\n'
+                "[/cc-form-answers]"
+            ),
+        )
+
+        class _FakeOrchestrator:
+            def __init__(self, **_kwargs) -> None:
+                self.uid = ""
+                self.sid = ""
+
+            async def run_until_done(self) -> dict:
+                return {
+                    "workflow_status": "finished",
+                    "final_summary": "Done.",
+                    "final_response": "Done.",
+                    "last_output_message": "Done.",
+                    "new_orchestration_events": [],
+                }
+
+        with patch("src.runtime.workflow_service.Orchestrator", _FakeOrchestrator):
+            events = [event async for event in runtime.run_message(inbound)]
+
+        progress_events = [event for event in events if event.event_type == "status"]
+        self.assertEqual(progress_events[1].text, "已收到需求确认表单，正在继续生成设计方案。")
+        self.assertEqual(progress_events[1].metadata["stage"], "design_planning")
+        self.assertEqual(progress_events[1].metadata["stage_title"], "Preparing Design Brief")
+
     async def test_run_message_with_design_metadata_uses_orchestrator(self) -> None:
         runtime = CreativeClawRuntime()
         inbound = InboundMessage(

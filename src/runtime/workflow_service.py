@@ -127,6 +127,12 @@ def _format_exception_summary(exc: Exception) -> str:
     return type(exc).__name__
 
 
+def _contains_form_answers(text: str) -> bool:
+    """Return whether the inbound text contains a submitted Web question form."""
+    normalized = str(text or "").lower()
+    return "[cc-form-answers" in normalized and "[/cc-form-answers]" in normalized
+
+
 def _build_progress_event(
     text: str,
     *,
@@ -252,6 +258,13 @@ class CreativeClawRuntime:
                     f"Received attachment: {attachment.name}",
                     session_id=session_id,
                     stage="attachment_received",
+                    turn_index=current_turn,
+                )
+            if _contains_form_answers(inbound.text):
+                yield _build_progress_event(
+                    "已收到需求确认表单，正在继续生成设计方案。",
+                    session_id=session_id,
+                    stage="design_planning",
                     turn_index=current_turn,
                 )
 
