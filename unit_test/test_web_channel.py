@@ -55,7 +55,7 @@ class WebChannelTests(unittest.IsolatedAsyncioTestCase):
         self.assertIn('data-preview-tab="tldraw"', body)
         self.assertIn('data-preview-tab="html"', body)
         self.assertIn('data-preview-tab="ppt"', body)
-        self.assertIn("Image / Video", body)
+        self.assertIn("Visual Board", body)
         self.assertIn("Design", body)
         self.assertIn("No Design preview", body)
         self.assertNotIn("No HTML preview", body)
@@ -90,6 +90,29 @@ class WebChannelTests(unittest.IsolatedAsyncioTestCase):
         finally:
             with contextlib.suppress(FileNotFoundError):
                 generated_file.unlink()
+
+    async def test_web_channel_serves_design_system_catalog_and_preview(self) -> None:
+        def fetch_json(path: str):
+            with urlopen(f"{self.channel.url}{path}") as response:  # noqa: S310 - local test server
+                return response.status, response.headers.get("Content-Type", ""), json.loads(
+                    response.read().decode("utf-8")
+                )
+
+        def fetch_html(path: str):
+            with urlopen(f"{self.channel.url}{path}") as response:  # noqa: S310 - local test server
+                return response.status, response.headers.get("Content-Type", ""), response.read().decode("utf-8")
+
+        status, content_type, payload = await asyncio.to_thread(fetch_json, "/api/design-systems")
+        self.assertEqual(status, 200)
+        self.assertIn("application/json", content_type)
+        systems = {item["id"]: item for item in payload["designSystems"]}
+        self.assertIn("claude", systems)
+        self.assertIn("/api/design-systems/claude/preview", systems["claude"]["previewUrl"])
+
+        status, content_type, body = await asyncio.to_thread(fetch_html, "/api/design-systems/claude/showcase")
+        self.assertEqual(status, 200)
+        self.assertIn("text/html", content_type)
+        self.assertIn("Claude Design System Preview", body)
 
     async def test_web_channel_bridges_websocket_messages_and_artifacts(self) -> None:
         generated_file = generated_root() / f"web_channel_{uuid.uuid4().hex[:8]}.png"

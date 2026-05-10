@@ -1,106 +1,280 @@
 ---
 version: alpha
 name: "Vodafone"
-description: "Vodafone's corporate web system carries the confident, broadcast-scale presence of a global telecom brand — built around a single, fiercely-owned brand red and a restrained, editorial layout that lets imagery and type carry the emotional weight. Every page opens the same way: a cinematic dark hero image behind a towering, tight-tracked uppercase display headline (\"EVERYONE. CONNECTED.\", \"INVESTORS\", \"OUR BUSINESS\") followed by a deep red full-width band that acts as a chapter break, then a crisp white editorial grid or a near-black section reserved for institutional content (share ticker, global map, ESG data). The voice is institutional but human: warm documentary photography — cable-laying crews, coral reefs, pine forests, urban twilight — photographed with color-graded realism and set against clean neutral surfaces that never compete with the content."
+description: >-
+  Vodafone's corporate web system is built around Vodafone Red, monumental
+  uppercase display type, white editorial grids, and charcoal institutional
+  panels for footer, investor, and sustainability data surfaces.
 
 colors:
   primary: "#e60000"
   on-primary: "#ffffff"
   canvas: "#ffffff"
   surface: "#ffffff"
-  ink: "#000000"
-  body: "#4d4d4d"
-  muted: "#666666"
-  hairline: "#ebebeb"
+  ink: "#25282b"
+  body: "#7e7e7e"
+  muted: "#bebebe"
+  hairline: "rgba(255, 255, 255, 0.25)"
   accent: "#25282b"
+  vodafone-red: "#e60000"
+  pure-white: "#ffffff"
+  signal-blue: "#3860be"
+  deep-brand-red: "#ac1811"
+  light-neutral: "#f2f2f2"
+  charcoal-panel: "#25282b"
+  translucent-white-overlay: "rgba(255, 255, 255, 0.1)"
+  charcoal-headline: "#25282b"
+  secondary-body-grey: "#7e7e7e"
+  form-text-grey: "#333333"
+  disabled-grey: "#bebebe"
+  black-5: "rgba(0, 0, 0, 0.05)"
+  white-80: "rgba(255, 255, 255, 0.8)"
+  black-80: "rgba(0, 0, 0, 0.8)"
 
 typography:
   display-hero:
-    fontFamily: "Inter, system-ui, -apple-system, BlinkMacSystemFont, sans-serif"
-    fontSize: 48px
-    fontWeight: 700
-    lineHeight: 1.15
+    fontFamily: 'Vodafone, "Helvetica Neue", Arial, sans-serif'
+    fontSize: 144px
+    fontWeight: 800
+    lineHeight: 0.79
     letterSpacing: -1px
+    textTransform: uppercase
+  display-lg:
+    fontFamily: 'Vodafone, "Helvetica Neue", Arial, sans-serif'
+    fontSize: 126px
+    fontWeight: 800
+    lineHeight: 0.9
+    letterSpacing: -1px
+    textTransform: uppercase
+  display-md:
+    fontFamily: 'Vodafone, "Helvetica Neue", Arial, sans-serif'
+    fontSize: 90px
+    fontWeight: 800
+    lineHeight: 0.93
+    letterSpacing: 0px
+    textTransform: uppercase
+  display-impact:
+    fontFamily: 'Vodafone, "Helvetica Neue", Arial, sans-serif'
+    fontSize: 70px
+    fontWeight: 800
+    lineHeight: 1.17
+    letterSpacing: -1px
+    textTransform: uppercase
   heading-lg:
-    fontFamily: "Inter, system-ui, -apple-system, BlinkMacSystemFont, sans-serif"
+    fontFamily: 'Vodafone, "Helvetica Neue", Arial, sans-serif'
+    fontSize: 48px
+    fontWeight: 300
+    lineHeight: 1.08
+    letterSpacing: 0px
+  heading-lg-bold:
+    fontFamily: 'Vodafone, "Helvetica Neue", Arial, sans-serif'
+    fontSize: 48px
+    fontWeight: 800
+    lineHeight: 1
+    letterSpacing: -1px
+  heading-md:
+    fontFamily: 'Vodafone, "Helvetica Neue", Arial, sans-serif'
+    fontSize: 40px
+    fontWeight: 300
+    lineHeight: 1.1
+    letterSpacing: 0px
+  heading-md-bold:
+    fontFamily: 'Vodafone, "Helvetica Neue", Arial, sans-serif'
+    fontSize: 40px
+    fontWeight: 700
+    lineHeight: 1.1
+    letterSpacing: 0px
+  heading-sm:
+    fontFamily: 'Vodafone, "Helvetica Neue", Arial, sans-serif'
     fontSize: 32px
     fontWeight: 700
     lineHeight: 1.25
-    letterSpacing: -0.5px
+    letterSpacing: 0px
+  card-title:
+    fontFamily: 'Vodafone, "Helvetica Neue", Arial, sans-serif'
+    fontSize: 24px
+    fontWeight: 700
+    lineHeight: 1
+    letterSpacing: 0px
+  intro:
+    fontFamily: 'Vodafone, "Helvetica Neue", Arial, sans-serif'
+    fontSize: 24px
+    fontWeight: 300
+    lineHeight: 1.42
+    letterSpacing: 0px
+  lead-body:
+    fontFamily: 'Vodafone, "Helvetica Neue", Arial, sans-serif'
+    fontSize: 20px
+    fontWeight: 400
+    lineHeight: 1.4
+    letterSpacing: 0px
+  body-lg:
+    fontFamily: 'Vodafone, "Helvetica Neue", Arial, sans-serif'
+    fontSize: 18px
+    fontWeight: 400
+    lineHeight: 1.56
+    letterSpacing: 0px
   body-md:
-    fontFamily: "Inter, system-ui, -apple-system, BlinkMacSystemFont, sans-serif"
+    fontFamily: 'Vodafone, "Helvetica Neue", Arial, sans-serif'
     fontSize: 16px
     fontWeight: 400
+    lineHeight: 1.38
+    letterSpacing: 0px
+  label-uppercase:
+    fontFamily: 'Vodafone, "Helvetica Neue", Arial, sans-serif'
+    fontSize: 16px
+    fontWeight: 800
     lineHeight: 1.5
     letterSpacing: 0px
+    textTransform: uppercase
   button:
-    fontFamily: "Inter, system-ui, -apple-system, BlinkMacSystemFont, sans-serif"
-    fontSize: 14px
-    fontWeight: 600
-    lineHeight: 1.2
-    letterSpacing: 0px
+    fontFamily: 'Vodafone, "Helvetica Neue", Arial, sans-serif'
+    fontSize: 14.4px
+    fontWeight: 700
+    lineHeight: 1
+    letterSpacing: 0.144px
   caption:
-    fontFamily: "Inter, system-ui, -apple-system, BlinkMacSystemFont, sans-serif"
+    fontFamily: 'Vodafone, "Helvetica Neue", Arial, sans-serif'
+    fontSize: 14px
+    fontWeight: 400
+    lineHeight: 1.43
+    letterSpacing: 0px
+  tag:
+    fontFamily: 'Vodafone, "Helvetica Neue", Arial, sans-serif'
+    fontSize: 14px
+    fontWeight: 700
+    lineHeight: 1.5
+    letterSpacing: 0px
+  micro:
+    fontFamily: 'Vodafone, "Helvetica Neue", Arial, sans-serif'
     fontSize: 12px
-    fontWeight: 500
+    fontWeight: 600
     lineHeight: 1.33
     letterSpacing: 0px
+    textTransform: uppercase
 
 rounded:
-  sm: 4px
-  md: 8px
-  lg: 12px
-  pill: 9999px
+  button-tight: 2px
+  card: 6px
+  glass-pill: 24px
+  badge-pill: 32px
+  cta-pill: 60px
+  circle: 9999px
+  portrait: 9999px
 
 spacing:
+  hairline: 1px
+  xxs: 2px
   xs: 4px
   sm: 8px
-  md: 16px
-  lg: 24px
-  xl: 32px
-  section: 80px
+  md: 12px
+  base: 16px
+  lg: 20px
+  xl: 24px
+  xxl: 32px
+  band-push: 38px
+  red-band-mobile: 40px
+  nav-mobile: 56px
+  nav-desktop: 64px
+  section-mobile: 48px
+  section-tablet: 64px
+  red-band: 80px
+  section: 96px
 
 components:
   button-primary:
-    backgroundColor: "{colors.primary}"
+    backgroundColor: "{colors.vodafone-red}"
     textColor: "{colors.on-primary}"
     typography: "{typography.button}"
-    rounded: "{rounded.md}"
+    rounded: "{rounded.button-tight}"
+    padding: 12px 10px
+  button-primary-pill:
+    backgroundColor: "{colors.vodafone-red}"
+    textColor: "{colors.on-primary}"
+    typography: "{typography.button}"
+    rounded: "{rounded.cta-pill}"
     padding: 16px
   button-secondary:
-    backgroundColor: "{colors.canvas}"
-    textColor: "{colors.ink}"
+    backgroundColor: "{colors.pure-white}"
+    textColor: "{colors.form-text-grey}"
     typography: "{typography.button}"
-    rounded: "{rounded.md}"
-    padding: 16px
+    rounded: "{rounded.button-tight}"
+    padding: 12px 10px
+  glass-pill:
+    backgroundColor: "{colors.translucent-white-overlay}"
+    textColor: "{colors.pure-white}"
+    typography: "{typography.button}"
+    rounded: "{rounded.glass-pill}"
+    padding: 8px 16px
+  content-ghost-pill:
+    backgroundColor: "{colors.black-5}"
+    textColor: "{colors.vodafone-red}"
+    typography: "{typography.button}"
+    rounded: "{rounded.cta-pill}"
+    padding: 15px
+  icon-control-button:
+    backgroundColor: "{colors.pure-white}"
+    textColor: "{colors.charcoal-headline}"
+    typography: "{typography.caption}"
+    rounded: "{rounded.circle}"
+    width: 40px
+    height: 40px
   card:
     backgroundColor: "{colors.surface}"
-    textColor: "{colors.ink}"
+    textColor: "{colors.charcoal-headline}"
     typography: "{typography.body-md}"
-    rounded: "{rounded.lg}"
-    padding: 24px
+    rounded: "{rounded.card}"
+    padding: 16px
+  tag-pill-outlined:
+    backgroundColor: "{colors.white-80}"
+    textColor: "{colors.black-80}"
+    typography: "{typography.micro}"
+    rounded: "{rounded.button-tight}"
+    padding: 6px
+  tag-pill-neutral:
+    backgroundColor: "{colors.light-neutral}"
+    textColor: "{colors.charcoal-headline}"
+    typography: "{typography.tag}"
+    rounded: "{rounded.badge-pill}"
+    padding: 4px 12px
+  red-divider-band:
+    backgroundColor: "{colors.vodafone-red}"
+    textColor: "{colors.on-primary}"
+    height: 80px
+  share-ticker-panel:
+    backgroundColor: "{colors.charcoal-panel}"
+    textColor: "{colors.pure-white}"
+    typography: "{typography.heading-lg-bold}"
+    padding: 32px
+  global-impact-map-panel:
+    backgroundColor: "{colors.charcoal-panel}"
+    textColor: "{colors.vodafone-red}"
+    typography: "{typography.display-impact}"
+    padding: 32px
+  footer:
+    backgroundColor: "{colors.charcoal-panel}"
+    textColor: "{colors.pure-white}"
+    typography: "{typography.label-uppercase}"
+    padding: 32px
+  nav-bar:
+    backgroundColor: "{colors.pure-white}"
+    textColor: "{colors.charcoal-headline}"
+    typography: "{typography.body-md}"
+    height: 64px
   text-body:
     backgroundColor: "{colors.canvas}"
-    textColor: "{colors.body}"
+    textColor: "{colors.secondary-body-grey}"
     typography: "{typography.body-md}"
-    rounded: "{rounded.sm}"
-    padding: 8px
   muted-label:
     backgroundColor: "{colors.canvas}"
-    textColor: "{colors.muted}"
+    textColor: "{colors.disabled-grey}"
     typography: "{typography.caption}"
-    rounded: "{rounded.sm}"
-    padding: 4px
   link:
-    backgroundColor: "{colors.canvas}"
-    textColor: "{colors.accent}"
-    typography: "{typography.button}"
-    rounded: "{rounded.sm}"
-    padding: 4px
+    backgroundColor: transparent
+    textColor: "{colors.signal-blue}"
+    typography: "{typography.body-md}"
   divider:
     backgroundColor: "{colors.hairline}"
-    textColor: "{colors.ink}"
-    rounded: "{rounded.sm}"
     height: 1px
 ---
 

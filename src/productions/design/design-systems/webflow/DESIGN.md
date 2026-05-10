@@ -1,106 +1,193 @@
 ---
 version: alpha
 name: "Webflow"
-description: "Webflow's website is a visually rich, tool-forward platform that communicates \"design without code\" through clean white surfaces, the signature Webflow Blue (#146ef5), and a rich secondary color palette (purple, pink, green, orange, yellow, red). The custom WF Visual Sans Variable font creates a confident, precise typographic system with weight 600 for display and 500 for body."
+description: >-
+  Webflow's website uses clean white surfaces, near-black text, Webflow Blue
+  primary CTAs, WF Visual Sans Variable typography, conservative 4px-8px
+  radii, and a rich secondary accent palette.
 
 colors:
   primary: "#146ef5"
   on-primary: "#ffffff"
   canvas: "#ffffff"
   surface: "#ffffff"
-  ink: "#222222"
-  body: "#4d4d4d"
-  muted: "#666666"
-  hairline: "#ebebeb"
-  accent: "#080808"
+  ink: "#080808"
+  body: "#222222"
+  muted: "#ababab"
+  hairline: "#d8d8d8"
+  accent: "#146ef5"
+  near-black: "#080808"
+  webflow-blue: "#146ef5"
+  blue-400: "#3b89ff"
+  blue-300: "#006acc"
+  button-hover-blue: "#0055d4"
+  purple: "#7a3dff"
+  pink: "#ed52cb"
+  green: "#00d722"
+  orange: "#ff6b00"
+  yellow: "#ffae13"
+  red: "#ee1d36"
+  gray-800: "#222222"
+  gray-700: "#363636"
+  gray-300: "#ababab"
+  mid-gray: "#5a5a5a"
+  border-gray: "#d8d8d8"
+  border-hover: "#898989"
+  shadow-1: "rgba(0, 0, 0, 0)"
+  shadow-2: "rgba(0, 0, 0, 0.01)"
+  shadow-3: "rgba(0, 0, 0, 0.04)"
+  shadow-4: "rgba(0, 0, 0, 0.08)"
+  shadow-5: "rgba(0, 0, 0, 0.09)"
+  badge-blue-bg: "rgba(20, 110, 245, 0.1)"
 
 typography:
   display-hero:
-    fontFamily: "Inter, system-ui, -apple-system, BlinkMacSystemFont, sans-serif"
-    fontSize: 48px
-    fontWeight: 700
-    lineHeight: 1.15
-    letterSpacing: -1px
+    fontFamily: "WF Visual Sans Variable, Arial, sans-serif"
+    fontSize: 80px
+    fontWeight: 600
+    lineHeight: 1.04
+    letterSpacing: -0.8px
   heading-lg:
-    fontFamily: "Inter, system-ui, -apple-system, BlinkMacSystemFont, sans-serif"
+    fontFamily: "WF Visual Sans Variable, Arial, sans-serif"
+    fontSize: 56px
+    fontWeight: 600
+    lineHeight: 1.04
+    letterSpacing: 0px
+  heading-md:
+    fontFamily: "WF Visual Sans Variable, Arial, sans-serif"
     fontSize: 32px
-    fontWeight: 700
-    lineHeight: 1.25
-    letterSpacing: -0.5px
-  body-md:
-    fontFamily: "Inter, system-ui, -apple-system, BlinkMacSystemFont, sans-serif"
-    fontSize: 16px
-    fontWeight: 400
+    fontWeight: 500
+    lineHeight: 1.3
+    letterSpacing: 0px
+  feature-title:
+    fontFamily: "WF Visual Sans Variable, Arial, sans-serif"
+    fontSize: 24px
+    fontWeight: 600
+    lineHeight: 1.3
+    letterSpacing: 0px
+  body-lg:
+    fontFamily: "WF Visual Sans Variable, Arial, sans-serif"
+    fontSize: 20px
+    fontWeight: 500
     lineHeight: 1.5
     letterSpacing: 0px
+  body-md:
+    fontFamily: "WF Visual Sans Variable, Arial, sans-serif"
+    fontSize: 16px
+    fontWeight: 500
+    lineHeight: 1.6
+    letterSpacing: -0.16px
   button:
-    fontFamily: "Inter, system-ui, -apple-system, BlinkMacSystemFont, sans-serif"
+    fontFamily: "WF Visual Sans Variable, Arial, sans-serif"
+    fontSize: 16px
+    fontWeight: 500
+    lineHeight: 1.6
+    letterSpacing: -0.16px
+  caption:
+    fontFamily: "WF Visual Sans Variable, Arial, sans-serif"
     fontSize: 14px
-    fontWeight: 600
+    fontWeight: 500
+    lineHeight: 1.6
+    letterSpacing: 0px
+  uppercase-label:
+    fontFamily: "WF Visual Sans Variable, Arial, sans-serif"
+    fontSize: 15px
+    fontWeight: 500
+    lineHeight: 1.3
+    letterSpacing: 1.5px
+    textTransform: uppercase
+  badge-uppercase:
+    fontFamily: "WF Visual Sans Variable, Arial, sans-serif"
+    fontSize: 12.8px
+    fontWeight: 550
     lineHeight: 1.2
     letterSpacing: 0px
-  caption:
-    fontFamily: "Inter, system-ui, -apple-system, BlinkMacSystemFont, sans-serif"
-    fontSize: 12px
-    fontWeight: 500
-    lineHeight: 1.33
+    textTransform: uppercase
+  micro-uppercase:
+    fontFamily: "WF Visual Sans Variable, Arial, sans-serif"
+    fontSize: 10px
+    fontWeight: 600
+    lineHeight: 1.3
+    letterSpacing: 1px
+    textTransform: uppercase
+  code:
+    fontFamily: "Inconsolata, ui-monospace, monospace"
+    fontSize: 16px
+    fontWeight: 400
+    lineHeight: 1.4
     letterSpacing: 0px
 
 rounded:
+  xs: 2px
   sm: 4px
   md: 8px
-  lg: 12px
-  pill: 9999px
+  circle: 9999px
 
 spacing:
+  hairline: 1px
+  xxs: 2.4px
+  xxxs: 3.2px
   xs: 4px
+  xsm: 5.6px
+  compact: 6px
+  label: 7.2px
   sm: 8px
-  md: 16px
-  lg: 24px
-  xl: 32px
-  section: 80px
+  md: 9.6px
+  lg: 12px
+  xl: 16px
+  section-sm: 24px
 
 components:
   button-primary:
-    backgroundColor: "{colors.primary}"
+    backgroundColor: "{colors.webflow-blue}"
     textColor: "{colors.on-primary}"
     typography: "{typography.button}"
-    rounded: "{rounded.md}"
-    padding: 16px
-  button-secondary:
-    backgroundColor: "{colors.canvas}"
-    textColor: "{colors.ink}"
+    rounded: "{rounded.sm}"
+    padding: 8px 16px
+  button-transparent:
+    backgroundColor: transparent
+    textColor: "{colors.near-black}"
     typography: "{typography.button}"
-    rounded: "{rounded.md}"
-    padding: 16px
+    rounded: "{rounded.sm}"
+    padding: 8px 16px
+  button-white-circle:
+    backgroundColor: "{colors.canvas}"
+    textColor: "{colors.near-black}"
+    typography: "{typography.button}"
+    rounded: "{rounded.circle}"
+    padding: 12px
+  blue-badge:
+    backgroundColor: "{colors.webflow-blue}"
+    textColor: "{colors.on-primary}"
+    typography: "{typography.badge-uppercase}"
+    rounded: "{rounded.sm}"
+    padding: 4px 8px
   card:
     backgroundColor: "{colors.surface}"
     textColor: "{colors.ink}"
     typography: "{typography.body-md}"
-    rounded: "{rounded.lg}"
+    rounded: "{rounded.md}"
     padding: 24px
+  badge:
+    backgroundColor: "{colors.badge-blue-bg}"
+    textColor: "{colors.webflow-blue}"
+    typography: "{typography.badge-uppercase}"
+    rounded: "{rounded.sm}"
+    padding: 4px 8px
   text-body:
     backgroundColor: "{colors.canvas}"
-    textColor: "{colors.body}"
+    textColor: "{colors.gray-800}"
     typography: "{typography.body-md}"
-    rounded: "{rounded.sm}"
-    padding: 8px
   muted-label:
     backgroundColor: "{colors.canvas}"
-    textColor: "{colors.muted}"
+    textColor: "{colors.gray-300}"
     typography: "{typography.caption}"
-    rounded: "{rounded.sm}"
-    padding: 4px
   link:
-    backgroundColor: "{colors.canvas}"
-    textColor: "{colors.accent}"
+    backgroundColor: transparent
+    textColor: "{colors.webflow-blue}"
     typography: "{typography.button}"
-    rounded: "{rounded.sm}"
-    padding: 4px
   divider:
     backgroundColor: "{colors.hairline}"
-    textColor: "{colors.ink}"
-    rounded: "{rounded.sm}"
     height: 1px
 ---
 

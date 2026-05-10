@@ -1,174 +1,396 @@
 <!DOCTYPE html>
 <html lang="en">
 <head>
-  <meta charset="UTF-8">
-  <meta name="viewport" content="width=device-width, initial-scale=1.0">
-  <title>xAI Design System Preview</title>
-  <style>
-    :root {
-      --primary: #1f2228;
-      --on-primary: #ffffff;
-      --canvas: #ffffff;
-      --surface: #ffffff;
-      --surface-strong: #f3f3f3;
-      --ink: #000000;
-      --body: #4d4d4d;
-      --muted: #666666;
-      --border: #ebebeb;
-      --display: Inter, system-ui, -apple-system, BlinkMacSystemFont, sans-serif;
-      --text: Inter, system-ui, -apple-system, BlinkMacSystemFont, sans-serif;
-      --mono: ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, monospace;
-    }
-    * { box-sizing: border-box; margin: 0; padding: 0; }
-    html, body { background: var(--canvas); color: var(--ink); font-family: var(--text); font-size: 16px; line-height: 1.5; }
-    body { min-width: 320px; }
-    .nav { position: sticky; top: 0; z-index: 20; display: grid; grid-template-columns: 1fr auto 1fr; align-items: center; gap: 20px; height: 64px; padding: 0 48px; background: color-mix(in srgb, var(--canvas) 92%, transparent); border-bottom: 1px solid var(--border); backdrop-filter: blur(14px); }
-    .brand { font-family: var(--display); font-weight: 700; letter-spacing: -0.02em; color: var(--ink); }
-    .nav-links { list-style: none; display: flex; gap: 24px; justify-content: center; }
-    .nav-links a { color: var(--body); text-decoration: none; font-size: 14px; font-weight: 600; }
-    .nav-cta { justify-self: end; border: 0; background: var(--primary); color: var(--on-primary); border-radius: 8px; padding: 11px 18px; font: 700 13px/1 var(--text); }
-    .hero { max-width: 1440px; margin: 0 auto; padding: 84px 48px 72px; display: grid; grid-template-columns: minmax(0, 1.1fr) minmax(320px, 0.9fr); gap: 48px; align-items: center; }
-    .eyebrow { color: var(--muted); font: 700 11px/1.2 var(--mono); letter-spacing: 0.12em; text-transform: uppercase; margin-bottom: 18px; }
-    h1 { font-family: var(--display); font-size: clamp(40px, 6vw, 72px); line-height: 1.04; letter-spacing: -0.045em; font-weight: 750; max-width: 980px; }
-    .hero p { margin-top: 26px; max-width: 760px; color: var(--body); font-size: 18px; line-height: 1.65; }
-    .hero-actions { margin-top: 34px; display: flex; gap: 12px; flex-wrap: wrap; }
-    .btn { display: inline-flex; align-items: center; justify-content: center; min-height: 44px; border-radius: 8px; padding: 0 20px; border: 1px solid var(--border); font: 700 14px/1 var(--text); color: var(--ink); background: var(--surface); }
-    .btn.primary { background: var(--primary); color: var(--on-primary); border-color: var(--primary); }
-    .hero-panel { background: var(--surface); border: 1px solid var(--border); border-radius: 18px; overflow: hidden; box-shadow: 0 24px 70px rgba(0,0,0,.12); }
-    .panel-top { height: 44px; display: flex; align-items: center; gap: 7px; padding: 0 16px; border-bottom: 1px solid var(--border); background: var(--surface-strong); }
-    .dot { width: 10px; height: 10px; border-radius: 999px; background: var(--primary); opacity: .85; }
-    .panel-body { padding: 22px; display: grid; gap: 14px; }
-    .metric { display: grid; grid-template-columns: 88px 1fr; gap: 14px; align-items: center; padding: 14px; border: 1px solid var(--border); border-radius: 12px; background: var(--canvas); }
-    .metric strong { color: var(--primary); font-family: var(--mono); font-size: 22px; }
-    .metric span { color: var(--body); font-size: 13px; }
-    section { max-width: 1440px; margin: 0 auto; padding: 78px 48px; border-top: 1px solid var(--border); }
-    .section-label { color: var(--muted); font: 800 11px/1.2 var(--mono); letter-spacing: .12em; text-transform: uppercase; margin-bottom: 12px; }
-    .section-heading { font-family: var(--display); font-size: clamp(26px, 3.5vw, 42px); line-height: 1.12; letter-spacing: -.025em; margin-bottom: 16px; }
-    .section-intro { color: var(--body); max-width: 760px; margin-bottom: 42px; line-height: 1.65; }
-    .palette-grid, .button-grid, .card-grid, .form-grid, .elevation-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(230px, 1fr)); gap: 18px; }
-    .swatch, .component-cell, .feature-card, .form-cell, .elevation-card { background: var(--surface); border: 1px solid var(--border); border-radius: 14px; overflow: hidden; min-width: 0; }
-    .swatch-color { height: 108px; border-bottom: 1px solid var(--border); }
-    .swatch-meta, .component-cell, .feature-card, .form-cell, .elevation-card { padding: 18px; }
-    .swatch-name, .button-label { font-weight: 800; font-size: 13px; color: var(--ink); margin-bottom: 5px; overflow-wrap: anywhere; }
-    .swatch-hex, .button-meta, .type-meta, .spacing-label { font-family: var(--mono); font-size: 12px; color: var(--muted); overflow-wrap: anywhere; }
-    .type-row { display: grid; grid-template-columns: 300px 1fr; gap: 32px; align-items: baseline; padding: 20px 0; border-bottom: 1px solid var(--border); }
-    .type-sample { color: var(--ink); overflow-wrap: anywhere; }
-    .demo-button { display: inline-flex; align-items: center; justify-content: center; min-height: 40px; border-radius: 8px; border: 1px solid var(--border); padding: 0 16px; font-weight: 700; max-width: 100%; }
-    .feature-card h4, .elevation-card h4 { font-size: 18px; margin-bottom: 8px; }
-    .feature-card p, .elevation-card p { color: var(--body); font-size: 14px; line-height: 1.55; }
-    .text-input { width: 100%; min-height: 44px; border-radius: 8px; border: 1px solid var(--border); background: var(--canvas); color: var(--ink); padding: 0 14px; font: 500 15px/1 var(--text); }
-    .badge { display: inline-flex; align-items: center; border-radius: 999px; background: var(--surface-strong); color: var(--ink); min-height: 28px; padding: 0 12px; font: 800 11px/1 var(--mono); letter-spacing: .08em; text-transform: uppercase; }
-    .spacing-row, .radius-row { display: flex; flex-wrap: wrap; gap: 18px; align-items: end; }
-    .spacing-block { display: grid; justify-items: center; gap: 8px; }
-    .spacing-bar { width: 54px; min-height: 4px; background: var(--primary); border-radius: 6px; }
-    .radius-block { width: 96px; height: 96px; display: grid; place-items: center; background: var(--surface); border: 1px solid var(--border); color: var(--muted); font: 700 12px/1 var(--mono); }
-    .responsive-table { width: 100%; border-collapse: collapse; background: var(--surface); border: 1px solid var(--border); border-radius: 14px; overflow: hidden; }
-    .responsive-table th, .responsive-table td { text-align: left; padding: 14px 16px; border-bottom: 1px solid var(--border); color: var(--body); }
-    .responsive-table th { color: var(--ink); font: 800 11px/1.2 var(--mono); letter-spacing: .1em; text-transform: uppercase; }
-    .footer { padding: 34px 48px; border-top: 1px solid var(--border); color: var(--muted); text-align: center; font-size: 13px; }
-    @media (max-width: 900px) { .nav { grid-template-columns: 1fr auto; padding: 0 20px; } .nav-links { display: none; } .nav-cta { display: none; } .hero { grid-template-columns: 1fr; padding: 56px 20px; } section { padding: 56px 20px; } .type-row { grid-template-columns: 1fr; gap: 8px; } }
-  </style>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>xAI Design System Preview</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Geist+Mono:wght@300;400;500&family=Inter:wght@300;400;500;600&display=swap" rel="stylesheet">
+<style>
+  :root {
+--bg: #1f2228;
+    --bg-page: rgba(255, 255, 255, 0.9);
+    --dark: #1f2228;
+    --white: #ffffff;
+    --text-primary: #ffffff;
+    --text-secondary: rgba(255, 255, 255, 0.7);
+    --text-muted: rgba(255, 255, 255, 0.5);
+    --text-disabled: #ffffff;
+    --border: rgba(255, 255, 255, 0.1);
+    --border-strong: rgba(255, 255, 255, 0.2);
+    --surface: rgba(255, 255, 255, 0.03);
+    --surface-hover: rgba(255, 255, 255, 0.08);
+    --ring-blue: rgba(59, 130, 246, 0.5);
+    --font-display: 'Geist Mono', ui-monospace, SFMono-Regular, 'Roboto Mono', Menlo, Monaco, monospace;
+    --font-body: 'Inter', -apple-system, system-ui, sans-serif;
+  --primary: #ffffff;
+  --color-primary: #ffffff;
+  --on-primary: #1f2228;
+  --color-on-primary: #1f2228;
+  --canvas: #1f2228;
+  --color-canvas: #1f2228;
+  --color-surface: rgba(255, 255, 255, 0.03);
+  --ink: #ffffff;
+  --color-ink: #ffffff;
+  --body: rgba(255, 255, 255, 0.7);
+  --color-body: rgba(255, 255, 255, 0.7);
+  --muted: rgba(255, 255, 255, 0.5);
+  --color-muted: rgba(255, 255, 255, 0.5);
+  --hairline: rgba(255, 255, 255, 0.1);
+  --color-hairline: rgba(255, 255, 255, 0.1);
+  --accent: #ffffff;
+  --color-accent: #ffffff;
+  --pure-white: #ffffff;
+  --color-pure-white: #ffffff;
+  --dark-background: #1f2228;
+  --color-dark-background: #1f2228;
+  --white-default: #ffffff;
+  --color-white-default: #ffffff;
+  --white-muted: rgba(255, 255, 255, 0.5);
+  --color-white-muted: rgba(255, 255, 255, 0.5);
+  --white-subtle: rgba(255, 255, 255, 0.2);
+  --color-white-subtle: rgba(255, 255, 255, 0.2);
+  --color-ring-blue: rgba(59, 130, 246, 0.5);
+  --surface-elevated: rgba(255, 255, 255, 0.05);
+  --color-surface-elevated: rgba(255, 255, 255, 0.05);
+  --color-surface-hover: rgba(255, 255, 255, 0.08);
+  --border-default: rgba(255, 255, 255, 0.1);
+  --color-border-default: rgba(255, 255, 255, 0.1);
+  --color-border-strong: rgba(255, 255, 255, 0.2);
+  --color-text-primary: #ffffff;
+  --color-text-secondary: rgba(255, 255, 255, 0.7);
+  --text-tertiary: rgba(255, 255, 255, 0.5);
+  --color-text-tertiary: rgba(255, 255, 255, 0.5);
+  --text-quaternary: rgba(255, 255, 255, 0.3);
+  --color-text-quaternary: rgba(255, 255, 255, 0.3);
+  --primary-hover-bg: rgba(255, 255, 255, 0.9);
+  --color-primary-hover-bg: rgba(255, 255, 255, 0.9);
+}
+  * { margin: 0; padding: 0; box-sizing: border-box; }
+  body {
+    background: var(--bg-page);
+    color: var(--text-primary);
+    font-family: var(--font-body);
+    font-size: 16px; font-weight: 400; line-height: 1.50;
+    -webkit-font-smoothing: antialiased;
+  }
+
+  /* NAV */
+  .nav {
+    position: sticky; top: 0; z-index: 100;
+    display: flex; align-items: center; justify-content: space-between;
+    padding: 12px 32px;
+    background: rgba(255,255,255,0.90);
+    backdrop-filter: blur(12px);
+    border-bottom: 1px solid var(--border);
+  }
+  .nav-brand { font-family: var(--font-display); font-size: 14px; font-weight: 400; color: var(--text-primary); text-decoration: none; text-transform: uppercase; letter-spacing: 1.4px; }
+  .nav-links { display: flex; gap: 24px; list-style: none; }
+  .nav-links a { font-family: var(--font-body); font-size: 14px; font-weight: 400; color: var(--text-secondary); text-decoration: none; transition: color 0.15s; }
+  .nav-links a:hover { color: var(--text-muted); }
+  .nav-cta {
+    display: inline-block; background: var(--dark); color: var(--white);
+    padding: 8px 16px; border-radius: 0px;
+    font-family: var(--font-display); font-size: 12px; font-weight: 400;
+    text-decoration: none; text-transform: uppercase; letter-spacing: 1.4px;
+    transition: opacity 0.15s;
+  }
+  .nav-cta:hover { opacity: 0.85; }
+
+  /* HERO */
+  .hero { padding: 96px 32px 80px; text-align: center; }
+  .hero h1 {
+    font-family: var(--font-display); font-size: 64px; font-weight: 300; line-height: 1.20;
+    color: var(--text-primary); margin-bottom: 16px;
+  }
+  .hero p { font-size: 18px; font-weight: 400; line-height: 1.50; color: var(--text-secondary); max-width: 560px; margin: 0 auto 32px; }
+  .hero-buttons { display: flex; gap: 12px; justify-content: center; flex-wrap: wrap; }
+  .btn-primary {
+    display: inline-block; background: var(--dark); color: var(--white);
+    padding: 12px 24px; border-radius: 0px; border: none;
+    font-family: var(--font-display); font-size: 14px; font-weight: 400;
+    text-decoration: none; text-transform: uppercase; letter-spacing: 1.4px;
+    cursor: pointer; transition: opacity 0.15s;
+  }
+  .btn-primary:hover { opacity: 0.85; }
+  .btn-ghost {
+    display: inline-block; background: transparent; color: var(--text-primary);
+    padding: 12px 24px; border-radius: 0px;
+    border: 1px solid var(--border-strong);
+    font-family: var(--font-display); font-size: 14px; font-weight: 400;
+    text-decoration: none; text-transform: uppercase; letter-spacing: 1.4px;
+    cursor: pointer; transition: opacity 0.15s;
+  }
+  .btn-ghost:hover { opacity: 0.6; }
+
+  /* SECTIONS */
+  .section { padding: 64px 32px; max-width: 1080px; margin: 0 auto; }
+  .section-label { font-family: var(--font-display); font-size: 12px; font-weight: 400; color: var(--text-muted); text-transform: uppercase; letter-spacing: 1.4px; margin-bottom: 8px; }
+  .section-title { font-family: var(--font-body); font-size: 30px; font-weight: 400; line-height: 1.20; margin-bottom: 32px; color: var(--text-primary); }
+  .section-divider { border: none; border-top: 1px solid var(--border); margin: 0; }
+
+  /* COLORS */
+  .color-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(155px, 1fr)); gap: 12px; margin-bottom: 24px; }
+  .color-swatch { overflow: hidden; border: 1px solid var(--border); }
+  .color-swatch-block { height: 72px; width: 100%; }
+  .color-swatch-info { padding: 10px 12px; }
+  .color-swatch-name { font-size: 13px; font-weight: 400; margin-bottom: 2px; color: var(--text-primary); }
+  .color-swatch-hex { font-size: 12px; color: var(--text-muted); font-family: var(--font-display); }
+  .color-swatch-role { font-size: 11px; color: var(--text-muted); margin-top: 3px; }
+  .color-group-label { font-size: 14px; font-weight: 400; color: var(--text-secondary); margin: 24px 0 10px; }
+
+  /* TYPOGRAPHY */
+  .type-sample { margin-bottom: 28px; padding-bottom: 24px; border-bottom: 1px solid var(--border); }
+  .type-sample:last-child { border-bottom: none; }
+  .type-meta { font-family: var(--font-display); font-size: 12px; font-weight: 400; color: var(--text-muted); margin-top: 8px; }
+
+  /* BUTTONS */
+  .button-row { display: flex; gap: 16px; flex-wrap: wrap; align-items: center; }
+  .button-item { text-align: center; }
+  .button-label { font-size: 12px; color: var(--text-muted); margin-top: 8px; }
+  .btn-text-link {
+    display: inline-block; background: none; color: var(--text-primary);
+    padding: 8px 16px; font-family: var(--font-body); font-size: 16px;
+    font-weight: 400; text-decoration: none; transition: opacity 0.15s;
+  }
+  .btn-text-link:hover { opacity: 0.5; }
+  .badge-mono {
+    display: inline-block; background: transparent; color: var(--text-primary);
+    padding: 4px 8px; font-family: var(--font-display); font-size: 12px;
+    text-transform: uppercase; letter-spacing: 1px;
+    border: 1px solid var(--border-strong);
+  }
+
+  /* CARDS */
+  .card-grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(320px, 1fr)); gap: 20px; }
+  .card {
+    background: var(--surface); padding: 24px;
+    border: 1px solid var(--border);
+    transition: border-color 0.2s ease;
+  }
+  .card:hover { border-color: var(--border-strong); }
+  .card h3 { font-family: var(--font-body); font-size: 20px; font-weight: 400; margin-bottom: 8px; color: var(--text-primary); }
+  .card p { font-size: 14px; color: var(--text-secondary); line-height: 1.60; }
+  .card-tag { display: inline-block; font-family: var(--font-display); font-size: 11px; text-transform: uppercase; letter-spacing: 1px; padding: 2px 6px; border: 1px solid var(--border-strong); margin-bottom: 12px; color: var(--text-muted); }
+
+  /* FORMS */
+  .form-group { margin-bottom: 20px; max-width: 400px; }
+  .form-label { display: block; font-size: 14px; font-weight: 400; color: var(--text-secondary); margin-bottom: 6px; }
+  .form-input {
+    width: 100%; background: transparent; color: var(--text-primary);
+    border: 1px solid var(--border-strong); padding: 10px 12px; border-radius: 0px;
+    font-family: var(--font-body); font-size: 14px; font-weight: 400; outline: none;
+    transition: border-color 0.15s;
+  }
+  .form-input:focus { border-color: var(--ring-blue); box-shadow: 0 0 0 2px rgba(59,130,246,0.3); }
+  .form-input--focus { border-color: var(--ring-blue); box-shadow: 0 0 0 2px rgba(59,130,246,0.3); }
+  .form-textarea {
+    width: 100%; min-height: 80px; background: transparent; color: var(--text-primary);
+    border: 1px solid var(--border-strong); padding: 10px 12px; border-radius: 0px;
+    font-family: var(--font-body); font-size: 14px; font-weight: 400; resize: vertical; outline: none;
+  }
+  .form-state-label { font-size: 11px; color: var(--text-muted); margin-top: 4px; }
+
+  /* SPACING */
+  .spacing-row { display: flex; align-items: flex-end; gap: 14px; flex-wrap: wrap; margin-bottom: 24px; }
+  .spacing-item { text-align: center; }
+  .spacing-block { background: var(--dark); margin-bottom: 6px; height: 28px; }
+  .spacing-value { font-family: var(--font-display); font-size: 11px; font-weight: 400; color: var(--text-muted); }
+
+  /* RADIUS */
+  .radius-row { display: flex; gap: 14px; flex-wrap: wrap; align-items: center; }
+  .radius-item { text-align: center; }
+  .radius-box { width: 64px; height: 64px; background: var(--dark); margin-bottom: 6px; }
+  .radius-label { font-family: var(--font-display); font-size: 11px; font-weight: 400; color: var(--text-muted); }
+  .radius-context { font-size: 10px; color: var(--text-muted); }
+
+  /* ELEVATION */
+  .elevation-grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(200px, 1fr)); gap: 20px; }
+  .elevation-card { background: var(--bg-page); padding: 20px; text-align: center; }
+  .elevation-label { font-size: 14px; font-weight: 400; margin-bottom: 4px; color: var(--text-primary); }
+  .elevation-desc { font-family: var(--font-display); font-size: 11px; color: var(--text-muted); }
+
+  /* DARK SHOWCASE */
+  .dark-showcase {
+    background: #1f2228; padding: 48px 32px; margin: 0;
+  }
+  .dark-showcase-inner { max-width: 1080px; margin: 0 auto; }
+  .dark-showcase h2 { font-family: var(--font-display); font-size: 48px; font-weight: 300; color: #ffffff; margin-bottom: 16px; line-height: 1.20; }
+  .dark-showcase p { font-size: 16px; color: rgba(255,255,255,0.7); line-height: 1.60; margin-bottom: 24px; max-width: 600px; }
+  .dark-showcase .btn-row { display: flex; gap: 12px; flex-wrap: wrap; }
+  .dark-btn-primary {
+    display: inline-block; background: #ffffff; color: #1f2228;
+    padding: 12px 24px; border-radius: 0px; border: none;
+    font-family: var(--font-display); font-size: 14px; font-weight: 400;
+    text-decoration: none; text-transform: uppercase; letter-spacing: 1.4px;
+  }
+  .dark-btn-ghost {
+    display: inline-block; background: transparent; color: #ffffff;
+    padding: 12px 24px; border-radius: 0px;
+    border: 1px solid rgba(255,255,255,0.2);
+    font-family: var(--font-display); font-size: 14px; font-weight: 400;
+    text-decoration: none; text-transform: uppercase; letter-spacing: 1.4px;
+  }
+  .dark-card-grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(280px, 1fr)); gap: 16px; margin-top: 32px; }
+  .dark-card {
+    background: rgba(255,255,255,0.03); border: 1px solid rgba(255,255,255,0.1);
+    padding: 24px; transition: border-color 0.2s;
+  }
+  .dark-card:hover { border-color: rgba(255,255,255,0.2); }
+  .dark-card h4 { font-family: var(--font-body); font-size: 18px; color: #ffffff; font-weight: 400; margin-bottom: 8px; }
+  .dark-card p { font-size: 14px; color: rgba(255,255,255,0.5); line-height: 1.60; margin: 0; }
+
+  /* FOOTER */
+  .footer { padding: 32px; text-align: center; border-top: 1px solid var(--border); font-size: 13px; color: var(--text-muted); }
+  .footer a { color: var(--text-primary); text-decoration: underline; }
+
+  @media (max-width: 768px) {
+    .hero h1 { font-size: 36px; }
+    .nav-links { display: none; }
+    .section { padding: 48px 20px; }
+    .card-grid { grid-template-columns: 1fr; }
+    .dark-showcase h2 { font-size: 32px; }
+  }
+
+
+  /* Shared Agent Platform footer content */
+  .footer { text-align: left; }
+  .footer-shell { max-width: 1200px; margin: 0 auto; }
+  .footer-grid { display: grid; grid-template-columns: repeat(4, minmax(0, 1fr)); gap: 32px; }
+  .footer-col h6 { margin: 0 0 14px; color: inherit; font: inherit; font-weight: 700; font-size: 14px; line-height: 1.2; }
+  .footer-col span { display: block; margin: 0 0 10px; color: inherit; opacity: 0.72; font-size: 14px; line-height: 1.35; }
+  .footer-credit { margin-top: 48px; padding-top: 24px; border-top: 1px solid currentColor; color: inherit; opacity: 0.78; font-size: 13px; line-height: 1.4; }
+  .footer-credit a { color: inherit; text-decoration: none; font-weight: 600; }
+  .footer-credit img { border-radius: 3px; vertical-align: -2px; margin-right: 3px; }
+  @media (max-width: 760px) {
+    .footer-grid { grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 24px; }
+  }
+</style>
 </head>
 <body>
-  <nav class="nav">
-    <div class="brand">xAI</div>
-    <ul class="nav-links"><li><a href="#colors">Colors</a></li><li><a href="#type">Typography</a></li><li><a href="#components">Components</a></li><li><a href="#responsive">Responsive</a></li></ul>
-    <button class="nav-cta">Preview</button>
-  </nav>
 
-  <main>
-    <div class="hero">
-      <div>
-        <div class="eyebrow">Design System Preview</div>
-        <h1>xAI visual system</h1>
-        <p>xAI&#39;s website is a masterclass in dark-first, monospace-driven brutalist minimalism -- a design system that feels like it was built by engineers who understand that restraint is the ultimate form.</p>
-        <div class="hero-actions"><span class="btn primary">Primary action</span><span class="btn">Secondary action</span></div>
+<nav class="nav">
+  <a class="nav-brand" href="#">xAI</a>
+  <ul class="nav-links">
+    <li><a href="#colors">Colors</a></li>
+    <li><a href="#typography">Typography</a></li>
+    <li><a href="#buttons">Buttons</a></li>
+    <li><a href="#cards">Cards</a></li>
+    <li><a href="#forms">Forms</a></li>
+    <li><a href="#spacing">Spacing</a></li>
+  </ul>
+  <a class="nav-cta" href="#">TRY GROK</a>
+</nav>
+
+<section class="hero">
+  <h1>Design System Inspired by xAI</h1>
+  <p>xAI&#39;s website is a dark-first, monospace-driven brutalist system anchored to #1f2228, pure white foregrounds, GeistMono display/button type, universalSans body text, sharp corners, and no shadows or decorative color.</p>
+  <div class="hero-buttons">
+    <a class="btn-primary" href="#">GET STARTED</a>
+    <a class="btn-ghost" href="#">VIEW DOCUMENTATION</a>
+  </div>
+</section>
+
+<hr class="section-divider">
+
+<section class="section" id="colors">
+<div class="section-label">01 / Color Palette</div>
+<h2 class="section-title section-heading">Color Palette</h2>
+<div class="palette-group color-group"><h3 class="subhead color-group-title color-group-label">Brand &amp; Accent</h3><div class="palette-grid swatch-grid color-grid"><div class="swatch color-swatch"><div class="swatch-color color-swatch-block color-swatch-preview fill chip" style="background:#ffffff"></div><div class="swatch-info swatch-meta color-swatch-info info meta"><div class="swatch-name color-swatch-name name">Primary</div><div class="swatch-hex color-swatch-hex hex">#ffffff</div><div class="swatch-role color-swatch-role role">Brand &amp; Accent</div></div></div><div class="swatch color-swatch"><div class="swatch-color color-swatch-block color-swatch-preview fill chip" style="background:#1f2228"></div><div class="swatch-info swatch-meta color-swatch-info info meta"><div class="swatch-name color-swatch-name name">On Primary</div><div class="swatch-hex color-swatch-hex hex">#1f2228</div><div class="swatch-role color-swatch-role role">Brand &amp; Accent</div></div></div><div class="swatch color-swatch"><div class="swatch-color color-swatch-block color-swatch-preview fill chip" style="background:#ffffff"></div><div class="swatch-info swatch-meta color-swatch-info info meta"><div class="swatch-name color-swatch-name name">Accent</div><div class="swatch-hex color-swatch-hex hex">#ffffff</div><div class="swatch-role color-swatch-role role">Brand &amp; Accent</div></div></div><div class="swatch color-swatch"><div class="swatch-color color-swatch-block color-swatch-preview fill chip" style="background:rgba(59, 130, 246, 0.5)"></div><div class="swatch-info swatch-meta color-swatch-info info meta"><div class="swatch-name color-swatch-name name">Ring Blue</div><div class="swatch-hex color-swatch-hex hex">rgba(59, 130, 246, 0.5)</div><div class="swatch-role color-swatch-role role">Brand &amp; Accent</div></div></div><div class="swatch color-swatch"><div class="swatch-color color-swatch-block color-swatch-preview fill chip" style="background:#ffffff"></div><div class="swatch-info swatch-meta color-swatch-info info meta"><div class="swatch-name color-swatch-name name">Text Primary</div><div class="swatch-hex color-swatch-hex hex">#ffffff</div><div class="swatch-role color-swatch-role role">Brand &amp; Accent</div></div></div><div class="swatch color-swatch"><div class="swatch-color color-swatch-block color-swatch-preview fill chip" style="background:rgba(255, 255, 255, 0.9)"></div><div class="swatch-info swatch-meta color-swatch-info info meta"><div class="swatch-name color-swatch-name name">Primary Hover Bg</div><div class="swatch-hex color-swatch-hex hex">rgba(255, 255, 255, 0.9)</div><div class="swatch-role color-swatch-role role">Brand &amp; Accent</div></div></div></div></div><div class="palette-group color-group"><h3 class="subhead color-group-title color-group-label">Surface</h3><div class="palette-grid swatch-grid color-grid"><div class="swatch color-swatch"><div class="swatch-color color-swatch-block color-swatch-preview fill chip" style="background:#1f2228"></div><div class="swatch-info swatch-meta color-swatch-info info meta"><div class="swatch-name color-swatch-name name">Canvas</div><div class="swatch-hex color-swatch-hex hex">#1f2228</div><div class="swatch-role color-swatch-role role">Surface</div></div></div><div class="swatch color-swatch"><div class="swatch-color color-swatch-block color-swatch-preview fill chip" style="background:rgba(255, 255, 255, 0.03)"></div><div class="swatch-info swatch-meta color-swatch-info info meta"><div class="swatch-name color-swatch-name name">Surface</div><div class="swatch-hex color-swatch-hex hex">rgba(255, 255, 255, 0.03)</div><div class="swatch-role color-swatch-role role">Surface</div></div></div><div class="swatch color-swatch"><div class="swatch-color color-swatch-block color-swatch-preview fill chip" style="background:#1f2228"></div><div class="swatch-info swatch-meta color-swatch-info info meta"><div class="swatch-name color-swatch-name name">Dark Background</div><div class="swatch-hex color-swatch-hex hex">#1f2228</div><div class="swatch-role color-swatch-role role">Surface</div></div></div><div class="swatch color-swatch"><div class="swatch-color color-swatch-block color-swatch-preview fill chip" style="background:rgba(255, 255, 255, 0.05)"></div><div class="swatch-info swatch-meta color-swatch-info info meta"><div class="swatch-name color-swatch-name name">Surface Elevated</div><div class="swatch-hex color-swatch-hex hex">rgba(255, 255, 255, 0.05)</div><div class="swatch-role color-swatch-role role">Surface</div></div></div><div class="swatch color-swatch"><div class="swatch-color color-swatch-block color-swatch-preview fill chip" style="background:rgba(255, 255, 255, 0.08)"></div><div class="swatch-info swatch-meta color-swatch-info info meta"><div class="swatch-name color-swatch-name name">Surface Hover</div><div class="swatch-hex color-swatch-hex hex">rgba(255, 255, 255, 0.08)</div><div class="swatch-role color-swatch-role role">Surface</div></div></div></div></div><div class="palette-group color-group"><h3 class="subhead color-group-title color-group-label">Text</h3><div class="palette-grid swatch-grid color-grid"><div class="swatch color-swatch"><div class="swatch-color color-swatch-block color-swatch-preview fill chip" style="background:#ffffff"></div><div class="swatch-info swatch-meta color-swatch-info info meta"><div class="swatch-name color-swatch-name name">Ink</div><div class="swatch-hex color-swatch-hex hex">#ffffff</div><div class="swatch-role color-swatch-role role">Text</div></div></div><div class="swatch color-swatch"><div class="swatch-color color-swatch-block color-swatch-preview fill chip" style="background:rgba(255, 255, 255, 0.7)"></div><div class="swatch-info swatch-meta color-swatch-info info meta"><div class="swatch-name color-swatch-name name">Body</div><div class="swatch-hex color-swatch-hex hex">rgba(255, 255, 255, 0.7)</div><div class="swatch-role color-swatch-role role">Text</div></div></div><div class="swatch color-swatch"><div class="swatch-color color-swatch-block color-swatch-preview fill chip" style="background:rgba(255, 255, 255, 0.5)"></div><div class="swatch-info swatch-meta color-swatch-info info meta"><div class="swatch-name color-swatch-name name">Muted</div><div class="swatch-hex color-swatch-hex hex">rgba(255, 255, 255, 0.5)</div><div class="swatch-role color-swatch-role role">Text</div></div></div><div class="swatch color-swatch"><div class="swatch-color color-swatch-block color-swatch-preview fill chip" style="background:rgba(255, 255, 255, 0.5)"></div><div class="swatch-info swatch-meta color-swatch-info info meta"><div class="swatch-name color-swatch-name name">White Muted</div><div class="swatch-hex color-swatch-hex hex">rgba(255, 255, 255, 0.5)</div><div class="swatch-role color-swatch-role role">Text</div></div></div><div class="swatch color-swatch"><div class="swatch-color color-swatch-block color-swatch-preview fill chip" style="background:rgba(255, 255, 255, 0.7)"></div><div class="swatch-info swatch-meta color-swatch-info info meta"><div class="swatch-name color-swatch-name name">Text Secondary</div><div class="swatch-hex color-swatch-hex hex">rgba(255, 255, 255, 0.7)</div><div class="swatch-role color-swatch-role role">Text</div></div></div><div class="swatch color-swatch"><div class="swatch-color color-swatch-block color-swatch-preview fill chip" style="background:rgba(255, 255, 255, 0.5)"></div><div class="swatch-info swatch-meta color-swatch-info info meta"><div class="swatch-name color-swatch-name name">Text Tertiary</div><div class="swatch-hex color-swatch-hex hex">rgba(255, 255, 255, 0.5)</div><div class="swatch-role color-swatch-role role">Text</div></div></div><div class="swatch color-swatch"><div class="swatch-color color-swatch-block color-swatch-preview fill chip" style="background:rgba(255, 255, 255, 0.3)"></div><div class="swatch-info swatch-meta color-swatch-info info meta"><div class="swatch-name color-swatch-name name">Text Quaternary</div><div class="swatch-hex color-swatch-hex hex">rgba(255, 255, 255, 0.3)</div><div class="swatch-role color-swatch-role role">Text</div></div></div></div></div><div class="palette-group color-group"><h3 class="subhead color-group-title color-group-label">Borders &amp; Lines</h3><div class="palette-grid swatch-grid color-grid"><div class="swatch color-swatch"><div class="swatch-color color-swatch-block color-swatch-preview fill chip" style="background:rgba(255, 255, 255, 0.1)"></div><div class="swatch-info swatch-meta color-swatch-info info meta"><div class="swatch-name color-swatch-name name">Hairline</div><div class="swatch-hex color-swatch-hex hex">rgba(255, 255, 255, 0.1)</div><div class="swatch-role color-swatch-role role">Borders &amp; Lines</div></div></div><div class="swatch color-swatch"><div class="swatch-color color-swatch-block color-swatch-preview fill chip" style="background:rgba(255, 255, 255, 0.1)"></div><div class="swatch-info swatch-meta color-swatch-info info meta"><div class="swatch-name color-swatch-name name">Border Default</div><div class="swatch-hex color-swatch-hex hex">rgba(255, 255, 255, 0.1)</div><div class="swatch-role color-swatch-role role">Borders &amp; Lines</div></div></div><div class="swatch color-swatch"><div class="swatch-color color-swatch-block color-swatch-preview fill chip" style="background:rgba(255, 255, 255, 0.2)"></div><div class="swatch-info swatch-meta color-swatch-info info meta"><div class="swatch-name color-swatch-name name">Border Strong</div><div class="swatch-hex color-swatch-hex hex">rgba(255, 255, 255, 0.2)</div><div class="swatch-role color-swatch-role role">Borders &amp; Lines</div></div></div></div></div><div class="palette-group color-group"><h3 class="subhead color-group-title color-group-label">Supporting</h3><div class="palette-grid swatch-grid color-grid"><div class="swatch color-swatch"><div class="swatch-color color-swatch-block color-swatch-preview fill chip" style="background:#ffffff"></div><div class="swatch-info swatch-meta color-swatch-info info meta"><div class="swatch-name color-swatch-name name">Pure White</div><div class="swatch-hex color-swatch-hex hex">#ffffff</div><div class="swatch-role color-swatch-role role">Supporting</div></div></div><div class="swatch color-swatch"><div class="swatch-color color-swatch-block color-swatch-preview fill chip" style="background:#ffffff"></div><div class="swatch-info swatch-meta color-swatch-info info meta"><div class="swatch-name color-swatch-name name">White Default</div><div class="swatch-hex color-swatch-hex hex">#ffffff</div><div class="swatch-role color-swatch-role role">Supporting</div></div></div><div class="swatch color-swatch"><div class="swatch-color color-swatch-block color-swatch-preview fill chip" style="background:rgba(255, 255, 255, 0.2)"></div><div class="swatch-info swatch-meta color-swatch-info info meta"><div class="swatch-name color-swatch-name name">White Subtle</div><div class="swatch-hex color-swatch-hex hex">rgba(255, 255, 255, 0.2)</div><div class="swatch-role color-swatch-role role">Supporting</div></div></div></div></div>
+</section>
+
+<hr class="section-divider">
+
+<section class="section" id="typography">
+<div class="section-label">02 / Typography</div>
+<h2 class="section-title section-heading">Typography</h2>
+<div class="type-row type-sample"><div class="type-meta type-label type-sample-label"><strong>display-hero</strong>320px / 300 / 1.5 / 0px</div><div class="type-sample-text type-preview" style="font-family:GeistMono, ui-monospace, SFMono-Regular, Roboto Mono, Menlo, Monaco, Liberation Mono, DejaVu Sans Mono, Courier New, monospace;font-size:320px;font-weight:300;line-height:1.5;letter-spacing:0px;text-transform:none">Build a clear product interface with Display Hero rhythm.</div></div><div class="type-row type-sample"><div class="type-meta type-label type-sample-label"><strong>heading-lg</strong>30px / 400 / 1.2 / 0px</div><div class="type-sample-text type-preview" style="font-family:universalSans, universalSans Fallback, sans-serif;font-size:30px;font-weight:400;line-height:1.2;letter-spacing:0px;text-transform:none">Build a clear product interface with Heading Lg rhythm.</div></div><div class="type-row type-sample"><div class="type-meta type-label type-sample-label"><strong>body-md</strong>16px / 400 / 1.5 / 0px</div><div class="type-sample-text type-preview" style="font-family:universalSans, universalSans Fallback, sans-serif;font-size:16px;font-weight:400;line-height:1.5;letter-spacing:0px;text-transform:none">Build a clear product interface with Body Md rhythm.</div></div><div class="type-row type-sample"><div class="type-meta type-label type-sample-label"><strong>button</strong>14px / 400 / 1.43 / 1.4px</div><div class="type-sample-text type-preview" style="font-family:GeistMono, ui-monospace, SFMono-Regular, Roboto Mono, Menlo, Monaco, Liberation Mono, DejaVu Sans Mono, Courier New, monospace;font-size:14px;font-weight:400;line-height:1.43;letter-spacing:1.4px;text-transform:uppercase">Build a clear product interface with Button rhythm.</div></div><div class="type-row type-sample"><div class="type-meta type-label type-sample-label"><strong>caption</strong>14px / 400 / 1.5 / 0px</div><div class="type-sample-text type-preview" style="font-family:universalSans, universalSans Fallback, sans-serif;font-size:14px;font-weight:400;line-height:1.5;letter-spacing:0px;text-transform:none">Build a clear product interface with Caption rhythm.</div></div><div class="type-row type-sample"><div class="type-meta type-label type-sample-label"><strong>small</strong>12px / 400 / 1.5 / 0px</div><div class="type-sample-text type-preview" style="font-family:universalSans, universalSans Fallback, sans-serif;font-size:12px;font-weight:400;line-height:1.5;letter-spacing:0px;text-transform:none">Build a clear product interface with Small rhythm.</div></div><div class="type-row type-sample"><div class="type-meta type-label type-sample-label"><strong>mono-tag</strong>12px / 400 / 1.33 / 1px</div><div class="type-sample-text type-preview" style="font-family:GeistMono, ui-monospace, SFMono-Regular, Roboto Mono, Menlo, Monaco, Liberation Mono, DejaVu Sans Mono, Courier New, monospace;font-size:12px;font-weight:400;line-height:1.33;letter-spacing:1px;text-transform:uppercase">Build a clear product interface with Mono Tag rhythm.</div></div>
+</section>
+
+<hr class="section-divider">
+
+<section class="section" id="buttons">
+<div class="section-label">03 / Interface Samples</div>
+<h2 class="section-title section-heading">Interface Samples</h2>
+<div class="button-row button-showcase button-grid demo-grid"><div class="button-item btn-item"><button class="btn btn-primary btn-green btn-tag demo-control" style="background:#ffffff;color:#1f2228;border-radius:0px;padding:12px 24px;border:1px solid transparent;min-height:44px;">Button Primary</button><div class="button-label btn-label caption">button-primary</div></div><div class="button-item btn-item"><button class="btn btn-primary btn-green btn-tag demo-control" style="background:transparent;color:#ffffff;border-radius:0px;padding:12px 24px;border:1px solid var(--border);min-height:44px;">Button Secondary</button><div class="button-label btn-label caption">button-secondary</div></div><div class="button-item btn-item"><button class="btn btn-primary btn-green btn-tag demo-control" style="background:transparent;color:#ffffff;border-radius:0px;padding:4px 8px;border:1px solid var(--border);min-height:44px;">Monospace Tag</button><div class="button-label btn-label caption">monospace-tag</div></div><div class="button-item btn-item"><button class="btn btn-primary btn-green btn-tag demo-control" style="background:transparent;color:#ffffff;border-radius:9999px;padding:10px 20px;border:1px solid var(--border);min-height:44px;">Link</button><div class="button-label btn-label caption">link</div></div></div>
+</section>
+
+<hr class="section-divider">
+
+<section class="section" id="cards">
+<div class="section-label">05 / Cards</div>
+<h2 class="section-title section-heading">Cards</h2>
+<div class="card-grid"><div class="card component-card sample-card" style="background:var(--surface, var(--canvas, #fff));color:var(--ink, #111);border:1px solid var(--border, rgba(0,0,0,.14));border-radius:16px;padding:16px;min-height:150px;display:grid;gap:12px;align-content:start;box-sizing:border-box;"><h3 class="card-title">Card</h3><div class="component-preview" style="display:flex;align-items:center;justify-content:flex-start;gap:12px;min-height:78px;flex-wrap:wrap;"><article class="sample-card" style="background:rgba(255, 255, 255, 0.05);color:#ffffff;border-radius:0px;padding:24px;border:1px solid transparent;min-height:44px;display:grid;gap:10px;width:100%;box-sizing:border-box;"><div style="height:56px;border-radius:inherit;background:linear-gradient(135deg, currentColor, transparent);opacity:.14;"></div><strong>Card</strong><span style="opacity:.72;">Featured item</span></article></div></div><div class="card component-card sample-card" style="background:var(--surface, var(--canvas, #fff));color:var(--ink, #111);border:1px solid var(--border, rgba(0,0,0,.14));border-radius:16px;padding:16px;min-height:150px;display:grid;gap:12px;align-content:start;box-sizing:border-box;"><h3 class="card-title">Card Subtle</h3><div class="component-preview" style="display:flex;align-items:center;justify-content:flex-start;gap:12px;min-height:78px;flex-wrap:wrap;"><article class="sample-card" style="background:rgba(255, 255, 255, 0.03);color:#ffffff;border-radius:4px;padding:24px;border:1px solid transparent;min-height:44px;display:grid;gap:10px;width:100%;box-sizing:border-box;"><div style="height:56px;border-radius:inherit;background:linear-gradient(135deg, currentColor, transparent);opacity:.14;"></div><strong>Card Subtle</strong><span style="opacity:.72;">Featured item</span></article></div></div><div class="card component-card sample-card" style="background:var(--surface, var(--canvas, #fff));color:var(--ink, #111);border:1px solid var(--border, rgba(0,0,0,.14));border-radius:16px;padding:16px;min-height:150px;display:grid;gap:12px;align-content:start;box-sizing:border-box;"><h3 class="card-title">Text Body</h3><div class="component-preview" style="display:flex;align-items:center;justify-content:flex-start;gap:12px;min-height:78px;flex-wrap:wrap;"><div class="list-row" style="background:#1f2228;color:rgba(255, 255, 255, 0.7);border-radius:12px;padding:12px 18px;border:1px solid var(--border);min-height:44px;display:flex;align-items:center;gap:12px;width:100%;box-sizing:border-box;"><span style="width:32px;height:32px;border-radius:9999px;background:currentColor;opacity:.14;flex:0 0 auto;"></span><strong>Text Body</strong></div></div></div><div class="card component-card sample-card" style="background:var(--surface, var(--canvas, #fff));color:var(--ink, #111);border:1px solid var(--border, rgba(0,0,0,.14));border-radius:16px;padding:16px;min-height:150px;display:grid;gap:12px;align-content:start;box-sizing:border-box;"><h3 class="card-title">Muted Label</h3><div class="component-preview" style="display:flex;align-items:center;justify-content:flex-start;gap:12px;min-height:78px;flex-wrap:wrap;"><div class="list-row" style="background:#1f2228;color:rgba(255, 255, 255, 0.5);border-radius:12px;padding:12px 18px;border:1px solid var(--border);min-height:44px;display:flex;align-items:center;gap:12px;width:100%;box-sizing:border-box;"><span style="width:32px;height:32px;border-radius:9999px;background:currentColor;opacity:.14;flex:0 0 auto;"></span><strong>Muted Label</strong></div></div></div></div>
+</section>
+
+<hr class="section-divider">
+
+<!-- Dark Showcase Section -->
+<section class="dark-showcase">
+  <div class="dark-showcase-inner">
+    <div class="section-label" style="color: rgba(255,255,255,0.4);">Native Dark Context</div>
+    <h2>Monospace at Scale</h2>
+    <p>xAI's dark-first design uses GeistMono at extreme display sizes. This section shows components in their native dark context -- the true home of the xAI design system.</p>
+    <div class="btn-row">
+      <a class="dark-btn-primary" href="#">TRY GROK</a>
+      <a class="dark-btn-ghost" href="#">VIEW API</a>
+    </div>
+    <div class="dark-card-grid">
+      <div class="dark-card">
+        <h4>Real-time Knowledge</h4>
+        <p>Access to live information through direct integration with real-time data sources.</p>
       </div>
-      <div class="hero-panel" aria-label="Interface sample">
-        <div class="panel-top"><span class="dot"></span><span class="dot"></span><span class="dot"></span></div>
-        <div class="panel-body">
-          <div class="metric"><strong>01</strong><span>Token driven color, type, spacing, and component decisions.</span></div>
-          <div class="metric"><strong>AA</strong><span>Preview surfaces highlight contrast, hierarchy, and UI rhythm.</span></div>
-          <div class="metric"><strong>UI</strong><span>Reusable cards, controls, form fields, labels, and responsive states.</span></div>
-        </div>
+      <div class="dark-card">
+        <h4>Complex Reasoning</h4>
+        <p>Advanced chain-of-thought capabilities for multi-step problem solving.</p>
+      </div>
+      <div class="dark-card">
+        <h4>Enterprise Scale</h4>
+        <p>Production-ready infrastructure with high throughput and low latency.</p>
       </div>
     </div>
+  </div>
+</section>
 
-    <section id="colors">
-      <div class="section-label">01 - Color Palette</div>
-      <h2 class="section-heading">Core colors and semantic surfaces</h2>
-      <p class="section-intro">The palette below is extracted from the structured design tokens. Swatches show the available roles and their exact CSS values.</p>
-      <div class="palette-grid">
-        <div class="swatch"><div class="swatch-color" style="background:#1f2228"></div><div class="swatch-meta"><div class="swatch-name">primary</div><div class="swatch-hex">#1f2228</div></div></div><div class="swatch"><div class="swatch-color" style="background:#ffffff"></div><div class="swatch-meta"><div class="swatch-name">on-primary</div><div class="swatch-hex">#ffffff</div></div></div><div class="swatch"><div class="swatch-color" style="background:#ffffff"></div><div class="swatch-meta"><div class="swatch-name">canvas</div><div class="swatch-hex">#ffffff</div></div></div><div class="swatch"><div class="swatch-color" style="background:#ffffff"></div><div class="swatch-meta"><div class="swatch-name">surface</div><div class="swatch-hex">#ffffff</div></div></div><div class="swatch"><div class="swatch-color" style="background:#000000"></div><div class="swatch-meta"><div class="swatch-name">ink</div><div class="swatch-hex">#000000</div></div></div><div class="swatch"><div class="swatch-color" style="background:#4d4d4d"></div><div class="swatch-meta"><div class="swatch-name">body</div><div class="swatch-hex">#4d4d4d</div></div></div><div class="swatch"><div class="swatch-color" style="background:#666666"></div><div class="swatch-meta"><div class="swatch-name">muted</div><div class="swatch-hex">#666666</div></div></div><div class="swatch"><div class="swatch-color" style="background:#ebebeb"></div><div class="swatch-meta"><div class="swatch-name">hairline</div><div class="swatch-hex">#ebebeb</div></div></div><div class="swatch"><div class="swatch-color" style="background:#ffffff"></div><div class="swatch-meta"><div class="swatch-name">accent</div><div class="swatch-hex">#ffffff</div></div></div>
-      </div>
-    </section>
+<hr class="section-divider">
 
-    <section id="type">
-      <div class="section-label">02 - Typography</div>
-      <h2 class="section-heading">Type scale and voice</h2>
-      <p class="section-intro">Typography samples show how major text levels render when the token values are applied to real interface copy.</p>
-      <div class="type-row"><div class="type-meta"><strong>display-hero</strong>48px / 700 / 1.15 / -1px</div><div class="type-sample" style="font-family:Inter, system-ui, -apple-system, BlinkMacSystemFont, sans-serif;font-size:48px;font-weight:700;line-height:1.15;letter-spacing:-1px">Build a clear product interface with xAI rhythm.</div></div><div class="type-row"><div class="type-meta"><strong>heading-lg</strong>32px / 700 / 1.25 / -0.5px</div><div class="type-sample" style="font-family:Inter, system-ui, -apple-system, BlinkMacSystemFont, sans-serif;font-size:32px;font-weight:700;line-height:1.25;letter-spacing:-0.5px">Build a clear product interface with xAI rhythm.</div></div><div class="type-row"><div class="type-meta"><strong>body-md</strong>16px / 400 / 1.5 / 0px</div><div class="type-sample" style="font-family:Inter, system-ui, -apple-system, BlinkMacSystemFont, sans-serif;font-size:16px;font-weight:400;line-height:1.5;letter-spacing:0px">Build a clear product interface with xAI rhythm.</div></div><div class="type-row"><div class="type-meta"><strong>button</strong>14px / 600 / 1.2 / 0px</div><div class="type-sample" style="font-family:Inter, system-ui, -apple-system, BlinkMacSystemFont, sans-serif;font-size:14px;font-weight:600;line-height:1.2;letter-spacing:0px">Build a clear product interface with xAI rhythm.</div></div><div class="type-row"><div class="type-meta"><strong>caption</strong>12px / 500 / 1.33 / 0px</div><div class="type-sample" style="font-family:Inter, system-ui, -apple-system, BlinkMacSystemFont, sans-serif;font-size:12px;font-weight:500;line-height:1.33;letter-spacing:0px">Build a clear product interface with xAI rhythm.</div></div>
-    </section>
+<section class="section" id="forms">
+<div class="section-label">06 / Forms</div>
+<h2 class="section-title section-heading">Forms</h2>
+<div class="form-group form-token"><label class="form-label">Input</label><input class="form-input" style="background:rgba(255, 255, 255, 0.05);color:#ffffff;border-radius:0px;padding:12px 24px;border:1px solid transparent;min-height:44px;" value="Input" aria-label="input"></div>
+</section>
 
-    <section id="components">
-      <div class="section-label">03 - Components</div>
-      <h2 class="section-heading">Buttons, cards, labels, and controls</h2>
-      <p class="section-intro">Component samples apply available token references where possible, with neutral fallbacks for properties not present in the source system.</p>
-      <div class="button-grid">
-        <div class="component-cell"><div class="button-label">button-primary</div><span class="demo-button" style="background:#1f2228;color:#ffffff;border-radius:8px;padding:0 16px">Sample action</span><div class="button-meta">#1f2228 / #ffffff</div></div><div class="component-cell"><div class="button-label">button-secondary</div><span class="demo-button" style="background:#ffffff;color:#000000;border-radius:8px;padding:0 16px">Sample action</span><div class="button-meta">#ffffff / #000000</div></div><div class="component-cell"><div class="button-label">card</div><span class="demo-button" style="background:#ffffff;color:#000000;border-radius:12px;padding:0 24px">Sample action</span><div class="button-meta">#ffffff / #000000</div></div><div class="component-cell"><div class="button-label">text-body</div><span class="demo-button" style="background:#ffffff;color:#4d4d4d;border-radius:4px;padding:0 8px">Sample action</span><div class="button-meta">#ffffff / #4d4d4d</div></div><div class="component-cell"><div class="button-label">muted-label</div><span class="demo-button" style="background:#ffffff;color:#666666;border-radius:4px;padding:0 4px">Sample action</span><div class="button-meta">#ffffff / #666666</div></div><div class="component-cell"><div class="button-label">link</div><span class="demo-button" style="background:#ffffff;color:#ffffff;border-radius:4px;padding:0 4px">Sample action</span><div class="button-meta">#ffffff / #ffffff</div></div><div class="component-cell"><div class="button-label">divider</div><span class="demo-button" style="background:#ebebeb;color:#000000;border-radius:4px;padding:0 14px">Sample action</span><div class="button-meta">#ebebeb / #000000</div></div>
-      </div>
-    </section>
+<hr class="section-divider">
 
-    <section>
-      <div class="section-label">04 - Interface Samples</div>
-      <h2 class="section-heading">Reusable product surfaces</h2>
-      <div class="card-grid">
-        <div class="feature-card"><h4>Feature card</h4><p>Use this card treatment for summaries, benefits, or product modules with concise supporting text.</p><span class="badge">New</span></div>
-        <div class="feature-card"><h4>Data card</h4><p>Pair a strong heading with a compact metric and muted explanatory copy.</p><div style="font:800 36px/1 var(--display);color:var(--primary);margin-top:14px">24%</div></div>
-        <div class="feature-card"><h4>Content card</h4><p>Keep content blocks aligned to the design system's spacing and type hierarchy.</p><span class="btn primary" style="margin-top:14px">Continue</span></div>
-      </div>
-    </section>
+<section class="section" id="spacing">
+<div class="section-label">07 / Spacing</div>
+<h2 class="section-title section-heading">Spacing</h2>
+<div class="spacing-row"><div class="spacing-item spacing-block"><div class="spacing-bar spacing-box spacing-block" style="width:4px;height:24px"></div><div class="spacing-label spacing-value">xs · 4px</div></div><div class="spacing-item spacing-block"><div class="spacing-bar spacing-box spacing-block" style="width:8px;height:24px"></div><div class="spacing-label spacing-value">sm · 8px</div></div><div class="spacing-item spacing-block"><div class="spacing-bar spacing-box spacing-block" style="width:24px;height:24px"></div><div class="spacing-label spacing-value">md · 24px</div></div><div class="spacing-item spacing-block"><div class="spacing-bar spacing-box spacing-block" style="width:48px;height:24px"></div><div class="spacing-label spacing-value">section-sm · 48px</div></div><div class="spacing-item spacing-block"><div class="spacing-bar spacing-box spacing-block" style="width:96px;height:24px"></div><div class="spacing-label spacing-value">section · 96px</div></div></div>
+</section>
 
-    <section>
-      <div class="section-label">05 - Forms</div>
-      <h2 class="section-heading">Inputs and inline feedback</h2>
-      <div class="form-grid">
-        <div class="form-cell"><label class="button-label">Email</label><input class="text-input" value="team@example.com" aria-label="Email sample"></div>
-        <div class="form-cell"><label class="button-label">Status</label><span class="badge">Active</span></div>
-        <div class="form-cell"><label class="button-label">Action group</label><div style="display:flex;gap:10px;flex-wrap:wrap"><span class="btn primary">Save</span><span class="btn">Cancel</span></div></div>
-      </div>
-    </section>
+<hr class="section-divider">
 
-    <section>
-      <div class="section-label">06 - Spacing</div>
-      <h2 class="section-heading">Spacing scale</h2>
-      <div class="spacing-row">
-        <div class="spacing-block"><div class="spacing-bar" style="height:4px"></div><div class="spacing-label">xs · 4px</div></div><div class="spacing-block"><div class="spacing-bar" style="height:8px"></div><div class="spacing-label">sm · 8px</div></div><div class="spacing-block"><div class="spacing-bar" style="height:16px"></div><div class="spacing-label">md · 16px</div></div><div class="spacing-block"><div class="spacing-bar" style="height:24px"></div><div class="spacing-label">lg · 24px</div></div><div class="spacing-block"><div class="spacing-bar" style="height:32px"></div><div class="spacing-label">xl · 32px</div></div><div class="spacing-block"><div class="spacing-bar" style="height:80px"></div><div class="spacing-label">section · 80px</div></div>
-      </div>
-    </section>
+<section class="section" id="radius">
+<div class="section-label">08 / Radius</div>
+<h2 class="section-title section-heading">Radius</h2>
+<div class="radius-row"><div class="radius-item"><div class="radius-box" style="border-radius:0px"></div><div class="radius-label radius-value">none · 0px</div></div><div class="radius-item"><div class="radius-box" style="border-radius:4px"></div><div class="radius-label radius-value">sm · 4px</div></div></div>
+</section>
 
-    <section>
-      <div class="section-label">07 - Radius</div>
-      <h2 class="section-heading">Shape language</h2>
-      <div class="radius-row">
-        <div class="radius-block" style="border-radius:4px">sm</div><div class="radius-block" style="border-radius:8px">md</div><div class="radius-block" style="border-radius:12px">lg</div><div class="radius-block" style="border-radius:9999px">pill</div>
-      </div>
-    </section>
+<hr class="section-divider">
 
-    <section id="responsive">
-      <div class="section-label">08 - Responsive Behavior</div>
-      <h2 class="section-heading">Layout strategy</h2>
-      <table class="responsive-table">
-        <thead><tr><th>Viewport</th><th>Behavior</th></tr></thead>
-        <tbody>
-          <tr><td>Mobile</td><td>Single column layout, compact nav, tighter section padding.</td></tr>
-          <tr><td>Tablet</td><td>Two-column component grids and readable type hierarchy.</td></tr>
-          <tr><td>Desktop</td><td>Wide token catalog, multi-column cards, expanded whitespace.</td></tr>
-        </tbody>
-      </table>
-    </section>
-  </main>
+<section class="section" id="elevation">
+<div class="section-label">09 / Elevation</div>
+<h2 class="section-title section-heading">Elevation</h2>
+<div class="elevation-grid"><div class="elevation-card card"><div class="elevation-label">Canvas</div><div class="elevation-desc token-meta">#1f2228</div></div><div class="elevation-card card"><div class="elevation-label">Surface</div><div class="elevation-desc token-meta">rgba(255, 255, 255, 0.03)</div></div><div class="elevation-card card"><div class="elevation-label">Strong Surface</div><div class="elevation-desc token-meta">#f3f3f3</div></div><div class="elevation-card card"><div class="elevation-label">Border</div><div class="elevation-desc token-meta">rgba(255, 255, 255, 0.1)</div></div></div>
+</section>
 
-  <footer class="footer">Generated from DESIGN.md tokens for local preview and review.</footer>
+<footer class="footer">
+  <div class="footer-shell">
+    <p>xAI</p>
+    <p class="token-meta">Design token preview</p>
+  </div>
+</footer>
+
 </body>
 </html>

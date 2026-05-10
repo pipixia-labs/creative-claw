@@ -1,106 +1,322 @@
 ---
 version: alpha
 name: "The Verge"
-description: "The Verge's 2024 redesign feels like somebody wired a Condé Nast magazine to a chiptune soundboard. The canvas is almost-black (#131313), the headlines are built from a brutally heavy display face (Manuka) that runs up to 107px, and the whole page is peppered with acid-mint #3cffd0 and ultraviolet #5200ff that behave less like brand colors and more like hazard tape. Story tiles are not quiet gray cards — they're saturated, full-bleed color blocks (yellow, pink, orange, blue, purple) that feel like pasted-up rave flyers arranged into a timeline. The mood is \"developer console meets club night meets tech tabloid\": serious enough to cover a congressional hearing, loud enough to review a synthesizer."
+description: >-
+  The Verge's 2024 redesign uses an almost-black editorial canvas (#131313),
+  acid-mint #3cffd0, ultraviolet #5200ff, massive Manuka display type, and
+  rounded StoryStream tiles to create a dark, loud, magazine-meets-console
+  interface.
 
 colors:
-  primary: "#131313"
-  on-primary: "#ffffff"
-  canvas: "#ffffff"
-  surface: "#ffffff"
-  ink: "#000000"
-  body: "#4d4d4d"
-  muted: "#666666"
-  hairline: "#ebebeb"
-  accent: "#3cffd0"
+  primary: "#3cffd0"
+  on-primary: "#000000"
+  canvas: "#131313"
+  surface: "#2d2d2d"
+  ink: "#ffffff"
+  body: "#e9e9e9"
+  muted: "#949494"
+  hairline: "#ffffff"
+  accent: "#5200ff"
+  jelly-mint: "#3cffd0"
+  verge-ultraviolet: "#5200ff"
+  console-mint-border: "#309875"
+  deep-link-blue: "#3860be"
+  focus-cyan: "#1eaedb"
+  focus-border: "#0500ff"
+  purple-rule: "#3d00bf"
+  canvas-black: "#131313"
+  surface-slate: "#2d2d2d"
+  image-frame: "#313131"
+  hazard-white: "#ffffff"
+  absolute-black: "#000000"
+  primary-text: "#ffffff"
+  secondary-text: "#949494"
+  muted-text: "#e9e9e9"
+  inverted-text: "#131313"
+  overlay-black: "rgba(0, 0, 0, 0.33)"
+  hover-wash: "rgba(255, 255, 255, 0.2)"
+  dim-gray: "#8c8c8c"
+  active-gray: "rgba(140, 140, 140, 0.87)"
+  ring-gray: "#c2c2c2"
 
 typography:
   display-hero:
-    fontFamily: "Inter, system-ui, -apple-system, BlinkMacSystemFont, sans-serif"
-    fontSize: 48px
-    fontWeight: 700
-    lineHeight: 1.15
-    letterSpacing: -1px
+    fontFamily: "Manuka, Impact, Helvetica, sans-serif"
+    fontSize: 107px
+    fontWeight: 900
+    lineHeight: 0.8
+    letterSpacing: 1.07px
+  display-secondary:
+    fontFamily: "Manuka, Impact, Helvetica, sans-serif"
+    fontSize: 90px
+    fontWeight: 900
+    lineHeight: 0.8
+  display-tertiary:
+    fontFamily: "Manuka, Impact, Helvetica, sans-serif"
+    fontSize: 60px
+    fontWeight: 900
+    lineHeight: 0.8
   heading-lg:
-    fontFamily: "Inter, system-ui, -apple-system, BlinkMacSystemFont, sans-serif"
-    fontSize: 32px
+    fontFamily: "PolySans, Helvetica, Arial, sans-serif"
+    fontSize: 34px
     fontWeight: 700
-    lineHeight: 1.25
-    letterSpacing: -0.5px
+    lineHeight: 1
+    letterSpacing: 0px
+  heading-wide:
+    fontFamily: "PolySans, Helvetica, Arial, sans-serif"
+    fontSize: 32px
+    fontWeight: 400
+    lineHeight: 1.1
+    letterSpacing: 0.32px
+  heading-md:
+    fontFamily: "PolySans, Helvetica, Arial, sans-serif"
+    fontSize: 24px
+    fontWeight: 700
+    lineHeight: 1
+    letterSpacing: 0px
+  heading-sm:
+    fontFamily: "PolySans, Helvetica, Arial, sans-serif"
+    fontSize: 20px
+    fontWeight: 700
+    lineHeight: 1
+    letterSpacing: 0px
+  eyebrow-light:
+    fontFamily: "PolySans, Helvetica, Arial, sans-serif"
+    fontSize: 19px
+    fontWeight: 300
+    lineHeight: 1.2
+    letterSpacing: 1.9px
+    textTransform: capitalize
+  label-xl:
+    fontFamily: "PolySans, Helvetica, Arial, sans-serif"
+    fontSize: 18px
+    fontWeight: 400
+    lineHeight: 1.1
+    letterSpacing: 1.8px
+    textTransform: uppercase
+  body-bold:
+    fontFamily: "PolySans, Helvetica, Arial, sans-serif"
+    fontSize: 16px
+    fontWeight: 700
+    lineHeight: 1
+    letterSpacing: 0px
   body-md:
-    fontFamily: "Inter, system-ui, -apple-system, BlinkMacSystemFont, sans-serif"
+    fontFamily: "PolySans, Helvetica, Arial, sans-serif"
+    fontSize: 16px
+    fontWeight: 500
+    lineHeight: 1.6
+    letterSpacing: 0px
+  inline-label:
+    fontFamily: "PolySans, Helvetica, Arial, sans-serif"
+    fontSize: 15px
+    fontWeight: 400
+    lineHeight: 1.2
+    letterSpacing: 0.15px
+  button:
+    fontFamily: "PolySans Mono, Courier New, Courier, monospace"
+    fontSize: 12px
+    fontWeight: 600
+    lineHeight: 2
+    letterSpacing: 1.5px
+    textTransform: uppercase
+  button-secondary-label:
+    fontFamily: "PolySans, Helvetica, Arial, sans-serif"
     fontSize: 16px
     fontWeight: 400
-    lineHeight: 1.5
-    letterSpacing: 0px
-  button:
-    fontFamily: "Inter, system-ui, -apple-system, BlinkMacSystemFont, sans-serif"
-    fontSize: 14px
-    fontWeight: 600
     lineHeight: 1.2
     letterSpacing: 0px
   caption:
-    fontFamily: "Inter, system-ui, -apple-system, BlinkMacSystemFont, sans-serif"
+    fontFamily: "PolySans, Helvetica, Arial, sans-serif"
+    fontSize: 13px
+    fontWeight: 400
+    lineHeight: 1.6
+    letterSpacing: 0px
+  eyebrow:
+    fontFamily: "PolySans, Helvetica, Arial, sans-serif"
     fontSize: 12px
+    fontWeight: 400
+    lineHeight: 1.3
+    letterSpacing: 1.8px
+    textTransform: uppercase
+  tag-label:
+    fontFamily: "PolySans, Helvetica, Arial, sans-serif"
+    fontSize: 12px
+    fontWeight: 400
+    lineHeight: 1.2
+    letterSpacing: 0.72px
+    textTransform: uppercase
+  caption-micro:
+    fontFamily: "PolySans, Helvetica, Arial, sans-serif"
+    fontSize: 11px
+    fontWeight: 400
+    lineHeight: 1.2
+    letterSpacing: 1.1px
+    textTransform: uppercase
+  meta-nano:
+    fontFamily: "PolySans, Helvetica, Arial, sans-serif"
+    fontSize: 10px
     fontWeight: 500
-    lineHeight: 1.33
+    lineHeight: 1.4
+    letterSpacing: 1.5px
+    textTransform: uppercase
+  mono-timestamp:
+    fontFamily: "PolySans Mono, Courier New, Courier, monospace"
+    fontSize: 11px
+    fontWeight: 600
+    lineHeight: 1.2
+    letterSpacing: 1.8px
+    textTransform: uppercase
+  serif-body:
+    fontFamily: "FK Roman Standard, Georgia, serif"
+    fontSize: 16px
+    fontWeight: 400
+    lineHeight: 1.3
+    letterSpacing: -0.16px
+  serif-caption:
+    fontFamily: "FK Roman Standard, Georgia, serif"
+    fontSize: 20px
+    fontWeight: 400
+    lineHeight: 1.2
     letterSpacing: 0px
 
 rounded:
+  xs: 2px
+  image-xs: 3px
   sm: 4px
-  md: 8px
-  lg: 12px
-  pill: 9999px
+  card: 20px
+  feature: 24px
+  promo: 30px
+  outlined: 40px
+  circle: 9999px
 
 spacing:
+  hairline: 1px
+  xxs: 2px
   xs: 4px
+  micro: 5px
+  tight: 6px
   sm: 8px
-  md: 16px
-  lg: 24px
-  xl: 32px
-  section: 80px
+  md: 10px
+  story-gap: 12px
+  gap: 14px
+  lg: 16px
+  card-padding-sm: 20px
+  xl: 24px
+  section-sm: 32px
+  feature-padding: 40px
+  feature-padding-lg: 48px
+  section: 64px
 
 components:
   button-primary:
     backgroundColor: "{colors.primary}"
     textColor: "{colors.on-primary}"
     typography: "{typography.button}"
-    rounded: "{rounded.md}"
-    padding: 16px
+    rounded: "{rounded.feature}"
+    padding: 10px 24px
   button-secondary:
-    backgroundColor: "{colors.canvas}"
-    textColor: "{colors.ink}"
+    backgroundColor: "{colors.surface-slate}"
+    textColor: "{colors.muted-text}"
+    typography: "{typography.button-secondary-label}"
+    rounded: "{rounded.feature}"
+    padding: 10px 24px
+  button-tertiary-outlined:
+    backgroundColor: transparent
+    textColor: "{colors.jelly-mint}"
     typography: "{typography.button}"
-    rounded: "{rounded.md}"
-    padding: 16px
+    rounded: "{rounded.outlined}"
+    padding: 10px 20px
+  button-ultraviolet-outlined:
+    backgroundColor: transparent
+    textColor: "{colors.verge-ultraviolet}"
+    typography: "{typography.button}"
+    rounded: "{rounded.promo}"
+    padding: 10px 20px
+  pill-tag:
+    backgroundColor: "{colors.jelly-mint}"
+    textColor: "{colors.absolute-black}"
+    typography: "{typography.mono-timestamp}"
+    rounded: "{rounded.card}"
+    padding: 4px 10px
   card:
-    backgroundColor: "{colors.surface}"
-    textColor: "{colors.ink}"
-    typography: "{typography.body-md}"
-    rounded: "{rounded.lg}"
+    backgroundColor: "{colors.canvas}"
+    textColor: "{colors.primary-text}"
+    typography: "{typography.heading-md}"
+    rounded: "{rounded.card}"
     padding: 24px
-  text-body:
+  story-stream-tile:
     backgroundColor: "{colors.canvas}"
-    textColor: "{colors.body}"
+    textColor: "{colors.primary-text}"
+    typography: "{typography.heading-md}"
+    rounded: "{rounded.card}"
+    padding: 24px
+  story-stream-accent-tile:
+    backgroundColor: "{colors.verge-ultraviolet}"
+    textColor: "{colors.primary-text}"
+    typography: "{typography.heading-wide}"
+    rounded: "{rounded.feature}"
+    padding: 32px
+  feature-card:
+    backgroundColor: "{colors.canvas}"
+    textColor: "{colors.primary-text}"
+    typography: "{typography.heading-lg}"
+    rounded: "{rounded.feature}"
+    padding: 32px
+  surface-slate-card:
+    backgroundColor: "{colors.surface-slate}"
+    textColor: "{colors.muted-text}"
     typography: "{typography.body-md}"
-    rounded: "{rounded.sm}"
-    padding: 8px
-  muted-label:
+    rounded: "{rounded.card}"
+    padding: 24px
+  input:
     backgroundColor: "{colors.canvas}"
-    textColor: "{colors.muted}"
-    typography: "{typography.caption}"
-    rounded: "{rounded.sm}"
-    padding: 4px
-  link:
+    textColor: "{colors.primary-text}"
+    typography: "{typography.inline-label}"
+    rounded: "{rounded.xs}"
+    padding: 10px 16px
+  nav-bar:
     backgroundColor: "{colors.canvas}"
-    textColor: "{colors.accent}"
+    textColor: "{colors.primary-text}"
     typography: "{typography.button}"
-    rounded: "{rounded.sm}"
+  nav-link:
+    backgroundColor: transparent
+    textColor: "{colors.primary-text}"
+    typography: "{typography.button}"
+  nav-cta:
+    backgroundColor: "{colors.jelly-mint}"
+    textColor: "{colors.absolute-black}"
+    typography: "{typography.button}"
+    rounded: "{rounded.feature}"
+    padding: 10px 24px
+  timestamp:
+    backgroundColor: "{colors.canvas}"
+    textColor: "{colors.secondary-text}"
+    typography: "{typography.mono-timestamp}"
+    rounded: "{rounded.xs}"
     padding: 4px
+  link-hover:
+    backgroundColor: transparent
+    textColor: "{colors.deep-link-blue}"
+    typography: "{typography.body-md}"
+  timeline-rail:
+    backgroundColor: "{colors.purple-rule}"
+    textColor: "{colors.primary-text}"
+    width: 1px
+  active-underline:
+    backgroundColor: "{colors.jelly-mint}"
+    textColor: "{colors.primary-text}"
+    height: 1px
+  image-frame:
+    backgroundColor: "{colors.image-frame}"
+    textColor: "{colors.primary-text}"
+    rounded: "{rounded.sm}"
+  focus-state:
+    backgroundColor: "{colors.focus-cyan}"
+    textColor: "{colors.primary-text}"
+    typography: "{typography.button}"
+    rounded: "{rounded.feature}"
   divider:
     backgroundColor: "{colors.hairline}"
-    textColor: "{colors.ink}"
-    rounded: "{rounded.sm}"
     height: 1px
 ---
 

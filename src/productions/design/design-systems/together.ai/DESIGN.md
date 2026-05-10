@@ -1,7 +1,11 @@
 ---
 version: alpha
 name: "Together AI"
-description: "Together AI's interface is a pastel-gradient dreamscape built for enterprise AI infrastructure — a design that somehow makes GPU clusters and model inference feel light, airy, and optimistic. The hero section blooms with soft pink-blue-lavender gradients and abstract, painterly illustrations that evoke clouds and flight, establishing a visual metaphor for the \"AI-Native Cloud\" proposition. Against this softness, the typography cuts through with precision: \"The Future\" display font at 64px with aggressive negative tracking (-1.92px) creates dense, authoritative headline blocks."
+description: >-
+  Together AI's interface is a pastel-gradient dreamscape built for enterprise
+  AI infrastructure, pairing pure white light sections with deep midnight-blue
+  research sections, tight "The Future" typography, and PP Neue Montreal Mono
+  uppercase labels.
 
 colors:
   primary: "#010120"
@@ -9,98 +13,191 @@ colors:
   canvas: "#ffffff"
   surface: "#ffffff"
   ink: "#000000"
-  body: "#4d4d4d"
-  muted: "#666666"
-  hairline: "#ebebeb"
+  body: "#00000066"
+  muted: "#00000066"
+  hairline: "rgba(0, 0, 0, 0.08)"
   accent: "#ef2cc1"
+  brand-magenta: "#ef2cc1"
+  brand-orange: "#fc4c02"
+  dark-blue: "#010120"
+  soft-lavender: "#bdbbff"
+  black-40: "#00000066"
+  pure-black: "#000000"
+  pure-white: "#ffffff"
+  glass-light: "rgba(255, 255, 255, 0.12)"
+  glass-dark: "rgba(0, 0, 0, 0.08)"
+  black-8: "rgba(0, 0, 0, 0.08)"
+  white-12: "rgba(255, 255, 255, 0.12)"
+  shadow-blue: "rgba(1, 1, 32, 0.1)"
 
 typography:
   display-hero:
-    fontFamily: "Inter, system-ui, -apple-system, BlinkMacSystemFont, sans-serif"
-    fontSize: 48px
-    fontWeight: 700
-    lineHeight: 1.15
-    letterSpacing: -1px
+    fontFamily: "The Future, Arial, sans-serif"
+    fontSize: 64px
+    fontWeight: 500
+    lineHeight: 1.1
+    letterSpacing: -1.92px
   heading-lg:
-    fontFamily: "Inter, system-ui, -apple-system, BlinkMacSystemFont, sans-serif"
-    fontSize: 32px
-    fontWeight: 700
-    lineHeight: 1.25
-    letterSpacing: -0.5px
+    fontFamily: "The Future, Arial, sans-serif"
+    fontSize: 40px
+    fontWeight: 500
+    lineHeight: 1.2
+    letterSpacing: -0.8px
+  heading-md:
+    fontFamily: "The Future, Arial, sans-serif"
+    fontSize: 28px
+    fontWeight: 500
+    lineHeight: 1.15
+    letterSpacing: -0.42px
+  feature-title:
+    fontFamily: "The Future, Arial, sans-serif"
+    fontSize: 22px
+    fontWeight: 500
+    lineHeight: 1.15
+    letterSpacing: -0.22px
+  body-lg:
+    fontFamily: "The Future, Arial, sans-serif"
+    fontSize: 18px
+    fontWeight: 500
+    lineHeight: 1.3
+    letterSpacing: -0.18px
   body-md:
-    fontFamily: "Inter, system-ui, -apple-system, BlinkMacSystemFont, sans-serif"
+    fontFamily: "The Future, Arial, sans-serif"
     fontSize: 16px
     fontWeight: 400
-    lineHeight: 1.5
-    letterSpacing: 0px
+    lineHeight: 1.3
+    letterSpacing: -0.16px
   button:
-    fontFamily: "Inter, system-ui, -apple-system, BlinkMacSystemFont, sans-serif"
-    fontSize: 14px
-    fontWeight: 600
-    lineHeight: 1.2
-    letterSpacing: 0px
-  caption:
-    fontFamily: "Inter, system-ui, -apple-system, BlinkMacSystemFont, sans-serif"
-    fontSize: 12px
+    fontFamily: "The Future, Arial, sans-serif"
+    fontSize: 16px
     fontWeight: 500
-    lineHeight: 1.33
+    lineHeight: 1.25
+    letterSpacing: -0.16px
+  caption:
+    fontFamily: "The Future, Arial, sans-serif"
+    fontSize: 14px
+    fontWeight: 400
+    lineHeight: 1.4
     letterSpacing: 0px
+  mono-label:
+    fontFamily: "PP Neue Montreal Mono, Georgia, monospace"
+    fontSize: 16px
+    fontWeight: 500
+    lineHeight: 1
+    letterSpacing: 0.08px
+    textTransform: uppercase
+  mono-small:
+    fontFamily: "PP Neue Montreal Mono, Georgia, monospace"
+    fontSize: 11px
+    fontWeight: 500
+    lineHeight: 1.4
+    letterSpacing: 0.055px
+    textTransform: uppercase
+  mono-micro:
+    fontFamily: "PP Neue Montreal Mono, Georgia, monospace"
+    fontSize: 10px
+    fontWeight: 400
+    lineHeight: 1.4
+    letterSpacing: 0.05px
+    textTransform: uppercase
 
 rounded:
-  sm: 4px
-  md: 8px
-  lg: 12px
-  pill: 9999px
+  sharp: 4px
+  comfortable: 8px
 
 spacing:
+  hairline: 1px
+  xxs: 2px
   xs: 4px
   sm: 8px
-  md: 16px
-  lg: 24px
-  xl: 32px
+  md: 10px
+  lg: 12px
+  xl: 16px
+  xxl: 20px
+  card: 24px
+  card-lg: 32px
+  compact-section: 44px
+  section-min: 48px
   section: 80px
+  section-lg: 100px
+  hero: 120px
 
 components:
   button-primary:
-    backgroundColor: "{colors.primary}"
+    backgroundColor: "{colors.dark-blue}"
     textColor: "{colors.on-primary}"
     typography: "{typography.button}"
-    rounded: "{rounded.md}"
-    padding: 16px
-  button-secondary:
-    backgroundColor: "{colors.canvas}"
-    textColor: "{colors.ink}"
+    rounded: "{rounded.sharp}"
+    padding: 8px 16px
+  button-glass-on-dark:
+    backgroundColor: "{colors.glass-light}"
+    textColor: "{colors.pure-white}"
     typography: "{typography.button}"
-    rounded: "{rounded.md}"
-    padding: 16px
+    rounded: "{rounded.sharp}"
+    padding: 8px 16px
+  button-secondary:
+    backgroundColor: transparent
+    textColor: "{colors.pure-black}"
+    typography: "{typography.button}"
+    rounded: "{rounded.sharp}"
+    padding: 8px 16px
   card:
     backgroundColor: "{colors.surface}"
     textColor: "{colors.ink}"
     typography: "{typography.body-md}"
-    rounded: "{rounded.lg}"
+    rounded: "{rounded.comfortable}"
     padding: 24px
-  text-body:
-    backgroundColor: "{colors.canvas}"
-    textColor: "{colors.body}"
+  card-dark:
+    backgroundColor: "{colors.dark-blue}"
+    textColor: "{colors.pure-white}"
     typography: "{typography.body-md}"
-    rounded: "{rounded.sm}"
-    padding: 8px
-  muted-label:
-    backgroundColor: "{colors.canvas}"
-    textColor: "{colors.muted}"
-    typography: "{typography.caption}"
-    rounded: "{rounded.sm}"
-    padding: 4px
-  link:
-    backgroundColor: "{colors.canvas}"
-    textColor: "{colors.accent}"
+    rounded: "{rounded.comfortable}"
+    padding: 24px
+  stats-card:
+    backgroundColor: "{colors.pure-white}"
+    textColor: "{colors.pure-black}"
+    typography: "{typography.display-hero}"
+    rounded: "{rounded.comfortable}"
+    padding: 32px
+  badge-light:
+    backgroundColor: "{colors.glass-dark}"
+    textColor: "{colors.pure-black}"
+    typography: "{typography.mono-label}"
+    rounded: "{rounded.sharp}"
+    padding: 2px 8px
+  badge-dark:
+    backgroundColor: "{colors.glass-light}"
+    textColor: "{colors.pure-white}"
+    typography: "{typography.mono-label}"
+    rounded: "{rounded.sharp}"
+    padding: 2px 8px
+  mono-section-label:
+    backgroundColor: transparent
+    textColor: "{colors.pure-black}"
+    typography: "{typography.mono-small}"
+  nav-link:
+    backgroundColor: transparent
+    textColor: "{colors.pure-black}"
     typography: "{typography.button}"
-    rounded: "{rounded.sm}"
-    padding: 4px
+  research-section:
+    backgroundColor: "{colors.dark-blue}"
+    textColor: "{colors.pure-white}"
+    typography: "{typography.heading-lg}"
+    padding: 80px
+  large-footer-logo:
+    backgroundColor: "{colors.dark-blue}"
+    textColor: "{colors.pure-white}"
+    typography: "{typography.display-hero}"
+  muted-label:
+    backgroundColor: transparent
+    textColor: "{colors.black-40}"
+    typography: "{typography.caption}"
+  link:
+    backgroundColor: transparent
+    textColor: "{colors.accent}"
+    typography: "{typography.body-md}"
   divider:
     backgroundColor: "{colors.hairline}"
-    textColor: "{colors.ink}"
-    rounded: "{rounded.sm}"
     height: 1px
 ---
 

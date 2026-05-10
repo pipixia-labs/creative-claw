@@ -2,173 +2,907 @@
 <html lang="en">
 <head>
   <meta charset="UTF-8">
-  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
   <title>Mistral AI Design System Preview</title>
+  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600&family=DM+Serif+Display&family=JetBrains+Mono:wght@400;500&display=swap" rel="stylesheet">
   <style>
+    * { margin: 0; padding: 0; box-sizing: border-box; }
     :root {
-      --primary: #fa520f;
+--primary: #fa520f;
+      --primary-deep: #cc3a05;
       --on-primary: #ffffff;
-      --canvas: #0f1115;
-      --surface: #181b22;
-      --surface-strong: #20242d;
-      --ink: #f7f7f8;
-      --body: rgba(255,255,255,0.76);
-      --muted: rgba(255,255,255,0.52);
-      --border: #e5e5e5;
-      --display: PP Editorial Old;
-      --text: PP Editorial Old;
-      --mono: ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, monospace;
+      --sunshine-300: #ffd06a;
+      --sunshine-500: #ffb83e;
+      --sunshine-700: #ffa110;
+      --sunshine-800: #ff8105;
+      --sunshine-900: #ff8a00;
+      --yellow-saturated: #ffd900;
+      --cream: #fff8e0;
+      --cream-light: #fffaeb;
+      --cream-deeper: #fff0c2;
+      --beige-deep: #e6d5a8;
+      --ink: #ffffff;
+      --ink-tint: #3d3d3d;
+      --charcoal: #e6e6e8;
+      --slate: #b1b1b5;
+      --steel: #6a6a6a;
+      --stone: #6e7681;
+      --muted: #555555;
+      --hairline: rgba(255,255,255,0.16);
+      --hairline-soft: rgba(255,255,255,0.08);
+      --hairline-strong: rgba(255,255,255,0.24);
+      --canvas: #0a0a0a;
+      --surface: #161616;
+      --surface-cream: #2a2410;
+      --surface-cream-soft: #1f1c14;
+      --surface-code: #161616;
+      --on-dark: #ffffff;
+      --on-dark-muted: #a8a8a8;
+      --footer-cream: #fff8e0;
+      --link: #fa520f;
+  --color-primary: #fa520f;
+  --color-primary-deep: #cc3a05;
+  --color-on-primary: #ffffff;
+  --color-sunshine-300: #ffd06a;
+  --color-sunshine-500: #ffb83e;
+  --color-sunshine-700: #ffa110;
+  --color-sunshine-800: #ff8105;
+  --color-sunshine-900: #ff8a00;
+  --color-yellow-saturated: #ffd900;
+  --color-cream: #fff8e0;
+  --color-cream-light: #fffaeb;
+  --color-cream-deeper: #fff0c2;
+  --color-beige-deep: #e6d5a8;
+  --block-5: #ffe295;
+  --color-block-5: #ffe295;
+  --block-6: #ffd900;
+  --color-block-6: #ffd900;
+  --block-7: #ff8105;
+  --color-block-7: #ff8105;
+  --color-ink: #f7f7f8;
+  --color-ink-tint: #3d3d3d;
+  --color-charcoal: #2c2c2c;
+  --color-slate: #4a4a4a;
+  --color-steel: #6a6a6a;
+  --color-stone: #8a8a8a;
+  --color-muted: rgba(255,255,255,0.52);
+  --color-hairline: #e5e5e5;
+  --color-hairline-soft: #ededed;
+  --color-hairline-strong: #c7c7c7;
+  --color-canvas: #0f1115;
+  --color-surface: #181b22;
+  --color-surface-cream: #fff8e0;
+  --color-surface-cream-soft: #fffaeb;
+  --color-surface-code: #1c1c1e;
+  --color-on-dark: #ffffff;
+  --color-on-dark-muted: #a8a8a8;
+  --on-cream: #1f1f1f;
+  --color-on-cream: #1f1f1f;
+  --color-footer-cream: #fff8e0;
+  --color-link: #fa520f;
+}
+    body {
+      font-family: 'Inter', -apple-system, BlinkMacSystemFont, sans-serif;
+      color: var(--ink);
+      background: var(--canvas);
+      line-height: 1.5;
+      -webkit-font-smoothing: antialiased;
     }
-    * { box-sizing: border-box; margin: 0; padding: 0; }
-    html, body { background: var(--canvas); color: var(--ink); font-family: var(--text); font-size: 16px; line-height: 1.5; }
-    body { min-width: 320px; }
-    .nav { position: sticky; top: 0; z-index: 20; display: grid; grid-template-columns: 1fr auto 1fr; align-items: center; gap: 20px; height: 64px; padding: 0 48px; background: color-mix(in srgb, var(--canvas) 92%, transparent); border-bottom: 1px solid var(--border); backdrop-filter: blur(14px); }
-    .brand { font-family: var(--display); font-weight: 700; letter-spacing: -0.02em; color: var(--ink); }
-    .nav-links { list-style: none; display: flex; gap: 24px; justify-content: center; }
-    .nav-links a { color: var(--body); text-decoration: none; font-size: 14px; font-weight: 600; }
-    .nav-cta { justify-self: end; border: 0; background: var(--primary); color: var(--on-primary); border-radius: 8px; padding: 11px 18px; font: 700 13px/1 var(--text); }
-    .hero { max-width: 1440px; margin: 0 auto; padding: 84px 48px 72px; display: grid; grid-template-columns: minmax(0, 1.1fr) minmax(320px, 0.9fr); gap: 48px; align-items: center; }
-    .eyebrow { color: var(--muted); font: 700 11px/1.2 var(--mono); letter-spacing: 0.12em; text-transform: uppercase; margin-bottom: 18px; }
-    h1 { font-family: var(--display); font-size: clamp(40px, 6vw, 72px); line-height: 1.04; letter-spacing: -0.045em; font-weight: 750; max-width: 980px; }
-    .hero p { margin-top: 26px; max-width: 760px; color: var(--body); font-size: 18px; line-height: 1.65; }
-    .hero-actions { margin-top: 34px; display: flex; gap: 12px; flex-wrap: wrap; }
-    .btn { display: inline-flex; align-items: center; justify-content: center; min-height: 44px; border-radius: 8px; padding: 0 20px; border: 1px solid var(--border); font: 700 14px/1 var(--text); color: var(--ink); background: var(--surface); }
-    .btn.primary { background: var(--primary); color: var(--on-primary); border-color: var(--primary); }
-    .hero-panel { background: var(--surface); border: 1px solid var(--border); border-radius: 18px; overflow: hidden; box-shadow: 0 24px 70px rgba(0,0,0,.12); }
-    .panel-top { height: 44px; display: flex; align-items: center; gap: 7px; padding: 0 16px; border-bottom: 1px solid var(--border); background: var(--surface-strong); }
-    .dot { width: 10px; height: 10px; border-radius: 999px; background: var(--primary); opacity: .85; }
-    .panel-body { padding: 22px; display: grid; gap: 14px; }
-    .metric { display: grid; grid-template-columns: 88px 1fr; gap: 14px; align-items: center; padding: 14px; border: 1px solid var(--border); border-radius: 12px; background: var(--canvas); }
-    .metric strong { color: var(--primary); font-family: var(--mono); font-size: 22px; }
-    .metric span { color: var(--body); font-size: 13px; }
-    section { max-width: 1440px; margin: 0 auto; padding: 78px 48px; border-top: 1px solid var(--border); }
-    .section-label { color: var(--muted); font: 800 11px/1.2 var(--mono); letter-spacing: .12em; text-transform: uppercase; margin-bottom: 12px; }
-    .section-heading { font-family: var(--display); font-size: clamp(26px, 3.5vw, 42px); line-height: 1.12; letter-spacing: -.025em; margin-bottom: 16px; }
-    .section-intro { color: var(--body); max-width: 760px; margin-bottom: 42px; line-height: 1.65; }
-    .palette-grid, .button-grid, .card-grid, .form-grid, .elevation-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(230px, 1fr)); gap: 18px; }
-    .swatch, .component-cell, .feature-card, .form-cell, .elevation-card { background: var(--surface); border: 1px solid var(--border); border-radius: 14px; overflow: hidden; min-width: 0; }
-    .swatch-color { height: 108px; border-bottom: 1px solid var(--border); }
-    .swatch-meta, .component-cell, .feature-card, .form-cell, .elevation-card { padding: 18px; }
-    .swatch-name, .button-label { font-weight: 800; font-size: 13px; color: var(--ink); margin-bottom: 5px; overflow-wrap: anywhere; }
-    .swatch-hex, .button-meta, .type-meta, .spacing-label { font-family: var(--mono); font-size: 12px; color: var(--muted); overflow-wrap: anywhere; }
-    .type-row { display: grid; grid-template-columns: 300px 1fr; gap: 32px; align-items: baseline; padding: 20px 0; border-bottom: 1px solid var(--border); }
-    .type-sample { color: var(--ink); overflow-wrap: anywhere; }
-    .demo-button { display: inline-flex; align-items: center; justify-content: center; min-height: 40px; border-radius: 8px; border: 1px solid var(--border); padding: 0 16px; font-weight: 700; max-width: 100%; }
-    .feature-card h4, .elevation-card h4 { font-size: 18px; margin-bottom: 8px; }
-    .feature-card p, .elevation-card p { color: var(--body); font-size: 14px; line-height: 1.55; }
-    .text-input { width: 100%; min-height: 44px; border-radius: 8px; border: 1px solid var(--border); background: var(--canvas); color: var(--ink); padding: 0 14px; font: 500 15px/1 var(--text); }
-    .badge { display: inline-flex; align-items: center; border-radius: 999px; background: var(--surface-strong); color: var(--ink); min-height: 28px; padding: 0 12px; font: 800 11px/1 var(--mono); letter-spacing: .08em; text-transform: uppercase; }
-    .spacing-row, .radius-row { display: flex; flex-wrap: wrap; gap: 18px; align-items: end; }
-    .spacing-block { display: grid; justify-items: center; gap: 8px; }
-    .spacing-bar { width: 54px; min-height: 4px; background: var(--primary); border-radius: 6px; }
-    .radius-block { width: 96px; height: 96px; display: grid; place-items: center; background: var(--surface); border: 1px solid var(--border); color: var(--muted); font: 700 12px/1 var(--mono); }
-    .responsive-table { width: 100%; border-collapse: collapse; background: var(--surface); border: 1px solid var(--border); border-radius: 14px; overflow: hidden; }
-    .responsive-table th, .responsive-table td { text-align: left; padding: 14px 16px; border-bottom: 1px solid var(--border); color: var(--body); }
-    .responsive-table th { color: var(--ink); font: 800 11px/1.2 var(--mono); letter-spacing: .1em; text-transform: uppercase; }
-    .footer { padding: 34px 48px; border-top: 1px solid var(--border); color: var(--muted); text-align: center; font-size: 13px; }
-    @media (max-width: 900px) { .nav { grid-template-columns: 1fr auto; padding: 0 20px; } .nav-links { display: none; } .nav-cta { display: none; } .hero { grid-template-columns: 1fr; padding: 56px 20px; } section { padding: 56px 20px; } .type-row { grid-template-columns: 1fr; gap: 8px; } }
-  </style>
+    .display-font, h1, h2.editorial { font-family: 'DM Serif Display', 'Times New Roman', Georgia, serif; }
+    .min-width-0, .min-width-0 * { min-width: 0; }
+    .promo-banner {
+      background: var(--ink); color: var(--on-dark);
+      text-align: center; padding: 12px 16px;
+      font-size: 14px; font-weight: 500;
+    }
+    .promo-banner a { color: var(--on-dark); text-decoration: underline; margin-left: 8px; }
+    .nav {
+      display: grid; grid-template-columns: 1fr auto 1fr;
+      align-items: center; padding: 0 32px; height: 64px;
+      background: var(--canvas); border-bottom: 1px solid var(--hairline-soft);
+      position: sticky; top: 0; z-index: 100;
+    }
+    .nav-left { display: flex; align-items: center; gap: 20px; justify-self: start; }
+    .nav-brand-link, .nav-brand-link:link, .nav-brand-link:visited, .nav-brand-link:hover, .nav-brand-link:active {
+      text-decoration: none; color: inherit; font-weight: 600; font-size: 15px;
+    }
+    .nav-github, .nav-github:link, .nav-github:visited, .nav-github:hover, .nav-github:active {
+      display: inline-flex; align-items: center; gap: 6px; font-size: 12px; font-weight: 600;
+      color: inherit; text-decoration: none; padding: 5px 10px;
+      border: 1px solid rgba(128,128,128,0.3); border-radius: 6px; opacity: 0.75;
+      transition: opacity 200ms ease, border-color 200ms ease;
+      font-family: inherit; line-height: 1; white-space: nowrap; background: transparent;
+    }
+    .nav-github:hover { opacity: 1; border-color: rgba(128,128,128,0.55); }
+    .nav-github svg { display: block; flex-shrink: 0; }
+    .nav-links { justify-self: center; list-style: none; display: flex; gap: 24px; align-items: center; }
+    .nav-links a { color: var(--charcoal); text-decoration: none; font-size: 14px; font-weight: 500; }
+    .nav-cta {
+      justify-self: end; padding: 10px 20px;
+      background: var(--ink); color: var(--on-dark);
+      border: none; border-radius: 8px; font-weight: 500;
+      font-size: 14px; cursor: pointer; font-family: inherit;
+    }
+    .hero {
+      padding: 80px 32px 0; max-width: 1280px; margin: 0 auto;
+      position: relative; overflow: hidden;
+    }
+    .hero-gradient-bg {
+      position: relative;
+      background: linear-gradient(135deg, var(--cream) 0%, var(--sunshine-500) 50%, var(--primary) 100%);
+      border-radius: 16px; padding: 64px 48px;
+      min-height: 480px; display: flex; flex-direction: column; gap: 24px;
+      justify-content: center;
+    }
+    .hero h1 {
+      font-size: 64px; font-weight: 400; line-height: 1.05;
+      color: var(--ink); margin-bottom: 16px;
+      letter-spacing: -1px; max-width: 800px;
+    }
+    .hero p {
+      font-size: 18px; color: var(--ink-tint); max-width: 540px;
+      line-height: 1.55; margin-bottom: 16px;
+    }
+    .hero-actions { display: flex; gap: 12px; flex-wrap: wrap; }
+    button { font-family: inherit; cursor: pointer; }
+    .btn-primary {
+      padding: 10px 20px; background: var(--primary); color: var(--on-primary);
+      border: none; border-radius: 8px; font-weight: 500; font-size: 14px;
+    }
+    .btn-cream {
+      padding: 10px 20px; background: var(--cream); color: var(--ink);
+      border: 1px solid var(--beige-deep); border-radius: 8px;
+      font-weight: 500; font-size: 14px;
+    }
+    .btn-dark {
+      padding: 10px 20px; background: var(--ink); color: var(--on-dark);
+      border: none; border-radius: 8px; font-weight: 500; font-size: 14px;
+    }
+    .btn-secondary {
+      padding: 10px 20px; background: transparent; color: var(--ink);
+      border: 1px solid var(--hairline-strong); border-radius: 8px;
+      font-weight: 500; font-size: 14px;
+    }
+    .btn-on-cream {
+      padding: 10px 20px; background: var(--canvas); color: var(--ink);
+      border: 1px solid var(--beige-deep); border-radius: 8px;
+      font-weight: 500; font-size: 14px;
+    }
+    .btn-link {
+      padding: 0; background: transparent; color: var(--primary);
+      border: none; font-weight: 500; font-size: 14px; text-decoration: none;
+    }
+    .btn-disabled {
+      padding: 10px 20px; background: var(--hairline); color: var(--muted);
+      border: none; border-radius: 8px; font-weight: 500; font-size: 14px;
+      cursor: not-allowed;
+    }
+    section {
+      padding: 96px 32px; max-width: 1280px; margin: 0 auto;
+    }
+    .section-heading {
+      font-family: 'DM Serif Display', serif;
+      font-size: 52px; font-weight: 400; margin-bottom: 12px; color: var(--ink);
+      line-height: 1.15; letter-spacing: -0.5px;
+    }
+    .section-sub { font-size: 16px; color: var(--steel); margin-bottom: 40px; max-width: 720px; line-height: 1.55; }
+    .palette-group { margin-bottom: 48px; }
+    .palette-group h3 { font-size: 18px; font-weight: 500; margin-bottom: 20px; color: var(--ink); }
+    .palette-grid {
+      display: grid; grid-template-columns: repeat(auto-fit, minmax(180px, 1fr));
+      gap: 20px;
+    }
+    .swatch { display: flex; flex-direction: column; gap: 10px; min-width: 0; }
+    .swatch-color { width: 100%; height: 96px; border-radius: 12px; border: 1px solid var(--hairline-soft); }
+    .swatch-name { font-weight: 500; font-size: 14px; color: var(--ink); }
+    .swatch-hex { font-family: 'JetBrains Mono', monospace; font-size: 12px; color: var(--steel); }
+    .swatch-role { font-size: 12px; color: var(--steel); line-height: 1.4; }
+    .type-row {
+      display: grid; grid-template-columns: 280px 1fr;
+      gap: 24px; padding: 24px 0; border-bottom: 1px solid var(--hairline-soft);
+      align-items: baseline;
+    }
+    .type-meta { display: flex; flex-direction: column; gap: 4px; }
+    .type-meta .role { font-size: 14px; font-weight: 500; color: var(--ink); }
+    .type-meta .specs { font-family: 'JetBrains Mono', monospace; font-size: 12px; color: var(--steel); }
+    .type-sample { color: var(--ink); }
+    .button-grid {
+      display: grid; grid-template-columns: repeat(auto-fit, minmax(200px, 1fr));
+      gap: 16px;
+    }
+    .button-cell {
+      display: flex; flex-direction: column; gap: 12px;
+      padding: 24px; background: var(--canvas);
+      border: 1px solid var(--hairline-soft); border-radius: 12px;
+      align-items: flex-start; min-width: 0;
+    }
+    .button-cell-spec { font-size: 12px; color: var(--steel); font-family: 'JetBrains Mono', monospace; }
+    .button-cell-name { font-size: 14px; font-weight: 500; color: var(--ink); }
+    .badge-row { display: flex; gap: 8px; flex-wrap: wrap; align-items: center; }
+    .badge {
+      display: inline-block; padding: 4px 10px;
+      border-radius: 9999px; font-size: 13px; font-weight: 600; line-height: 1.4;
+    }
+    .badge-orange { background: var(--primary); color: var(--on-primary); }
+    .badge-cream { background: var(--cream-deeper); color: var(--ink); }
+    .badge-dark { background: var(--ink); color: var(--on-dark); }
+    /* Cards */
+    .card-grid {
+      display: grid; grid-template-columns: repeat(auto-fit, minmax(280px, 1fr));
+      gap: 24px;
+    }
+    .card-base {
+      background: var(--canvas); border-radius: 12px; padding: 24px;
+      border: 1px solid var(--hairline-soft);
+      display: flex; flex-direction: column; gap: 12px;
+    }
+    .card-feature {
+      background: var(--canvas); border-radius: 12px; padding: 32px;
+      border: 1px solid var(--hairline-soft);
+      display: flex; flex-direction: column; gap: 16px;
+    }
+    .card-cream {
+      background: var(--cream); border: 1px solid var(--beige-deep);
+      border-radius: 12px; padding: 32px;
+      display: flex; flex-direction: column; gap: 16px;
+    }
+    .card-cream-soft {
+      background: var(--surface-cream-soft); border-radius: 12px; padding: 32px;
+      display: flex; flex-direction: column; gap: 16px;
+    }
+    .card-feature-product {
+      background: var(--canvas); border: 1px solid var(--hairline-soft);
+      border-radius: 12px; padding: 32px;
+      box-shadow: rgba(0,0,0,0.04) 0px 4px 12px;
+      display: flex; flex-direction: column; gap: 16px;
+    }
+    .card-photographic {
+      background: var(--surface-code); color: var(--on-dark);
+      border-radius: 12px; min-height: 240px; padding: 32px;
+      display: flex; flex-direction: column; justify-content: flex-end; gap: 8px;
+    }
+    .card-photographic h4 { font-size: 24px; font-weight: 500; line-height: 1.25; }
+    .card-photographic p { font-size: 13px; opacity: 0.8; }
+    .card-feature h4, .card-cream h4, .card-feature-product h4 { font-size: 22px; font-weight: 500; line-height: 1.3; }
+    .card-feature p, .card-cream p, .card-feature-product p, .card-cream-soft p { font-size: 14px; color: var(--steel); line-height: 1.5; }
+    /* Pricing */
+    .pricing-grid {
+      display: grid; grid-template-columns: repeat(auto-fit, minmax(260px, 1fr));
+      gap: 24px;
+    }
+    .pricing-card {
+      background: var(--canvas); border-radius: 12px; padding: 32px;
+      border: 1px solid var(--hairline-soft);
+      display: flex; flex-direction: column; gap: 16px;
+    }
+    .pricing-card.featured {
+      background: var(--cream); border: 2px solid var(--primary);
+      padding: 31px;
+    }
+    .pricing-card .tier-name { font-size: 18px; font-weight: 500; color: var(--ink); }
+    .pricing-card .tier-price { font-family: 'DM Serif Display', serif; font-size: 56px; font-weight: 400; color: var(--ink); letter-spacing: -1px; line-height: 1.1; }
+    .pricing-card .tier-price small { font-size: 14px; font-weight: 400; color: var(--steel); margin-left: 4px; font-family: 'Inter', sans-serif; }
+    .pricing-card .tier-feature-list { list-style: none; display: flex; flex-direction: column; gap: 8px; }
+    .pricing-card .tier-feature-list li { font-size: 14px; color: var(--charcoal); display: flex; gap: 8px; align-items: flex-start; }
+    .pricing-card .tier-feature-list li::before { content: '✓'; color: var(--primary); font-weight: 700; flex-shrink: 0; }
+    /* Forms */
+    .contact-form-panel {
+      background: var(--cream); border: 1px solid var(--beige-deep);
+      border-radius: 12px; padding: 32px;
+      max-width: 520px; display: flex; flex-direction: column; gap: 16px;
+    }
+    .contact-form-panel h3 { font-family: 'DM Serif Display', serif; font-size: 32px; font-weight: 400; color: var(--ink); letter-spacing: -0.5px; }
+    .form-row { display: grid; grid-template-columns: repeat(auto-fit, minmax(220px, 1fr)); gap: 16px; }
+    .form-field { display: flex; flex-direction: column; gap: 6px; }
+    .form-label { font-size: 14px; font-weight: 500; color: var(--ink); }
+    .text-input {
+      padding: 12px 16px; background: var(--canvas); color: var(--ink);
+      border: 1px solid var(--hairline-strong); border-radius: 8px;
+      font-size: 16px; height: 44px; font-family: inherit;
+    }
+    .text-input:focus { outline: none; border: 2px solid var(--primary); padding: 11px 15px; }
+    .text-area {
+      padding: 16px; background: var(--canvas); color: var(--ink);
+      border: 1px solid var(--hairline-strong); border-radius: 8px;
+      font-size: 16px; font-family: inherit; min-height: 100px; resize: vertical;
+    }
+    /* Tabs */
+    .seg-tabs { display: flex; gap: 4px; border-bottom: 1px solid var(--hairline); margin-bottom: 24px; }
+    .seg-tab {
+      padding: 12px 16px; background: transparent; color: var(--steel);
+      border: none; border-bottom: 2px solid transparent;
+      font-size: 14px; font-weight: 500; cursor: pointer; font-family: inherit;
+    }
+    .seg-tab.active { color: var(--primary); border-bottom: 2px solid var(--primary); }
+    .pill-tabs { display: flex; gap: 8px; flex-wrap: wrap; }
+    .pill-tab {
+      padding: 8px 16px; background: var(--canvas); color: var(--steel);
+      border: 1px solid var(--hairline); border-radius: 9999px;
+      font-size: 14px; font-weight: 500; cursor: pointer; font-family: inherit;
+    }
+    .pill-tab.active { background: var(--ink); color: var(--on-dark); border-color: var(--ink); }
+    /* Code */
+    .code-block {
+      background: var(--surface-code); color: var(--on-dark);
+      border-radius: 8px; overflow: hidden;
+      font-family: 'JetBrains Mono', monospace;
+    }
+    .code-block-header {
+      background: var(--surface-code); color: var(--on-dark-muted);
+      padding: 8px 16px; font-size: 13px;
+      border-bottom: 1px solid rgba(255,255,255,0.08);
+      display: flex; justify-content: space-between; align-items: center;
+    }
+    .code-block-body {
+      padding: 16px; font-size: 14px; line-height: 1.5;
+    }
+    /* Industry tile */
+    .industry-tile {
+      background: var(--canvas); border-radius: 12px; padding: 24px;
+      border: 1px solid var(--hairline-soft);
+      display: flex; flex-direction: column; gap: 12px;
+    }
+    .industry-tile .icon-zone {
+      width: 40px; height: 40px;
+      background: var(--cream); border: 1px solid var(--beige-deep); border-radius: 8px;
+      display: flex; align-items: center; justify-content: center;
+      font-size: 20px;
+    }
+    .industry-tile h5 { font-size: 18px; font-weight: 500; color: var(--ink); }
+    .industry-tile p { font-size: 14px; color: var(--steel); line-height: 1.5; }
+    /* Stat */
+    .stat-row {
+      display: grid; grid-template-columns: repeat(auto-fit, minmax(180px, 1fr));
+      gap: 32px; padding: 48px 32px; background: var(--cream); border-radius: 12px;
+      border: 1px solid var(--beige-deep);
+    }
+    .stat-cell { display: flex; flex-direction: column; gap: 8px; align-items: flex-start; }
+    .stat-num { font-family: 'DM Serif Display', serif; font-size: 56px; font-weight: 400; color: var(--ink); letter-spacing: -1px; line-height: 1.1; }
+    .stat-label { font-size: 14px; color: var(--steel); }
+    /* Customer testimonial */
+    .testimonial-grid {
+      display: grid; grid-template-columns: repeat(auto-fit, minmax(280px, 1fr));
+      gap: 24px;
+    }
+    .customer-testimonial-card {
+      background: var(--canvas); border-radius: 12px; padding: 32px;
+      border: 1px solid var(--hairline-soft);
+      display: flex; flex-direction: column; gap: 16px;
+    }
+    .customer-testimonial-card .quote { font-size: 16px; color: var(--charcoal); line-height: 1.55; }
+    .customer-testimonial-card .author { display: flex; align-items: center; gap: 12px; }
+    .avatar { width: 32px; height: 32px; border-radius: 50%; background: linear-gradient(135deg, #ffa110, #fa520f); flex-shrink: 0; }
+    .author-name { font-size: 13px; font-weight: 500; color: var(--ink); }
+    .author-title { font-size: 12px; color: var(--steel); }
+    /* Logo wall */
+    .logo-wall {
+      display: grid; grid-template-columns: repeat(auto-fit, minmax(120px, 1fr));
+      gap: 16px; padding: 32px; background: var(--canvas); border-radius: 12px;
+      border: 1px solid var(--hairline-soft);
+    }
+    .logo-item {
+      padding: 20px; text-align: center; color: var(--steel);
+      font-size: 16px; font-weight: 500;
+    }
+    /* FAQ */
+    .faq-list { display: flex; flex-direction: column; gap: 0; border: 1px solid var(--hairline); border-radius: 12px; overflow: hidden; }
+    .faq-item {
+      background: var(--canvas); padding: 24px;
+      border-bottom: 1px solid var(--hairline);
+    }
+    .faq-item:last-child { border-bottom: none; }
+    .faq-q { display: flex; align-items: center; justify-content: space-between; gap: 16px; }
+    .faq-q-text { font-size: 18px; font-weight: 500; color: var(--ink); line-height: 1.4; }
+    .chev { width: 16px; height: 16px; color: var(--steel); flex-shrink: 0; }
+    .faq-a { font-size: 16px; color: var(--steel); margin-top: 12px; line-height: 1.55; }
+    .faq-item.collapsed .faq-a { display: none; }
+    /* Sunset stripe */
+    .sunset-stripe {
+      width: 100%; height: 80px;
+      background: linear-gradient(90deg,
+        var(--primary) 0%,
+        var(--sunshine-700) 25%,
+        var(--sunshine-500) 50%,
+        var(--yellow-saturated) 75%,
+        var(--cream) 100%);
+      margin-top: 0;
+    }
+    .sunset-stripe-band-demo {
+      width: 100%; height: 60px; border-radius: 8px;
+      background: linear-gradient(90deg,
+        var(--primary) 0%,
+        var(--sunshine-700) 25%,
+        var(--sunshine-500) 50%,
+        var(--yellow-saturated) 75%,
+        var(--cream) 100%);
+      margin-top: 16px;
+    }
+    /* CTA banner */
+    .cta-banner-cream {
+      background: var(--cream); color: var(--ink); border: 1px solid var(--beige-deep);
+      border-radius: 12px; padding: 64px 48px;
+      display: flex; flex-direction: column; gap: 24px;
+      align-items: center; text-align: center;
+    }
+    .cta-banner-cream h4 { font-family: 'DM Serif Display', serif; font-size: 48px; font-weight: 400; line-height: 1.15; letter-spacing: -0.5px; max-width: 720px; }
+    .cta-banner-cream p { font-size: 16px; color: var(--steel); max-width: 540px; }
+    .cta-banner-cream .actions { display: flex; gap: 12px; flex-wrap: wrap; justify-content: center; }
+    /* Spacing & radius */
+    .spacing-grid { display: flex; gap: 24px; align-items: flex-end; flex-wrap: wrap; }
+    .spacing-box { display: flex; flex-direction: column; align-items: center; gap: 8px; }
+    .spacing-visual { background: var(--ink); border-radius: 4px; }
+    .spacing-label { font-size: 12px; font-weight: 500; color: var(--ink); text-align: center; }
+    .spacing-label small { display: block; font-weight: 400; color: var(--steel); font-size: 10px; margin-top: 2px; }
+    .radius-grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(120px, 1fr)); gap: 24px; }
+    .radius-demo {
+      aspect-ratio: 1; background: var(--cream);
+      border: 2px solid var(--ink);
+      display: flex; flex-direction: column; align-items: center; justify-content: flex-end;
+      padding: 12px; font-size: 12px; font-weight: 500; color: var(--ink);
+    }
+    .radius-demo small { font-size: 10px; font-weight: 400; color: var(--steel); margin-top: 2px; }
+    .elevation-grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(220px, 1fr)); gap: 24px; }
+    .elev-cell {
+      background: var(--canvas); border-radius: 12px; padding: 32px;
+      display: flex; flex-direction: column; gap: 8px; min-height: 140px;
+    }
+    .elev-0 { border: 1px solid var(--hairline-soft); }
+    .elev-1 { box-shadow: rgba(0,0,0,0.04) 0px 1px 2px 0px; border: 1px solid var(--hairline-soft); }
+    .elev-2 { box-shadow: rgba(0,0,0,0.04) 0px 4px 12px 0px; }
+    .elev-3 { box-shadow: rgba(0,0,0,0.08) 0px 12px 24px -4px; }
+    .elev-4 { box-shadow: rgba(0,0,0,0.12) 0px 16px 48px -8px; }
+    .elev-name { font-size: 14px; font-weight: 500; color: var(--ink); }
+    .elev-meta { font-size: 12px; color: var(--steel); font-family: 'JetBrains Mono', monospace; }
+    .breakpoint-table { width: 100%; border-collapse: collapse; }
+    .breakpoint-table th, .breakpoint-table td {
+      text-align: left; padding: 14px 16px; border-bottom: 1px solid var(--hairline-soft);
+      font-size: 14px;
+    }
+    .breakpoint-table th { font-size: 12px; font-weight: 500; color: var(--steel); background: var(--surface-cream); }
+    .device-ladder {
+      display: flex; gap: 16px; align-items: flex-end; flex-wrap: wrap;
+      margin-top: 32px; padding: 32px; background: var(--cream); border-radius: 12px;
+    }
+    .device {
+      background: var(--canvas); border: 1px solid var(--hairline);
+      display: flex; align-items: flex-end; justify-content: center; padding: 8px;
+      font-size: 11px; color: var(--steel); font-weight: 500;
+    }
+    .footer {
+      padding: 64px 32px 32px; background: var(--footer-cream);
+      color: var(--ink); font-size: 14px;
+    }
+    .footer-grid {
+      max-width: 1280px; margin: 0 auto;
+      display: grid; grid-template-columns: 240px repeat(auto-fit, minmax(140px, 1fr));
+      gap: 48px; margin-bottom: 48px;
+    }
+    .footer-brand { display: flex; flex-direction: column; gap: 16px; }
+    .footer-brand .wordmark {
+      font-family: 'DM Serif Display', serif;
+      font-size: 24px; font-weight: 400; color: var(--ink);
+    }
+    .footer-brand .app-store-badges { display: flex; gap: 8px; flex-wrap: wrap; margin-top: 8px; }
+    .app-badge {
+      background: var(--ink); color: var(--on-dark);
+      padding: 8px 12px; border-radius: 8px;
+      font-size: 11px; font-weight: 600; display: flex; align-items: center; gap: 6px;
+    }
+    .footer-col h6 { font-size: 14px; font-weight: 600; color: var(--ink); margin-bottom: 16px; }
+    .footer-col a { display: block; padding: 4px 0; color: var(--primary); text-decoration: none; font-size: 14px; }
+    .footer-credit {
+      max-width: 1280px; margin: 0 auto;
+      padding-top: 32px; border-top: 1px solid var(--beige-deep);
+      text-align: center;
+    }
+    .footer-credit a { color: var(--primary); text-decoration: none; }
+    .footer-credit a:hover { text-decoration: underline; }
+    .footer-credit img { border-radius: 3px; vertical-align: -2px; margin-right: 3px; }
+
+    /* design catalog nav additions */
+    .nav-left { display: flex; align-items: center; gap: 20px; }
+    .nav-brand-link, .nav-brand-link:link, .nav-brand-link:visited, .nav-brand-link:hover, .nav-brand-link:active { text-decoration: none; color: inherit; }
+    .nav-github, .nav-github:link, .nav-github:visited, .nav-github:hover, .nav-github:active {
+      display: inline-flex; align-items: center; gap: 6px; font-size: 12px; font-weight: 600;
+      color: inherit; text-decoration: none; padding: 5px 10px;
+      border: 1px solid rgba(128, 128, 128, 0.3); border-radius: 6px; opacity: 0.75;
+      transition: opacity 200ms ease, border-color 200ms ease;
+      font-family: inherit; line-height: 1; white-space: nowrap;
+    }
+    .nav-github:hover { opacity: 1; border-color: rgba(128, 128, 128, 0.55); }
+    .nav-github svg { display: block; flex-shrink: 0; }
+
+    /* design catalog nav centering */
+    .nav { display: grid; grid-template-columns: 1fr auto 1fr; align-items: center; }
+    .nav > .nav-left { justify-self: start; }
+    .nav > .nav-links { justify-self: center; }
+    .nav > :last-child { justify-self: end; }
+
+    /* dark-mode overrides */
+    .nav .nav-github { color: #ffffff; border-color: rgba(255, 255, 255, 0.25); }
+    .nav .nav-github:hover { border-color: rgba(255, 255, 255, 0.5); }
+    .swatch-color { border: 1px solid rgba(255,255,255,0.08); }
+    .nav { background: var(--canvas); border-bottom: 1px solid var(--hairline-soft); }
+    .nav-cta { background: var(--surface); color: var(--ink); border: 1px solid var(--hairline); }
+    .promo-banner { background: var(--surface); color: var(--ink); border-bottom: 1px solid var(--hairline-soft); }
+    .button-cell { background: var(--surface); border-color: var(--hairline-soft); }
+    .card-base, .card-feature, .card-feature-product { background: var(--surface); border-color: var(--hairline-soft); }
+    .card-cream { background: var(--cream); border-color: var(--beige-deep); color: var(--ink); }
+    .card-cream-soft { background: var(--surface-cream-soft); color: var(--ink); }
+    .card-photographic { background: #000000; }
+    .text-input { background: var(--surface); color: var(--ink); border-color: var(--hairline); }
+    .text-area { background: var(--surface); color: var(--ink); border-color: var(--hairline); }
+    .contact-form-panel { background: var(--cream); border-color: var(--beige-deep); }
+    .contact-form-panel h3 { color: var(--ink); }
+    .seg-tab { color: var(--steel); }
+    .seg-tab.active { color: var(--primary); border-bottom-color: var(--primary); }
+    .seg-tabs { border-bottom-color: var(--hairline); }
+    .pill-tab { background: var(--surface); color: var(--steel); border-color: var(--hairline); }
+    .pill-tab.active { background: var(--ink); color: var(--canvas); border-color: var(--ink); }
+    .pricing-card { background: var(--surface); border-color: var(--hairline-soft); }
+    .pricing-card.featured { background: var(--cream); border-color: var(--primary); }
+    .pricing-card.featured .tier-name, .pricing-card.featured .tier-price { color: var(--ink); }
+    .pricing-card.featured .tier-feature-list li { color: var(--charcoal); }
+    .industry-tile { background: var(--surface); border-color: var(--hairline-soft); }
+    .industry-tile .icon-zone { background: var(--cream); border-color: var(--beige-deep); }
+    .stat-row { background: var(--cream); border-color: var(--beige-deep); }
+    .stat-num { color: var(--ink); }
+    .customer-testimonial-card { background: var(--surface); border-color: var(--hairline-soft); }
+    .customer-testimonial-card .quote { color: var(--charcoal); }
+    .author-name { color: var(--ink); }
+    .logo-wall { background: var(--surface); border-color: var(--hairline-soft); }
+    .logo-item { color: var(--steel); }
+    .faq-list { border-color: var(--hairline); }
+    .faq-item { background: var(--surface); border-bottom-color: var(--hairline); }
+    .faq-q-text { color: var(--ink); }
+    .faq-a { color: var(--steel); }
+    .cta-banner-cream { background: var(--cream); border-color: var(--beige-deep); }
+    .cta-banner-cream h4 { color: var(--ink); }
+    .cta-banner-cream p { color: var(--steel); }
+    .spacing-visual { background: var(--ink); }
+    .radius-demo { background: var(--cream); border-color: var(--ink); color: var(--ink); }
+    .elev-cell { background: var(--surface); }
+    .elev-0 { border-color: var(--hairline-soft); }
+    .elev-1 { box-shadow: rgba(0,0,0,0.4) 0px 1px 2px 0px; border-color: var(--hairline-soft); }
+    .elev-2 { box-shadow: rgba(0,0,0,0.4) 0px 4px 12px 0px; }
+    .elev-3 { box-shadow: rgba(0,0,0,0.5) 0px 12px 24px -4px; }
+    .elev-4 { box-shadow: rgba(0,0,0,0.5) 0px 16px 48px -8px; }
+    .breakpoint-table th { background: var(--cream); color: var(--steel); }
+    .breakpoint-table th, .breakpoint-table td { border-bottom-color: var(--hairline-soft); }
+    .device-ladder { background: var(--cream); border: 1px solid var(--beige-deep); }
+    .device { background: var(--canvas); border-color: var(--hairline); color: var(--steel); }
+    .footer { background: var(--footer-cream); }
+    .footer-brand .wordmark { color: var(--ink); }
+    .footer-col h6 { color: var(--ink); }
+    .footer-col a { color: var(--primary); }
+    .footer-credit { border-top-color: var(--hairline-soft); color: var(--steel); }
+    .footer-credit a { color: var(--ink); }
+    .app-badge { background: var(--canvas); color: var(--ink); border: 1px solid var(--hairline-soft); }
+    .btn-cream { background: var(--cream); color: var(--ink); border-color: var(--beige-deep); }
+    .btn-on-cream { background: var(--canvas); color: var(--ink); border-color: var(--beige-deep); }
+    .btn-secondary { color: var(--ink); border-color: var(--hairline); }
+    .btn-dark { background: var(--canvas); color: var(--ink); border: 1px solid var(--hairline); }
+    .badge-cream { background: var(--cream-deeper); color: #fdc870; }
+
+    @media (max-width: 1024px) {
+      section { padding: 64px 32px; }
+      .section-heading { font-size: 36px; }
+      .nav { padding: 0 32px; }
+      .nav > :last-child { display: none; }
+      .type-row { grid-template-columns: 1fr; gap: 8px; }
+      .hero h1 { font-size: 60px; }
+      .hero-gradient-bg { padding: 48px 32px; min-height: 380px; }
+    }
+    @media (max-width: 720px) {
+      .nav { padding: 12px 20px; height: auto; min-height: 56px; }
+      .nav-links { display: none; }
+      .hero { padding: 48px 20px 0; }
+      .hero h1 { font-size: 40px; letter-spacing: -1px; }
+      .hero p { font-size: 16px; }
+      .hero-gradient-bg { padding: 40px 24px; min-height: 320px; }
+      section { padding: 48px 20px; }
+      .section-heading { font-size: 32px; }
+      .palette-grid, .button-grid, .card-grid, .pricing-grid, .form-row, .testimonial-grid, .elevation-grid, .radius-grid, .stat-row, .footer-grid {
+        grid-template-columns: 1fr !important; gap: 16px;
+      }
+      .footer { padding: 48px 20px 24px; }
+    }
+
+
+  /* Shared Agent Platform footer content */
+  .footer { text-align: left; }
+  .footer-shell { max-width: 1200px; margin: 0 auto; }
+  .footer-grid { display: grid; grid-template-columns: repeat(4, minmax(0, 1fr)); gap: 32px; }
+  .footer-col h6 { margin: 0 0 14px; color: inherit; font: inherit; font-weight: 700; font-size: 14px; line-height: 1.2; }
+  .footer-col span { display: block; margin: 0 0 10px; color: inherit; opacity: 0.72; font-size: 14px; line-height: 1.35; }
+  .footer-credit { margin-top: 48px; padding-top: 24px; border-top: 1px solid currentColor; color: inherit; opacity: 0.78; font-size: 13px; line-height: 1.4; }
+  .footer-credit a { color: inherit; text-decoration: none; font-weight: 600; }
+  .footer-credit img { border-radius: 3px; vertical-align: -2px; margin-right: 3px; }
+  @media (max-width: 760px) {
+    .footer-grid { grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 24px; }
+  }
+</style>
 </head>
 <body>
+  <div class="promo-banner">JOIN MISTRAL AI MAKERS — Build the future of AI <a href="#">Apply now →</a></div>
   <nav class="nav">
-    <div class="brand">Mistral AI</div>
-    <ul class="nav-links"><li><a href="#colors">Colors</a></li><li><a href="#type">Typography</a></li><li><a href="#components">Components</a></li><li><a href="#responsive">Responsive</a></li></ul>
-    <button class="nav-cta">Preview</button>
+    <div class="nav-left">
+      <a href="#" target="_blank" rel="noopener noreferrer" class="nav-brand-link">
+        <span class="nav-brand">Mistral AI</span>
+      </a>
+
+    </div>
+    <ul class="nav-links">
+      <li><a href="#">Products</a></li>
+      <li><a href="#">Solutions</a></li>
+      <li><a href="#">Research</a></li>
+      <li><a href="#">Customers</a></li>
+    </ul>
+    <button class="nav-cta">Try Studio</button>
   </nav>
 
-  <main>
-    <div class="hero">
-      <div>
-        <div class="eyebrow">Design System Preview</div>
-        <h1>Mistral AI visual system</h1>
-        <p>Mistral AI brands itself with a singular signature — atmospheric sunset gradients (mustard, orange, deep red) layered over photography of mountains, plus a horizontal &quot;sunset stripe&quot; bar that closes every.</p>
-        <div class="hero-actions"><span class="btn primary">Primary action</span><span class="btn">Secondary action</span></div>
-      </div>
-      <div class="hero-panel" aria-label="Interface sample">
-        <div class="panel-top"><span class="dot"></span><span class="dot"></span><span class="dot"></span></div>
-        <div class="panel-body">
-          <div class="metric"><strong>01</strong><span>Token driven color, type, spacing, and component decisions.</span></div>
-          <div class="metric"><strong>AA</strong><span>Preview surfaces highlight contrast, hierarchy, and UI rhythm.</span></div>
-          <div class="metric"><strong>UI</strong><span>Reusable cards, controls, form fields, labels, and responsive states.</span></div>
-        </div>
+  <div class="hero">
+    <div class="hero-gradient-bg">
+      <h1>Design System Inspiration of Mistral AI</h1>
+      <p>Atmospheric mountain-sunset gradients with editorial near-serif hero displays.</p>
+      <div class="hero-actions">
+        <button class="btn-dark">Try le Studio</button>
+        <button class="btn-on-cream">Read the Report</button>
       </div>
     </div>
+  </div>
 
-    <section id="colors">
-      <div class="section-label">01 - Color Palette</div>
-      <h2 class="section-heading">Core colors and semantic surfaces</h2>
-      <p class="section-intro">The palette below is extracted from the structured design tokens. Swatches show the available roles and their exact CSS values.</p>
-      <div class="palette-grid">
-        <div class="swatch"><div class="swatch-color" style="background:#fa520f"></div><div class="swatch-meta"><div class="swatch-name">primary</div><div class="swatch-hex">#fa520f</div></div></div><div class="swatch"><div class="swatch-color" style="background:#cc3a05"></div><div class="swatch-meta"><div class="swatch-name">primary-deep</div><div class="swatch-hex">#cc3a05</div></div></div><div class="swatch"><div class="swatch-color" style="background:#ffffff"></div><div class="swatch-meta"><div class="swatch-name">on-primary</div><div class="swatch-hex">#ffffff</div></div></div><div class="swatch"><div class="swatch-color" style="background:#ffd06a"></div><div class="swatch-meta"><div class="swatch-name">sunshine-300</div><div class="swatch-hex">#ffd06a</div></div></div><div class="swatch"><div class="swatch-color" style="background:#ffb83e"></div><div class="swatch-meta"><div class="swatch-name">sunshine-500</div><div class="swatch-hex">#ffb83e</div></div></div><div class="swatch"><div class="swatch-color" style="background:#ffa110"></div><div class="swatch-meta"><div class="swatch-name">sunshine-700</div><div class="swatch-hex">#ffa110</div></div></div><div class="swatch"><div class="swatch-color" style="background:#ff8105"></div><div class="swatch-meta"><div class="swatch-name">sunshine-800</div><div class="swatch-hex">#ff8105</div></div></div><div class="swatch"><div class="swatch-color" style="background:#ff8a00"></div><div class="swatch-meta"><div class="swatch-name">sunshine-900</div><div class="swatch-hex">#ff8a00</div></div></div><div class="swatch"><div class="swatch-color" style="background:#ffd900"></div><div class="swatch-meta"><div class="swatch-name">yellow-saturated</div><div class="swatch-hex">#ffd900</div></div></div><div class="swatch"><div class="swatch-color" style="background:#fff8e0"></div><div class="swatch-meta"><div class="swatch-name">cream</div><div class="swatch-hex">#fff8e0</div></div></div><div class="swatch"><div class="swatch-color" style="background:#fffaeb"></div><div class="swatch-meta"><div class="swatch-name">cream-light</div><div class="swatch-hex">#fffaeb</div></div></div><div class="swatch"><div class="swatch-color" style="background:#fff0c2"></div><div class="swatch-meta"><div class="swatch-name">cream-deeper</div><div class="swatch-hex">#fff0c2</div></div></div><div class="swatch"><div class="swatch-color" style="background:#e6d5a8"></div><div class="swatch-meta"><div class="swatch-name">beige-deep</div><div class="swatch-hex">#e6d5a8</div></div></div><div class="swatch"><div class="swatch-color" style="background:#ffe295"></div><div class="swatch-meta"><div class="swatch-name">block-5</div><div class="swatch-hex">#ffe295</div></div></div><div class="swatch"><div class="swatch-color" style="background:#ffd900"></div><div class="swatch-meta"><div class="swatch-name">block-6</div><div class="swatch-hex">#ffd900</div></div></div><div class="swatch"><div class="swatch-color" style="background:#ff8105"></div><div class="swatch-meta"><div class="swatch-name">block-7</div><div class="swatch-hex">#ff8105</div></div></div><div class="swatch"><div class="swatch-color" style="background:#1f1f1f"></div><div class="swatch-meta"><div class="swatch-name">ink</div><div class="swatch-hex">#1f1f1f</div></div></div><div class="swatch"><div class="swatch-color" style="background:#3d3d3d"></div><div class="swatch-meta"><div class="swatch-name">ink-tint</div><div class="swatch-hex">#3d3d3d</div></div></div><div class="swatch"><div class="swatch-color" style="background:#2c2c2c"></div><div class="swatch-meta"><div class="swatch-name">charcoal</div><div class="swatch-hex">#2c2c2c</div></div></div><div class="swatch"><div class="swatch-color" style="background:#4a4a4a"></div><div class="swatch-meta"><div class="swatch-name">slate</div><div class="swatch-hex">#4a4a4a</div></div></div><div class="swatch"><div class="swatch-color" style="background:#6a6a6a"></div><div class="swatch-meta"><div class="swatch-name">steel</div><div class="swatch-hex">#6a6a6a</div></div></div><div class="swatch"><div class="swatch-color" style="background:#8a8a8a"></div><div class="swatch-meta"><div class="swatch-name">stone</div><div class="swatch-hex">#8a8a8a</div></div></div><div class="swatch"><div class="swatch-color" style="background:#a8a8a8"></div><div class="swatch-meta"><div class="swatch-name">muted</div><div class="swatch-hex">#a8a8a8</div></div></div><div class="swatch"><div class="swatch-color" style="background:#e5e5e5"></div><div class="swatch-meta"><div class="swatch-name">hairline</div><div class="swatch-hex">#e5e5e5</div></div></div>
+  <section id="colors">
+<div class="section-label">01 / Color Palette</div>
+<h2 class="section-title section-heading">Color Palette</h2>
+<div class="palette-group color-group"><h3 class="subhead color-group-title color-group-label">Brand &amp; Accent</h3><div class="palette-grid swatch-grid color-grid"><div class="swatch color-swatch"><div class="swatch-color color-swatch-block color-swatch-preview fill chip" style="background:#fa520f"></div><div class="swatch-info swatch-meta color-swatch-info info meta"><div class="swatch-name color-swatch-name name">Primary</div><div class="swatch-hex color-swatch-hex hex">#fa520f</div><div class="swatch-role color-swatch-role role">Brand &amp; Accent</div></div></div><div class="swatch color-swatch"><div class="swatch-color color-swatch-block color-swatch-preview fill chip" style="background:#cc3a05"></div><div class="swatch-info swatch-meta color-swatch-info info meta"><div class="swatch-name color-swatch-name name">Primary Deep</div><div class="swatch-hex color-swatch-hex hex">#cc3a05</div><div class="swatch-role color-swatch-role role">Brand &amp; Accent</div></div></div><div class="swatch color-swatch"><div class="swatch-color color-swatch-block color-swatch-preview fill chip" style="background:#ffffff"></div><div class="swatch-info swatch-meta color-swatch-info info meta"><div class="swatch-name color-swatch-name name">On Primary</div><div class="swatch-hex color-swatch-hex hex">#ffffff</div><div class="swatch-role color-swatch-role role">Brand &amp; Accent</div></div></div><div class="swatch color-swatch"><div class="swatch-color color-swatch-block color-swatch-preview fill chip" style="background:#ffd900"></div><div class="swatch-info swatch-meta color-swatch-info info meta"><div class="swatch-name color-swatch-name name">Yellow Saturated</div><div class="swatch-hex color-swatch-hex hex">#ffd900</div><div class="swatch-role color-swatch-role role">Brand &amp; Accent</div></div></div></div></div><div class="palette-group color-group"><h3 class="subhead color-group-title color-group-label">Surface</h3><div class="palette-grid swatch-grid color-grid"><div class="swatch color-swatch"><div class="swatch-color color-swatch-block color-swatch-preview fill chip" style="background:#ffffff"></div><div class="swatch-info swatch-meta color-swatch-info info meta"><div class="swatch-name color-swatch-name name">Canvas</div><div class="swatch-hex color-swatch-hex hex">#ffffff</div><div class="swatch-role color-swatch-role role">Surface</div></div></div><div class="swatch color-swatch"><div class="swatch-color color-swatch-block color-swatch-preview fill chip" style="background:#fafafa"></div><div class="swatch-info swatch-meta color-swatch-info info meta"><div class="swatch-name color-swatch-name name">Surface</div><div class="swatch-hex color-swatch-hex hex">#fafafa</div><div class="swatch-role color-swatch-role role">Surface</div></div></div><div class="swatch color-swatch"><div class="swatch-color color-swatch-block color-swatch-preview fill chip" style="background:#fff8e0"></div><div class="swatch-info swatch-meta color-swatch-info info meta"><div class="swatch-name color-swatch-name name">Surface Cream</div><div class="swatch-hex color-swatch-hex hex">#fff8e0</div><div class="swatch-role color-swatch-role role">Surface</div></div></div><div class="swatch color-swatch"><div class="swatch-color color-swatch-block color-swatch-preview fill chip" style="background:#fffaeb"></div><div class="swatch-info swatch-meta color-swatch-info info meta"><div class="swatch-name color-swatch-name name">Surface Cream Soft</div><div class="swatch-hex color-swatch-hex hex">#fffaeb</div><div class="swatch-role color-swatch-role role">Surface</div></div></div><div class="swatch color-swatch"><div class="swatch-color color-swatch-block color-swatch-preview fill chip" style="background:#1c1c1e"></div><div class="swatch-info swatch-meta color-swatch-info info meta"><div class="swatch-name color-swatch-name name">Surface Code</div><div class="swatch-hex color-swatch-hex hex">#1c1c1e</div><div class="swatch-role color-swatch-role role">Surface</div></div></div></div></div><div class="palette-group color-group"><h3 class="subhead color-group-title color-group-label">Text</h3><div class="palette-grid swatch-grid color-grid"><div class="swatch color-swatch"><div class="swatch-color color-swatch-block color-swatch-preview fill chip" style="background:#1f1f1f"></div><div class="swatch-info swatch-meta color-swatch-info info meta"><div class="swatch-name color-swatch-name name">Ink</div><div class="swatch-hex color-swatch-hex hex">#1f1f1f</div><div class="swatch-role color-swatch-role role">Text</div></div></div><div class="swatch color-swatch"><div class="swatch-color color-swatch-block color-swatch-preview fill chip" style="background:#3d3d3d"></div><div class="swatch-info swatch-meta color-swatch-info info meta"><div class="swatch-name color-swatch-name name">Ink Tint</div><div class="swatch-hex color-swatch-hex hex">#3d3d3d</div><div class="swatch-role color-swatch-role role">Text</div></div></div><div class="swatch color-swatch"><div class="swatch-color color-swatch-block color-swatch-preview fill chip" style="background:#a8a8a8"></div><div class="swatch-info swatch-meta color-swatch-info info meta"><div class="swatch-name color-swatch-name name">Muted</div><div class="swatch-hex color-swatch-hex hex">#a8a8a8</div><div class="swatch-role color-swatch-role role">Text</div></div></div><div class="swatch color-swatch"><div class="swatch-color color-swatch-block color-swatch-preview fill chip" style="background:#ffffff"></div><div class="swatch-info swatch-meta color-swatch-info info meta"><div class="swatch-name color-swatch-name name">On Dark</div><div class="swatch-hex color-swatch-hex hex">#ffffff</div><div class="swatch-role color-swatch-role role">Text</div></div></div><div class="swatch color-swatch"><div class="swatch-color color-swatch-block color-swatch-preview fill chip" style="background:#a8a8a8"></div><div class="swatch-info swatch-meta color-swatch-info info meta"><div class="swatch-name color-swatch-name name">On Dark Muted</div><div class="swatch-hex color-swatch-hex hex">#a8a8a8</div><div class="swatch-role color-swatch-role role">Text</div></div></div><div class="swatch color-swatch"><div class="swatch-color color-swatch-block color-swatch-preview fill chip" style="background:#1f1f1f"></div><div class="swatch-info swatch-meta color-swatch-info info meta"><div class="swatch-name color-swatch-name name">On Cream</div><div class="swatch-hex color-swatch-hex hex">#1f1f1f</div><div class="swatch-role color-swatch-role role">Text</div></div></div><div class="swatch color-swatch"><div class="swatch-color color-swatch-block color-swatch-preview fill chip" style="background:#fa520f"></div><div class="swatch-info swatch-meta color-swatch-info info meta"><div class="swatch-name color-swatch-name name">Link</div><div class="swatch-hex color-swatch-hex hex">#fa520f</div><div class="swatch-role color-swatch-role role">Text</div></div></div></div></div><div class="palette-group color-group"><h3 class="subhead color-group-title color-group-label">Borders &amp; Lines</h3><div class="palette-grid swatch-grid color-grid"><div class="swatch color-swatch"><div class="swatch-color color-swatch-block color-swatch-preview fill chip" style="background:#e5e5e5"></div><div class="swatch-info swatch-meta color-swatch-info info meta"><div class="swatch-name color-swatch-name name">Hairline</div><div class="swatch-hex color-swatch-hex hex">#e5e5e5</div><div class="swatch-role color-swatch-role role">Borders &amp; Lines</div></div></div><div class="swatch color-swatch"><div class="swatch-color color-swatch-block color-swatch-preview fill chip" style="background:#ededed"></div><div class="swatch-info swatch-meta color-swatch-info info meta"><div class="swatch-name color-swatch-name name">Hairline Soft</div><div class="swatch-hex color-swatch-hex hex">#ededed</div><div class="swatch-role color-swatch-role role">Borders &amp; Lines</div></div></div><div class="swatch color-swatch"><div class="swatch-color color-swatch-block color-swatch-preview fill chip" style="background:#c7c7c7"></div><div class="swatch-info swatch-meta color-swatch-info info meta"><div class="swatch-name color-swatch-name name">Hairline Strong</div><div class="swatch-hex color-swatch-hex hex">#c7c7c7</div><div class="swatch-role color-swatch-role role">Borders &amp; Lines</div></div></div></div></div><div class="palette-group color-group"><h3 class="subhead color-group-title color-group-label">Supporting</h3><div class="palette-grid swatch-grid color-grid"><div class="swatch color-swatch"><div class="swatch-color color-swatch-block color-swatch-preview fill chip" style="background:#ffd06a"></div><div class="swatch-info swatch-meta color-swatch-info info meta"><div class="swatch-name color-swatch-name name">Sunshine 300</div><div class="swatch-hex color-swatch-hex hex">#ffd06a</div><div class="swatch-role color-swatch-role role">Supporting</div></div></div><div class="swatch color-swatch"><div class="swatch-color color-swatch-block color-swatch-preview fill chip" style="background:#ffb83e"></div><div class="swatch-info swatch-meta color-swatch-info info meta"><div class="swatch-name color-swatch-name name">Sunshine 500</div><div class="swatch-hex color-swatch-hex hex">#ffb83e</div><div class="swatch-role color-swatch-role role">Supporting</div></div></div><div class="swatch color-swatch"><div class="swatch-color color-swatch-block color-swatch-preview fill chip" style="background:#ffa110"></div><div class="swatch-info swatch-meta color-swatch-info info meta"><div class="swatch-name color-swatch-name name">Sunshine 700</div><div class="swatch-hex color-swatch-hex hex">#ffa110</div><div class="swatch-role color-swatch-role role">Supporting</div></div></div><div class="swatch color-swatch"><div class="swatch-color color-swatch-block color-swatch-preview fill chip" style="background:#ff8105"></div><div class="swatch-info swatch-meta color-swatch-info info meta"><div class="swatch-name color-swatch-name name">Sunshine 800</div><div class="swatch-hex color-swatch-hex hex">#ff8105</div><div class="swatch-role color-swatch-role role">Supporting</div></div></div><div class="swatch color-swatch"><div class="swatch-color color-swatch-block color-swatch-preview fill chip" style="background:#ff8a00"></div><div class="swatch-info swatch-meta color-swatch-info info meta"><div class="swatch-name color-swatch-name name">Sunshine 900</div><div class="swatch-hex color-swatch-hex hex">#ff8a00</div><div class="swatch-role color-swatch-role role">Supporting</div></div></div><div class="swatch color-swatch"><div class="swatch-color color-swatch-block color-swatch-preview fill chip" style="background:#fff8e0"></div><div class="swatch-info swatch-meta color-swatch-info info meta"><div class="swatch-name color-swatch-name name">Cream</div><div class="swatch-hex color-swatch-hex hex">#fff8e0</div><div class="swatch-role color-swatch-role role">Supporting</div></div></div><div class="swatch color-swatch"><div class="swatch-color color-swatch-block color-swatch-preview fill chip" style="background:#fffaeb"></div><div class="swatch-info swatch-meta color-swatch-info info meta"><div class="swatch-name color-swatch-name name">Cream Light</div><div class="swatch-hex color-swatch-hex hex">#fffaeb</div><div class="swatch-role color-swatch-role role">Supporting</div></div></div><div class="swatch color-swatch"><div class="swatch-color color-swatch-block color-swatch-preview fill chip" style="background:#fff0c2"></div><div class="swatch-info swatch-meta color-swatch-info info meta"><div class="swatch-name color-swatch-name name">Cream Deeper</div><div class="swatch-hex color-swatch-hex hex">#fff0c2</div><div class="swatch-role color-swatch-role role">Supporting</div></div></div><div class="swatch color-swatch"><div class="swatch-color color-swatch-block color-swatch-preview fill chip" style="background:#e6d5a8"></div><div class="swatch-info swatch-meta color-swatch-info info meta"><div class="swatch-name color-swatch-name name">Beige Deep</div><div class="swatch-hex color-swatch-hex hex">#e6d5a8</div><div class="swatch-role color-swatch-role role">Supporting</div></div></div><div class="swatch color-swatch"><div class="swatch-color color-swatch-block color-swatch-preview fill chip" style="background:#ffe295"></div><div class="swatch-info swatch-meta color-swatch-info info meta"><div class="swatch-name color-swatch-name name">Block 5</div><div class="swatch-hex color-swatch-hex hex">#ffe295</div><div class="swatch-role color-swatch-role role">Supporting</div></div></div><div class="swatch color-swatch"><div class="swatch-color color-swatch-block color-swatch-preview fill chip" style="background:#ffd900"></div><div class="swatch-info swatch-meta color-swatch-info info meta"><div class="swatch-name color-swatch-name name">Block 6</div><div class="swatch-hex color-swatch-hex hex">#ffd900</div><div class="swatch-role color-swatch-role role">Supporting</div></div></div><div class="swatch color-swatch"><div class="swatch-color color-swatch-block color-swatch-preview fill chip" style="background:#ff8105"></div><div class="swatch-info swatch-meta color-swatch-info info meta"><div class="swatch-name color-swatch-name name">Block 7</div><div class="swatch-hex color-swatch-hex hex">#ff8105</div><div class="swatch-role color-swatch-role role">Supporting</div></div></div><div class="swatch color-swatch"><div class="swatch-color color-swatch-block color-swatch-preview fill chip" style="background:#2c2c2c"></div><div class="swatch-info swatch-meta color-swatch-info info meta"><div class="swatch-name color-swatch-name name">Charcoal</div><div class="swatch-hex color-swatch-hex hex">#2c2c2c</div><div class="swatch-role color-swatch-role role">Supporting</div></div></div><div class="swatch color-swatch"><div class="swatch-color color-swatch-block color-swatch-preview fill chip" style="background:#4a4a4a"></div><div class="swatch-info swatch-meta color-swatch-info info meta"><div class="swatch-name color-swatch-name name">Slate</div><div class="swatch-hex color-swatch-hex hex">#4a4a4a</div><div class="swatch-role color-swatch-role role">Supporting</div></div></div><div class="swatch color-swatch"><div class="swatch-color color-swatch-block color-swatch-preview fill chip" style="background:#6a6a6a"></div><div class="swatch-info swatch-meta color-swatch-info info meta"><div class="swatch-name color-swatch-name name">Steel</div><div class="swatch-hex color-swatch-hex hex">#6a6a6a</div><div class="swatch-role color-swatch-role role">Supporting</div></div></div><div class="swatch color-swatch"><div class="swatch-color color-swatch-block color-swatch-preview fill chip" style="background:#8a8a8a"></div><div class="swatch-info swatch-meta color-swatch-info info meta"><div class="swatch-name color-swatch-name name">Stone</div><div class="swatch-hex color-swatch-hex hex">#8a8a8a</div><div class="swatch-role color-swatch-role role">Supporting</div></div></div><div class="swatch color-swatch"><div class="swatch-color color-swatch-block color-swatch-preview fill chip" style="background:#fff8e0"></div><div class="swatch-info swatch-meta color-swatch-info info meta"><div class="swatch-name color-swatch-name name">Footer Cream</div><div class="swatch-hex color-swatch-hex hex">#fff8e0</div><div class="swatch-role color-swatch-role role">Supporting</div></div></div></div></div>
+</section>
+
+  <section id="sunset-stripe">
+    <h2 class="section-heading">Sunset Stripe Band</h2>
+    <p class="section-sub">THE brand's most recognizable signature element — a horizontal multi-stop gradient that closes every page bottom (red → orange → yellow → cream).</p>
+    <div class="sunset-stripe-band-demo"></div>
+    <p style="font-size: 12px; color: var(--steel); margin-top: 12px; font-family: 'JetBrains Mono', monospace;">linear-gradient(90deg, #fa520f 0%, #ffa110 25%, #ffb83e 50%, #ffd900 75%, #fff8e0 100%)</p>
+  </section>
+
+  <section id="typography">
+<div class="section-label">02 / Typography</div>
+<h2 class="section-title section-heading">Typography</h2>
+<div class="type-row type-sample"><div class="type-meta type-label type-sample-label"><strong>hero-display</strong>84px / 400 / 1.05 / -1.5px</div><div class="type-sample-text type-preview" style="font-family:PP Editorial Old;font-size:84px;font-weight:400;line-height:1.05;letter-spacing:-1.5px;text-transform:none">Build a clear product interface with Hero Display rhythm.</div></div><div class="type-row type-sample"><div class="type-meta type-label type-sample-label"><strong>display-lg</strong>64px / 400 / 1.1 / -1px</div><div class="type-sample-text type-preview" style="font-family:PP Editorial Old;font-size:64px;font-weight:400;line-height:1.1;letter-spacing:-1px;text-transform:none">Build a clear product interface with Display Lg rhythm.</div></div><div class="type-row type-sample"><div class="type-meta type-label type-sample-label"><strong>heading-1</strong>52px / 400 / 1.15 / -0.5px</div><div class="type-sample-text type-preview" style="font-family:PP Editorial Old;font-size:52px;font-weight:400;line-height:1.15;letter-spacing:-0.5px;text-transform:none">Build a clear product interface with Heading 1 rhythm.</div></div><div class="type-row type-sample"><div class="type-meta type-label type-sample-label"><strong>heading-2</strong>36px / 500 / 1.2 / -0.5px</div><div class="type-sample-text type-preview" style="font-family:Inter;font-size:36px;font-weight:500;line-height:1.2;letter-spacing:-0.5px;text-transform:none">Build a clear product interface with Heading 2 rhythm.</div></div><div class="type-row type-sample"><div class="type-meta type-label type-sample-label"><strong>heading-3</strong>28px / 500 / 1.25 / 0px</div><div class="type-sample-text type-preview" style="font-family:Inter;font-size:28px;font-weight:500;line-height:1.25;letter-spacing:0px;text-transform:none">Build a clear product interface with Heading 3 rhythm.</div></div><div class="type-row type-sample"><div class="type-meta type-label type-sample-label"><strong>heading-4</strong>22px / 500 / 1.3 / 0px</div><div class="type-sample-text type-preview" style="font-family:Inter;font-size:22px;font-weight:500;line-height:1.3;letter-spacing:0px;text-transform:none">Build a clear product interface with Heading 4 rhythm.</div></div><div class="type-row type-sample"><div class="type-meta type-label type-sample-label"><strong>heading-5</strong>18px / 500 / 1.4 / 0px</div><div class="type-sample-text type-preview" style="font-family:Inter;font-size:18px;font-weight:500;line-height:1.4;letter-spacing:0px;text-transform:none">Build a clear product interface with Heading 5 rhythm.</div></div><div class="type-row type-sample"><div class="type-meta type-label type-sample-label"><strong>subtitle</strong>18px / 400 / 1.5 / 0px</div><div class="type-sample-text type-preview" style="font-family:Inter;font-size:18px;font-weight:400;line-height:1.5;letter-spacing:0px;text-transform:none">Build a clear product interface with Subtitle rhythm.</div></div><div class="type-row type-sample"><div class="type-meta type-label type-sample-label"><strong>body-md</strong>16px / 400 / 1.55 / 0px</div><div class="type-sample-text type-preview" style="font-family:Inter;font-size:16px;font-weight:400;line-height:1.55;letter-spacing:0px;text-transform:none">Build a clear product interface with Body Md rhythm.</div></div><div class="type-row type-sample"><div class="type-meta type-label type-sample-label"><strong>body-md-medium</strong>16px / 500 / 1.55 / 0px</div><div class="type-sample-text type-preview" style="font-family:Inter;font-size:16px;font-weight:500;line-height:1.55;letter-spacing:0px;text-transform:none">Build a clear product interface with Body Md Medium rhythm.</div></div><div class="type-row type-sample"><div class="type-meta type-label type-sample-label"><strong>body-sm</strong>14px / 400 / 1.5 / 0px</div><div class="type-sample-text type-preview" style="font-family:Inter;font-size:14px;font-weight:400;line-height:1.5;letter-spacing:0px;text-transform:none">Build a clear product interface with Body Sm rhythm.</div></div><div class="type-row type-sample"><div class="type-meta type-label type-sample-label"><strong>body-sm-medium</strong>14px / 500 / 1.5 / 0px</div><div class="type-sample-text type-preview" style="font-family:Inter;font-size:14px;font-weight:500;line-height:1.5;letter-spacing:0px;text-transform:none">Build a clear product interface with Body Sm Medium rhythm.</div></div><div class="type-row type-sample"><div class="type-meta type-label type-sample-label"><strong>caption</strong>13px / 400 / 1.4 / 0px</div><div class="type-sample-text type-preview" style="font-family:Inter;font-size:13px;font-weight:400;line-height:1.4;letter-spacing:0px;text-transform:none">Build a clear product interface with Caption rhythm.</div></div><div class="type-row type-sample"><div class="type-meta type-label type-sample-label"><strong>caption-bold</strong>13px / 600 / 1.4 / 0px</div><div class="type-sample-text type-preview" style="font-family:Inter;font-size:13px;font-weight:600;line-height:1.4;letter-spacing:0px;text-transform:none">Build a clear product interface with Caption Bold rhythm.</div></div><div class="type-row type-sample"><div class="type-meta type-label type-sample-label"><strong>micro</strong>12px / 500 / 1.4 / 0px</div><div class="type-sample-text type-preview" style="font-family:Inter;font-size:12px;font-weight:500;line-height:1.4;letter-spacing:0px;text-transform:none">Build a clear product interface with Micro rhythm.</div></div><div class="type-row type-sample"><div class="type-meta type-label type-sample-label"><strong>micro-uppercase</strong>11px / 600 / 1.4 / 1px</div><div class="type-sample-text type-preview" style="font-family:Inter;font-size:11px;font-weight:600;line-height:1.4;letter-spacing:1px;text-transform:none">Build a clear product interface with Micro Uppercase rhythm.</div></div><div class="type-row type-sample"><div class="type-meta type-label type-sample-label"><strong>button-md</strong>14px / 500 / 1.3 / 0px</div><div class="type-sample-text type-preview" style="font-family:Inter;font-size:14px;font-weight:500;line-height:1.3;letter-spacing:0px;text-transform:none">Build a clear product interface with Button Md rhythm.</div></div><div class="type-row type-sample"><div class="type-meta type-label type-sample-label"><strong>stat-display</strong>56px / 400 / 1.1 / -1px</div><div class="type-sample-text type-preview" style="font-family:PP Editorial Old;font-size:56px;font-weight:400;line-height:1.1;letter-spacing:-1px;text-transform:none">Build a clear product interface with Stat Display rhythm.</div></div><div class="type-row type-sample"><div class="type-meta type-label type-sample-label"><strong>code-md</strong>14px / 400 / 1.5 / 0px</div><div class="type-sample-text type-preview" style="font-family:JetBrains Mono;font-size:14px;font-weight:400;line-height:1.5;letter-spacing:0px;text-transform:none">Build a clear product interface with Code Md rhythm.</div></div>
+</section>
+
+  <section id="buttons">
+<div class="section-label">03 / Interface Samples</div>
+<h2 class="section-title section-heading">Interface Samples</h2>
+<div class="button-row button-showcase button-grid demo-grid"><div class="button-item btn-item"><button class="btn btn-primary btn-green btn-tag demo-control" style="background:#fa520f;color:#ffffff;border-radius:8px;padding:10px 20px;border:1px solid transparent;min-height:44px;">Button Primary</button><div class="button-label btn-label caption">button-primary</div></div><div class="button-item btn-item"><button class="btn btn-primary btn-green btn-tag demo-control" style="background:#cc3a05;color:#ffffff;border-radius:9999px;padding:10px 20px;border:1px solid transparent;min-height:44px;">Button Primary Pressed</button><div class="button-label btn-label caption">button-primary-pressed</div></div><div class="button-item btn-item"><button class="btn btn-primary btn-green btn-tag demo-control" style="background:#e5e5e5;color:#a8a8a8;border-radius:9999px;padding:10px 20px;border:1px solid transparent;min-height:44px;">Button Primary Disabled</button><div class="button-label btn-label caption">button-primary-disabled</div></div><div class="button-item btn-item"><button class="btn btn-primary btn-green btn-tag demo-control" style="background:#fff8e0;color:#1f1f1f;border-radius:8px;padding:10px 20px;border:1px solid transparent;min-height:44px;">Button Cream</button><div class="button-label btn-label caption">button-cream</div></div><div class="button-item btn-item"><button class="btn btn-primary btn-green btn-tag demo-control" style="background:#1f1f1f;color:#ffffff;border-radius:8px;padding:10px 20px;border:1px solid transparent;min-height:44px;">Button Dark</button><div class="button-label btn-label caption">button-dark</div></div><div class="button-item btn-item"><button class="btn btn-primary btn-green btn-tag demo-control" style="background:transparent;color:#1f1f1f;border-radius:8px;padding:10px 20px;border:1px solid var(--border);min-height:44px;">Button Secondary</button><div class="button-label btn-label caption">button-secondary</div></div><div class="button-item btn-item"><button class="btn btn-primary btn-green btn-tag demo-control" style="background:#ffffff;color:#1f1f1f;border-radius:8px;padding:10px 20px;border:1px solid transparent;min-height:44px;">Button On Cream</button><div class="button-label btn-label caption">button-on-cream</div></div><div class="button-item btn-item"><button class="btn btn-primary btn-green btn-tag demo-control" style="background:transparent;color:#fa520f;border-radius:9999px;padding:10px 20px;border:1px solid var(--border);min-height:44px;">Button Link</button><div class="button-label btn-label caption">button-link</div></div><div class="button-item btn-item"><button class="btn btn-primary btn-green btn-tag demo-control" style="background:#ffffff;color:#6a6a6a;border-radius:9999px;padding:10px 20px;border:1px solid transparent;min-height:44px;">Pill Tab</button><div class="button-label btn-label caption">pill-tab</div></div><div class="button-item btn-item"><button class="btn btn-primary btn-green btn-tag demo-control" style="background:#1f1f1f;color:#ffffff;border-radius:9999px;padding:10px 20px;border:1px solid transparent;min-height:44px;">Pill Tab Active</button><div class="button-label btn-label caption">pill-tab-active</div></div><div class="button-item btn-item"><button class="btn btn-primary btn-green btn-tag demo-control" style="background:#fa520f;color:#ffffff;border-radius:9999px;padding:4px 10px;border:1px solid transparent;min-height:44px;">Badge Orange</button><div class="button-label btn-label caption">badge-orange</div></div><div class="button-item btn-item"><button class="btn btn-primary btn-green btn-tag demo-control" style="background:#fff0c2;color:#1f1f1f;border-radius:9999px;padding:4px 10px;border:1px solid transparent;min-height:44px;">Badge Cream</button><div class="button-label btn-label caption">badge-cream</div></div><div class="button-item btn-item"><button class="btn btn-primary btn-green btn-tag demo-control" style="background:#1f1f1f;color:#ffffff;border-radius:9999px;padding:4px 10px;border:1px solid transparent;min-height:44px;">Badge Dark</button><div class="button-label btn-label caption">badge-dark</div></div><div class="button-item btn-item"><button class="btn btn-primary btn-green btn-tag demo-control" style="background:#fff8e0;color:#1f1f1f;border-radius:12px;padding:64px;border:1px solid transparent;min-height:44px;">Cta Banner Cream</button><div class="button-label btn-label caption">cta-banner-cream</div></div><div class="button-item btn-item"><button class="btn btn-primary btn-green btn-tag demo-control" style="background:transparent;color:#fa520f;border-radius:9999px;padding:10px 20px;border:1px solid var(--border);min-height:44px;">Footer Link</button><div class="button-label btn-label caption">footer-link</div></div><div class="button-item btn-item"><button class="btn btn-primary btn-green btn-tag demo-control" style="background:#1f1f1f;color:#ffffff;border-radius:8px;padding:10px 20px;border:1px solid transparent;min-height:44px;">App Store Badge</button><div class="button-label btn-label caption">app-store-badge</div></div></div>
+</section>
+
+  <section id="badges">
+    <h2 class="section-heading">Badges & Status</h2>
+    <p class="section-sub">Pill-shaped status indicators in orange, cream, and dark. Reserved for badges only — buttons don't use pill shapes.</p>
+    <div class="badge-row">
+      <span class="badge badge-orange">New</span>
+      <span class="badge badge-cream">Beta</span>
+      <span class="badge badge-dark">Available</span>
+    </div>
+    <div class="promo-banner" style="border-radius: 8px; margin-top: 24px;">JOIN MISTRAL AI MAKERS — Build the future of AI <a href="#">Apply now →</a></div>
+    <p style="font-size: 12px; color: var(--steel); margin-top: 8px; font-family: 'JetBrains Mono', monospace;">promo-banner — sticky black strip above the top nav</p>
+  </section>
+
+  <section id="cards">
+<div class="section-label">05 / Cards</div>
+<h2 class="section-title section-heading">Cards</h2>
+<div class="card-grid"><div class="card component-card sample-card" style="background:var(--surface, var(--canvas, #fff));color:var(--ink, #111);border:1px solid var(--border, rgba(0,0,0,.14));border-radius:16px;padding:16px;min-height:150px;display:grid;gap:12px;align-content:start;box-sizing:border-box;"><h3 class="card-title">Card Base</h3><div class="component-preview" style="display:flex;align-items:center;justify-content:flex-start;gap:12px;min-height:78px;flex-wrap:wrap;"><article class="sample-card" style="background:#ffffff;color:#f7f7f8;border-radius:12px;padding:24px;border:1px solid transparent;min-height:44px;display:grid;gap:10px;width:100%;box-sizing:border-box;"><div style="height:56px;border-radius:inherit;background:linear-gradient(135deg, currentColor, transparent);opacity:.14;"></div><strong>Card Base</strong><span style="opacity:.72;">Featured item</span></article></div></div><div class="card component-card sample-card" style="background:var(--surface, var(--canvas, #fff));color:var(--ink, #111);border:1px solid var(--border, rgba(0,0,0,.14));border-radius:16px;padding:16px;min-height:150px;display:grid;gap:12px;align-content:start;box-sizing:border-box;"><h3 class="card-title">Card Feature</h3><div class="component-preview" style="display:flex;align-items:center;justify-content:flex-start;gap:12px;min-height:78px;flex-wrap:wrap;"><article class="sample-card" style="background:#ffffff;color:#f7f7f8;border-radius:12px;padding:32px;border:1px solid transparent;min-height:44px;display:grid;gap:10px;width:100%;box-sizing:border-box;"><div style="height:56px;border-radius:inherit;background:linear-gradient(135deg, currentColor, transparent);opacity:.14;"></div><strong>Card Feature</strong><span style="opacity:.72;">Featured item</span></article></div></div><div class="card component-card sample-card" style="background:var(--surface, var(--canvas, #fff));color:var(--ink, #111);border:1px solid var(--border, rgba(0,0,0,.14));border-radius:16px;padding:16px;min-height:150px;display:grid;gap:12px;align-content:start;box-sizing:border-box;"><h3 class="card-title">Card Cream</h3><div class="component-preview" style="display:flex;align-items:center;justify-content:flex-start;gap:12px;min-height:78px;flex-wrap:wrap;"><article class="sample-card" style="background:#fff8e0;color:#1f1f1f;border-radius:12px;padding:32px;border:1px solid transparent;min-height:44px;display:grid;gap:10px;width:100%;box-sizing:border-box;"><div style="height:56px;border-radius:inherit;background:linear-gradient(135deg, currentColor, transparent);opacity:.14;"></div><strong>Card Cream</strong><span style="opacity:.72;">Featured item</span></article></div></div><div class="card component-card sample-card" style="background:var(--surface, var(--canvas, #fff));color:var(--ink, #111);border:1px solid var(--border, rgba(0,0,0,.14));border-radius:16px;padding:16px;min-height:150px;display:grid;gap:12px;align-content:start;box-sizing:border-box;"><h3 class="card-title">Card Cream Soft</h3><div class="component-preview" style="display:flex;align-items:center;justify-content:flex-start;gap:12px;min-height:78px;flex-wrap:wrap;"><article class="sample-card" style="background:#fffaeb;color:#1f1f1f;border-radius:12px;padding:32px;border:1px solid transparent;min-height:44px;display:grid;gap:10px;width:100%;box-sizing:border-box;"><div style="height:56px;border-radius:inherit;background:linear-gradient(135deg, currentColor, transparent);opacity:.14;"></div><strong>Card Cream Soft</strong><span style="opacity:.72;">Featured item</span></article></div></div><div class="card component-card sample-card" style="background:var(--surface, var(--canvas, #fff));color:var(--ink, #111);border:1px solid var(--border, rgba(0,0,0,.14));border-radius:16px;padding:16px;min-height:150px;display:grid;gap:12px;align-content:start;box-sizing:border-box;"><h3 class="card-title">Card Feature Product</h3><div class="component-preview" style="display:flex;align-items:center;justify-content:flex-start;gap:12px;min-height:78px;flex-wrap:wrap;"><article class="sample-card" style="background:#ffffff;color:#f7f7f8;border-radius:12px;padding:32px;border:1px solid transparent;min-height:44px;display:grid;gap:10px;width:100%;box-sizing:border-box;"><div style="height:56px;border-radius:inherit;background:linear-gradient(135deg, currentColor, transparent);opacity:.14;"></div><strong>Card Feature Product</strong><span style="opacity:.72;">Featured item</span></article></div></div><div class="card component-card sample-card" style="background:var(--surface, var(--canvas, #fff));color:var(--ink, #111);border:1px solid var(--border, rgba(0,0,0,.14));border-radius:16px;padding:16px;min-height:150px;display:grid;gap:12px;align-content:start;box-sizing:border-box;"><h3 class="card-title">Card Photographic</h3><div class="component-preview" style="display:flex;align-items:center;justify-content:flex-start;gap:12px;min-height:78px;flex-wrap:wrap;"><article class="sample-card" style="background:#1c1c1e;color:#ffffff;border-radius:12px;padding:12px 18px;border:1px solid transparent;min-height:44px;display:grid;gap:10px;width:100%;box-sizing:border-box;"><div style="height:56px;border-radius:inherit;background:linear-gradient(135deg, currentColor, transparent);opacity:.14;"></div><strong>Card Photographic</strong><span style="opacity:.72;">Featured item</span></article></div></div><div class="card component-card sample-card" style="background:var(--surface, var(--canvas, #fff));color:var(--ink, #111);border:1px solid var(--border, rgba(0,0,0,.14));border-radius:16px;padding:16px;min-height:150px;display:grid;gap:12px;align-content:start;box-sizing:border-box;"><h3 class="card-title">Pricing Card</h3><div class="component-preview" style="display:flex;align-items:center;justify-content:flex-start;gap:12px;min-height:78px;flex-wrap:wrap;"><article class="sample-card" style="background:#ffffff;color:#f7f7f8;border-radius:12px;padding:32px;border:1px solid transparent;min-height:44px;display:grid;gap:10px;width:100%;box-sizing:border-box;"><div style="height:56px;border-radius:inherit;background:linear-gradient(135deg, currentColor, transparent);opacity:.14;"></div><strong>Pricing Card</strong><span style="opacity:.72;">Featured item</span></article></div></div><div class="card component-card sample-card" style="background:var(--surface, var(--canvas, #fff));color:var(--ink, #111);border:1px solid var(--border, rgba(0,0,0,.14));border-radius:16px;padding:16px;min-height:150px;display:grid;gap:12px;align-content:start;box-sizing:border-box;"><h3 class="card-title">Pricing Card Featured</h3><div class="component-preview" style="display:flex;align-items:center;justify-content:flex-start;gap:12px;min-height:78px;flex-wrap:wrap;"><article class="sample-card" style="background:#fff8e0;color:#f7f7f8;border-radius:12px;padding:32px;border:1px solid transparent;min-height:44px;display:grid;gap:10px;width:100%;box-sizing:border-box;"><div style="height:56px;border-radius:inherit;background:linear-gradient(135deg, currentColor, transparent);opacity:.14;"></div><strong>Pricing Card Featured</strong><span style="opacity:.72;">Featured item</span></article></div></div><div class="card component-card sample-card" style="background:var(--surface, var(--canvas, #fff));color:var(--ink, #111);border:1px solid var(--border, rgba(0,0,0,.14));border-radius:16px;padding:16px;min-height:150px;display:grid;gap:12px;align-content:start;box-sizing:border-box;"><h3 class="card-title">Text Area</h3><div class="component-preview" style="display:flex;align-items:center;justify-content:flex-start;gap:12px;min-height:78px;flex-wrap:wrap;"><div class="list-row" style="background:#ffffff;color:#1f1f1f;border-radius:8px;padding:16px;border:1px solid transparent;min-height:44px;display:flex;align-items:center;gap:12px;width:100%;box-sizing:border-box;"><span style="width:32px;height:32px;border-radius:9999px;background:currentColor;opacity:.14;flex:0 0 auto;"></span><strong>Text Area</strong></div></div></div><div class="card component-card sample-card" style="background:var(--surface, var(--canvas, #fff));color:var(--ink, #111);border:1px solid var(--border, rgba(0,0,0,.14));border-radius:16px;padding:16px;min-height:150px;display:grid;gap:12px;align-content:start;box-sizing:border-box;"><h3 class="card-title">Contact Form Panel</h3><div class="component-preview" style="display:flex;align-items:center;justify-content:flex-start;gap:12px;min-height:78px;flex-wrap:wrap;"><label class="form-token" style="display:grid;gap:8px;width:100%;"><span style="font-size:12px;font-weight:700;color:var(--muted, currentColor);">Contact Form Panel</span><input class="form-input" value="Contact Form Panel" style="background:#fff8e0;color:#f7f7f8;border-radius:12px;padding:32px;border:1px solid transparent;min-height:44px;width:100%;box-sizing:border-box;font:inherit;"></label></div></div><div class="card component-card sample-card" style="background:var(--surface, var(--canvas, #fff));color:var(--ink, #111);border:1px solid var(--border, rgba(0,0,0,.14));border-radius:16px;padding:16px;min-height:150px;display:grid;gap:12px;align-content:start;box-sizing:border-box;"><h3 class="card-title">Hero Band Sunset</h3><div class="component-preview" style="display:flex;align-items:center;justify-content:flex-start;gap:12px;min-height:78px;flex-wrap:wrap;"><article class="sample-card" style="background:#ffa110;color:#1f1f1f;border-radius:12px;padding:120px;border:1px solid transparent;min-height:44px;display:grid;gap:10px;width:100%;box-sizing:border-box;"><div style="height:56px;border-radius:inherit;background:linear-gradient(135deg, currentColor, transparent);opacity:.14;"></div><strong>Hero Band Sunset</strong><span style="opacity:.72;">Featured item</span></article></div></div><div class="card component-card sample-card" style="background:var(--surface, var(--canvas, #fff));color:var(--ink, #111);border:1px solid var(--border, rgba(0,0,0,.14));border-radius:16px;padding:16px;min-height:150px;display:grid;gap:12px;align-content:start;box-sizing:border-box;"><h3 class="card-title">Feature Icon Tile</h3><div class="component-preview" style="display:flex;align-items:center;justify-content:flex-start;gap:12px;min-height:78px;flex-wrap:wrap;"><article class="sample-card" style="background:#fff8e0;color:#f7f7f8;border-radius:8px;padding:16px;border:1px solid transparent;min-height:44px;display:grid;gap:10px;width:100%;box-sizing:border-box;"><div style="height:56px;border-radius:inherit;background:linear-gradient(135deg, currentColor, transparent);opacity:.14;"></div><strong>Feature Icon Tile</strong><span style="opacity:.72;">Featured item</span></article></div></div><div class="card component-card sample-card" style="background:var(--surface, var(--canvas, #fff));color:var(--ink, #111);border:1px solid var(--border, rgba(0,0,0,.14));border-radius:16px;padding:16px;min-height:150px;display:grid;gap:12px;align-content:start;box-sizing:border-box;"><h3 class="card-title">Industry Tile</h3><div class="component-preview" style="display:flex;align-items:center;justify-content:flex-start;gap:12px;min-height:78px;flex-wrap:wrap;"><article class="sample-card" style="background:#ffffff;color:#f7f7f8;border-radius:12px;padding:24px;border:1px solid transparent;min-height:44px;display:grid;gap:10px;width:100%;box-sizing:border-box;"><div style="height:56px;border-radius:inherit;background:linear-gradient(135deg, currentColor, transparent);opacity:.14;"></div><strong>Industry Tile</strong><span style="opacity:.72;">Featured item</span></article></div></div><div class="card component-card sample-card" style="background:var(--surface, var(--canvas, #fff));color:var(--ink, #111);border:1px solid var(--border, rgba(0,0,0,.14));border-radius:16px;padding:16px;min-height:150px;display:grid;gap:12px;align-content:start;box-sizing:border-box;"><h3 class="card-title">Stat Cell</h3><div class="component-preview" style="display:flex;align-items:center;justify-content:flex-start;gap:12px;min-height:78px;flex-wrap:wrap;"><div class="metric-card" style="background:transparent;color:#1f1f1f;border-radius:12px;padding:20px;border:1px solid var(--border);min-height:44px;display:grid;gap:6px;width:100%;box-sizing:border-box;"><strong style="font-size:clamp(28px, 5vw, 48px);line-height:1;">4.92</strong><span style="opacity:.72;">Stat Cell</span></div></div></div><div class="card component-card sample-card" style="background:var(--surface, var(--canvas, #fff));color:var(--ink, #111);border:1px solid var(--border, rgba(0,0,0,.14));border-radius:16px;padding:16px;min-height:150px;display:grid;gap:12px;align-content:start;box-sizing:border-box;"><h3 class="card-title">Customer Testimonial Card</h3><div class="component-preview" style="display:flex;align-items:center;justify-content:flex-start;gap:12px;min-height:78px;flex-wrap:wrap;"><article class="sample-card" style="background:#ffffff;color:#f7f7f8;border-radius:12px;padding:32px;border:1px solid transparent;min-height:44px;display:grid;gap:10px;width:100%;box-sizing:border-box;"><div style="height:56px;border-radius:inherit;background:linear-gradient(135deg, currentColor, transparent);opacity:.14;"></div><strong>Customer Testimonial Card</strong><span style="opacity:.72;">Featured item</span></article></div></div></div>
+</section>
+
+  <section id="pricing">
+    <h2 class="section-heading">Pricing Tiers</h2>
+    <p class="section-sub">3-tier pricing with the featured tier (Lift Off) highlighted on cream background with orange border.</p>
+    <div class="pricing-grid">
+      <div class="pricing-card">
+        <span class="tier-name">Free</span>
+        <div class="tier-price">$0<small>/mo</small></div>
+        <p style="font-size: 14px; color: var(--steel);">Get started with le Chat and explore.</p>
+        <ul class="tier-feature-list">
+          <li>Basic le Chat access</li>
+          <li>Community support</li>
+          <li>Limited API calls</li>
+        </ul>
+        <button class="btn-secondary" style="margin-top: 8px;">Get Started</button>
       </div>
-    </section>
-
-    <section id="type">
-      <div class="section-label">02 - Typography</div>
-      <h2 class="section-heading">Type scale and voice</h2>
-      <p class="section-intro">Typography samples show how major text levels render when the token values are applied to real interface copy.</p>
-      <div class="type-row"><div class="type-meta"><strong>hero-display</strong>84px / 400 / 1.05 / -1.5px</div><div class="type-sample" style="font-family:PP Editorial Old;font-size:84px;font-weight:400;line-height:1.05;letter-spacing:-1.5px">Build a clear product interface with Mistral AI rhythm.</div></div><div class="type-row"><div class="type-meta"><strong>display-lg</strong>64px / 400 / 1.1 / -1px</div><div class="type-sample" style="font-family:PP Editorial Old;font-size:64px;font-weight:400;line-height:1.1;letter-spacing:-1px">Build a clear product interface with Mistral AI rhythm.</div></div><div class="type-row"><div class="type-meta"><strong>heading-1</strong>52px / 400 / 1.15 / -0.5px</div><div class="type-sample" style="font-family:PP Editorial Old;font-size:52px;font-weight:400;line-height:1.15;letter-spacing:-0.5px">Build a clear product interface with Mistral AI rhythm.</div></div><div class="type-row"><div class="type-meta"><strong>heading-2</strong>36px / 500 / 1.2 / -0.5px</div><div class="type-sample" style="font-family:Inter;font-size:36px;font-weight:500;line-height:1.2;letter-spacing:-0.5px">Build a clear product interface with Mistral AI rhythm.</div></div><div class="type-row"><div class="type-meta"><strong>heading-3</strong>28px / 500 / 1.25 / 0px</div><div class="type-sample" style="font-family:Inter;font-size:28px;font-weight:500;line-height:1.25;letter-spacing:0px">Build a clear product interface with Mistral AI rhythm.</div></div><div class="type-row"><div class="type-meta"><strong>heading-4</strong>22px / 500 / 1.3 / 0px</div><div class="type-sample" style="font-family:Inter;font-size:22px;font-weight:500;line-height:1.3;letter-spacing:0px">Build a clear product interface with Mistral AI rhythm.</div></div><div class="type-row"><div class="type-meta"><strong>heading-5</strong>18px / 500 / 1.4 / 0px</div><div class="type-sample" style="font-family:Inter;font-size:18px;font-weight:500;line-height:1.4;letter-spacing:0px">Build a clear product interface with Mistral AI rhythm.</div></div><div class="type-row"><div class="type-meta"><strong>subtitle</strong>18px / 400 / 1.5 / 0px</div><div class="type-sample" style="font-family:Inter;font-size:18px;font-weight:400;line-height:1.5;letter-spacing:0px">Build a clear product interface with Mistral AI rhythm.</div></div><div class="type-row"><div class="type-meta"><strong>body-md</strong>16px / 400 / 1.55 / 0px</div><div class="type-sample" style="font-family:Inter;font-size:16px;font-weight:400;line-height:1.55;letter-spacing:0px">Build a clear product interface with Mistral AI rhythm.</div></div><div class="type-row"><div class="type-meta"><strong>body-md-medium</strong>16px / 500 / 1.55 / 0px</div><div class="type-sample" style="font-family:Inter;font-size:16px;font-weight:500;line-height:1.55;letter-spacing:0px">Build a clear product interface with Mistral AI rhythm.</div></div>
-    </section>
-
-    <section id="components">
-      <div class="section-label">03 - Components</div>
-      <h2 class="section-heading">Buttons, cards, labels, and controls</h2>
-      <p class="section-intro">Component samples apply available token references where possible, with neutral fallbacks for properties not present in the source system.</p>
-      <div class="button-grid">
-        <div class="component-cell"><div class="button-label">button-primary</div><span class="demo-button" style="background:#fa520f;color:#ffffff;border-radius:8px;padding:0 14px">Sample action</span><div class="button-meta">#fa520f / #ffffff</div></div><div class="component-cell"><div class="button-label">button-primary-pressed</div><span class="demo-button" style="background:#cc3a05;color:#ffffff;border-radius:8px;padding:0 14px">Sample action</span><div class="button-meta">#cc3a05 / #ffffff</div></div><div class="component-cell"><div class="button-label">button-primary-disabled</div><span class="demo-button" style="background:#e5e5e5;color:#a8a8a8;border-radius:8px;padding:0 14px">Sample action</span><div class="button-meta">#e5e5e5 / #a8a8a8</div></div><div class="component-cell"><div class="button-label">button-cream</div><span class="demo-button" style="background:#fff8e0;color:#1f1f1f;border-radius:8px;padding:0 14px">Sample action</span><div class="button-meta">#fff8e0 / #1f1f1f</div></div><div class="component-cell"><div class="button-label">button-dark</div><span class="demo-button" style="background:#1f1f1f;color:#ffffff;border-radius:8px;padding:0 14px">Sample action</span><div class="button-meta">#1f1f1f / #ffffff</div></div><div class="component-cell"><div class="button-label">button-secondary</div><span class="demo-button" style="background:transparent;color:#1f1f1f;border-radius:8px;padding:0 14px">Sample action</span><div class="button-meta">transparent / #1f1f1f</div></div><div class="component-cell"><div class="button-label">button-on-cream</div><span class="demo-button" style="background:#ffffff;color:#1f1f1f;border-radius:8px;padding:0 14px">Sample action</span><div class="button-meta">#ffffff / #1f1f1f</div></div><div class="component-cell"><div class="button-label">button-link</div><span class="demo-button" style="background:transparent;color:#fa520f;border-radius:8px;padding:0 14px">Sample action</span><div class="button-meta">transparent / #fa520f</div></div><div class="component-cell"><div class="button-label">card-base</div><span class="demo-button" style="background:#ffffff;color:#f7f7f8;border-radius:12px;padding:0 24px">Sample action</span><div class="button-meta">#ffffff / #f7f7f8</div></div><div class="component-cell"><div class="button-label">card-feature</div><span class="demo-button" style="background:#ffffff;color:#f7f7f8;border-radius:12px;padding:0 32px">Sample action</span><div class="button-meta">#ffffff / #f7f7f8</div></div><div class="component-cell"><div class="button-label">card-cream</div><span class="demo-button" style="background:#fff8e0;color:#1f1f1f;border-radius:12px;padding:0 32px">Sample action</span><div class="button-meta">#fff8e0 / #1f1f1f</div></div><div class="component-cell"><div class="button-label">card-cream-soft</div><span class="demo-button" style="background:#fffaeb;color:#1f1f1f;border-radius:12px;padding:0 32px">Sample action</span><div class="button-meta">#fffaeb / #1f1f1f</div></div>
+      <div class="pricing-card featured">
+        <span class="tier-name">Pro</span>
+        <div class="tier-price">$24<small>/mo</small></div>
+        <p style="font-size: 14px; color: var(--steel);">For developers building production applications.</p>
+        <ul class="tier-feature-list">
+          <li>Unlimited API calls</li>
+          <li>All Mistral models</li>
+          <li>Priority support</li>
+          <li>Advanced features</li>
+        </ul>
+        <button class="btn-primary" style="margin-top: 8px;">Start trial</button>
       </div>
-    </section>
-
-    <section>
-      <div class="section-label">04 - Interface Samples</div>
-      <h2 class="section-heading">Reusable product surfaces</h2>
-      <div class="card-grid">
-        <div class="feature-card"><h4>Feature card</h4><p>Use this card treatment for summaries, benefits, or product modules with concise supporting text.</p><span class="badge">New</span></div>
-        <div class="feature-card"><h4>Data card</h4><p>Pair a strong heading with a compact metric and muted explanatory copy.</p><div style="font:800 36px/1 var(--display);color:var(--primary);margin-top:14px">24%</div></div>
-        <div class="feature-card"><h4>Content card</h4><p>Keep content blocks aligned to the design system's spacing and type hierarchy.</p><span class="btn primary" style="margin-top:14px">Continue</span></div>
+      <div class="pricing-card">
+        <span class="tier-name">Enterprise</span>
+        <div class="tier-price" style="font-size: 28px; font-family: 'Inter', sans-serif;">Contact us</div>
+        <p style="font-size: 14px; color: var(--steel);">Custom enterprise plans tailored to your team.</p>
+        <ul class="tier-feature-list">
+          <li>Dedicated support</li>
+          <li>Custom contracts</li>
+          <li>SOC2 compliance</li>
+          <li>SSO + admin</li>
+        </ul>
+        <button class="btn-dark" style="margin-top: 8px;">Talk to sales</button>
       </div>
-    </section>
+    </div>
+  </section>
 
-    <section>
-      <div class="section-label">05 - Forms</div>
-      <h2 class="section-heading">Inputs and inline feedback</h2>
-      <div class="form-grid">
-        <div class="form-cell"><label class="button-label">Email</label><input class="text-input" value="team@example.com" aria-label="Email sample"></div>
-        <div class="form-cell"><label class="button-label">Status</label><span class="badge">Active</span></div>
-        <div class="form-cell"><label class="button-label">Action group</label><div style="display:flex;gap:10px;flex-wrap:wrap"><span class="btn primary">Save</span><span class="btn">Cancel</span></div></div>
+  <section id="forms">
+<div class="section-label">06 / Forms</div>
+<h2 class="section-title section-heading">Forms</h2>
+<div class="form-group form-token"><label class="form-label">Text Input</label><input class="form-input" style="background:#ffffff;color:#1f1f1f;border-radius:8px;padding:12px 14px;border:1px solid transparent;min-height:44px;" value="Text Input" aria-label="text-input"></div><div class="form-group form-token"><label class="form-label">Text Input Focused</label><input class="form-input" style="background:#ffffff;color:#1f1f1f;border-radius:8px;padding:12px 14px;border:1px solid transparent;min-height:44px;" value="Text Input Focused" aria-label="text-input-focused"></div>
+</section>
+
+  <section id="tabs">
+    <h2 class="section-heading">Tabs & Navigation</h2>
+    <p class="section-sub">Underline-style segmented tabs with orange active indicator. Pill tabs reserved for top-level switching.</p>
+
+    <h3 style="font-size: 18px; font-weight: 500; margin-bottom: 16px;">Segmented Tabs</h3>
+    <div class="seg-tabs">
+      <button class="seg-tab active">Industries</button>
+      <button class="seg-tab">Domains</button>
+      <button class="seg-tab">Use cases</button>
+    </div>
+
+    <h3 style="font-size: 18px; font-weight: 500; margin: 32px 0 16px;">Pill Tabs</h3>
+    <div class="pill-tabs">
+      <button class="pill-tab active">Featured</button>
+      <button class="pill-tab">Latest</button>
+      <button class="pill-tab">Research</button>
+    </div>
+  </section>
+
+  <section id="code">
+    <h2 class="section-heading">Code Components</h2>
+    <p class="section-sub">Dark code blocks with JetBrains Mono. Used in Le Studio product page mockups and agent demos.</p>
+
+    <div class="code-block">
+      <div class="code-block-header">
+        <span>example.py</span>
+        <span style="font-size: 11px;">Copy code</span>
       </div>
-    </section>
-
-    <section>
-      <div class="section-label">06 - Spacing</div>
-      <h2 class="section-heading">Spacing scale</h2>
-      <div class="spacing-row">
-        <div class="spacing-block"><div class="spacing-bar" style="height:4px"></div><div class="spacing-label">xxs · 4px</div></div><div class="spacing-block"><div class="spacing-bar" style="height:8px"></div><div class="spacing-label">xs · 8px</div></div><div class="spacing-block"><div class="spacing-bar" style="height:12px"></div><div class="spacing-label">sm · 12px</div></div><div class="spacing-block"><div class="spacing-bar" style="height:16px"></div><div class="spacing-label">md · 16px</div></div><div class="spacing-block"><div class="spacing-bar" style="height:20px"></div><div class="spacing-label">lg · 20px</div></div><div class="spacing-block"><div class="spacing-bar" style="height:24px"></div><div class="spacing-label">xl · 24px</div></div><div class="spacing-block"><div class="spacing-bar" style="height:32px"></div><div class="spacing-label">xxl · 32px</div></div><div class="spacing-block"><div class="spacing-bar" style="height:40px"></div><div class="spacing-label">xxxl · 40px</div></div>
+      <div class="code-block-body">
+from mistralai import Mistral<br>
+<br>
+client = Mistral(api_key="your_api_key")<br>
+response = client.chat.complete(<br>
+&nbsp;&nbsp;model="mistral-medium-3.5",<br>
+&nbsp;&nbsp;messages=[{"role": "user", "content": "Hello!"}]<br>
+)
       </div>
-    </section>
+    </div>
+  </section>
 
-    <section>
-      <div class="section-label">07 - Radius</div>
-      <h2 class="section-heading">Shape language</h2>
-      <div class="radius-row">
-        <div class="radius-block" style="border-radius:4px">xs</div><div class="radius-block" style="border-radius:6px">sm</div><div class="radius-block" style="border-radius:8px">md</div><div class="radius-block" style="border-radius:12px">lg</div><div class="radius-block" style="border-radius:16px">xl</div><div class="radius-block" style="border-radius:20px">xxl</div><div class="radius-block" style="border-radius:9999px">full</div>
+  <section id="industry">
+    <h2 class="section-heading">Industry Tiles</h2>
+    <p class="section-sub">3-up industry-vertical grid — small icon-zone + heading + description.</p>
+    <div class="card-grid">
+      <div class="industry-tile"><div class="icon-zone">⚡</div><h5>Knowing, Models, and Infrastructure</h5><p>Deployable in any environment with full control.</p></div>
+      <div class="industry-tile"><div class="icon-zone">🔒</div><h5>Self-contained private deployment</h5><p>Run Mistral on your private infrastructure.</p></div>
+      <div class="industry-tile"><div class="icon-zone">🎯</div><h5>Deeply engaged mentoring and deep velocity</h5><p>Partner with our team to ship faster.</p></div>
+    </div>
+  </section>
+
+  <section id="stats">
+    <h2 class="section-heading">Stat Row</h2>
+    <p class="section-sub">Stat-row callouts with PP Editorial Old display type at 56px. Cream surface anchors the row.</p>
+    <div class="stat-row">
+      <div class="stat-cell"><span class="stat-num">75%</span><span class="stat-label">More productivity</span></div>
+      <div class="stat-cell"><span class="stat-num">80%</span><span class="stat-label">Faster code completion</span></div>
+      <div class="stat-cell"><span class="stat-num">100%</span><span class="stat-label">Deployable on premise</span></div>
+    </div>
+  </section>
+
+  <section id="testimonials">
+    <h2 class="section-heading">Customer Testimonials</h2>
+    <p class="section-sub">White testimonial cards with quote + photo + attribution. Used inside Le Studio and Solutions pages.</p>
+    <div class="testimonial-grid">
+      <div class="customer-testimonial-card">
+        <p class="quote">"Mistral models gave us the freedom to deploy AI inside our private infrastructure with full control over data residency."</p>
+        <div class="author"><div class="avatar"></div><div><div class="author-name">Verified buyer</div><div class="author-title">Engineering Lead</div></div></div>
       </div>
-    </section>
+      <div class="customer-testimonial-card">
+        <p class="quote">"The model quality combined with on-premise deployability solved our compliance concerns immediately."</p>
+        <div class="author"><div class="avatar" style="background: linear-gradient(135deg, #ffb83e, #ff8a00);"></div><div><div class="author-name">Customer Success</div><div class="author-title">Tech Architect</div></div></div>
+      </div>
+    </div>
+  </section>
 
-    <section id="responsive">
-      <div class="section-label">08 - Responsive Behavior</div>
-      <h2 class="section-heading">Layout strategy</h2>
-      <table class="responsive-table">
-        <thead><tr><th>Viewport</th><th>Behavior</th></tr></thead>
-        <tbody>
-          <tr><td>Mobile</td><td>Single column layout, compact nav, tighter section padding.</td></tr>
-          <tr><td>Tablet</td><td>Two-column component grids and readable type hierarchy.</td></tr>
-          <tr><td>Desktop</td><td>Wide token catalog, multi-column cards, expanded whitespace.</td></tr>
-        </tbody>
-      </table>
-    </section>
-  </main>
+  <section id="logo-wall">
+    <h2 class="section-heading">Logo Wall</h2>
+    <p class="section-sub">Customer logo grid — wordmark presentation in trust-row sections.</p>
+    <div class="logo-wall">
+      <div class="logo-item">Veolia</div>
+      <div class="logo-item">BNP Paribas</div>
+      <div class="logo-item">IFP</div>
+      <div class="logo-item">KLEIDI</div>
+      <div class="logo-item">Octave</div>
+      <div class="logo-item">Aurora</div>
+    </div>
+  </section>
 
-  <footer class="footer">Generated from DESIGN.md tokens for local preview and review.</footer>
+  <section id="faq">
+    <h2 class="section-heading">FAQ Accordion</h2>
+    <p class="section-sub">Frequently-asked-questions panel. Collapsed by default; chevron toggle.</p>
+    <div class="faq-list">
+      <div class="faq-item">
+        <div class="faq-q">
+          <span class="faq-q-text">How do Mistral pricing plans work?</span>
+          <span class="chev">⌃</span>
+        </div>
+        <div class="faq-a">Mistral offers a Free tier, Pro at $24/month, and Custom enterprise plans with SOC2 compliance and dedicated support.</div>
+      </div>
+      <div class="faq-item collapsed">
+        <div class="faq-q">
+          <span class="faq-q-text">Can I deploy Mistral on premise?</span>
+          <span class="chev">⌄</span>
+        </div>
+        <div class="faq-a">Yes — Mistral supports full on-premise deployment with custom infrastructure tailored to your requirements.</div>
+      </div>
+      <div class="faq-item collapsed">
+        <div class="faq-q">
+          <span class="faq-q-text">Is Mistral SOC 2 compliant?</span>
+          <span class="chev">⌄</span>
+        </div>
+        <div class="faq-a">Yes — Mistral is SOC 2 Type II certified for enterprise plans.</div>
+      </div>
+    </div>
+  </section>
+
+  <section id="cta-banner">
+    <h2 class="section-heading">CTA Banner Cream</h2>
+    <p class="section-sub">Page-bottom CTA banner on cream surface with editorial display headline.</p>
+    <div class="cta-banner-cream">
+      <h4>The next chapter of AI is yours.</h4>
+      <p>Start building today with le Chat or talk to our sales team.</p>
+      <div class="actions">
+        <button class="btn-dark">Try le Chat</button>
+        <button class="btn-on-cream">Contact sales</button>
+      </div>
+    </div>
+  </section>
+
+  <section id="spacing">
+<div class="section-label">07 / Spacing</div>
+<h2 class="section-title section-heading">Spacing</h2>
+<div class="spacing-row"><div class="spacing-item spacing-block"><div class="spacing-bar spacing-box spacing-block" style="width:4px;height:24px"></div><div class="spacing-label spacing-value">xxs · 4px</div></div><div class="spacing-item spacing-block"><div class="spacing-bar spacing-box spacing-block" style="width:8px;height:24px"></div><div class="spacing-label spacing-value">xs · 8px</div></div><div class="spacing-item spacing-block"><div class="spacing-bar spacing-box spacing-block" style="width:12px;height:24px"></div><div class="spacing-label spacing-value">sm · 12px</div></div><div class="spacing-item spacing-block"><div class="spacing-bar spacing-box spacing-block" style="width:16px;height:24px"></div><div class="spacing-label spacing-value">md · 16px</div></div><div class="spacing-item spacing-block"><div class="spacing-bar spacing-box spacing-block" style="width:20px;height:24px"></div><div class="spacing-label spacing-value">lg · 20px</div></div><div class="spacing-item spacing-block"><div class="spacing-bar spacing-box spacing-block" style="width:24px;height:24px"></div><div class="spacing-label spacing-value">xl · 24px</div></div><div class="spacing-item spacing-block"><div class="spacing-bar spacing-box spacing-block" style="width:32px;height:24px"></div><div class="spacing-label spacing-value">xxl · 32px</div></div><div class="spacing-item spacing-block"><div class="spacing-bar spacing-box spacing-block" style="width:40px;height:24px"></div><div class="spacing-label spacing-value">xxxl · 40px</div></div><div class="spacing-item spacing-block"><div class="spacing-bar spacing-box spacing-block" style="width:48px;height:24px"></div><div class="spacing-label spacing-value">section-sm · 48px</div></div><div class="spacing-item spacing-block"><div class="spacing-bar spacing-box spacing-block" style="width:64px;height:24px"></div><div class="spacing-label spacing-value">section · 64px</div></div><div class="spacing-item spacing-block"><div class="spacing-bar spacing-box spacing-block" style="width:96px;height:24px"></div><div class="spacing-label spacing-value">section-lg · 96px</div></div><div class="spacing-item spacing-block"><div class="spacing-bar spacing-box spacing-block" style="width:120px;height:24px"></div><div class="spacing-label spacing-value">hero · 120px</div></div></div>
+</section>
+
+  <section id="radius">
+<div class="section-label">08 / Radius</div>
+<h2 class="section-title section-heading">Radius</h2>
+<div class="radius-row"><div class="radius-item"><div class="radius-box" style="border-radius:4px"></div><div class="radius-label radius-value">xs · 4px</div></div><div class="radius-item"><div class="radius-box" style="border-radius:6px"></div><div class="radius-label radius-value">sm · 6px</div></div><div class="radius-item"><div class="radius-box" style="border-radius:8px"></div><div class="radius-label radius-value">md · 8px</div></div><div class="radius-item"><div class="radius-box" style="border-radius:12px"></div><div class="radius-label radius-value">lg · 12px</div></div><div class="radius-item"><div class="radius-box" style="border-radius:16px"></div><div class="radius-label radius-value">xl · 16px</div></div><div class="radius-item"><div class="radius-box" style="border-radius:20px"></div><div class="radius-label radius-value">xxl · 20px</div></div><div class="radius-item"><div class="radius-box" style="border-radius:9999px"></div><div class="radius-label radius-value">full · 9999px</div></div></div>
+</section>
+
+  <section id="elevation">
+<div class="section-label">09 / Elevation</div>
+<h2 class="section-title section-heading">Elevation</h2>
+<div class="elevation-grid"><div class="elevation-card card"><div class="elevation-label">Canvas</div><div class="elevation-desc token-meta">#0f1115</div></div><div class="elevation-card card"><div class="elevation-label">Surface</div><div class="elevation-desc token-meta">#181b22</div></div><div class="elevation-card card"><div class="elevation-label">Strong Surface</div><div class="elevation-desc token-meta">#20242d</div></div><div class="elevation-card card"><div class="elevation-label">Border</div><div class="elevation-desc token-meta">rgba(255,255,255,0.14)</div></div></div>
+</section>
+
+  <section id="responsive">
+<div class="section-label">10 / Responsive Behavior</div>
+<h2 class="section-title section-heading">Responsive Behavior</h2>
+<table class="responsive-table breakpoint-table"><tbody><tr><th>Viewport</th><th>Behavior</th></tr><tr><td>Mobile</td><td>Single column layout and compact token grids.</td></tr><tr><td>Desktop</td><td>Multi-column layout with expanded token grids.</td></tr></tbody></table>
+</section>
+
+  <div class="sunset-stripe"></div>
+
+  <footer class="footer">
+  <div class="footer-shell">
+    <p>Mistral AI</p>
+    <p class="token-meta">Design token preview</p>
+  </div>
+</footer>
 </body>
 </html>

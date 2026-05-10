@@ -4,104 +4,218 @@ name: "Lamborghini"
 description: "Lamborghini's website is a cathedral of darkness — a digital stage where jet-black surfaces stretch infinitely and every element emerges from the void like a machine under a spotlight. The page is almost entirely black. Not dark gray, not near-black — true, uncompromising black (#000000) that saturates the viewport and refuses to yield. Into this abyss, white type and Lamborghini Gold (#FFC000) are deployed with surgical precision, creating a visual language that feels like walking through a nighttime motorsport event where every surface absorbs light except the things that matter."
 
 colors:
-  primary: "#000000"
-  on-primary: "#ffffff"
-  canvas: "#ffffff"
-  surface: "#ffffff"
-  ink: "#000000"
-  body: "#666666"
-  muted: "#666666"
-  hairline: "#dddddd"
-  accent: "#ffc000"
+  primary: "#ffc000"
+  primary-active: "#917300"
+  gold-text: "#ffce3e"
+  on-primary: "#000000"
+  canvas: "#000000"
+  surface: "#202020"
+  surface-dark: "#181818"
+  overlay: "rgba(0,0,0,0.7)"
+  overlay-soft: "rgba(0,0,0,0.5)"
+  overlay-subtle: "rgba(0,0,0,0.25)"
+  surface-light: "#f8f8f8"
+  surface-mist: "#e6e6e6"
+  ink: "#ffffff"
+  body: "#f5f5f5"
+  body-on-light: "#494949"
+  muted: "#7d7d7d"
+  disabled: "#969696"
+  slate: "#666666"
+  iron: "#555555"
+  shadow-text: "#313131"
+  cyan-pulse: "#29abe2"
+  link-blue: "#3860be"
+  teal-action: "#1eaedb"
 
 typography:
   display-hero:
-    fontFamily: "Inter, system-ui, -apple-system, BlinkMacSystemFont, sans-serif"
-    fontSize: 48px
-    fontWeight: 700
-    lineHeight: 1.15
-    letterSpacing: -1px
+    fontFamily: "LamboType, Roboto, Helvetica Neue, Arial, sans-serif"
+    fontSize: 120px
+    fontWeight: 400
+    lineHeight: 0.92
+    letterSpacing: 0px
+    textTransform: uppercase
   heading-lg:
-    fontFamily: "Inter, system-ui, -apple-system, BlinkMacSystemFont, sans-serif"
-    fontSize: 32px
-    fontWeight: 700
-    lineHeight: 1.25
-    letterSpacing: -0.5px
+    fontFamily: "LamboType, Roboto, Helvetica Neue, Arial, sans-serif"
+    fontSize: 80px
+    fontWeight: 400
+    lineHeight: 1.13
+    letterSpacing: 0px
+    textTransform: uppercase
+  section-title:
+    fontFamily: "LamboType, Roboto, Helvetica Neue, Arial, sans-serif"
+    fontSize: 54px
+    fontWeight: 400
+    lineHeight: 1.19
+    letterSpacing: 0px
+    textTransform: uppercase
+  sub-section:
+    fontFamily: "LamboType, Roboto, Helvetica Neue, Arial, sans-serif"
+    fontSize: 40px
+    fontWeight: 400
+    lineHeight: 1.15
+    letterSpacing: 0px
+    textTransform: uppercase
+  feature-heading:
+    fontFamily: "LamboType, Roboto, Helvetica Neue, Arial, sans-serif"
+    fontSize: 27px
+    fontWeight: 400
+    lineHeight: 1.37
+    letterSpacing: 0px
+    textTransform: uppercase
+  card-title:
+    fontFamily: "LamboType, Roboto, Helvetica Neue, Arial, sans-serif"
+    fontSize: 24px
+    fontWeight: 400
+    letterSpacing: 0px
+  body-lg:
+    fontFamily: "LamboType, Roboto, Helvetica Neue, Arial, sans-serif"
+    fontSize: 18px
+    fontWeight: 400
+    lineHeight: 1.56
+    letterSpacing: 0px
   body-md:
-    fontFamily: "Inter, system-ui, -apple-system, BlinkMacSystemFont, sans-serif"
+    fontFamily: "LamboType, Roboto, Helvetica Neue, Arial, sans-serif"
+    fontSize: 16px
+    fontWeight: 400
+    lineHeight: 1.5
+    letterSpacing: 0px
+  body-bold:
+    fontFamily: "LamboType, Roboto, Helvetica Neue, Arial, sans-serif"
+    fontSize: 16px
+    fontWeight: 700
+    lineHeight: 1.5
+    letterSpacing: 0.16px
+  button-large:
+    fontFamily: "LamboType, Open Sans, Roboto, Helvetica Neue, Arial, sans-serif"
     fontSize: 16px
     fontWeight: 400
     lineHeight: 1.5
     letterSpacing: 0px
   button:
-    fontFamily: "Inter, system-ui, -apple-system, BlinkMacSystemFont, sans-serif"
+    fontFamily: "LamboType, Open Sans, Roboto, Helvetica Neue, Arial, sans-serif"
+    fontSize: 14.4px
+    fontWeight: 300
+    lineHeight: 1
+    letterSpacing: 0.14px
+    textTransform: uppercase
+  button-small:
+    fontFamily: "LamboType, Open Sans, Roboto, Helvetica Neue, Arial, sans-serif"
+    fontSize: 13px
+    fontWeight: 300
+    lineHeight: 1.2
+    letterSpacing: 0.13px
+    textTransform: uppercase
+  caption:
+    fontFamily: "LamboType, Roboto, Helvetica Neue, Arial, sans-serif"
     fontSize: 14px
     fontWeight: 600
-    lineHeight: 1.2
-    letterSpacing: 0px
-  caption:
-    fontFamily: "Inter, system-ui, -apple-system, BlinkMacSystemFont, sans-serif"
+    lineHeight: 1.14
+    letterSpacing: -0.42px
+    textTransform: uppercase
+  label:
+    fontFamily: "LamboType, Roboto, Helvetica Neue, Arial, sans-serif"
     fontSize: 12px
-    fontWeight: 500
-    lineHeight: 1.33
-    letterSpacing: 0px
+    fontWeight: 400
+    lineHeight: 1.83
+    letterSpacing: 0.96px
+    textTransform: uppercase
+  micro:
+    fontFamily: "LamboType, Roboto, Helvetica Neue, Arial, sans-serif"
+    fontSize: 10px
+    fontWeight: 400
+    lineHeight: 1
+    letterSpacing: 0.225px
+    textTransform: uppercase
 
 rounded:
-  sm: 4px
-  md: 8px
-  lg: 12px
-  pill: 9999px
+  none: 0px
+  hair: 1px
+  xs: 2px
+  switch: 20px
 
 spacing:
+  xxs: 2px
   xs: 4px
+  xs-plus: 5px
   sm: 8px
-  md: 16px
-  lg: 24px
-  xl: 32px
-  section: 80px
+  sm-plus: 10px
+  md: 12px
+  md-plus: 15px
+  lg: 16px
+  xl: 20px
+  xxl: 24px
+  section-x: 40px
+  section-y: 48px
+  section-y-lg: 56px
 
 components:
   button-primary:
     backgroundColor: "{colors.primary}"
     textColor: "{colors.on-primary}"
-    typography: "{typography.button}"
-    rounded: "{rounded.md}"
-    padding: 16px
-  button-secondary:
-    backgroundColor: "{colors.canvas}"
+    typography: "{typography.button-large}"
+    rounded: "{rounded.none}"
+    padding: 24px
+  button-primary-active:
+    backgroundColor: "{colors.primary-active}"
+    textColor: "{colors.on-primary}"
+    typography: "{typography.button-large}"
+    rounded: "{rounded.none}"
+    padding: 24px
+  button-ghost:
+    backgroundColor: transparent
     textColor: "{colors.ink}"
     typography: "{typography.button}"
-    rounded: "{rounded.md}"
+    rounded: "{rounded.none}"
     padding: 16px
-  card:
+  button-ghost-active:
+    backgroundColor: "{colors.teal-action}"
+    textColor: "{colors.ink}"
+    typography: "{typography.button}"
+    rounded: "{rounded.none}"
+    padding: 16px
+  button-white:
+    backgroundColor: "{colors.ink}"
+    textColor: "{colors.surface}"
+    typography: "{typography.button-large}"
+    rounded: "{rounded.none}"
+  button-black:
+    backgroundColor: "{colors.canvas}"
+    textColor: "{colors.surface}"
+    typography: "{typography.button-large}"
+    rounded: "{rounded.none}"
+  button-gray-neutral:
+    backgroundColor: "{colors.disabled}"
+    textColor: "{colors.surface}"
+    typography: "{typography.button}"
+    rounded: "{rounded.none}"
+  hero-video:
+    backgroundColor: "{colors.canvas}"
+    textColor: "{colors.ink}"
+    typography: "{typography.display-hero}"
+    rounded: "{rounded.none}"
+    padding: 0px
+  card-dark:
     backgroundColor: "{colors.surface}"
     textColor: "{colors.ink}"
     typography: "{typography.body-md}"
-    rounded: "{rounded.lg}"
-    padding: 24px
-  text-body:
-    backgroundColor: "{colors.canvas}"
-    textColor: "{colors.body}"
-    typography: "{typography.body-md}"
-    rounded: "{rounded.sm}"
-    padding: 8px
-  muted-label:
-    backgroundColor: "{colors.canvas}"
-    textColor: "{colors.muted}"
-    typography: "{typography.caption}"
-    rounded: "{rounded.sm}"
-    padding: 4px
-  link:
-    backgroundColor: "{colors.canvas}"
-    textColor: "{colors.accent}"
-    typography: "{typography.button}"
-    rounded: "{rounded.sm}"
-    padding: 4px
-  divider:
-    backgroundColor: "{colors.hairline}"
+    rounded: "{rounded.none}"
+  nav-floating:
+    backgroundColor: transparent
     textColor: "{colors.ink}"
-    rounded: "{rounded.sm}"
-    height: 1px
+    typography: "{typography.button}"
+    rounded: "{rounded.none}"
+  badge-tag:
+    backgroundColor: "{colors.disabled}"
+    textColor: "{colors.ink}"
+    typography: "{typography.micro}"
+    rounded: "{rounded.xs}"
+    padding: 8px
+  switch:
+    backgroundColor: "{colors.canvas}"
+    textColor: "{colors.ink}"
+    rounded: "{rounded.switch}"
 ---
 
 # Design System Inspired by Lamborghini

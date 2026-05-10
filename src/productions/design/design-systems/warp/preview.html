@@ -1,174 +1,367 @@
 <!DOCTYPE html>
 <html lang="en">
 <head>
-  <meta charset="UTF-8">
-  <meta name="viewport" content="width=device-width, initial-scale=1.0">
-  <title>Warp Design System Preview</title>
-  <style>
-    :root {
-      --primary: #faf9f6;
-      --on-primary: #111111;
-      --canvas: #ffffff;
-      --surface: #ffffff;
-      --surface-strong: #f3f3f3;
-      --ink: #171717;
-      --body: #4d4d4d;
-      --muted: #666666;
-      --border: #ebebeb;
-      --display: Inter, system-ui, -apple-system, BlinkMacSystemFont, sans-serif;
-      --text: Inter, system-ui, -apple-system, BlinkMacSystemFont, sans-serif;
-      --mono: ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, monospace;
-    }
-    * { box-sizing: border-box; margin: 0; padding: 0; }
-    html, body { background: var(--canvas); color: var(--ink); font-family: var(--text); font-size: 16px; line-height: 1.5; }
-    body { min-width: 320px; }
-    .nav { position: sticky; top: 0; z-index: 20; display: grid; grid-template-columns: 1fr auto 1fr; align-items: center; gap: 20px; height: 64px; padding: 0 48px; background: color-mix(in srgb, var(--canvas) 92%, transparent); border-bottom: 1px solid var(--border); backdrop-filter: blur(14px); }
-    .brand { font-family: var(--display); font-weight: 700; letter-spacing: -0.02em; color: var(--ink); }
-    .nav-links { list-style: none; display: flex; gap: 24px; justify-content: center; }
-    .nav-links a { color: var(--body); text-decoration: none; font-size: 14px; font-weight: 600; }
-    .nav-cta { justify-self: end; border: 0; background: var(--primary); color: var(--on-primary); border-radius: 8px; padding: 11px 18px; font: 700 13px/1 var(--text); }
-    .hero { max-width: 1440px; margin: 0 auto; padding: 84px 48px 72px; display: grid; grid-template-columns: minmax(0, 1.1fr) minmax(320px, 0.9fr); gap: 48px; align-items: center; }
-    .eyebrow { color: var(--muted); font: 700 11px/1.2 var(--mono); letter-spacing: 0.12em; text-transform: uppercase; margin-bottom: 18px; }
-    h1 { font-family: var(--display); font-size: clamp(40px, 6vw, 72px); line-height: 1.04; letter-spacing: -0.045em; font-weight: 750; max-width: 980px; }
-    .hero p { margin-top: 26px; max-width: 760px; color: var(--body); font-size: 18px; line-height: 1.65; }
-    .hero-actions { margin-top: 34px; display: flex; gap: 12px; flex-wrap: wrap; }
-    .btn { display: inline-flex; align-items: center; justify-content: center; min-height: 44px; border-radius: 8px; padding: 0 20px; border: 1px solid var(--border); font: 700 14px/1 var(--text); color: var(--ink); background: var(--surface); }
-    .btn.primary { background: var(--primary); color: var(--on-primary); border-color: var(--primary); }
-    .hero-panel { background: var(--surface); border: 1px solid var(--border); border-radius: 18px; overflow: hidden; box-shadow: 0 24px 70px rgba(0,0,0,.12); }
-    .panel-top { height: 44px; display: flex; align-items: center; gap: 7px; padding: 0 16px; border-bottom: 1px solid var(--border); background: var(--surface-strong); }
-    .dot { width: 10px; height: 10px; border-radius: 999px; background: var(--primary); opacity: .85; }
-    .panel-body { padding: 22px; display: grid; gap: 14px; }
-    .metric { display: grid; grid-template-columns: 88px 1fr; gap: 14px; align-items: center; padding: 14px; border: 1px solid var(--border); border-radius: 12px; background: var(--canvas); }
-    .metric strong { color: var(--primary); font-family: var(--mono); font-size: 22px; }
-    .metric span { color: var(--body); font-size: 13px; }
-    section { max-width: 1440px; margin: 0 auto; padding: 78px 48px; border-top: 1px solid var(--border); }
-    .section-label { color: var(--muted); font: 800 11px/1.2 var(--mono); letter-spacing: .12em; text-transform: uppercase; margin-bottom: 12px; }
-    .section-heading { font-family: var(--display); font-size: clamp(26px, 3.5vw, 42px); line-height: 1.12; letter-spacing: -.025em; margin-bottom: 16px; }
-    .section-intro { color: var(--body); max-width: 760px; margin-bottom: 42px; line-height: 1.65; }
-    .palette-grid, .button-grid, .card-grid, .form-grid, .elevation-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(230px, 1fr)); gap: 18px; }
-    .swatch, .component-cell, .feature-card, .form-cell, .elevation-card { background: var(--surface); border: 1px solid var(--border); border-radius: 14px; overflow: hidden; min-width: 0; }
-    .swatch-color { height: 108px; border-bottom: 1px solid var(--border); }
-    .swatch-meta, .component-cell, .feature-card, .form-cell, .elevation-card { padding: 18px; }
-    .swatch-name, .button-label { font-weight: 800; font-size: 13px; color: var(--ink); margin-bottom: 5px; overflow-wrap: anywhere; }
-    .swatch-hex, .button-meta, .type-meta, .spacing-label { font-family: var(--mono); font-size: 12px; color: var(--muted); overflow-wrap: anywhere; }
-    .type-row { display: grid; grid-template-columns: 300px 1fr; gap: 32px; align-items: baseline; padding: 20px 0; border-bottom: 1px solid var(--border); }
-    .type-sample { color: var(--ink); overflow-wrap: anywhere; }
-    .demo-button { display: inline-flex; align-items: center; justify-content: center; min-height: 40px; border-radius: 8px; border: 1px solid var(--border); padding: 0 16px; font-weight: 700; max-width: 100%; }
-    .feature-card h4, .elevation-card h4 { font-size: 18px; margin-bottom: 8px; }
-    .feature-card p, .elevation-card p { color: var(--body); font-size: 14px; line-height: 1.55; }
-    .text-input { width: 100%; min-height: 44px; border-radius: 8px; border: 1px solid var(--border); background: var(--canvas); color: var(--ink); padding: 0 14px; font: 500 15px/1 var(--text); }
-    .badge { display: inline-flex; align-items: center; border-radius: 999px; background: var(--surface-strong); color: var(--ink); min-height: 28px; padding: 0 12px; font: 800 11px/1 var(--mono); letter-spacing: .08em; text-transform: uppercase; }
-    .spacing-row, .radius-row { display: flex; flex-wrap: wrap; gap: 18px; align-items: end; }
-    .spacing-block { display: grid; justify-items: center; gap: 8px; }
-    .spacing-bar { width: 54px; min-height: 4px; background: var(--primary); border-radius: 6px; }
-    .radius-block { width: 96px; height: 96px; display: grid; place-items: center; background: var(--surface); border: 1px solid var(--border); color: var(--muted); font: 700 12px/1 var(--mono); }
-    .responsive-table { width: 100%; border-collapse: collapse; background: var(--surface); border: 1px solid var(--border); border-radius: 14px; overflow: hidden; }
-    .responsive-table th, .responsive-table td { text-align: left; padding: 14px 16px; border-bottom: 1px solid var(--border); color: var(--body); }
-    .responsive-table th { color: var(--ink); font: 800 11px/1.2 var(--mono); letter-spacing: .1em; text-transform: uppercase; }
-    .footer { padding: 34px 48px; border-top: 1px solid var(--border); color: var(--muted); text-align: center; font-size: 13px; }
-    @media (max-width: 900px) { .nav { grid-template-columns: 1fr auto; padding: 0 20px; } .nav-links { display: none; } .nav-cta { display: none; } .hero { grid-template-columns: 1fr; padding: 56px 20px; } section { padding: 56px 20px; } .type-row { grid-template-columns: 1fr; gap: 8px; } }
-  </style>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Warp Design System Preview</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600&display=swap" rel="stylesheet">
+<link href="https://fonts.googleapis.com/css2?family=Geist+Mono:wght@400;500&display=swap" rel="stylesheet">
+<style>
+  :root {
+--bg: #0e0e0d;
+    --bg-surface: rgba(255, 255, 255, 0.04);
+    --parchment: #faf9f6;
+    --ash: #afaeac;
+    --stone: #868584;
+    --purple-gray: #666469;
+    --earth: #353534;
+    --charcoal: #454545;
+    --border: rgba(226, 226, 226, 0.35);
+    --border-subtle: rgba(226, 226, 226, 0.35);
+    --frosted: rgba(255, 255, 255, 0.04);
+    --frosted-btn: rgba(255, 255, 255, 0.16);
+    --font: 'Inter', -apple-system, BlinkMacSystemFont, sans-serif;
+    --font-mono: 'Geist Mono', ui-monospace, SFMono-Regular, monospace;
+  --primary: #faf9f6;
+  --color-primary: #faf9f6;
+  --on-primary: #000000;
+  --color-on-primary: #000000;
+  --canvas: #0e0e0d;
+  --color-canvas: #0e0e0d;
+  --surface: rgba(255, 255, 255, 0.04);
+  --color-surface: rgba(255, 255, 255, 0.04);
+  --ink: #faf9f6;
+  --color-ink: #faf9f6;
+  --body: #afaeac;
+  --color-body: #afaeac;
+  --muted: #868584;
+  --color-muted: #868584;
+  --hairline: rgba(226, 226, 226, 0.35);
+  --color-hairline: rgba(226, 226, 226, 0.35);
+  --accent: #353534;
+  --color-accent: #353534;
+  --warm-parchment: #faf9f6;
+  --color-warm-parchment: #faf9f6;
+  --earth-gray: #353534;
+  --color-earth-gray: #353534;
+  --deep-void: #0e0e0d;
+  --color-deep-void: #0e0e0d;
+  --stone-gray: #868584;
+  --color-stone-gray: #868584;
+  --ash-gray: #afaeac;
+  --color-ash-gray: #afaeac;
+  --purple-tint-gray: #666469;
+  --color-purple-tint-gray: #666469;
+  --frosted-veil: rgba(255, 255, 255, 0.04);
+  --color-frosted-veil: rgba(255, 255, 255, 0.04);
+  --mist-border: rgba(226, 226, 226, 0.35);
+  --color-mist-border: rgba(226, 226, 226, 0.35);
+  --mist-border-alt: rgba(227, 227, 227, 0.337);
+  --color-mist-border-alt: rgba(227, 227, 227, 0.337);
+  --translucent-parchment: rgba(250, 249, 246, 0.9);
+  --color-translucent-parchment: rgba(250, 249, 246, 0.9);
+  --dark-charcoal: #454545;
+  --color-dark-charcoal: #454545;
+  --black: rgb(0, 0, 0);
+  --color-black: rgb(0, 0, 0);
+  --frosted-tag-bg: rgba(255, 255, 255, 0.16);
+  --color-frosted-tag-bg: rgba(255, 255, 255, 0.16);
+  --ambient-shadow: rgba(0, 0, 0, 0.2);
+  --color-ambient-shadow: rgba(0, 0, 0, 0.2);
+}
+  * { margin: 0; padding: 0; box-sizing: border-box; }
+  body {
+    font-family: var(--font);
+    background: var(--bg);
+    color: var(--parchment);
+    line-height: 1.4;
+    -webkit-font-smoothing: antialiased;
+  }
+
+  .nav {
+    position: sticky; top: 0; z-index: 100;
+    display: flex; align-items: center; justify-content: space-between;
+    padding: 14px 32px;
+    background: rgba(14, 14, 13, 0.9);
+    backdrop-filter: blur(12px);
+    border-bottom: 1px solid var(--border-subtle);
+  }
+  .nav-brand { font-size: 15px; font-weight: 500; color: var(--parchment); letter-spacing: -0.15px; }
+  .nav-links { display: flex; gap: 24px; align-items: center; list-style: none; }
+  .nav-links a {
+    color: var(--stone); text-decoration: none; font-size: 16px; font-weight: 400;
+    transition: color 0.2s;
+  }
+  .nav-links a:hover { color: var(--parchment); }
+  .nav-cta {
+    background: var(--earth); color: var(--ash) !important;
+    padding: 8px 20px; border-radius: 50px; font-weight: 500; font-size: 14px;
+    transition: opacity 0.2s;
+  }
+  .nav-cta:hover { opacity: 0.8; }
+
+  .hero {
+    padding: 120px 32px 100px; text-align: center;
+    max-width: 1200px; margin: 0 auto;
+  }
+  .hero h1 {
+    font-size: 72px; font-weight: 400; letter-spacing: -2.4px; line-height: 1.0;
+    color: var(--parchment); margin-bottom: 20px;
+  }
+  .hero .subtitle {
+    font-size: 20px; color: var(--ash); letter-spacing: -0.2px;
+    line-height: 1.4; max-width: 560px; margin: 0 auto 40px;
+  }
+  .hero-buttons { display: flex; gap: 12px; justify-content: center; flex-wrap: wrap; }
+  .btn-primary {
+    display: inline-flex; align-items: center;
+    background: var(--earth); color: var(--ash);
+    padding: 12px 28px; border-radius: 50px;
+    font-size: 16px; font-weight: 500; text-decoration: none;
+    border: none; cursor: pointer; transition: opacity 0.2s;
+    font-family: var(--font);
+  }
+  .btn-primary:hover { opacity: 0.8; }
+  .btn-secondary {
+    display: inline-flex; align-items: center;
+    background: transparent; color: var(--parchment);
+    padding: 12px 28px; border-radius: 50px;
+    font-size: 16px; font-weight: 400; text-decoration: none;
+    border: 1px solid var(--border); cursor: pointer;
+    transition: opacity 0.2s; font-family: var(--font);
+  }
+  .btn-secondary:hover { opacity: 0.7; }
+
+  .section { max-width: 1200px; margin: 0 auto; padding: 80px 32px; }
+  .section-title {
+    font-size: 48px; font-weight: 400; letter-spacing: -0.96px; line-height: 1.2; margin-bottom: 12px;
+  }
+  .section-desc { font-size: 18px; color: var(--ash); margin-bottom: 48px; letter-spacing: -0.18px; line-height: 1.3; }
+  .section-divider {
+    border: none; border-top: 1px solid var(--border-subtle);
+    max-width: 1136px; margin: 0 auto;
+  }
+
+  .color-group { margin-bottom: 40px; }
+  .color-group-title {
+    font-size: 12px; font-weight: 400; color: var(--stone);
+    text-transform: uppercase; letter-spacing: 2.4px; margin-bottom: 16px;
+  }
+  .color-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(180px, 1fr)); gap: 14px; }
+  .color-swatch {
+    border-radius: 12px; overflow: hidden;
+    background: var(--bg-surface); border: 1px solid var(--border-subtle);
+  }
+  .color-swatch-preview { height: 72px; width: 100%; }
+  .color-swatch-info { padding: 12px; }
+  .color-swatch-name { font-size: 14px; font-weight: 500; margin-bottom: 2px; }
+  .color-swatch-hex { font-family: var(--font-mono); font-size: 11px; color: var(--stone); }
+  .color-swatch-role { font-size: 11px; color: var(--ash); margin-top: 4px; line-height: 1.4; }
+
+  .type-sample { padding: 24px 0; border-bottom: 1px solid var(--border-subtle); }
+  .type-sample:last-child { border-bottom: none; }
+  .type-label {
+    font-size: 12px; color: var(--stone); letter-spacing: 2.4px;
+    text-transform: uppercase; margin-bottom: 8px;
+  }
+  .type-spec { font-size: 12px; color: var(--stone); margin-top: 8px; }
+
+  .button-showcase { display: flex; gap: 20px; flex-wrap: wrap; align-items: center; }
+  .btn-tag {
+    background: var(--frosted-btn); color: var(--parchment);
+    padding: 4px 12px; border-radius: 6px;
+    font-size: 14px; font-weight: 400; border: none; cursor: pointer;
+    transition: opacity 0.2s; font-family: var(--font);
+  }
+  .btn-tag:hover { opacity: 0.7; }
+  .btn-ghost {
+    background: transparent; color: var(--ash);
+    padding: 12px 28px; border-radius: 50px;
+    font-size: 16px; font-weight: 400; border: none; cursor: pointer;
+    text-decoration: underline; text-underline-offset: 3px;
+    text-decoration-color: var(--charcoal);
+    transition: color 0.2s; font-family: var(--font);
+  }
+  .btn-ghost:hover { color: var(--parchment); }
+  .btn-label { display: block; font-size: 11px; color: var(--stone); margin-top: 8px; text-align: center; }
+  .btn-item { text-align: center; }
+
+  .card-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(320px, 1fr)); gap: 16px; }
+  .card {
+    background: var(--bg-surface); border-radius: 14px; padding: 28px;
+    border: 1px solid var(--border); transition: border-color 0.3s;
+  }
+  .card:hover { border-color: rgba(226, 226, 226, 0.5); }
+  .card-title { font-size: 22px; font-weight: 500; margin-bottom: 8px; line-height: 1.14; }
+  .card-text { font-size: 16px; color: var(--ash); line-height: 1.4; }
+  .card-tag {
+    display: inline-block; padding: 2px 8px;
+    background: var(--frosted-btn); border-radius: 4px;
+    font-size: 12px; font-weight: 400; color: var(--parchment);
+    margin-bottom: 12px; text-transform: uppercase; letter-spacing: 1.4px;
+  }
+
+  .form-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(300px, 1fr)); gap: 24px; }
+  .form-group { display: flex; flex-direction: column; gap: 6px; }
+  .form-label { font-size: 14px; font-weight: 400; color: var(--stone); text-transform: uppercase; letter-spacing: 1.4px; }
+  .form-input {
+    background: var(--bg); border: 1px solid var(--border-subtle);
+    border-radius: 8px; padding: 12px 14px; color: var(--parchment);
+    font-size: 16px; font-family: var(--font); outline: none;
+    transition: border-color 0.2s;
+  }
+  .form-input::placeholder { color: var(--stone); }
+  .form-input:focus { border-color: var(--ash); }
+  .form-input-error { border-color: #c45050; }
+  .form-error-text { font-size: 12px; color: #c45050; }
+  textarea.form-input { min-height: 100px; resize: vertical; }
+
+  .spacing-row { display: flex; align-items: center; gap: 16px; margin-bottom: 10px; }
+  .spacing-box { height: 28px; background: var(--ash); border-radius: 4px; opacity: 0.3; }
+  .spacing-label { font-size: 12px; color: var(--stone); min-width: 50px; text-align: right; font-family: var(--font-mono); }
+
+  .radius-row { display: flex; gap: 20px; flex-wrap: wrap; align-items: flex-end; }
+  .radius-item { text-align: center; }
+  .radius-box {
+    width: 64px; height: 64px;
+    background: var(--frosted); border: 1px solid var(--border-subtle); margin-bottom: 8px;
+  }
+  .radius-value { font-size: 11px; color: var(--stone); font-family: var(--font-mono); }
+  .radius-context { font-size: 10px; color: var(--purple-gray); margin-top: 2px; }
+
+  .elevation-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(250px, 1fr)); gap: 20px; }
+  .elevation-card { padding: 24px; border-radius: 12px; background: var(--bg-surface); min-height: 110px; }
+  .elevation-label { font-size: 14px; font-weight: 500; margin-bottom: 6px; }
+  .elevation-desc { font-size: 13px; color: var(--ash); line-height: 1.5; }
+
+  .footer {
+    text-align: center; padding: 48px 32px;
+    border-top: 1px solid var(--border-subtle); margin-top: 40px;
+  }
+  .footer p { font-size: 13px; color: var(--stone); }
+  .footer a { color: var(--ash); text-decoration: underline; text-decoration-color: var(--charcoal); }
+
+  @media (max-width: 768px) {
+    .hero h1 { font-size: 48px; letter-spacing: -1.5px; }
+    .section-title { font-size: 36px; letter-spacing: -0.7px; }
+    .nav-links { display: none; }
+    .color-grid { grid-template-columns: repeat(2, 1fr); }
+    .card-grid { grid-template-columns: 1fr; }
+    .form-grid { grid-template-columns: 1fr; }
+    .elevation-grid { grid-template-columns: 1fr; }
+  }
+
+
+  /* Shared Agent Platform footer content */
+  .footer { text-align: left; }
+  .footer-shell { max-width: 1200px; margin: 0 auto; }
+  .footer-grid { display: grid; grid-template-columns: repeat(4, minmax(0, 1fr)); gap: 32px; }
+  .footer-col h6 { margin: 0 0 14px; color: inherit; font: inherit; font-weight: 700; font-size: 14px; line-height: 1.2; }
+  .footer-col span { display: block; margin: 0 0 10px; color: inherit; opacity: 0.72; font-size: 14px; line-height: 1.35; }
+  .footer-credit { margin-top: 48px; padding-top: 24px; border-top: 1px solid currentColor; color: inherit; opacity: 0.78; font-size: 13px; line-height: 1.4; }
+  .footer-credit a { color: inherit; text-decoration: none; font-weight: 600; }
+  .footer-credit img { border-radius: 3px; vertical-align: -2px; margin-right: 3px; }
+  @media (max-width: 760px) {
+    .footer-grid { grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 24px; }
+  }
+</style>
 </head>
 <body>
-  <nav class="nav">
-    <div class="brand">Warp</div>
-    <ul class="nav-links"><li><a href="#colors">Colors</a></li><li><a href="#type">Typography</a></li><li><a href="#components">Components</a></li><li><a href="#responsive">Responsive</a></li></ul>
-    <button class="nav-cta">Preview</button>
-  </nav>
 
-  <main>
-    <div class="hero">
-      <div>
-        <div class="eyebrow">Design System Preview</div>
-        <h1>Warp visual system</h1>
-        <p>Warp&#39;s website feels like sitting at a campfire in a deep forest — warm, dark, and alive with quiet confidence. Unlike the cold, blue-tinted blacks favored by most developer tools,.</p>
-        <div class="hero-actions"><span class="btn primary">Primary action</span><span class="btn">Secondary action</span></div>
-      </div>
-      <div class="hero-panel" aria-label="Interface sample">
-        <div class="panel-top"><span class="dot"></span><span class="dot"></span><span class="dot"></span></div>
-        <div class="panel-body">
-          <div class="metric"><strong>01</strong><span>Token driven color, type, spacing, and component decisions.</span></div>
-          <div class="metric"><strong>AA</strong><span>Preview surfaces highlight contrast, hierarchy, and UI rhythm.</span></div>
-          <div class="metric"><strong>UI</strong><span>Reusable cards, controls, form fields, labels, and responsive states.</span></div>
-        </div>
-      </div>
-    </div>
+<nav class="nav">
+  <span class="nav-brand">Warp</span>
+  <ul class="nav-links">
+    <li><a href="#colors">Colors</a></li>
+    <li><a href="#typography">Typography</a></li>
+    <li><a href="#buttons">Buttons</a></li>
+    <li><a href="#cards">Cards</a></li>
+    <li><a href="#forms">Forms</a></li>
+    <li><a href="#elevation">Elevation</a></li>
+    <li><a href="#" class="nav-cta">Download</a></li>
+  </ul>
+</nav>
 
-    <section id="colors">
-      <div class="section-label">01 - Color Palette</div>
-      <h2 class="section-heading">Core colors and semantic surfaces</h2>
-      <p class="section-intro">The palette below is extracted from the structured design tokens. Swatches show the available roles and their exact CSS values.</p>
-      <div class="palette-grid">
-        <div class="swatch"><div class="swatch-color" style="background:#faf9f6"></div><div class="swatch-meta"><div class="swatch-name">primary</div><div class="swatch-hex">#faf9f6</div></div></div><div class="swatch"><div class="swatch-color" style="background:#000000"></div><div class="swatch-meta"><div class="swatch-name">on-primary</div><div class="swatch-hex">#000000</div></div></div><div class="swatch"><div class="swatch-color" style="background:#ffffff"></div><div class="swatch-meta"><div class="swatch-name">canvas</div><div class="swatch-hex">#ffffff</div></div></div><div class="swatch"><div class="swatch-color" style="background:#ffffff"></div><div class="swatch-meta"><div class="swatch-name">surface</div><div class="swatch-hex">#ffffff</div></div></div><div class="swatch"><div class="swatch-color" style="background:#171717"></div><div class="swatch-meta"><div class="swatch-name">ink</div><div class="swatch-hex">#171717</div></div></div><div class="swatch"><div class="swatch-color" style="background:#4d4d4d"></div><div class="swatch-meta"><div class="swatch-name">body</div><div class="swatch-hex">#4d4d4d</div></div></div><div class="swatch"><div class="swatch-color" style="background:#666666"></div><div class="swatch-meta"><div class="swatch-name">muted</div><div class="swatch-hex">#666666</div></div></div><div class="swatch"><div class="swatch-color" style="background:#ebebeb"></div><div class="swatch-meta"><div class="swatch-name">hairline</div><div class="swatch-hex">#ebebeb</div></div></div><div class="swatch"><div class="swatch-color" style="background:#353534"></div><div class="swatch-meta"><div class="swatch-name">accent</div><div class="swatch-hex">#353534</div></div></div>
-      </div>
-    </section>
+<section class="hero">
+  <h1>Design System<br>Inspired by Warp</h1>
+  <p class="subtitle">Warp&#39;s website is a warm, dark, Matter-driven developer-tool system with Warm Parchment text, muted earth-gray pill buttons, nature photography, terminal screenshots, and a deliberately monochromatic palette.</p>
+  <div class="hero-buttons">
+    <a href="#colors" class="btn-primary">Explore Tokens</a>
+    <a href="#buttons" class="btn-secondary">View Components</a>
+  </div>
+</section>
 
-    <section id="type">
-      <div class="section-label">02 - Typography</div>
-      <h2 class="section-heading">Type scale and voice</h2>
-      <p class="section-intro">Typography samples show how major text levels render when the token values are applied to real interface copy.</p>
-      <div class="type-row"><div class="type-meta"><strong>display-hero</strong>48px / 700 / 1.15 / -1px</div><div class="type-sample" style="font-family:Inter, system-ui, -apple-system, BlinkMacSystemFont, sans-serif;font-size:48px;font-weight:700;line-height:1.15;letter-spacing:-1px">Build a clear product interface with Warp rhythm.</div></div><div class="type-row"><div class="type-meta"><strong>heading-lg</strong>32px / 700 / 1.25 / -0.5px</div><div class="type-sample" style="font-family:Inter, system-ui, -apple-system, BlinkMacSystemFont, sans-serif;font-size:32px;font-weight:700;line-height:1.25;letter-spacing:-0.5px">Build a clear product interface with Warp rhythm.</div></div><div class="type-row"><div class="type-meta"><strong>body-md</strong>16px / 400 / 1.5 / 0px</div><div class="type-sample" style="font-family:Inter, system-ui, -apple-system, BlinkMacSystemFont, sans-serif;font-size:16px;font-weight:400;line-height:1.5;letter-spacing:0px">Build a clear product interface with Warp rhythm.</div></div><div class="type-row"><div class="type-meta"><strong>button</strong>14px / 600 / 1.2 / 0px</div><div class="type-sample" style="font-family:Inter, system-ui, -apple-system, BlinkMacSystemFont, sans-serif;font-size:14px;font-weight:600;line-height:1.2;letter-spacing:0px">Build a clear product interface with Warp rhythm.</div></div><div class="type-row"><div class="type-meta"><strong>caption</strong>12px / 500 / 1.33 / 0px</div><div class="type-sample" style="font-family:Inter, system-ui, -apple-system, BlinkMacSystemFont, sans-serif;font-size:12px;font-weight:500;line-height:1.33;letter-spacing:0px">Build a clear product interface with Warp rhythm.</div></div>
-    </section>
+<hr class="section-divider">
 
-    <section id="components">
-      <div class="section-label">03 - Components</div>
-      <h2 class="section-heading">Buttons, cards, labels, and controls</h2>
-      <p class="section-intro">Component samples apply available token references where possible, with neutral fallbacks for properties not present in the source system.</p>
-      <div class="button-grid">
-        <div class="component-cell"><div class="button-label">button-primary</div><span class="demo-button" style="background:#faf9f6;color:#000000;border-radius:8px;padding:0 16px">Sample action</span><div class="button-meta">#faf9f6 / #000000</div></div><div class="component-cell"><div class="button-label">button-secondary</div><span class="demo-button" style="background:#ffffff;color:#171717;border-radius:8px;padding:0 16px">Sample action</span><div class="button-meta">#ffffff / #171717</div></div><div class="component-cell"><div class="button-label">card</div><span class="demo-button" style="background:#ffffff;color:#171717;border-radius:12px;padding:0 24px">Sample action</span><div class="button-meta">#ffffff / #171717</div></div><div class="component-cell"><div class="button-label">text-body</div><span class="demo-button" style="background:#ffffff;color:#4d4d4d;border-radius:4px;padding:0 8px">Sample action</span><div class="button-meta">#ffffff / #4d4d4d</div></div><div class="component-cell"><div class="button-label">muted-label</div><span class="demo-button" style="background:#ffffff;color:#666666;border-radius:4px;padding:0 4px">Sample action</span><div class="button-meta">#ffffff / #666666</div></div><div class="component-cell"><div class="button-label">link</div><span class="demo-button" style="background:#ffffff;color:#353534;border-radius:4px;padding:0 4px">Sample action</span><div class="button-meta">#ffffff / #353534</div></div><div class="component-cell"><div class="button-label">divider</div><span class="demo-button" style="background:#ebebeb;color:#171717;border-radius:4px;padding:0 14px">Sample action</span><div class="button-meta">#ebebeb / #171717</div></div>
-      </div>
-    </section>
+<section class="section" id="colors">
+<div class="section-label">01 / Color Palette</div>
+<h2 class="section-title section-heading">Color Palette</h2>
+<div class="palette-group color-group"><h3 class="subhead color-group-title color-group-label">Brand &amp; Accent</h3><div class="palette-grid swatch-grid color-grid"><div class="swatch color-swatch"><div class="swatch-color color-swatch-block color-swatch-preview fill chip" style="background:#faf9f6"></div><div class="swatch-info swatch-meta color-swatch-info info meta"><div class="swatch-name color-swatch-name name">Primary</div><div class="swatch-hex color-swatch-hex hex">#faf9f6</div><div class="swatch-role color-swatch-role role">Brand &amp; Accent</div></div></div><div class="swatch color-swatch"><div class="swatch-color color-swatch-block color-swatch-preview fill chip" style="background:#000000"></div><div class="swatch-info swatch-meta color-swatch-info info meta"><div class="swatch-name color-swatch-name name">On Primary</div><div class="swatch-hex color-swatch-hex hex">#000000</div><div class="swatch-role color-swatch-role role">Brand &amp; Accent</div></div></div><div class="swatch color-swatch"><div class="swatch-color color-swatch-block color-swatch-preview fill chip" style="background:#353534"></div><div class="swatch-info swatch-meta color-swatch-info info meta"><div class="swatch-name color-swatch-name name">Accent</div><div class="swatch-hex color-swatch-hex hex">#353534</div><div class="swatch-role color-swatch-role role">Brand &amp; Accent</div></div></div><div class="swatch color-swatch"><div class="swatch-color color-swatch-block color-swatch-preview fill chip" style="background:#666469"></div><div class="swatch-info swatch-meta color-swatch-info info meta"><div class="swatch-name color-swatch-name name">Purple Tint Gray</div><div class="swatch-hex color-swatch-hex hex">#666469</div><div class="swatch-role color-swatch-role role">Brand &amp; Accent</div></div></div></div></div><div class="palette-group color-group"><h3 class="subhead color-group-title color-group-label">Surface</h3><div class="palette-grid swatch-grid color-grid"><div class="swatch color-swatch"><div class="swatch-color color-swatch-block color-swatch-preview fill chip" style="background:#0e0e0d"></div><div class="swatch-info swatch-meta color-swatch-info info meta"><div class="swatch-name color-swatch-name name">Canvas</div><div class="swatch-hex color-swatch-hex hex">#0e0e0d</div><div class="swatch-role color-swatch-role role">Surface</div></div></div><div class="swatch color-swatch"><div class="swatch-color color-swatch-block color-swatch-preview fill chip" style="background:rgba(255, 255, 255, 0.04)"></div><div class="swatch-info swatch-meta color-swatch-info info meta"><div class="swatch-name color-swatch-name name">Surface</div><div class="swatch-hex color-swatch-hex hex">rgba(255, 255, 255, 0.04)</div><div class="swatch-role color-swatch-role role">Surface</div></div></div><div class="swatch color-swatch"><div class="swatch-color color-swatch-block color-swatch-preview fill chip" style="background:#0e0e0d"></div><div class="swatch-info swatch-meta color-swatch-info info meta"><div class="swatch-name color-swatch-name name">Deep Void</div><div class="swatch-hex color-swatch-hex hex">#0e0e0d</div><div class="swatch-role color-swatch-role role">Surface</div></div></div><div class="swatch color-swatch"><div class="swatch-color color-swatch-block color-swatch-preview fill chip" style="background:rgba(255, 255, 255, 0.16)"></div><div class="swatch-info swatch-meta color-swatch-info info meta"><div class="swatch-name color-swatch-name name">Frosted Tag Bg</div><div class="swatch-hex color-swatch-hex hex">rgba(255, 255, 255, 0.16)</div><div class="swatch-role color-swatch-role role">Surface</div></div></div></div></div><div class="palette-group color-group"><h3 class="subhead color-group-title color-group-label">Text</h3><div class="palette-grid swatch-grid color-grid"><div class="swatch color-swatch"><div class="swatch-color color-swatch-block color-swatch-preview fill chip" style="background:#faf9f6"></div><div class="swatch-info swatch-meta color-swatch-info info meta"><div class="swatch-name color-swatch-name name">Ink</div><div class="swatch-hex color-swatch-hex hex">#faf9f6</div><div class="swatch-role color-swatch-role role">Text</div></div></div><div class="swatch color-swatch"><div class="swatch-color color-swatch-block color-swatch-preview fill chip" style="background:#afaeac"></div><div class="swatch-info swatch-meta color-swatch-info info meta"><div class="swatch-name color-swatch-name name">Body</div><div class="swatch-hex color-swatch-hex hex">#afaeac</div><div class="swatch-role color-swatch-role role">Text</div></div></div><div class="swatch color-swatch"><div class="swatch-color color-swatch-block color-swatch-preview fill chip" style="background:#868584"></div><div class="swatch-info swatch-meta color-swatch-info info meta"><div class="swatch-name color-swatch-name name">Muted</div><div class="swatch-hex color-swatch-hex hex">#868584</div><div class="swatch-role color-swatch-role role">Text</div></div></div></div></div><div class="palette-group color-group"><h3 class="subhead color-group-title color-group-label">Borders &amp; Lines</h3><div class="palette-grid swatch-grid color-grid"><div class="swatch color-swatch"><div class="swatch-color color-swatch-block color-swatch-preview fill chip" style="background:rgba(226, 226, 226, 0.35)"></div><div class="swatch-info swatch-meta color-swatch-info info meta"><div class="swatch-name color-swatch-name name">Hairline</div><div class="swatch-hex color-swatch-hex hex">rgba(226, 226, 226, 0.35)</div><div class="swatch-role color-swatch-role role">Borders &amp; Lines</div></div></div><div class="swatch color-swatch"><div class="swatch-color color-swatch-block color-swatch-preview fill chip" style="background:rgba(226, 226, 226, 0.35)"></div><div class="swatch-info swatch-meta color-swatch-info info meta"><div class="swatch-name color-swatch-name name">Mist Border</div><div class="swatch-hex color-swatch-hex hex">rgba(226, 226, 226, 0.35)</div><div class="swatch-role color-swatch-role role">Borders &amp; Lines</div></div></div><div class="swatch color-swatch"><div class="swatch-color color-swatch-block color-swatch-preview fill chip" style="background:rgba(227, 227, 227, 0.337)"></div><div class="swatch-info swatch-meta color-swatch-info info meta"><div class="swatch-name color-swatch-name name">Mist Border Alt</div><div class="swatch-hex color-swatch-hex hex">rgba(227, 227, 227, 0.337)</div><div class="swatch-role color-swatch-role role">Borders &amp; Lines</div></div></div></div></div><div class="palette-group color-group"><h3 class="subhead color-group-title color-group-label">Supporting</h3><div class="palette-grid swatch-grid color-grid"><div class="swatch color-swatch"><div class="swatch-color color-swatch-block color-swatch-preview fill chip" style="background:#faf9f6"></div><div class="swatch-info swatch-meta color-swatch-info info meta"><div class="swatch-name color-swatch-name name">Warm Parchment</div><div class="swatch-hex color-swatch-hex hex">#faf9f6</div><div class="swatch-role color-swatch-role role">Supporting</div></div></div><div class="swatch color-swatch"><div class="swatch-color color-swatch-block color-swatch-preview fill chip" style="background:#353534"></div><div class="swatch-info swatch-meta color-swatch-info info meta"><div class="swatch-name color-swatch-name name">Earth Gray</div><div class="swatch-hex color-swatch-hex hex">#353534</div><div class="swatch-role color-swatch-role role">Supporting</div></div></div><div class="swatch color-swatch"><div class="swatch-color color-swatch-block color-swatch-preview fill chip" style="background:#868584"></div><div class="swatch-info swatch-meta color-swatch-info info meta"><div class="swatch-name color-swatch-name name">Stone Gray</div><div class="swatch-hex color-swatch-hex hex">#868584</div><div class="swatch-role color-swatch-role role">Supporting</div></div></div><div class="swatch color-swatch"><div class="swatch-color color-swatch-block color-swatch-preview fill chip" style="background:#afaeac"></div><div class="swatch-info swatch-meta color-swatch-info info meta"><div class="swatch-name color-swatch-name name">Ash Gray</div><div class="swatch-hex color-swatch-hex hex">#afaeac</div><div class="swatch-role color-swatch-role role">Supporting</div></div></div><div class="swatch color-swatch"><div class="swatch-color color-swatch-block color-swatch-preview fill chip" style="background:rgba(255, 255, 255, 0.04)"></div><div class="swatch-info swatch-meta color-swatch-info info meta"><div class="swatch-name color-swatch-name name">Frosted Veil</div><div class="swatch-hex color-swatch-hex hex">rgba(255, 255, 255, 0.04)</div><div class="swatch-role color-swatch-role role">Supporting</div></div></div><div class="swatch color-swatch"><div class="swatch-color color-swatch-block color-swatch-preview fill chip" style="background:rgba(250, 249, 246, 0.9)"></div><div class="swatch-info swatch-meta color-swatch-info info meta"><div class="swatch-name color-swatch-name name">Translucent Parchment</div><div class="swatch-hex color-swatch-hex hex">rgba(250, 249, 246, 0.9)</div><div class="swatch-role color-swatch-role role">Supporting</div></div></div><div class="swatch color-swatch"><div class="swatch-color color-swatch-block color-swatch-preview fill chip" style="background:#454545"></div><div class="swatch-info swatch-meta color-swatch-info info meta"><div class="swatch-name color-swatch-name name">Dark Charcoal</div><div class="swatch-hex color-swatch-hex hex">#454545</div><div class="swatch-role color-swatch-role role">Supporting</div></div></div><div class="swatch color-swatch"><div class="swatch-color color-swatch-block color-swatch-preview fill chip" style="background:rgb(0, 0, 0)"></div><div class="swatch-info swatch-meta color-swatch-info info meta"><div class="swatch-name color-swatch-name name">Black</div><div class="swatch-hex color-swatch-hex hex">rgb(0, 0, 0)</div><div class="swatch-role color-swatch-role role">Supporting</div></div></div><div class="swatch color-swatch"><div class="swatch-color color-swatch-block color-swatch-preview fill chip" style="background:rgba(0, 0, 0, 0.2)"></div><div class="swatch-info swatch-meta color-swatch-info info meta"><div class="swatch-name color-swatch-name name">Ambient Shadow</div><div class="swatch-hex color-swatch-hex hex">rgba(0, 0, 0, 0.2)</div><div class="swatch-role color-swatch-role role">Supporting</div></div></div></div></div>
+</section>
 
-    <section>
-      <div class="section-label">04 - Interface Samples</div>
-      <h2 class="section-heading">Reusable product surfaces</h2>
-      <div class="card-grid">
-        <div class="feature-card"><h4>Feature card</h4><p>Use this card treatment for summaries, benefits, or product modules with concise supporting text.</p><span class="badge">New</span></div>
-        <div class="feature-card"><h4>Data card</h4><p>Pair a strong heading with a compact metric and muted explanatory copy.</p><div style="font:800 36px/1 var(--display);color:var(--primary);margin-top:14px">24%</div></div>
-        <div class="feature-card"><h4>Content card</h4><p>Keep content blocks aligned to the design system's spacing and type hierarchy.</p><span class="btn primary" style="margin-top:14px">Continue</span></div>
-      </div>
-    </section>
+<hr class="section-divider">
 
-    <section>
-      <div class="section-label">05 - Forms</div>
-      <h2 class="section-heading">Inputs and inline feedback</h2>
-      <div class="form-grid">
-        <div class="form-cell"><label class="button-label">Email</label><input class="text-input" value="team@example.com" aria-label="Email sample"></div>
-        <div class="form-cell"><label class="button-label">Status</label><span class="badge">Active</span></div>
-        <div class="form-cell"><label class="button-label">Action group</label><div style="display:flex;gap:10px;flex-wrap:wrap"><span class="btn primary">Save</span><span class="btn">Cancel</span></div></div>
-      </div>
-    </section>
+<section class="section" id="typography">
+<div class="section-label">02 / Typography</div>
+<h2 class="section-title section-heading">Typography</h2>
+<div class="type-row type-sample"><div class="type-meta type-label type-sample-label"><strong>display-hero</strong>80px / 400 / 1 / -2.4px</div><div class="type-sample-text type-preview" style="font-family:Matter Regular, Matter Regular Placeholder, system-ui, sans-serif;font-size:80px;font-weight:400;line-height:1;letter-spacing:-2.4px;text-transform:none">Build a clear product interface with Display Hero rhythm.</div></div><div class="type-row type-sample"><div class="type-meta type-label type-sample-label"><strong>heading-lg</strong>56px / 400 / 1.2 / -0.56px</div><div class="type-sample-text type-preview" style="font-family:Matter Regular, Matter Regular Placeholder, system-ui, sans-serif;font-size:56px;font-weight:400;line-height:1.2;letter-spacing:-0.56px;text-transform:none">Build a clear product interface with Heading Lg rhythm.</div></div><div class="type-row type-sample"><div class="type-meta type-label type-sample-label"><strong>heading-md</strong>48px / 400 / 1.2 / -0.96px</div><div class="type-sample-text type-preview" style="font-family:Matter Regular, Matter Regular Placeholder, system-ui, sans-serif;font-size:48px;font-weight:400;line-height:1.2;letter-spacing:-0.96px;text-transform:none">Build a clear product interface with Heading Md rhythm.</div></div><div class="type-row type-sample"><div class="type-meta type-label type-sample-label"><strong>feature-heading</strong>40px / 400 / 1.1 / -0.4px</div><div class="type-sample-text type-preview" style="font-family:Matter Regular, Matter Regular Placeholder, system-ui, sans-serif;font-size:40px;font-weight:400;line-height:1.1;letter-spacing:-0.4px;text-transform:none">Build a clear product interface with Feature Heading rhythm.</div></div><div class="type-row type-sample"><div class="type-meta type-label type-sample-label"><strong>subheading-lg</strong>36px / 400 / 1.15 / -0.72px</div><div class="type-sample-text type-preview" style="font-family:Matter Regular, Matter Regular Placeholder, system-ui, sans-serif;font-size:36px;font-weight:400;line-height:1.15;letter-spacing:-0.72px;text-transform:none">Build a clear product interface with Subheading Lg rhythm.</div></div><div class="type-row type-sample"><div class="type-meta type-label type-sample-label"><strong>card-display</strong>42px / 400 / 1 / 0px</div><div class="type-sample-text type-preview" style="font-family:Matter SQ Regular, Matter SQ Regular Placeholder, system-ui, sans-serif;font-size:42px;font-weight:400;line-height:1;letter-spacing:0px;text-transform:none">Build a clear product interface with Card Display rhythm.</div></div><div class="type-row type-sample"><div class="type-meta type-label type-sample-label"><strong>subheading</strong>32px / 400 / 1.19 / 0px</div><div class="type-sample-text type-preview" style="font-family:Matter Regular, Matter Regular Placeholder, system-ui, sans-serif;font-size:32px;font-weight:400;line-height:1.19;letter-spacing:0px;text-transform:none">Build a clear product interface with Subheading rhythm.</div></div><div class="type-row type-sample"><div class="type-meta type-label type-sample-label"><strong>body-heading</strong>24px / 400 / 1.2 / -0.72px</div><div class="type-sample-text type-preview" style="font-family:Matter Regular, Matter Regular Placeholder, system-ui, sans-serif;font-size:24px;font-weight:400;line-height:1.2;letter-spacing:-0.72px;text-transform:none">Build a clear product interface with Body Heading rhythm.</div></div><div class="type-row type-sample"><div class="type-meta type-label type-sample-label"><strong>card-title</strong>22px / 500 / 1.14 / 0px</div><div class="type-sample-text type-preview" style="font-family:Matter Medium, Matter Medium Placeholder, system-ui, sans-serif;font-size:22px;font-weight:500;line-height:1.14;letter-spacing:0px;text-transform:none">Build a clear product interface with Card Title rhythm.</div></div><div class="type-row type-sample"><div class="type-meta type-label type-sample-label"><strong>body-lg</strong>20px / 400 / 1.4 / -0.2px</div><div class="type-sample-text type-preview" style="font-family:Matter Regular, Matter Regular Placeholder, system-ui, sans-serif;font-size:20px;font-weight:400;line-height:1.4;letter-spacing:-0.2px;text-transform:none">Build a clear product interface with Body Lg rhythm.</div></div><div class="type-row type-sample"><div class="type-meta type-label type-sample-label"><strong>body-md</strong>18px / 400 / 1.3 / -0.18px</div><div class="type-sample-text type-preview" style="font-family:Matter Regular, Matter Regular Placeholder, system-ui, sans-serif;font-size:18px;font-weight:400;line-height:1.3;letter-spacing:-0.18px;text-transform:none">Build a clear product interface with Body Md rhythm.</div></div><div class="type-row type-sample"><div class="type-meta type-label type-sample-label"><strong>nav-ui</strong>16px / 400 / 1.2 / 0px</div><div class="type-sample-text type-preview" style="font-family:Matter Regular, Matter Regular Placeholder, system-ui, sans-serif;font-size:16px;font-weight:400;line-height:1.2;letter-spacing:0px;text-transform:none">Build a clear product interface with Nav Ui rhythm.</div></div><div class="type-row type-sample"><div class="type-meta type-label type-sample-label"><strong>button</strong>16px / 500 / 1.2 / 0px</div><div class="type-sample-text type-preview" style="font-family:Matter Medium, Matter Medium Placeholder, system-ui, sans-serif;font-size:16px;font-weight:500;line-height:1.2;letter-spacing:0px;text-transform:none">Build a clear product interface with Button rhythm.</div></div><div class="type-row type-sample"><div class="type-meta type-label type-sample-label"><strong>caption</strong>14px / 400 / 1 / 1.4px</div><div class="type-sample-text type-preview" style="font-family:Matter Regular, Matter Regular Placeholder, system-ui, sans-serif;font-size:14px;font-weight:400;line-height:1;letter-spacing:1.4px;text-transform:uppercase">Build a clear product interface with Caption rhythm.</div></div><div class="type-row type-sample"><div class="type-meta type-label type-sample-label"><strong>small-label</strong>12px / 400 / 1.35 / 2.4px</div><div class="type-sample-text type-preview" style="font-family:Matter Regular, Matter Regular Placeholder, system-ui, sans-serif;font-size:12px;font-weight:400;line-height:1.35;letter-spacing:2.4px;text-transform:uppercase">Build a clear product interface with Small Label rhythm.</div></div><div class="type-row type-sample"><div class="type-meta type-label type-sample-label"><strong>micro</strong>11px / 400 / 1.2 / 0px</div><div class="type-sample-text type-preview" style="font-family:Matter Regular, Matter Regular Placeholder, system-ui, sans-serif;font-size:11px;font-weight:400;line-height:1.2;letter-spacing:0px;text-transform:none">Build a clear product interface with Micro rhythm.</div></div><div class="type-row type-sample"><div class="type-meta type-label type-sample-label"><strong>code-ui</strong>16px / 400 / 1 / 0px</div><div class="type-sample-text type-preview" style="font-family:Geist Mono, ui-monospace, monospace;font-size:16px;font-weight:400;line-height:1;letter-spacing:0px;text-transform:none">Build a clear product interface with Code Ui rhythm.</div></div><div class="type-row type-sample"><div class="type-meta type-label type-sample-label"><strong>code-body</strong>16px / 400 / 1 / -0.2px</div><div class="type-sample-text type-preview" style="font-family:Matter Mono Regular, Matter Mono Regular Placeholder, ui-monospace, monospace;font-size:16px;font-weight:400;line-height:1;letter-spacing:-0.2px;text-transform:none">Build a clear product interface with Code Body rhythm.</div></div><div class="type-row type-sample"><div class="type-meta type-label type-sample-label"><strong>ui-supplement</strong>16px / 500 / 1 / -0.2px</div><div class="type-sample-text type-preview" style="font-family:Inter, Inter Placeholder, system-ui, sans-serif;font-size:16px;font-weight:500;line-height:1;letter-spacing:-0.2px;text-transform:none">Build a clear product interface with Ui Supplement rhythm.</div></div>
+</section>
 
-    <section>
-      <div class="section-label">06 - Spacing</div>
-      <h2 class="section-heading">Spacing scale</h2>
-      <div class="spacing-row">
-        <div class="spacing-block"><div class="spacing-bar" style="height:4px"></div><div class="spacing-label">xs · 4px</div></div><div class="spacing-block"><div class="spacing-bar" style="height:8px"></div><div class="spacing-label">sm · 8px</div></div><div class="spacing-block"><div class="spacing-bar" style="height:16px"></div><div class="spacing-label">md · 16px</div></div><div class="spacing-block"><div class="spacing-bar" style="height:24px"></div><div class="spacing-label">lg · 24px</div></div><div class="spacing-block"><div class="spacing-bar" style="height:32px"></div><div class="spacing-label">xl · 32px</div></div><div class="spacing-block"><div class="spacing-bar" style="height:80px"></div><div class="spacing-label">section · 80px</div></div>
-      </div>
-    </section>
+<hr class="section-divider">
 
-    <section>
-      <div class="section-label">07 - Radius</div>
-      <h2 class="section-heading">Shape language</h2>
-      <div class="radius-row">
-        <div class="radius-block" style="border-radius:4px">sm</div><div class="radius-block" style="border-radius:8px">md</div><div class="radius-block" style="border-radius:12px">lg</div><div class="radius-block" style="border-radius:9999px">pill</div>
-      </div>
-    </section>
+<section class="section" id="buttons">
+<div class="section-label">03 / Interface Samples</div>
+<h2 class="section-title section-heading">Interface Samples</h2>
+<div class="button-row button-showcase button-grid demo-grid"><div class="button-item btn-item"><button class="btn btn-primary btn-green btn-tag demo-control" style="background:#353534;color:#afaeac;border-radius:50px;padding:10px;border:1px solid transparent;min-height:44px;">Button Primary</button><div class="button-label btn-label caption">button-primary</div></div><div class="button-item btn-item"><button class="btn btn-primary btn-green btn-tag demo-control" style="background:rgba(255, 255, 255, 0.16);color:rgb(0, 0, 0);border-radius:6px;padding:1px 6px;border:1px solid transparent;min-height:44px;">Frosted Tag</button><div class="button-label btn-label caption">frosted-tag</div></div><div class="button-item btn-item"><button class="btn btn-primary btn-green btn-tag demo-control" style="background:rgba(255, 255, 255, 0.04);color:#868584;border-radius:9999px;padding:10px 20px;border:1px solid transparent;min-height:44px;">Nav Link</button><div class="button-label btn-label caption">nav-link</div></div><div class="button-item btn-item"><button class="btn btn-primary btn-green btn-tag demo-control" style="background:rgba(255, 255, 255, 0.04);color:#666469;border-radius:9999px;padding:10px 20px;border:1px solid transparent;min-height:44px;">Link</button><div class="button-label btn-label caption">link</div></div></div>
+</section>
 
-    <section id="responsive">
-      <div class="section-label">08 - Responsive Behavior</div>
-      <h2 class="section-heading">Layout strategy</h2>
-      <table class="responsive-table">
-        <thead><tr><th>Viewport</th><th>Behavior</th></tr></thead>
-        <tbody>
-          <tr><td>Mobile</td><td>Single column layout, compact nav, tighter section padding.</td></tr>
-          <tr><td>Tablet</td><td>Two-column component grids and readable type hierarchy.</td></tr>
-          <tr><td>Desktop</td><td>Wide token catalog, multi-column cards, expanded whitespace.</td></tr>
-        </tbody>
-      </table>
-    </section>
-  </main>
+<hr class="section-divider">
 
-  <footer class="footer">Generated from DESIGN.md tokens for local preview and review.</footer>
+<section class="section" id="cards">
+<div class="section-label">05 / Cards</div>
+<h2 class="section-title section-heading">Cards</h2>
+<div class="card-grid"><div class="card component-card sample-card" style="background:var(--surface, var(--canvas, #fff));color:var(--ink, #111);border:1px solid var(--border, rgba(0,0,0,.14));border-radius:16px;padding:16px;min-height:150px;display:grid;gap:12px;align-content:start;box-sizing:border-box;"><h3 class="card-title">Card</h3><div class="component-preview" style="display:flex;align-items:center;justify-content:flex-start;gap:12px;min-height:78px;flex-wrap:wrap;"><article class="sample-card" style="background:rgba(255, 255, 255, 0.04);color:#faf9f6;border-radius:12px;padding:24px;border:1px solid transparent;min-height:44px;display:grid;gap:10px;width:100%;box-sizing:border-box;"><div style="height:56px;border-radius:inherit;background:linear-gradient(135deg, currentColor, transparent);opacity:.14;"></div><strong>Card</strong><span style="opacity:.72;">Featured item</span></article></div></div><div class="card component-card sample-card" style="background:var(--surface, var(--canvas, #fff));color:var(--ink, #111);border:1px solid var(--border, rgba(0,0,0,.14));border-radius:16px;padding:16px;min-height:150px;display:grid;gap:12px;align-content:start;box-sizing:border-box;"><h3 class="card-title">Photography Card</h3><div class="component-preview" style="display:flex;align-items:center;justify-content:flex-start;gap:12px;min-height:78px;flex-wrap:wrap;"><article class="sample-card" style="background:rgba(255, 255, 255, 0.04);color:#faf9f6;border-radius:12px;padding:24px;border:1px solid transparent;min-height:44px;display:grid;gap:10px;width:100%;box-sizing:border-box;"><div style="height:56px;border-radius:inherit;background:linear-gradient(135deg, currentColor, transparent);opacity:.14;"></div><strong>Photography Card</strong><span style="opacity:.72;">Featured item</span></article></div></div><div class="card component-card sample-card" style="background:var(--surface, var(--canvas, #fff));color:var(--ink, #111);border:1px solid var(--border, rgba(0,0,0,.14));border-radius:16px;padding:16px;min-height:150px;display:grid;gap:12px;align-content:start;box-sizing:border-box;"><h3 class="card-title">Terminal Card</h3><div class="component-preview" style="display:flex;align-items:center;justify-content:flex-start;gap:12px;min-height:78px;flex-wrap:wrap;"><article class="sample-card" style="background:rgba(255, 255, 255, 0.04);color:#faf9f6;border-radius:12px;padding:16px;border:1px solid transparent;min-height:44px;display:grid;gap:10px;width:100%;box-sizing:border-box;"><div style="height:56px;border-radius:inherit;background:linear-gradient(135deg, currentColor, transparent);opacity:.14;"></div><strong>Terminal Card</strong><span style="opacity:.72;">Featured item</span></article></div></div><div class="card component-card sample-card" style="background:var(--surface, var(--canvas, #fff));color:var(--ink, #111);border:1px solid var(--border, rgba(0,0,0,.14));border-radius:16px;padding:16px;min-height:150px;display:grid;gap:12px;align-content:start;box-sizing:border-box;"><h3 class="card-title">Text Body</h3><div class="component-preview" style="display:flex;align-items:center;justify-content:flex-start;gap:12px;min-height:78px;flex-wrap:wrap;"><div class="list-row" style="background:rgba(255, 255, 255, 0.04);color:#afaeac;border-radius:12px;padding:12px 18px;border:1px solid transparent;min-height:44px;display:flex;align-items:center;gap:12px;width:100%;box-sizing:border-box;"><span style="width:32px;height:32px;border-radius:9999px;background:currentColor;opacity:.14;flex:0 0 auto;"></span><strong>Text Body</strong></div></div></div><div class="card component-card sample-card" style="background:var(--surface, var(--canvas, #fff));color:var(--ink, #111);border:1px solid var(--border, rgba(0,0,0,.14));border-radius:16px;padding:16px;min-height:150px;display:grid;gap:12px;align-content:start;box-sizing:border-box;"><h3 class="card-title">Muted Label</h3><div class="component-preview" style="display:flex;align-items:center;justify-content:flex-start;gap:12px;min-height:78px;flex-wrap:wrap;"><div class="list-row" style="background:rgba(255, 255, 255, 0.04);color:#868584;border-radius:12px;padding:12px 18px;border:1px solid transparent;min-height:44px;display:flex;align-items:center;gap:12px;width:100%;box-sizing:border-box;"><span style="width:32px;height:32px;border-radius:9999px;background:currentColor;opacity:.14;flex:0 0 auto;"></span><strong>Muted Label</strong></div></div></div><div class="card component-card sample-card" style="background:var(--surface, var(--canvas, #fff));color:var(--ink, #111);border:1px solid var(--border, rgba(0,0,0,.14));border-radius:16px;padding:16px;min-height:150px;display:grid;gap:12px;align-content:start;box-sizing:border-box;"><h3 class="card-title">Testimonial</h3><div class="component-preview" style="display:flex;align-items:center;justify-content:flex-start;gap:12px;min-height:78px;flex-wrap:wrap;"><div class="list-row" style="background:rgba(255, 255, 255, 0.04);color:#faf9f6;border-radius:12px;padding:12px 18px;border:1px solid transparent;min-height:44px;display:flex;align-items:center;gap:12px;width:100%;box-sizing:border-box;"><span style="width:32px;height:32px;border-radius:9999px;background:currentColor;opacity:.14;flex:0 0 auto;"></span><strong>Testimonial</strong></div></div></div></div>
+</section>
+
+<hr class="section-divider">
+
+<section class="section" id="forms">
+<div class="section-label">06 / Forms</div>
+<h2 class="section-title section-heading">Forms</h2>
+<div class="empty-state card">No form components available.</div>
+</section>
+
+<hr class="section-divider">
+
+<section class="section" id="spacing">
+<div class="section-label">07 / Spacing</div>
+<h2 class="section-title section-heading">Spacing</h2>
+<div class="spacing-row"><div class="spacing-item spacing-block"><div class="spacing-bar spacing-box spacing-block" style="width:1px;height:24px"></div><div class="spacing-label spacing-value">hairline · 1px</div></div><div class="spacing-item spacing-block"><div class="spacing-bar spacing-box spacing-block" style="width:4px;height:24px"></div><div class="spacing-label spacing-value">xs · 4px</div></div><div class="spacing-item spacing-block"><div class="spacing-bar spacing-box spacing-block" style="width:5px;height:24px"></div><div class="spacing-label spacing-value">xsm · 5px</div></div><div class="spacing-item spacing-block"><div class="spacing-bar spacing-box spacing-block" style="width:8px;height:24px"></div><div class="spacing-label spacing-value">sm · 8px</div></div><div class="spacing-item spacing-block"><div class="spacing-bar spacing-box spacing-block" style="width:10px;height:24px"></div><div class="spacing-label spacing-value">md · 10px</div></div><div class="spacing-item spacing-block"><div class="spacing-bar spacing-box spacing-block" style="width:12px;height:24px"></div><div class="spacing-label spacing-value">lg · 12px</div></div><div class="spacing-item spacing-block"><div class="spacing-bar spacing-box spacing-block" style="width:14px;height:24px"></div><div class="spacing-label spacing-value">xlg · 14px</div></div><div class="spacing-item spacing-block"><div class="spacing-bar spacing-box spacing-block" style="width:15px;height:24px"></div><div class="spacing-label spacing-value">nav · 15px</div></div><div class="spacing-item spacing-block"><div class="spacing-bar spacing-box spacing-block" style="width:16px;height:24px"></div><div class="spacing-label spacing-value">xl · 16px</div></div><div class="spacing-item spacing-block"><div class="spacing-bar spacing-box spacing-block" style="width:18px;height:24px"></div><div class="spacing-label spacing-value">label · 18px</div></div><div class="spacing-item spacing-block"><div class="spacing-bar spacing-box spacing-block" style="width:24px;height:24px"></div><div class="spacing-label spacing-value">xxl · 24px</div></div><div class="spacing-item spacing-block"><div class="spacing-bar spacing-box spacing-block" style="width:26px;height:24px"></div><div class="spacing-label spacing-value">image-gap · 26px</div></div><div class="spacing-item spacing-block"><div class="spacing-bar spacing-box spacing-block" style="width:30px;height:24px"></div><div class="spacing-label spacing-value">wide · 30px</div></div><div class="spacing-item spacing-block"><div class="spacing-bar spacing-box spacing-block" style="width:32px;height:24px"></div><div class="spacing-label spacing-value">card · 32px</div></div><div class="spacing-item spacing-block"><div class="spacing-bar spacing-box spacing-block" style="width:36px;height:24px"></div><div class="spacing-label spacing-value">section-tight · 36px</div></div><div class="spacing-item spacing-block"><div class="spacing-bar spacing-box spacing-block" style="width:80px;height:24px"></div><div class="spacing-label spacing-value">section · 80px</div></div><div class="spacing-item spacing-block"><div class="spacing-bar spacing-box spacing-block" style="width:120px;height:24px"></div><div class="spacing-label spacing-value">hero · 120px</div></div></div>
+</section>
+
+<hr class="section-divider">
+
+<section class="section" id="radius">
+<div class="section-label">08 / Radius</div>
+<h2 class="section-title section-heading">Radius</h2>
+<div class="radius-row"><div class="radius-item"><div class="radius-box" style="border-radius:4px"></div><div class="radius-label radius-value">sm · 4px</div></div><div class="radius-item"><div class="radius-box" style="border-radius:5px"></div><div class="radius-label radius-value">xsm · 5px</div></div><div class="radius-item"><div class="radius-box" style="border-radius:6px"></div><div class="radius-label radius-value">compact · 6px</div></div><div class="radius-item"><div class="radius-box" style="border-radius:8px"></div><div class="radius-label radius-value">md · 8px</div></div><div class="radius-item"><div class="radius-box" style="border-radius:10px"></div><div class="radius-label radius-value">video · 10px</div></div><div class="radius-item"><div class="radius-box" style="border-radius:12px"></div><div class="radius-label radius-value">lg · 12px</div></div><div class="radius-item"><div class="radius-box" style="border-radius:14px"></div><div class="radius-label radius-value">xl · 14px</div></div><div class="radius-item"><div class="radius-box" style="border-radius:40px"></div><div class="radius-label radius-value">section · 40px</div></div><div class="radius-item"><div class="radius-box" style="border-radius:50px"></div><div class="radius-label radius-value">pill · 50px</div></div><div class="radius-item"><div class="radius-box" style="border-radius:200px"></div><div class="radius-label radius-value">progress · 200px</div></div></div>
+</section>
+
+<hr class="section-divider">
+
+<section class="section" id="elevation">
+<div class="section-label">09 / Elevation</div>
+<h2 class="section-title section-heading">Elevation</h2>
+<div class="elevation-grid"><div class="elevation-card card"><div class="elevation-label">Canvas</div><div class="elevation-desc token-meta">#0e0e0d</div></div><div class="elevation-card card"><div class="elevation-label">Surface</div><div class="elevation-desc token-meta">rgba(255, 255, 255, 0.04)</div></div><div class="elevation-card card"><div class="elevation-label">Strong Surface</div><div class="elevation-desc token-meta">#f3f3f3</div></div><div class="elevation-card card"><div class="elevation-label">Border</div><div class="elevation-desc token-meta">rgba(226, 226, 226, 0.35)</div></div></div>
+</section>
+
+<footer class="footer">
+  <div class="footer-shell">
+    <p>Warp</p>
+    <p class="token-meta">Design token preview</p>
+  </div>
+</footer>
+
 </body>
 </html>

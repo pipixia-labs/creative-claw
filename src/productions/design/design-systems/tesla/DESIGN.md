@@ -1,106 +1,196 @@
 ---
 version: alpha
 name: "Tesla"
-description: "Tesla's website is an exercise in radical subtraction — a digital showroom where the product is everything and the interface is almost nothing. The page opens with a full-viewport hero that fills the entire screen with cinematic car photography: three vehicles arranged on polished concrete against a hazy cityscape sky, with a single model name floating above in translucent white type. There are no decorative borders, no gradients, no patterns, no shadows. The UI exists only to provide just enough navigational structure to get out of the way. Every pixel that isn't product imagery is white space, and that restraint is the design system's most powerful statement."
+description: >-
+  Tesla's website is an exercise in radical subtraction — a digital showroom
+  where the product is everything and the interface is almost nothing. The UI is
+  almost monochrome, with Electric Blue reserved for primary CTAs, Universal Sans
+  carrying the typography, and photography doing the emotional heavy lifting.
 
 colors:
-  primary: "#3e6ae1"
+  primary: "#3E6AE1"
   on-primary: "#ffffff"
   canvas: "#ffffff"
   surface: "#ffffff"
-  ink: "#171717"
-  body: "#4d4d4d"
-  muted: "#666666"
-  hairline: "#ebebeb"
-  accent: "#ffffff"
+  ink: "#171A20"
+  body: "#393C41"
+  muted: "#5C5E62"
+  hairline: "#EEEEEE"
+  accent: "#3E6AE1"
+  electric-blue: "#3E6AE1"
+  white: "#FFFFFF"
+  light-ash: "#F4F4F4"
+  carbon-dark: "#171A20"
+  graphite: "#393C41"
+  pewter: "#5C5E62"
+  silver-fog: "#8E8E8E"
+  cloud-gray: "#EEEEEE"
+  pale-silver: "#D0D1D2"
+  frosted-glass: "rgba(255, 255, 255, 0.75)"
+  overlay-gray: "rgba(128, 128, 128, 0.65)"
+  subtle-shadow: "rgba(0, 0, 0, 0.05)"
 
 typography:
   display-hero:
-    fontFamily: "Inter, system-ui, -apple-system, BlinkMacSystemFont, sans-serif"
-    fontSize: 48px
-    fontWeight: 700
-    lineHeight: 1.15
-    letterSpacing: -1px
-  heading-lg:
-    fontFamily: "Inter, system-ui, -apple-system, BlinkMacSystemFont, sans-serif"
-    fontSize: 32px
-    fontWeight: 700
-    lineHeight: 1.25
-    letterSpacing: -0.5px
+    fontFamily: "Universal Sans Display, -apple-system, Arial, sans-serif"
+    fontSize: 40px
+    fontWeight: 500
+    lineHeight: 1.2
+    letterSpacing: 0px
+  product-name:
+    fontFamily: "Universal Sans Text, -apple-system, Arial, sans-serif"
+    fontSize: 17px
+    fontWeight: 500
+    lineHeight: 1.18
+    letterSpacing: 0px
+  nav-item:
+    fontFamily: "Universal Sans Text, -apple-system, Arial, sans-serif"
+    fontSize: 14px
+    fontWeight: 500
+    lineHeight: 1.2
+    letterSpacing: 0px
   body-md:
-    fontFamily: "Inter, system-ui, -apple-system, BlinkMacSystemFont, sans-serif"
-    fontSize: 16px
+    fontFamily: "Universal Sans Text, -apple-system, Arial, sans-serif"
+    fontSize: 14px
     fontWeight: 400
-    lineHeight: 1.5
+    lineHeight: 1.43
     letterSpacing: 0px
   button:
-    fontFamily: "Inter, system-ui, -apple-system, BlinkMacSystemFont, sans-serif"
+    fontFamily: "Universal Sans Text, -apple-system, Arial, sans-serif"
     fontSize: 14px
-    fontWeight: 600
+    fontWeight: 500
+    lineHeight: 1.2
+    letterSpacing: 0px
+  sub-link:
+    fontFamily: "Universal Sans Text, -apple-system, Arial, sans-serif"
+    fontSize: 14px
+    fontWeight: 400
+    lineHeight: 1.43
+    letterSpacing: 0px
+  promo:
+    fontFamily: "Universal Sans Text, -apple-system, Arial, sans-serif"
+    fontSize: 22px
+    fontWeight: 400
+    lineHeight: 0.91
+    letterSpacing: 0px
+  category-label:
+    fontFamily: "Universal Sans Text, -apple-system, Arial, sans-serif"
+    fontSize: 16px
+    fontWeight: 500
     lineHeight: 1.2
     letterSpacing: 0px
   caption:
-    fontFamily: "Inter, system-ui, -apple-system, BlinkMacSystemFont, sans-serif"
-    fontSize: 12px
-    fontWeight: 500
-    lineHeight: 1.33
+    fontFamily: "Universal Sans Text, -apple-system, Arial, sans-serif"
+    fontSize: 14px
+    fontWeight: 400
+    lineHeight: 1.43
     letterSpacing: 0px
 
 rounded:
+  none: 0px
   sm: 4px
-  md: 8px
-  lg: 12px
-  pill: 9999px
+  card: 12px
+  circle: 9999px
 
 spacing:
   xs: 4px
   sm: 8px
   md: 16px
+  common: 21.44px
   lg: 24px
   xl: 32px
-  section: 80px
+  button-height: 40px
+  button-width: 200px
+  nav-button-height: 32px
+  touch-target: 44px
+  section: 100vh
 
 components:
   button-primary:
     backgroundColor: "{colors.primary}"
     textColor: "{colors.on-primary}"
     typography: "{typography.button}"
-    rounded: "{rounded.md}"
-    padding: 16px
+    rounded: "{rounded.sm}"
+    padding: 4px
+    width: 200px
+    height: 40px
   button-secondary:
-    backgroundColor: "{colors.canvas}"
-    textColor: "{colors.ink}"
+    backgroundColor: "{colors.white}"
+    textColor: "{colors.graphite}"
     typography: "{typography.button}"
-    rounded: "{rounded.md}"
-    padding: 16px
-  card:
-    backgroundColor: "{colors.surface}"
-    textColor: "{colors.ink}"
-    typography: "{typography.body-md}"
-    rounded: "{rounded.lg}"
-    padding: 24px
-  text-body:
-    backgroundColor: "{colors.canvas}"
-    textColor: "{colors.body}"
+    rounded: "{rounded.sm}"
+    padding: 4px
+    width: 200px
+    height: 40px
+  nav-button:
+    backgroundColor: transparent
+    textColor: "{colors.carbon-dark}"
+    typography: "{typography.nav-item}"
+    rounded: "{rounded.sm}"
+    padding: 4px 16px
+    height: 32px
+  text-link:
+    backgroundColor: transparent
+    textColor: "{colors.pewter}"
+    typography: "{typography.sub-link}"
+  vehicle-card:
+    backgroundColor: "{colors.white}"
+    textColor: "{colors.carbon-dark}"
+    typography: "{typography.product-name}"
+    rounded: "{rounded.none}"
+  category-card:
+    textColor: "{colors.white}"
+    typography: "{typography.category-label}"
+    rounded: "{rounded.card}"
+  chat-input:
+    backgroundColor: "{colors.white}"
+    textColor: "{colors.carbon-dark}"
     typography: "{typography.body-md}"
     rounded: "{rounded.sm}"
-    padding: 8px
-  muted-label:
-    backgroundColor: "{colors.canvas}"
-    textColor: "{colors.muted}"
+    padding: 4px 16px
+    height: 44px
+  persistent-chat-bar:
+    backgroundColor: "{colors.white}"
+    textColor: "{colors.carbon-dark}"
+    typography: "{typography.body-md}"
+    rounded: "{rounded.sm}"
+    height: 44px
+  nav-bar:
+    backgroundColor: "{colors.white}"
+    textColor: "{colors.carbon-dark}"
+    typography: "{typography.nav-item}"
+  nav-bar-frosted:
+    backgroundColor: "{colors.frosted-glass}"
+    textColor: "{colors.carbon-dark}"
+    typography: "{typography.nav-item}"
+  dropdown-panel:
+    backgroundColor: "{colors.white}"
+    textColor: "{colors.carbon-dark}"
+    typography: "{typography.body-md}"
+  input:
+    backgroundColor: transparent
+    textColor: "{colors.carbon-dark}"
+    typography: "{typography.body-md}"
+    rounded: "{rounded.sm}"
+    padding: 4px 16px
+  carousel-dot:
+    backgroundColor: "{colors.pewter}"
+    textColor: "{colors.white}"
     typography: "{typography.caption}"
+    rounded: "{rounded.circle}"
+    width: 8px
+    height: 8px
+  promo-text:
+    backgroundColor: transparent
+    textColor: "{colors.electric-blue}"
+    typography: "{typography.promo}"
+  alternate-surface:
+    backgroundColor: "{colors.light-ash}"
+    textColor: "{colors.carbon-dark}"
+    typography: "{typography.body-md}"
     rounded: "{rounded.sm}"
-    padding: 4px
-  link:
-    backgroundColor: "{colors.canvas}"
-    textColor: "{colors.accent}"
-    typography: "{typography.button}"
-    rounded: "{rounded.sm}"
-    padding: 4px
   divider:
     backgroundColor: "{colors.hairline}"
-    textColor: "{colors.ink}"
-    rounded: "{rounded.sm}"
     height: 1px
 ---
 

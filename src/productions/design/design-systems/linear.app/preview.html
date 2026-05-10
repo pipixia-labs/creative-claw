@@ -1,174 +1,368 @@
 <!DOCTYPE html>
 <html lang="en">
 <head>
-  <meta charset="UTF-8">
-  <meta name="viewport" content="width=device-width, initial-scale=1.0">
-  <title>Linear Design System Preview</title>
-  <style>
-    :root {
-      --primary: #5e6ad2;
-      --on-primary: #ffffff;
-      --canvas: #010102;
-      --surface: #ffffff;
-      --surface-strong: #f3f3f3;
-      --ink: #f7f8f8;
-      --body: #555555;
-      --muted: #777777;
-      --border: #23252a;
-      --display: Linear Display;
-      --text: Linear Display;
-      --mono: ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, monospace;
-    }
-    * { box-sizing: border-box; margin: 0; padding: 0; }
-    html, body { background: var(--canvas); color: var(--ink); font-family: var(--text); font-size: 16px; line-height: 1.5; }
-    body { min-width: 320px; }
-    .nav { position: sticky; top: 0; z-index: 20; display: grid; grid-template-columns: 1fr auto 1fr; align-items: center; gap: 20px; height: 64px; padding: 0 48px; background: color-mix(in srgb, var(--canvas) 92%, transparent); border-bottom: 1px solid var(--border); backdrop-filter: blur(14px); }
-    .brand { font-family: var(--display); font-weight: 700; letter-spacing: -0.02em; color: var(--ink); }
-    .nav-links { list-style: none; display: flex; gap: 24px; justify-content: center; }
-    .nav-links a { color: var(--body); text-decoration: none; font-size: 14px; font-weight: 600; }
-    .nav-cta { justify-self: end; border: 0; background: var(--primary); color: var(--on-primary); border-radius: 8px; padding: 11px 18px; font: 700 13px/1 var(--text); }
-    .hero { max-width: 1440px; margin: 0 auto; padding: 84px 48px 72px; display: grid; grid-template-columns: minmax(0, 1.1fr) minmax(320px, 0.9fr); gap: 48px; align-items: center; }
-    .eyebrow { color: var(--muted); font: 700 11px/1.2 var(--mono); letter-spacing: 0.12em; text-transform: uppercase; margin-bottom: 18px; }
-    h1 { font-family: var(--display); font-size: clamp(40px, 6vw, 72px); line-height: 1.04; letter-spacing: -0.045em; font-weight: 750; max-width: 980px; }
-    .hero p { margin-top: 26px; max-width: 760px; color: var(--body); font-size: 18px; line-height: 1.65; }
-    .hero-actions { margin-top: 34px; display: flex; gap: 12px; flex-wrap: wrap; }
-    .btn { display: inline-flex; align-items: center; justify-content: center; min-height: 44px; border-radius: 8px; padding: 0 20px; border: 1px solid var(--border); font: 700 14px/1 var(--text); color: var(--ink); background: var(--surface); }
-    .btn.primary { background: var(--primary); color: var(--on-primary); border-color: var(--primary); }
-    .hero-panel { background: var(--surface); border: 1px solid var(--border); border-radius: 18px; overflow: hidden; box-shadow: 0 24px 70px rgba(0,0,0,.12); }
-    .panel-top { height: 44px; display: flex; align-items: center; gap: 7px; padding: 0 16px; border-bottom: 1px solid var(--border); background: var(--surface-strong); }
-    .dot { width: 10px; height: 10px; border-radius: 999px; background: var(--primary); opacity: .85; }
-    .panel-body { padding: 22px; display: grid; gap: 14px; }
-    .metric { display: grid; grid-template-columns: 88px 1fr; gap: 14px; align-items: center; padding: 14px; border: 1px solid var(--border); border-radius: 12px; background: var(--canvas); }
-    .metric strong { color: var(--primary); font-family: var(--mono); font-size: 22px; }
-    .metric span { color: var(--body); font-size: 13px; }
-    section { max-width: 1440px; margin: 0 auto; padding: 78px 48px; border-top: 1px solid var(--border); }
-    .section-label { color: var(--muted); font: 800 11px/1.2 var(--mono); letter-spacing: .12em; text-transform: uppercase; margin-bottom: 12px; }
-    .section-heading { font-family: var(--display); font-size: clamp(26px, 3.5vw, 42px); line-height: 1.12; letter-spacing: -.025em; margin-bottom: 16px; }
-    .section-intro { color: var(--body); max-width: 760px; margin-bottom: 42px; line-height: 1.65; }
-    .palette-grid, .button-grid, .card-grid, .form-grid, .elevation-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(230px, 1fr)); gap: 18px; }
-    .swatch, .component-cell, .feature-card, .form-cell, .elevation-card { background: var(--surface); border: 1px solid var(--border); border-radius: 14px; overflow: hidden; min-width: 0; }
-    .swatch-color { height: 108px; border-bottom: 1px solid var(--border); }
-    .swatch-meta, .component-cell, .feature-card, .form-cell, .elevation-card { padding: 18px; }
-    .swatch-name, .button-label { font-weight: 800; font-size: 13px; color: var(--ink); margin-bottom: 5px; overflow-wrap: anywhere; }
-    .swatch-hex, .button-meta, .type-meta, .spacing-label { font-family: var(--mono); font-size: 12px; color: var(--muted); overflow-wrap: anywhere; }
-    .type-row { display: grid; grid-template-columns: 300px 1fr; gap: 32px; align-items: baseline; padding: 20px 0; border-bottom: 1px solid var(--border); }
-    .type-sample { color: var(--ink); overflow-wrap: anywhere; }
-    .demo-button { display: inline-flex; align-items: center; justify-content: center; min-height: 40px; border-radius: 8px; border: 1px solid var(--border); padding: 0 16px; font-weight: 700; max-width: 100%; }
-    .feature-card h4, .elevation-card h4 { font-size: 18px; margin-bottom: 8px; }
-    .feature-card p, .elevation-card p { color: var(--body); font-size: 14px; line-height: 1.55; }
-    .text-input { width: 100%; min-height: 44px; border-radius: 8px; border: 1px solid var(--border); background: var(--canvas); color: var(--ink); padding: 0 14px; font: 500 15px/1 var(--text); }
-    .badge { display: inline-flex; align-items: center; border-radius: 999px; background: var(--surface-strong); color: var(--ink); min-height: 28px; padding: 0 12px; font: 800 11px/1 var(--mono); letter-spacing: .08em; text-transform: uppercase; }
-    .spacing-row, .radius-row { display: flex; flex-wrap: wrap; gap: 18px; align-items: end; }
-    .spacing-block { display: grid; justify-items: center; gap: 8px; }
-    .spacing-bar { width: 54px; min-height: 4px; background: var(--primary); border-radius: 6px; }
-    .radius-block { width: 96px; height: 96px; display: grid; place-items: center; background: var(--surface); border: 1px solid var(--border); color: var(--muted); font: 700 12px/1 var(--mono); }
-    .responsive-table { width: 100%; border-collapse: collapse; background: var(--surface); border: 1px solid var(--border); border-radius: 14px; overflow: hidden; }
-    .responsive-table th, .responsive-table td { text-align: left; padding: 14px 16px; border-bottom: 1px solid var(--border); color: var(--body); }
-    .responsive-table th { color: var(--ink); font: 800 11px/1.2 var(--mono); letter-spacing: .1em; text-transform: uppercase; }
-    .footer { padding: 34px 48px; border-top: 1px solid var(--border); color: var(--muted); text-align: center; font-size: 13px; }
-    @media (max-width: 900px) { .nav { grid-template-columns: 1fr auto; padding: 0 20px; } .nav-links { display: none; } .nav-cta { display: none; } .hero { grid-template-columns: 1fr; padding: 56px 20px; } section { padding: 56px 20px; } .type-row { grid-template-columns: 1fr; gap: 8px; } }
-  </style>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Linear Design System Preview</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&family=JetBrains+Mono:wght@400&display=swap" rel="stylesheet">
+<style>
+  :root {
+--primary: #5e6ad2;
+    --primary-hover: #828fff;
+    --primary-focus: #5e69d1;
+    --on-primary: #ffffff;
+    --ink: #f7f8f8;
+    --ink-muted: #d0d6e0;
+    --ink-subtle: #8a8f98;
+    --ink-tertiary: #62666d;
+    --canvas: #010102;
+    --surface-1: #0f1011;
+    --surface-2: #141516;
+    --surface-3: #18191a;
+    --surface-4: #191a1b;
+    --hairline: #23252a;
+    --hairline-strong: #34343a;
+    --hairline-tertiary: #3e3e44;
+    --semantic-success: #27a644;
+    --sans: 'Inter', 'SF Pro Display', system-ui, -apple-system, sans-serif;
+    --mono: 'JetBrains Mono', ui-monospace, 'SF Mono', menlo, monospace;
+  --color-primary: #5e6ad2;
+  --color-on-primary: #ffffff;
+  --color-primary-hover: #828fff;
+  --color-primary-focus: #5e69d1;
+  --color-ink: #f7f8f8;
+  --color-ink-muted: #d0d6e0;
+  --color-ink-subtle: #8a8f98;
+  --color-ink-tertiary: #62666d;
+  --color-canvas: #010102;
+  --color-surface-1: #0f1011;
+  --color-surface-2: #141516;
+  --color-surface-3: #18191a;
+  --color-surface-4: #191a1b;
+  --color-hairline: #23252a;
+  --color-hairline-strong: #34343a;
+  --color-hairline-tertiary: #3e3e44;
+  --inverse-canvas: #ffffff;
+  --color-inverse-canvas: #ffffff;
+  --inverse-surface-1: #f5f6f6;
+  --color-inverse-surface-1: #f5f6f6;
+  --inverse-surface-2: #f6f7f7;
+  --color-inverse-surface-2: #f6f7f7;
+  --inverse-ink: #000000;
+  --color-inverse-ink: #000000;
+  --brand-secure: #7a7fad;
+  --color-brand-secure: #7a7fad;
+  --color-semantic-success: #27a644;
+  --semantic-overlay: #000000;
+  --color-semantic-overlay: #000000;
+}
+  * { box-sizing: border-box; }
+  html, body { margin: 0; padding: 0; }
+  body { font-family: var(--sans); font-weight: 400; font-size: 16px; line-height: 1.50; color: var(--ink); background: var(--canvas); -webkit-font-smoothing: antialiased; letter-spacing: -0.05px; }
+  a { color: inherit; }
+
+  .nav { position: sticky; top: 0; z-index: 50; background: var(--canvas); border-bottom: 1px solid var(--hairline); height: 56px; padding: 0 32px; }
+  .nav-links { list-style: none; margin: 0; padding: 0; display: flex; gap: 24px; font-size: 14px; font-weight: 500; }
+  .nav-links a { text-decoration: none; }
+  .nav-cta { background: var(--primary); color: var(--on-primary); border: none; border-radius: 8px; padding: 8px 14px; font-family: var(--sans); font-size: 14px; font-weight: 500; cursor: pointer; height: 36px; }
+
+  .hero { padding: 96px 32px; background: var(--canvas); display: block; max-width: 1280px; margin: 0 auto; }
+  .hero-content { max-width: 1100px; }
+  .hero h1 { font-family: var(--sans); font-size: 80px; font-weight: 600; line-height: 1.05; color: var(--ink); margin: 0 0 32px; letter-spacing: -3.0px; text-align: left; }
+  .hero p { font-size: 18px; font-weight: 400; color: var(--ink-muted); max-width: 720px; margin: 0 0 40px; line-height: 1.50; letter-spacing: -0.1px; text-align: left; }
+  .hero-actions { display: flex; gap: 12px; flex-wrap: wrap; justify-content: flex-start; }
+  .btn { border-radius: 8px; padding: 8px 14px; font-family: var(--sans); font-size: 14px; font-weight: 500; line-height: 1.20; border: none; cursor: pointer; height: 36px; display: inline-flex; align-items: center; }
+  .btn-primary { background: var(--primary); color: var(--on-primary); }
+  .btn-secondary { background: var(--surface-1); color: var(--ink); border: 1px solid var(--hairline); }
+
+  section { padding: 96px 32px; max-width: 1280px; margin: 0 auto; }
+  .section-eyebrow { font-family: var(--sans); font-size: 13px; letter-spacing: 0.4px; color: var(--ink-subtle); margin-bottom: 16px; font-weight: 500; }
+  .section-heading { font-family: var(--sans); font-size: 56px; font-weight: 600; letter-spacing: -1.8px; line-height: 1.10; color: var(--ink); margin: 0 0 32px; }
+
+  .palette-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(220px, 1fr)); gap: 24px; }
+  .swatch { border: 1px solid var(--hairline); border-radius: 12px; overflow: hidden; background: var(--surface-1); }
+  .swatch-color { height: 120px; }
+  .swatch-info { padding: 16px; }
+  .swatch-name { font-size: 15px; font-weight: 500; margin-bottom: 4px; color: var(--ink); }
+  .swatch-hex { font-family: var(--mono); font-size: 12px; color: var(--ink-subtle); margin-bottom: 8px; }
+  .swatch-role { font-size: 13px; line-height: 1.5; color: var(--ink-subtle); }
+  .palette-group-heading { font-family: var(--sans); font-size: 13px; letter-spacing: 0.4px; margin: 32px 0 16px; color: var(--ink-subtle); font-weight: 500; }
+  .palette-group-heading:first-of-type { margin-top: 0; }
+
+  .type-row { display: grid; grid-template-columns: 280px 1fr; gap: 32px; padding: 28px 0; border-bottom: 1px solid var(--hairline); align-items: baseline; }
+  .type-meta { font-family: var(--mono); font-size: 12px; color: var(--ink-subtle); line-height: 1.6; }
+  .type-meta strong { font-family: var(--sans); font-weight: 500; color: var(--ink); display: block; margin-bottom: 4px; }
+  .type-sample { color: var(--ink); }
+
+  .button-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(280px, 1fr)); gap: 24px; }
+  .button-cell { border: 1px solid var(--hairline); border-radius: 12px; padding: 24px; background: var(--surface-1); display: flex; flex-direction: column; gap: 16px; align-items: flex-start; }
+  .button-label { font-family: var(--mono); font-size: 11px; color: var(--ink-subtle); }
+  .b-btn { border-radius: 8px; padding: 8px 14px; font-family: var(--sans); font-size: 14px; font-weight: 500; line-height: 1.20; border: none; cursor: pointer; height: 36px; display: inline-flex; align-items: center; }
+  .b-primary { background: var(--primary); color: var(--on-primary); }
+  .b-primary-hover { background: var(--primary-hover); color: var(--on-primary); }
+  .b-primary-pressed { background: var(--primary-focus); color: var(--on-primary); }
+  .b-secondary { background: var(--surface-1); color: var(--ink); border: 1px solid var(--hairline); }
+  .b-tertiary { background: transparent; color: var(--ink); }
+  .b-inverse { background: #ffffff; color: #000000; }
+  .b-tab-default { background: transparent; color: var(--ink-subtle); padding: 6px 14px; border-radius: 9999px; }
+  .b-tab-selected { background: var(--surface-2); color: var(--ink); padding: 6px 14px; border-radius: 9999px; border: 1px solid var(--hairline); }
+
+  .card-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(280px, 1fr)); gap: 24px; }
+  .pricing-card { background: var(--surface-1); border: 1px solid var(--hairline); border-radius: 12px; padding: 24px; }
+  .pricing-card-featured { background: var(--surface-2); border: 1px solid var(--hairline-strong); border-radius: 12px; padding: 24px; }
+  .pricing-card-tier { font-size: 28px; font-weight: 600; margin: 0 0 8px; letter-spacing: -0.6px; }
+  .pricing-card-price { font-size: 40px; font-weight: 600; letter-spacing: -1.0px; margin: 0 0 16px; }
+  .pricing-card-list { list-style: none; padding: 0; margin: 0 0 24px; font-size: 14px; line-height: 1.5; color: var(--ink-muted); }
+  .pricing-card-list li::before { content: "✓"; margin-right: 8px; color: var(--semantic-success); font-weight: 700; }
+  .feature-card { background: var(--surface-1); border: 1px solid var(--hairline); border-radius: 12px; padding: 24px; }
+  .feature-card-title { font-size: 22px; font-weight: 500; letter-spacing: -0.4px; margin: 0 0 8px; line-height: 1.25; }
+  .feature-card-body { font-size: 14px; line-height: 1.5; color: var(--ink-subtle); margin: 0; }
+  .product-card { background: var(--surface-1); border: 1px solid var(--hairline); border-radius: 16px; padding: 24px; }
+  .product-frame { background: var(--canvas); border: 1px solid var(--hairline); border-radius: 8px; height: 220px; display: flex; align-items: center; justify-content: center; color: var(--ink-subtle); font-family: var(--mono); font-size: 12px; margin-bottom: 16px; box-shadow: rgba(255,255,255,0.05) 0 0.5px 0 0.5px; }
+  .testimonial-card { background: var(--surface-1); border: 1px solid var(--hairline); border-radius: 12px; padding: 32px; font-size: 18px; line-height: 1.5; }
+  .customer-tile { background: var(--canvas); padding: 16px; height: 80px; display: flex; align-items: center; justify-content: center; color: var(--ink-subtle); font-weight: 500; font-size: 13px; border-radius: 4px; }
+  .cta-banner { background: var(--surface-1); border: 1px solid var(--hairline); border-radius: 12px; padding: 48px; }
+  .cta-banner h3 { font-size: 28px; font-weight: 600; margin: 0 0 16px; letter-spacing: -0.6px; }
+  .changelog-row { padding: 24px 0; border-bottom: 1px solid var(--hairline); }
+  .changelog-row strong { font-weight: 500; }
+  .status-badge { display: inline-flex; align-items: center; background: var(--surface-2); color: var(--ink-muted); border-radius: 9999px; padding: 2px 8px; font-size: 12px; font-family: var(--mono); }
+
+  .form-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(280px, 1fr)); gap: 24px; }
+  .form-field { display: flex; flex-direction: column; gap: 6px; }
+  .form-label { font-family: var(--mono); font-size: 11px; color: var(--ink-subtle); }
+  .form-input { background: var(--surface-1); color: var(--ink); border: 1px solid var(--hairline); border-radius: 8px; padding: 8px 12px; font-family: var(--sans); font-size: 16px; }
+  .form-input::placeholder { color: var(--ink-tertiary); }
+  .form-input.focused { border-color: var(--primary-focus); box-shadow: 0 0 0 2px rgba(94,105,209,0.25); outline: none; }
+  textarea.form-input { resize: vertical; min-height: 96px; }
+
+  .spacing-row { display: flex; gap: 24px; align-items: flex-end; flex-wrap: wrap; }
+  .spacing-cell { display: flex; flex-direction: column; gap: 8px; align-items: flex-start; }
+  .spacing-bar { background: var(--ink); height: 24px; border-radius: 2px; }
+  .spacing-meta { font-family: var(--mono); font-size: 11px; color: var(--ink-subtle); }
+
+  .radius-row { display: flex; gap: 24px; flex-wrap: wrap; }
+  .radius-cell { display: flex; flex-direction: column; gap: 12px; align-items: center; }
+  .radius-box { width: 96px; height: 96px; background: var(--surface-1); border: 1px solid var(--hairline); }
+  .radius-meta { font-family: var(--mono); font-size: 11px; color: var(--ink-subtle); text-align: center; }
+
+  .elevation-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(220px, 1fr)); gap: 24px; background: var(--canvas); border-radius: 12px; padding: 48px; }
+  .elev-card { border-radius: 12px; padding: 32px; height: 140px; display: flex; align-items: flex-end; font-family: var(--mono); font-size: 11px; color: var(--ink-subtle); }
+  .elev-0 { background: var(--canvas); }
+  .elev-1 { background: var(--surface-1); border: 1px solid var(--hairline); }
+  .elev-2 { background: var(--surface-2); border: 1px solid var(--hairline-strong); }
+  .elev-3 { background: var(--surface-3); border: 1px solid var(--hairline-tertiary); }
+  .elev-4 { background: var(--surface-4); border: 2px solid rgba(94,105,209,0.5); }
+
+  .responsive-table { width: 100%; border-collapse: collapse; font-size: 14px; margin-bottom: 32px; color: var(--ink-subtle); }
+  .responsive-table th, .responsive-table td { text-align: left; padding: 12px 16px; border-bottom: 1px solid var(--hairline); }
+  .responsive-table th { font-family: var(--mono); font-size: 11px; color: var(--ink-subtle); font-weight: 400; }
+  .device-ladder { display: flex; gap: 16px; align-items: flex-end; flex-wrap: wrap; margin-bottom: 32px; }
+  .device-cell { border: 1px solid var(--hairline); border-radius: 4px; background: var(--surface-1); display: flex; align-items: flex-end; padding: 12px; font-family: var(--mono); font-size: 10px; color: var(--ink-subtle); }
+
+  .footer { padding: 64px 32px; text-align: center; font-family: var(--sans); font-size: 12px; color: var(--ink-subtle); border-top: 1px solid var(--hairline); }
+
+  .cell, .cell > *, .button-cell { min-width: 0; }
+  .button-cell.wide { grid-column: span 2; }
+
+  @media (max-width: 1024px) {
+    .nav { padding: 0 24px; }
+    section { padding: 64px 24px; }
+    .hero { padding: 64px 24px; }
+    .hero h1 { font-size: 56px; letter-spacing: -1.8px; }
+    .section-heading { font-size: 40px; letter-spacing: -1.0px; }
+    .nav > :last-child { display: none; }
+    .type-row { grid-template-columns: 1fr; gap: 8px; }
+  }
+  @media (max-width: 720px) {
+    .button-cell.wide { grid-column: span 1; }
+    .nav { padding: 12px 20px; height: auto; min-height: 56px; }
+    .nav-links { display: none; }
+    .hero { padding: 48px 20px; }
+    .hero h1 { font-size: 36px; letter-spacing: -1.0px; }
+    .hero p { font-size: 16px; }
+    section { padding: 48px 20px; }
+    .section-heading { font-size: 28px; letter-spacing: -0.8px; }
+    .palette-grid, .button-grid, .card-grid, .form-grid, .elevation-grid { grid-template-columns: 1fr !important; gap: 16px; }
+    .footer { padding: 24px 16px; font-size: 11px; }
+  }
+
+  /* design catalog nav additions */
+  .nav-left { display: flex; align-items: center; gap: 20px; }
+  .nav-brand-link, .nav-brand-link:link, .nav-brand-link:visited, .nav-brand-link:hover, .nav-brand-link:active { text-decoration: none; color: inherit; }
+  .nav-github, .nav-github:link, .nav-github:visited, .nav-github:hover, .nav-github:active { display: inline-flex; align-items: center; gap: 6px; font-size: 12px; font-weight: 600; color: inherit; text-decoration: none; padding: 5px 10px; border: 1px solid rgba(255, 255, 255, 0.25); border-radius: 6px; opacity: 0.75; transition: opacity 200ms ease, border-color 200ms ease; font-family: inherit; line-height: 1; white-space: nowrap; }
+  .nav-github:hover { opacity: 1; border-color: rgba(255, 255, 255, 0.55); }
+  .nav-github svg { display: block; flex-shrink: 0; }
+  /* design catalog nav centering */
+  .nav { display: grid; grid-template-columns: 1fr auto 1fr; align-items: center; }
+  .nav > .nav-left { justify-self: start; }
+  .nav > .nav-links { justify-self: center; }
+  .nav > :last-child { justify-self: end; }
+  .nav .nav-github { color: #ffffff; border-color: rgba(255, 255, 255, 0.25); }
+
+
+  /* Shared Agent Platform footer content */
+  .footer { text-align: left; }
+  .footer-shell { max-width: 1200px; margin: 0 auto; }
+  .footer-grid { display: grid; grid-template-columns: repeat(4, minmax(0, 1fr)); gap: 32px; }
+  .footer-col h6 { margin: 0 0 14px; color: inherit; font: inherit; font-weight: 700; font-size: 14px; line-height: 1.2; }
+  .footer-col span { display: block; margin: 0 0 10px; color: inherit; opacity: 0.72; font-size: 14px; line-height: 1.35; }
+  .footer-credit { margin-top: 48px; padding-top: 24px; border-top: 1px solid currentColor; color: inherit; opacity: 0.78; font-size: 13px; line-height: 1.4; }
+  .footer-credit a { color: inherit; text-decoration: none; font-weight: 600; }
+  .footer-credit img { border-radius: 3px; vertical-align: -2px; margin-right: 3px; }
+  @media (max-width: 760px) {
+    .footer-grid { grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 24px; }
+  }
+</style>
 </head>
 <body>
-  <nav class="nav">
-    <div class="brand">Linear</div>
-    <ul class="nav-links"><li><a href="#colors">Colors</a></li><li><a href="#type">Typography</a></li><li><a href="#components">Components</a></li><li><a href="#responsive">Responsive</a></li></ul>
-    <button class="nav-cta">Preview</button>
-  </nav>
 
-  <main>
-    <div class="hero">
-      <div>
-        <div class="eyebrow">Design System Preview</div>
-        <h1>Linear visual system</h1>
-        <p>A near-black product-focused marketing canvas built around #010102 (the deepest dark surface of any tool in this collection), light gray text (#f7f8f8), and the signature Linear lavender-blue (#5e6ad2) used as.</p>
-        <div class="hero-actions"><span class="btn primary">Primary action</span><span class="btn">Secondary action</span></div>
-      </div>
-      <div class="hero-panel" aria-label="Interface sample">
-        <div class="panel-top"><span class="dot"></span><span class="dot"></span><span class="dot"></span></div>
-        <div class="panel-body">
-          <div class="metric"><strong>01</strong><span>Token driven color, type, spacing, and component decisions.</span></div>
-          <div class="metric"><strong>AA</strong><span>Preview surfaces highlight contrast, hierarchy, and UI rhythm.</span></div>
-          <div class="metric"><strong>UI</strong><span>Reusable cards, controls, form fields, labels, and responsive states.</span></div>
-        </div>
-      </div>
+<nav class="nav">
+  <div class="nav-left">
+    <a href="#" target="_blank" rel="noopener noreferrer" class="nav-brand-link"><span class="nav-brand">Linear</span></a>
+
+  </div>
+  <ul class="nav-links">
+    <li><a href="#palette">Palette</a></li>
+    <li><a href="#typography">Typography</a></li>
+    <li><a href="#components">Components</a></li>
+    <li><a href="#cards">Cards</a></li>
+  </ul>
+  <button class="nav-cta">Get started</button>
+</nav>
+
+<header class="hero">
+  <div class="hero-content">
+    <h1>Design System Inspiration of Linear</h1>
+    <p>A near-black product-focused marketing canvas built around #010102 (the deepest dark surface of any tool in this collection), light gray text, and the signature Linear lavender-blue (#5e6ad2) used as the single chromatic accent. The system reads as software-craft documentation: dense, technical, and quietly luxurious.</p>
+    <div class="hero-actions">
+      <button class="btn btn-primary">Get started</button>
+      <button class="btn btn-secondary">Read changelog</button>
     </div>
+  </div>
+</header>
 
-    <section id="colors">
-      <div class="section-label">01 - Color Palette</div>
-      <h2 class="section-heading">Core colors and semantic surfaces</h2>
-      <p class="section-intro">The palette below is extracted from the structured design tokens. Swatches show the available roles and their exact CSS values.</p>
-      <div class="palette-grid">
-        <div class="swatch"><div class="swatch-color" style="background:#5e6ad2"></div><div class="swatch-meta"><div class="swatch-name">primary</div><div class="swatch-hex">#5e6ad2</div></div></div><div class="swatch"><div class="swatch-color" style="background:#ffffff"></div><div class="swatch-meta"><div class="swatch-name">on-primary</div><div class="swatch-hex">#ffffff</div></div></div><div class="swatch"><div class="swatch-color" style="background:#828fff"></div><div class="swatch-meta"><div class="swatch-name">primary-hover</div><div class="swatch-hex">#828fff</div></div></div><div class="swatch"><div class="swatch-color" style="background:#5e69d1"></div><div class="swatch-meta"><div class="swatch-name">primary-focus</div><div class="swatch-hex">#5e69d1</div></div></div><div class="swatch"><div class="swatch-color" style="background:#f7f8f8"></div><div class="swatch-meta"><div class="swatch-name">ink</div><div class="swatch-hex">#f7f8f8</div></div></div><div class="swatch"><div class="swatch-color" style="background:#d0d6e0"></div><div class="swatch-meta"><div class="swatch-name">ink-muted</div><div class="swatch-hex">#d0d6e0</div></div></div><div class="swatch"><div class="swatch-color" style="background:#8a8f98"></div><div class="swatch-meta"><div class="swatch-name">ink-subtle</div><div class="swatch-hex">#8a8f98</div></div></div><div class="swatch"><div class="swatch-color" style="background:#62666d"></div><div class="swatch-meta"><div class="swatch-name">ink-tertiary</div><div class="swatch-hex">#62666d</div></div></div><div class="swatch"><div class="swatch-color" style="background:#010102"></div><div class="swatch-meta"><div class="swatch-name">canvas</div><div class="swatch-hex">#010102</div></div></div><div class="swatch"><div class="swatch-color" style="background:#0f1011"></div><div class="swatch-meta"><div class="swatch-name">surface-1</div><div class="swatch-hex">#0f1011</div></div></div><div class="swatch"><div class="swatch-color" style="background:#141516"></div><div class="swatch-meta"><div class="swatch-name">surface-2</div><div class="swatch-hex">#141516</div></div></div><div class="swatch"><div class="swatch-color" style="background:#18191a"></div><div class="swatch-meta"><div class="swatch-name">surface-3</div><div class="swatch-hex">#18191a</div></div></div><div class="swatch"><div class="swatch-color" style="background:#191a1b"></div><div class="swatch-meta"><div class="swatch-name">surface-4</div><div class="swatch-hex">#191a1b</div></div></div><div class="swatch"><div class="swatch-color" style="background:#23252a"></div><div class="swatch-meta"><div class="swatch-name">hairline</div><div class="swatch-hex">#23252a</div></div></div><div class="swatch"><div class="swatch-color" style="background:#34343a"></div><div class="swatch-meta"><div class="swatch-name">hairline-strong</div><div class="swatch-hex">#34343a</div></div></div><div class="swatch"><div class="swatch-color" style="background:#3e3e44"></div><div class="swatch-meta"><div class="swatch-name">hairline-tertiary</div><div class="swatch-hex">#3e3e44</div></div></div><div class="swatch"><div class="swatch-color" style="background:#ffffff"></div><div class="swatch-meta"><div class="swatch-name">inverse-canvas</div><div class="swatch-hex">#ffffff</div></div></div><div class="swatch"><div class="swatch-color" style="background:#f5f6f6"></div><div class="swatch-meta"><div class="swatch-name">inverse-surface-1</div><div class="swatch-hex">#f5f6f6</div></div></div><div class="swatch"><div class="swatch-color" style="background:#f6f7f7"></div><div class="swatch-meta"><div class="swatch-name">inverse-surface-2</div><div class="swatch-hex">#f6f7f7</div></div></div><div class="swatch"><div class="swatch-color" style="background:#000000"></div><div class="swatch-meta"><div class="swatch-name">inverse-ink</div><div class="swatch-hex">#000000</div></div></div><div class="swatch"><div class="swatch-color" style="background:#7a7fad"></div><div class="swatch-meta"><div class="swatch-name">brand-secure</div><div class="swatch-hex">#7a7fad</div></div></div><div class="swatch"><div class="swatch-color" style="background:#27a644"></div><div class="swatch-meta"><div class="swatch-name">semantic-success</div><div class="swatch-hex">#27a644</div></div></div><div class="swatch"><div class="swatch-color" style="background:#000000"></div><div class="swatch-meta"><div class="swatch-name">semantic-overlay</div><div class="swatch-hex">#000000</div></div></div>
-      </div>
-    </section>
+<section id="palette">
+<div class="section-label">01 / Color Palette</div>
+<h2 class="section-title section-heading">Color Palette</h2>
+<div class="palette-group color-group"><h3 class="subhead color-group-title color-group-label">Brand &amp; Accent</h3><div class="palette-grid swatch-grid color-grid"><div class="swatch color-swatch"><div class="swatch-color color-swatch-block color-swatch-preview fill chip" style="background:#5e6ad2"></div><div class="swatch-info swatch-meta color-swatch-info info meta"><div class="swatch-name color-swatch-name name">Primary</div><div class="swatch-hex color-swatch-hex hex">#5e6ad2</div><div class="swatch-role color-swatch-role role">Brand &amp; Accent</div></div></div><div class="swatch color-swatch"><div class="swatch-color color-swatch-block color-swatch-preview fill chip" style="background:#ffffff"></div><div class="swatch-info swatch-meta color-swatch-info info meta"><div class="swatch-name color-swatch-name name">On Primary</div><div class="swatch-hex color-swatch-hex hex">#ffffff</div><div class="swatch-role color-swatch-role role">Brand &amp; Accent</div></div></div><div class="swatch color-swatch"><div class="swatch-color color-swatch-block color-swatch-preview fill chip" style="background:#828fff"></div><div class="swatch-info swatch-meta color-swatch-info info meta"><div class="swatch-name color-swatch-name name">Primary Hover</div><div class="swatch-hex color-swatch-hex hex">#828fff</div><div class="swatch-role color-swatch-role role">Brand &amp; Accent</div></div></div><div class="swatch color-swatch"><div class="swatch-color color-swatch-block color-swatch-preview fill chip" style="background:#5e69d1"></div><div class="swatch-info swatch-meta color-swatch-info info meta"><div class="swatch-name color-swatch-name name">Primary Focus</div><div class="swatch-hex color-swatch-hex hex">#5e69d1</div><div class="swatch-role color-swatch-role role">Brand &amp; Accent</div></div></div><div class="swatch color-swatch"><div class="swatch-color color-swatch-block color-swatch-preview fill chip" style="background:#7a7fad"></div><div class="swatch-info swatch-meta color-swatch-info info meta"><div class="swatch-name color-swatch-name name">Brand Secure</div><div class="swatch-hex color-swatch-hex hex">#7a7fad</div><div class="swatch-role color-swatch-role role">Brand &amp; Accent</div></div></div></div></div><div class="palette-group color-group"><h3 class="subhead color-group-title color-group-label">Surface</h3><div class="palette-grid swatch-grid color-grid"><div class="swatch color-swatch"><div class="swatch-color color-swatch-block color-swatch-preview fill chip" style="background:#010102"></div><div class="swatch-info swatch-meta color-swatch-info info meta"><div class="swatch-name color-swatch-name name">Canvas</div><div class="swatch-hex color-swatch-hex hex">#010102</div><div class="swatch-role color-swatch-role role">Surface</div></div></div><div class="swatch color-swatch"><div class="swatch-color color-swatch-block color-swatch-preview fill chip" style="background:#0f1011"></div><div class="swatch-info swatch-meta color-swatch-info info meta"><div class="swatch-name color-swatch-name name">Surface 1</div><div class="swatch-hex color-swatch-hex hex">#0f1011</div><div class="swatch-role color-swatch-role role">Surface</div></div></div><div class="swatch color-swatch"><div class="swatch-color color-swatch-block color-swatch-preview fill chip" style="background:#141516"></div><div class="swatch-info swatch-meta color-swatch-info info meta"><div class="swatch-name color-swatch-name name">Surface 2</div><div class="swatch-hex color-swatch-hex hex">#141516</div><div class="swatch-role color-swatch-role role">Surface</div></div></div><div class="swatch color-swatch"><div class="swatch-color color-swatch-block color-swatch-preview fill chip" style="background:#18191a"></div><div class="swatch-info swatch-meta color-swatch-info info meta"><div class="swatch-name color-swatch-name name">Surface 3</div><div class="swatch-hex color-swatch-hex hex">#18191a</div><div class="swatch-role color-swatch-role role">Surface</div></div></div><div class="swatch color-swatch"><div class="swatch-color color-swatch-block color-swatch-preview fill chip" style="background:#191a1b"></div><div class="swatch-info swatch-meta color-swatch-info info meta"><div class="swatch-name color-swatch-name name">Surface 4</div><div class="swatch-hex color-swatch-hex hex">#191a1b</div><div class="swatch-role color-swatch-role role">Surface</div></div></div><div class="swatch color-swatch"><div class="swatch-color color-swatch-block color-swatch-preview fill chip" style="background:#ffffff"></div><div class="swatch-info swatch-meta color-swatch-info info meta"><div class="swatch-name color-swatch-name name">Inverse Canvas</div><div class="swatch-hex color-swatch-hex hex">#ffffff</div><div class="swatch-role color-swatch-role role">Surface</div></div></div><div class="swatch color-swatch"><div class="swatch-color color-swatch-block color-swatch-preview fill chip" style="background:#f5f6f6"></div><div class="swatch-info swatch-meta color-swatch-info info meta"><div class="swatch-name color-swatch-name name">Inverse Surface 1</div><div class="swatch-hex color-swatch-hex hex">#f5f6f6</div><div class="swatch-role color-swatch-role role">Surface</div></div></div><div class="swatch color-swatch"><div class="swatch-color color-swatch-block color-swatch-preview fill chip" style="background:#f6f7f7"></div><div class="swatch-info swatch-meta color-swatch-info info meta"><div class="swatch-name color-swatch-name name">Inverse Surface 2</div><div class="swatch-hex color-swatch-hex hex">#f6f7f7</div><div class="swatch-role color-swatch-role role">Surface</div></div></div></div></div><div class="palette-group color-group"><h3 class="subhead color-group-title color-group-label">Text</h3><div class="palette-grid swatch-grid color-grid"><div class="swatch color-swatch"><div class="swatch-color color-swatch-block color-swatch-preview fill chip" style="background:#f7f8f8"></div><div class="swatch-info swatch-meta color-swatch-info info meta"><div class="swatch-name color-swatch-name name">Ink</div><div class="swatch-hex color-swatch-hex hex">#f7f8f8</div><div class="swatch-role color-swatch-role role">Text</div></div></div><div class="swatch color-swatch"><div class="swatch-color color-swatch-block color-swatch-preview fill chip" style="background:#d0d6e0"></div><div class="swatch-info swatch-meta color-swatch-info info meta"><div class="swatch-name color-swatch-name name">Ink Muted</div><div class="swatch-hex color-swatch-hex hex">#d0d6e0</div><div class="swatch-role color-swatch-role role">Text</div></div></div><div class="swatch color-swatch"><div class="swatch-color color-swatch-block color-swatch-preview fill chip" style="background:#8a8f98"></div><div class="swatch-info swatch-meta color-swatch-info info meta"><div class="swatch-name color-swatch-name name">Ink Subtle</div><div class="swatch-hex color-swatch-hex hex">#8a8f98</div><div class="swatch-role color-swatch-role role">Text</div></div></div><div class="swatch color-swatch"><div class="swatch-color color-swatch-block color-swatch-preview fill chip" style="background:#62666d"></div><div class="swatch-info swatch-meta color-swatch-info info meta"><div class="swatch-name color-swatch-name name">Ink Tertiary</div><div class="swatch-hex color-swatch-hex hex">#62666d</div><div class="swatch-role color-swatch-role role">Text</div></div></div><div class="swatch color-swatch"><div class="swatch-color color-swatch-block color-swatch-preview fill chip" style="background:#000000"></div><div class="swatch-info swatch-meta color-swatch-info info meta"><div class="swatch-name color-swatch-name name">Inverse Ink</div><div class="swatch-hex color-swatch-hex hex">#000000</div><div class="swatch-role color-swatch-role role">Text</div></div></div></div></div><div class="palette-group color-group"><h3 class="subhead color-group-title color-group-label">Borders &amp; Lines</h3><div class="palette-grid swatch-grid color-grid"><div class="swatch color-swatch"><div class="swatch-color color-swatch-block color-swatch-preview fill chip" style="background:#23252a"></div><div class="swatch-info swatch-meta color-swatch-info info meta"><div class="swatch-name color-swatch-name name">Hairline</div><div class="swatch-hex color-swatch-hex hex">#23252a</div><div class="swatch-role color-swatch-role role">Borders &amp; Lines</div></div></div><div class="swatch color-swatch"><div class="swatch-color color-swatch-block color-swatch-preview fill chip" style="background:#34343a"></div><div class="swatch-info swatch-meta color-swatch-info info meta"><div class="swatch-name color-swatch-name name">Hairline Strong</div><div class="swatch-hex color-swatch-hex hex">#34343a</div><div class="swatch-role color-swatch-role role">Borders &amp; Lines</div></div></div><div class="swatch color-swatch"><div class="swatch-color color-swatch-block color-swatch-preview fill chip" style="background:#3e3e44"></div><div class="swatch-info swatch-meta color-swatch-info info meta"><div class="swatch-name color-swatch-name name">Hairline Tertiary</div><div class="swatch-hex color-swatch-hex hex">#3e3e44</div><div class="swatch-role color-swatch-role role">Borders &amp; Lines</div></div></div></div></div><div class="palette-group color-group"><h3 class="subhead color-group-title color-group-label">Semantic</h3><div class="palette-grid swatch-grid color-grid"><div class="swatch color-swatch"><div class="swatch-color color-swatch-block color-swatch-preview fill chip" style="background:#27a644"></div><div class="swatch-info swatch-meta color-swatch-info info meta"><div class="swatch-name color-swatch-name name">Semantic Success</div><div class="swatch-hex color-swatch-hex hex">#27a644</div><div class="swatch-role color-swatch-role role">Semantic</div></div></div></div></div><div class="palette-group color-group"><h3 class="subhead color-group-title color-group-label">Supporting</h3><div class="palette-grid swatch-grid color-grid"><div class="swatch color-swatch"><div class="swatch-color color-swatch-block color-swatch-preview fill chip" style="background:#000000"></div><div class="swatch-info swatch-meta color-swatch-info info meta"><div class="swatch-name color-swatch-name name">Semantic Overlay</div><div class="swatch-hex color-swatch-hex hex">#000000</div><div class="swatch-role color-swatch-role role">Supporting</div></div></div></div></div>
+</section>
 
-    <section id="type">
-      <div class="section-label">02 - Typography</div>
-      <h2 class="section-heading">Type scale and voice</h2>
-      <p class="section-intro">Typography samples show how major text levels render when the token values are applied to real interface copy.</p>
-      <div class="type-row"><div class="type-meta"><strong>display-xl</strong>80px / 600 / 1.05 / -3.0px</div><div class="type-sample" style="font-family:Linear Display;font-size:80px;font-weight:600;line-height:1.05;letter-spacing:-3.0px">Build a clear product interface with Linear rhythm.</div></div><div class="type-row"><div class="type-meta"><strong>display-lg</strong>56px / 600 / 1.1 / -1.8px</div><div class="type-sample" style="font-family:Linear Display;font-size:56px;font-weight:600;line-height:1.1;letter-spacing:-1.8px">Build a clear product interface with Linear rhythm.</div></div><div class="type-row"><div class="type-meta"><strong>display-md</strong>40px / 600 / 1.15 / -1.0px</div><div class="type-sample" style="font-family:Linear Display;font-size:40px;font-weight:600;line-height:1.15;letter-spacing:-1.0px">Build a clear product interface with Linear rhythm.</div></div><div class="type-row"><div class="type-meta"><strong>headline</strong>28px / 600 / 1.2 / -0.6px</div><div class="type-sample" style="font-family:Linear Display;font-size:28px;font-weight:600;line-height:1.2;letter-spacing:-0.6px">Build a clear product interface with Linear rhythm.</div></div><div class="type-row"><div class="type-meta"><strong>card-title</strong>22px / 500 / 1.25 / -0.4px</div><div class="type-sample" style="font-family:Linear Display;font-size:22px;font-weight:500;line-height:1.25;letter-spacing:-0.4px">Build a clear product interface with Linear rhythm.</div></div><div class="type-row"><div class="type-meta"><strong>subhead</strong>20px / 400 / 1.4 / -0.2px</div><div class="type-sample" style="font-family:Linear Display;font-size:20px;font-weight:400;line-height:1.4;letter-spacing:-0.2px">Build a clear product interface with Linear rhythm.</div></div><div class="type-row"><div class="type-meta"><strong>body-lg</strong>18px / 400 / 1.5 / -0.1px</div><div class="type-sample" style="font-family:Linear Text;font-size:18px;font-weight:400;line-height:1.5;letter-spacing:-0.1px">Build a clear product interface with Linear rhythm.</div></div><div class="type-row"><div class="type-meta"><strong>body</strong>16px / 400 / 1.5 / -0.05px</div><div class="type-sample" style="font-family:Linear Text;font-size:16px;font-weight:400;line-height:1.5;letter-spacing:-0.05px">Build a clear product interface with Linear rhythm.</div></div><div class="type-row"><div class="type-meta"><strong>body-sm</strong>14px / 400 / 1.5 / 0px</div><div class="type-sample" style="font-family:Linear Text;font-size:14px;font-weight:400;line-height:1.5;letter-spacing:0px">Build a clear product interface with Linear rhythm.</div></div><div class="type-row"><div class="type-meta"><strong>caption</strong>12px / 400 / 1.4 / 0px</div><div class="type-sample" style="font-family:Linear Text;font-size:12px;font-weight:400;line-height:1.4;letter-spacing:0px">Build a clear product interface with Linear rhythm.</div></div>
-    </section>
+<section id="typography" style="background: var(--surface-1);">
+<div class="section-label">02 / Typography</div>
+<h2 class="section-title section-heading">Typography</h2>
+<div class="type-row type-sample"><div class="type-meta type-label type-sample-label"><strong>display-xl</strong>80px / 600 / 1.05 / -3.0px</div><div class="type-sample-text type-preview" style="font-family:Linear Display;font-size:80px;font-weight:600;line-height:1.05;letter-spacing:-3.0px;text-transform:none">Build a clear product interface with Display Xl rhythm.</div></div><div class="type-row type-sample"><div class="type-meta type-label type-sample-label"><strong>display-lg</strong>56px / 600 / 1.1 / -1.8px</div><div class="type-sample-text type-preview" style="font-family:Linear Display;font-size:56px;font-weight:600;line-height:1.1;letter-spacing:-1.8px;text-transform:none">Build a clear product interface with Display Lg rhythm.</div></div><div class="type-row type-sample"><div class="type-meta type-label type-sample-label"><strong>display-md</strong>40px / 600 / 1.15 / -1.0px</div><div class="type-sample-text type-preview" style="font-family:Linear Display;font-size:40px;font-weight:600;line-height:1.15;letter-spacing:-1.0px;text-transform:none">Build a clear product interface with Display Md rhythm.</div></div><div class="type-row type-sample"><div class="type-meta type-label type-sample-label"><strong>headline</strong>28px / 600 / 1.2 / -0.6px</div><div class="type-sample-text type-preview" style="font-family:Linear Display;font-size:28px;font-weight:600;line-height:1.2;letter-spacing:-0.6px;text-transform:none">Build a clear product interface with Headline rhythm.</div></div><div class="type-row type-sample"><div class="type-meta type-label type-sample-label"><strong>card-title</strong>22px / 500 / 1.25 / -0.4px</div><div class="type-sample-text type-preview" style="font-family:Linear Display;font-size:22px;font-weight:500;line-height:1.25;letter-spacing:-0.4px;text-transform:none">Build a clear product interface with Card Title rhythm.</div></div><div class="type-row type-sample"><div class="type-meta type-label type-sample-label"><strong>subhead</strong>20px / 400 / 1.4 / -0.2px</div><div class="type-sample-text type-preview" style="font-family:Linear Display;font-size:20px;font-weight:400;line-height:1.4;letter-spacing:-0.2px;text-transform:none">Build a clear product interface with Subhead rhythm.</div></div><div class="type-row type-sample"><div class="type-meta type-label type-sample-label"><strong>body-lg</strong>18px / 400 / 1.5 / -0.1px</div><div class="type-sample-text type-preview" style="font-family:Linear Text;font-size:18px;font-weight:400;line-height:1.5;letter-spacing:-0.1px;text-transform:none">Build a clear product interface with Body Lg rhythm.</div></div><div class="type-row type-sample"><div class="type-meta type-label type-sample-label"><strong>body</strong>16px / 400 / 1.5 / -0.05px</div><div class="type-sample-text type-preview" style="font-family:Linear Text;font-size:16px;font-weight:400;line-height:1.5;letter-spacing:-0.05px;text-transform:none">Build a clear product interface with Body rhythm.</div></div><div class="type-row type-sample"><div class="type-meta type-label type-sample-label"><strong>body-sm</strong>14px / 400 / 1.5 / 0px</div><div class="type-sample-text type-preview" style="font-family:Linear Text;font-size:14px;font-weight:400;line-height:1.5;letter-spacing:0px;text-transform:none">Build a clear product interface with Body Sm rhythm.</div></div><div class="type-row type-sample"><div class="type-meta type-label type-sample-label"><strong>caption</strong>12px / 400 / 1.4 / 0px</div><div class="type-sample-text type-preview" style="font-family:Linear Text;font-size:12px;font-weight:400;line-height:1.4;letter-spacing:0px;text-transform:none">Build a clear product interface with Caption rhythm.</div></div><div class="type-row type-sample"><div class="type-meta type-label type-sample-label"><strong>button</strong>14px / 500 / 1.2 / 0px</div><div class="type-sample-text type-preview" style="font-family:Linear Text;font-size:14px;font-weight:500;line-height:1.2;letter-spacing:0px;text-transform:none">Build a clear product interface with Button rhythm.</div></div><div class="type-row type-sample"><div class="type-meta type-label type-sample-label"><strong>eyebrow</strong>13px / 500 / 1.3 / 0.4px</div><div class="type-sample-text type-preview" style="font-family:Linear Text;font-size:13px;font-weight:500;line-height:1.3;letter-spacing:0.4px;text-transform:none">Build a clear product interface with Eyebrow rhythm.</div></div><div class="type-row type-sample"><div class="type-meta type-label type-sample-label"><strong>mono</strong>13px / 400 / 1.5 / 0px</div><div class="type-sample-text type-preview" style="font-family:Linear Mono;font-size:13px;font-weight:400;line-height:1.5;letter-spacing:0px;text-transform:none">Build a clear product interface with Mono rhythm.</div></div>
+</section>
 
-    <section id="components">
-      <div class="section-label">03 - Components</div>
-      <h2 class="section-heading">Buttons, cards, labels, and controls</h2>
-      <p class="section-intro">Component samples apply available token references where possible, with neutral fallbacks for properties not present in the source system.</p>
-      <div class="button-grid">
-        <div class="component-cell"><div class="button-label">button-primary</div><span class="demo-button" style="background:#5e6ad2;color:#ffffff;border-radius:8px;padding:0 14px">Sample action</span><div class="button-meta">#5e6ad2 / #ffffff</div></div><div class="component-cell"><div class="button-label">button-primary-pressed</div><span class="demo-button" style="background:#5e69d1;color:#ffffff;border-radius:8px;padding:0 14px">Sample action</span><div class="button-meta">#5e69d1 / #ffffff</div></div><div class="component-cell"><div class="button-label">button-primary-hover</div><span class="demo-button" style="background:#828fff;color:#ffffff;border-radius:8px;padding:0 14px">Sample action</span><div class="button-meta">#828fff / #ffffff</div></div><div class="component-cell"><div class="button-label">button-secondary</div><span class="demo-button" style="background:#0f1011;color:#f7f8f8;border-radius:8px;padding:0 14px">Sample action</span><div class="button-meta">#0f1011 / #f7f8f8</div></div><div class="component-cell"><div class="button-label">button-tertiary</div><span class="demo-button" style="background:#010102;color:#f7f8f8;border-radius:8px;padding:0 14px">Sample action</span><div class="button-meta">#010102 / #f7f8f8</div></div><div class="component-cell"><div class="button-label">button-inverse</div><span class="demo-button" style="background:#ffffff;color:#000000;border-radius:8px;padding:0 14px">Sample action</span><div class="button-meta">#ffffff / #000000</div></div><div class="component-cell"><div class="button-label">pricing-card</div><span class="demo-button" style="background:#0f1011;color:#f7f8f8;border-radius:12px;padding:0 24px">Sample action</span><div class="button-meta">#0f1011 / #f7f8f8</div></div><div class="component-cell"><div class="button-label">pricing-card-featured</div><span class="demo-button" style="background:#141516;color:#f7f8f8;border-radius:12px;padding:0 24px">Sample action</span><div class="button-meta">#141516 / #f7f8f8</div></div><div class="component-cell"><div class="button-label">feature-card</div><span class="demo-button" style="background:#0f1011;color:#f7f8f8;border-radius:12px;padding:0 24px">Sample action</span><div class="button-meta">#0f1011 / #f7f8f8</div></div><div class="component-cell"><div class="button-label">product-screenshot-card</div><span class="demo-button" style="background:#0f1011;color:#f7f8f8;border-radius:16px;padding:0 24px">Sample action</span><div class="button-meta">#0f1011 / #f7f8f8</div></div><div class="component-cell"><div class="button-label">testimonial-card</div><span class="demo-button" style="background:#0f1011;color:#f7f8f8;border-radius:12px;padding:0 32px">Sample action</span><div class="button-meta">#0f1011 / #f7f8f8</div></div><div class="component-cell"><div class="button-label">customer-logo-tile</div><span class="demo-button" style="background:#010102;color:#8a8f98;border-radius:4px;padding:0 16px">Sample action</span><div class="button-meta">#010102 / #8a8f98</div></div>
-      </div>
-    </section>
+<section id="components">
+<div class="section-label">04 / Components</div>
+<h2 class="section-title section-heading">Components</h2>
+<div class="card-grid component-grid inventory-grid"><div class="card component-card sample-card" style="background:var(--surface, var(--canvas, #fff));color:var(--ink, #111);border:1px solid var(--border, rgba(0,0,0,.14));border-radius:16px;padding:16px;min-height:150px;display:grid;gap:12px;align-content:start;box-sizing:border-box;"><h3 class="card-title">Button Primary</h3><div class="component-preview" style="display:flex;align-items:center;justify-content:flex-start;gap:12px;min-height:78px;flex-wrap:wrap;"><button type="button" class="btn demo-control" style="background:#5e6ad2;color:#ffffff;border-radius:8px;padding:8px 14px;border:1px solid transparent;min-height:44px;display:inline-flex;align-items:center;justify-content:center;gap:8px;max-width:100%;box-sizing:border-box;font:inherit;text-decoration:none;white-space:normal;">Button Primary</button></div></div><div class="card component-card sample-card" style="background:var(--surface, var(--canvas, #fff));color:var(--ink, #111);border:1px solid var(--border, rgba(0,0,0,.14));border-radius:16px;padding:16px;min-height:150px;display:grid;gap:12px;align-content:start;box-sizing:border-box;"><h3 class="card-title">Button Primary Pressed</h3><div class="component-preview" style="display:flex;align-items:center;justify-content:flex-start;gap:12px;min-height:78px;flex-wrap:wrap;"><button type="button" class="btn demo-control" style="background:#5e69d1;color:#ffffff;border-radius:8px;padding:12px 18px;border:1px solid transparent;min-height:44px;display:inline-flex;align-items:center;justify-content:center;gap:8px;max-width:100%;box-sizing:border-box;font:inherit;text-decoration:none;white-space:normal;">Button Primary Pressed</button></div></div><div class="card component-card sample-card" style="background:var(--surface, var(--canvas, #fff));color:var(--ink, #111);border:1px solid var(--border, rgba(0,0,0,.14));border-radius:16px;padding:16px;min-height:150px;display:grid;gap:12px;align-content:start;box-sizing:border-box;"><h3 class="card-title">Button Primary Hover</h3><div class="component-preview" style="display:flex;align-items:center;justify-content:flex-start;gap:12px;min-height:78px;flex-wrap:wrap;"><button type="button" class="btn demo-control" style="background:#828fff;color:#ffffff;border-radius:8px;padding:12px 18px;border:1px solid transparent;min-height:44px;display:inline-flex;align-items:center;justify-content:center;gap:8px;max-width:100%;box-sizing:border-box;font:inherit;text-decoration:none;white-space:normal;">Button Primary Hover</button></div></div><div class="card component-card sample-card" style="background:var(--surface, var(--canvas, #fff));color:var(--ink, #111);border:1px solid var(--border, rgba(0,0,0,.14));border-radius:16px;padding:16px;min-height:150px;display:grid;gap:12px;align-content:start;box-sizing:border-box;"><h3 class="card-title">Button Secondary</h3><div class="component-preview" style="display:flex;align-items:center;justify-content:flex-start;gap:12px;min-height:78px;flex-wrap:wrap;"><button type="button" class="btn demo-control" style="background:#0f1011;color:#f7f8f8;border-radius:8px;padding:8px 14px;border:1px solid transparent;min-height:44px;display:inline-flex;align-items:center;justify-content:center;gap:8px;max-width:100%;box-sizing:border-box;font:inherit;text-decoration:none;white-space:normal;">Button Secondary</button></div></div><div class="card component-card sample-card" style="background:var(--surface, var(--canvas, #fff));color:var(--ink, #111);border:1px solid var(--border, rgba(0,0,0,.14));border-radius:16px;padding:16px;min-height:150px;display:grid;gap:12px;align-content:start;box-sizing:border-box;"><h3 class="card-title">Button Tertiary</h3><div class="component-preview" style="display:flex;align-items:center;justify-content:flex-start;gap:12px;min-height:78px;flex-wrap:wrap;"><button type="button" class="btn demo-control" style="background:#010102;color:#f7f8f8;border-radius:8px;padding:8px 14px;border:1px solid var(--border);min-height:44px;display:inline-flex;align-items:center;justify-content:center;gap:8px;max-width:100%;box-sizing:border-box;font:inherit;text-decoration:none;white-space:normal;">Button Tertiary</button></div></div><div class="card component-card sample-card" style="background:var(--surface, var(--canvas, #fff));color:var(--ink, #111);border:1px solid var(--border, rgba(0,0,0,.14));border-radius:16px;padding:16px;min-height:150px;display:grid;gap:12px;align-content:start;box-sizing:border-box;"><h3 class="card-title">Button Inverse</h3><div class="component-preview" style="display:flex;align-items:center;justify-content:flex-start;gap:12px;min-height:78px;flex-wrap:wrap;"><button type="button" class="btn demo-control" style="background:#ffffff;color:#000000;border-radius:8px;padding:8px 14px;border:1px solid transparent;min-height:44px;display:inline-flex;align-items:center;justify-content:center;gap:8px;max-width:100%;box-sizing:border-box;font:inherit;text-decoration:none;white-space:normal;">Button Inverse</button></div></div><div class="card component-card sample-card" style="background:var(--surface, var(--canvas, #fff));color:var(--ink, #111);border:1px solid var(--border, rgba(0,0,0,.14));border-radius:16px;padding:16px;min-height:150px;display:grid;gap:12px;align-content:start;box-sizing:border-box;"><h3 class="card-title">Pricing Card</h3><div class="component-preview" style="display:flex;align-items:center;justify-content:flex-start;gap:12px;min-height:78px;flex-wrap:wrap;"><article class="sample-card" style="background:#0f1011;color:#f7f8f8;border-radius:12px;padding:24px;border:1px solid transparent;min-height:44px;display:grid;gap:10px;width:100%;box-sizing:border-box;"><div style="height:56px;border-radius:inherit;background:linear-gradient(135deg, currentColor, transparent);opacity:.14;"></div><strong>Pricing Card</strong><span style="opacity:.72;">Featured item</span></article></div></div><div class="card component-card sample-card" style="background:var(--surface, var(--canvas, #fff));color:var(--ink, #111);border:1px solid var(--border, rgba(0,0,0,.14));border-radius:16px;padding:16px;min-height:150px;display:grid;gap:12px;align-content:start;box-sizing:border-box;"><h3 class="card-title">Pricing Card Featured</h3><div class="component-preview" style="display:flex;align-items:center;justify-content:flex-start;gap:12px;min-height:78px;flex-wrap:wrap;"><article class="sample-card" style="background:#141516;color:#f7f8f8;border-radius:12px;padding:24px;border:1px solid transparent;min-height:44px;display:grid;gap:10px;width:100%;box-sizing:border-box;"><div style="height:56px;border-radius:inherit;background:linear-gradient(135deg, currentColor, transparent);opacity:.14;"></div><strong>Pricing Card Featured</strong><span style="opacity:.72;">Featured item</span></article></div></div><div class="card component-card sample-card" style="background:var(--surface, var(--canvas, #fff));color:var(--ink, #111);border:1px solid var(--border, rgba(0,0,0,.14));border-radius:16px;padding:16px;min-height:150px;display:grid;gap:12px;align-content:start;box-sizing:border-box;"><h3 class="card-title">Feature Card</h3><div class="component-preview" style="display:flex;align-items:center;justify-content:flex-start;gap:12px;min-height:78px;flex-wrap:wrap;"><article class="sample-card" style="background:#0f1011;color:#f7f8f8;border-radius:12px;padding:24px;border:1px solid transparent;min-height:44px;display:grid;gap:10px;width:100%;box-sizing:border-box;"><div style="height:56px;border-radius:inherit;background:linear-gradient(135deg, currentColor, transparent);opacity:.14;"></div><strong>Feature Card</strong><span style="opacity:.72;">Featured item</span></article></div></div><div class="card component-card sample-card" style="background:var(--surface, var(--canvas, #fff));color:var(--ink, #111);border:1px solid var(--border, rgba(0,0,0,.14));border-radius:16px;padding:16px;min-height:150px;display:grid;gap:12px;align-content:start;box-sizing:border-box;"><h3 class="card-title">Product Screenshot Card</h3><div class="component-preview" style="display:flex;align-items:center;justify-content:flex-start;gap:12px;min-height:78px;flex-wrap:wrap;"><article class="sample-card" style="background:#0f1011;color:#f7f8f8;border-radius:16px;padding:24px;border:1px solid transparent;min-height:44px;display:grid;gap:10px;width:100%;box-sizing:border-box;"><div style="height:56px;border-radius:inherit;background:linear-gradient(135deg, currentColor, transparent);opacity:.14;"></div><strong>Product Screenshot Card</strong><span style="opacity:.72;">Featured item</span></article></div></div><div class="card component-card sample-card" style="background:var(--surface, var(--canvas, #fff));color:var(--ink, #111);border:1px solid var(--border, rgba(0,0,0,.14));border-radius:16px;padding:16px;min-height:150px;display:grid;gap:12px;align-content:start;box-sizing:border-box;"><h3 class="card-title">Testimonial Card</h3><div class="component-preview" style="display:flex;align-items:center;justify-content:flex-start;gap:12px;min-height:78px;flex-wrap:wrap;"><article class="sample-card" style="background:#0f1011;color:#f7f8f8;border-radius:12px;padding:32px;border:1px solid transparent;min-height:44px;display:grid;gap:10px;width:100%;box-sizing:border-box;"><div style="height:56px;border-radius:inherit;background:linear-gradient(135deg, currentColor, transparent);opacity:.14;"></div><strong>Testimonial Card</strong><span style="opacity:.72;">Featured item</span></article></div></div><div class="card component-card sample-card" style="background:var(--surface, var(--canvas, #fff));color:var(--ink, #111);border:1px solid var(--border, rgba(0,0,0,.14));border-radius:16px;padding:16px;min-height:150px;display:grid;gap:12px;align-content:start;box-sizing:border-box;"><h3 class="card-title">Customer Logo Tile</h3><div class="component-preview" style="display:flex;align-items:center;justify-content:flex-start;gap:12px;min-height:78px;flex-wrap:wrap;"><article class="sample-card" style="background:#010102;color:#8a8f98;border-radius:4px;padding:16px;border:1px solid var(--border);min-height:44px;display:grid;gap:10px;width:100%;box-sizing:border-box;"><div style="height:56px;border-radius:inherit;background:linear-gradient(135deg, currentColor, transparent);opacity:.14;"></div><strong>Customer Logo Tile</strong><span style="opacity:.72;">Featured item</span></article></div></div><div class="card component-card sample-card" style="background:var(--surface, var(--canvas, #fff));color:var(--ink, #111);border:1px solid var(--border, rgba(0,0,0,.14));border-radius:16px;padding:16px;min-height:150px;display:grid;gap:12px;align-content:start;box-sizing:border-box;"><h3 class="card-title">Text Input</h3><div class="component-preview" style="display:flex;align-items:center;justify-content:flex-start;gap:12px;min-height:78px;flex-wrap:wrap;"><label class="form-token" style="display:grid;gap:8px;width:100%;"><span style="font-size:12px;font-weight:700;color:var(--muted, currentColor);">Text Input</span><input class="form-input" value="Text Input" style="background:#0f1011;color:#f7f8f8;border-radius:8px;padding:8px 12px;border:1px solid transparent;min-height:44px;width:100%;box-sizing:border-box;font:inherit;"></label></div></div><div class="card component-card sample-card" style="background:var(--surface, var(--canvas, #fff));color:var(--ink, #111);border:1px solid var(--border, rgba(0,0,0,.14));border-radius:16px;padding:16px;min-height:150px;display:grid;gap:12px;align-content:start;box-sizing:border-box;"><h3 class="card-title">Text Input Focused</h3><div class="component-preview" style="display:flex;align-items:center;justify-content:flex-start;gap:12px;min-height:78px;flex-wrap:wrap;"><label class="form-token" style="display:grid;gap:8px;width:100%;"><span style="font-size:12px;font-weight:700;color:var(--muted, currentColor);">Text Input Focused</span><input class="form-input" value="Text Input Focused" style="background:#0f1011;color:#f7f8f8;border-radius:8px;padding:8px 12px;border:1px solid transparent;min-height:44px;width:100%;box-sizing:border-box;font:inherit;"></label></div></div><div class="card component-card sample-card" style="background:var(--surface, var(--canvas, #fff));color:var(--ink, #111);border:1px solid var(--border, rgba(0,0,0,.14));border-radius:16px;padding:16px;min-height:150px;display:grid;gap:12px;align-content:start;box-sizing:border-box;"><h3 class="card-title">Pricing Tab Default</h3><div class="component-preview" style="display:flex;align-items:center;justify-content:flex-start;gap:12px;min-height:78px;flex-wrap:wrap;"><nav class="nav-token" aria-label="pricing-tab-default" style="display:flex;align-items:center;gap:8px;flex-wrap:wrap;"><a style="background:#010102;color:#8a8f98;border-radius:9999px;padding:6px 14px;border:1px solid var(--border);min-height:44px;display:inline-flex;align-items:center;justify-content:center;gap:8px;max-width:100%;box-sizing:border-box;font:inherit;text-decoration:none;white-space:normal;">Pricing Tab Default</a><a style="color:var(--muted, currentColor);text-decoration:none;padding:8px 10px;">Overview</a></nav></div></div><div class="card component-card sample-card" style="background:var(--surface, var(--canvas, #fff));color:var(--ink, #111);border:1px solid var(--border, rgba(0,0,0,.14));border-radius:16px;padding:16px;min-height:150px;display:grid;gap:12px;align-content:start;box-sizing:border-box;"><h3 class="card-title">Pricing Tab Selected</h3><div class="component-preview" style="display:flex;align-items:center;justify-content:flex-start;gap:12px;min-height:78px;flex-wrap:wrap;"><label class="form-token" style="display:grid;gap:8px;width:100%;"><span style="font-size:12px;font-weight:700;color:var(--muted, currentColor);">Pricing Tab Selected</span><input class="form-input" value="Pricing Tab Selected" style="background:#141516;color:#f7f8f8;border-radius:9999px;padding:6px 14px;border:1px solid transparent;min-height:44px;width:100%;box-sizing:border-box;font:inherit;"></label></div></div><div class="card component-card sample-card" style="background:var(--surface, var(--canvas, #fff));color:var(--ink, #111);border:1px solid var(--border, rgba(0,0,0,.14));border-radius:16px;padding:16px;min-height:150px;display:grid;gap:12px;align-content:start;box-sizing:border-box;"><h3 class="card-title">Cta Banner</h3><div class="component-preview" style="display:flex;align-items:center;justify-content:flex-start;gap:12px;min-height:78px;flex-wrap:wrap;"><button type="button" class="btn demo-control" style="background:#0f1011;color:#f7f8f8;border-radius:12px;padding:48px;border:1px solid transparent;min-height:44px;display:inline-flex;align-items:center;justify-content:center;gap:8px;max-width:100%;box-sizing:border-box;font:inherit;text-decoration:none;white-space:normal;">Cta Banner</button></div></div><div class="card component-card sample-card" style="background:var(--surface, var(--canvas, #fff));color:var(--ink, #111);border:1px solid var(--border, rgba(0,0,0,.14));border-radius:16px;padding:16px;min-height:150px;display:grid;gap:12px;align-content:start;box-sizing:border-box;"><h3 class="card-title">Changelog Row</h3><div class="component-preview" style="display:flex;align-items:center;justify-content:flex-start;gap:12px;min-height:78px;flex-wrap:wrap;"><div class="surface-token" style="background:#010102;color:#f7f8f8;border-radius:4px;padding:12px 18px;border:1px solid var(--border);min-height:44px;width:100%;box-sizing:border-box;"><strong>Changelog Row</strong></div></div></div><div class="card component-card sample-card" style="background:var(--surface, var(--canvas, #fff));color:var(--ink, #111);border:1px solid var(--border, rgba(0,0,0,.14));border-radius:16px;padding:16px;min-height:150px;display:grid;gap:12px;align-content:start;box-sizing:border-box;"><h3 class="card-title">Status Badge</h3><div class="component-preview" style="display:flex;align-items:center;justify-content:flex-start;gap:12px;min-height:78px;flex-wrap:wrap;"><span class="badge chip demo-control" style="background:#141516;color:#d0d6e0;border-radius:9999px;padding:2px 8px;border:1px solid transparent;min-height:44px;display:inline-flex;align-items:center;justify-content:center;gap:8px;max-width:100%;box-sizing:border-box;font:inherit;text-decoration:none;white-space:normal;">Status Badge</span></div></div><div class="card component-card sample-card" style="background:var(--surface, var(--canvas, #fff));color:var(--ink, #111);border:1px solid var(--border, rgba(0,0,0,.14));border-radius:16px;padding:16px;min-height:150px;display:grid;gap:12px;align-content:start;box-sizing:border-box;"><h3 class="card-title">Top Nav</h3><div class="component-preview" style="display:flex;align-items:center;justify-content:flex-start;gap:12px;min-height:78px;flex-wrap:wrap;"><nav class="nav-token" aria-label="top-nav" style="display:flex;align-items:center;gap:8px;flex-wrap:wrap;"><a style="background:#010102;color:#f7f8f8;border-radius:4px;padding:12px 18px;border:1px solid var(--border);min-height:56px;display:inline-flex;align-items:center;justify-content:center;gap:8px;max-width:100%;box-sizing:border-box;font:inherit;text-decoration:none;white-space:normal;">Top Nav</a><a style="color:var(--muted, currentColor);text-decoration:none;padding:8px 10px;">Overview</a></nav></div></div><div class="card component-card sample-card" style="background:var(--surface, var(--canvas, #fff));color:var(--ink, #111);border:1px solid var(--border, rgba(0,0,0,.14));border-radius:16px;padding:16px;min-height:150px;display:grid;gap:12px;align-content:start;box-sizing:border-box;"><h3 class="card-title">Footer</h3><div class="component-preview" style="display:flex;align-items:center;justify-content:flex-start;gap:12px;min-height:78px;flex-wrap:wrap;"><div role="contentinfo" class="footer-token" style="background:#010102;color:#8a8f98;border-radius:4px;padding:64px 32px;border:1px solid var(--border);min-height:44px;display:flex;align-items:center;justify-content:space-between;gap:12px;width:100%;box-sizing:border-box;flex-wrap:wrap;"><strong>Footer</strong><a style="color:inherit;text-decoration:underline;">Terms</a></div></div></div></div>
+</section>
 
-    <section>
-      <div class="section-label">04 - Interface Samples</div>
-      <h2 class="section-heading">Reusable product surfaces</h2>
-      <div class="card-grid">
-        <div class="feature-card"><h4>Feature card</h4><p>Use this card treatment for summaries, benefits, or product modules with concise supporting text.</p><span class="badge">New</span></div>
-        <div class="feature-card"><h4>Data card</h4><p>Pair a strong heading with a compact metric and muted explanatory copy.</p><div style="font:800 36px/1 var(--display);color:var(--primary);margin-top:14px">24%</div></div>
-        <div class="feature-card"><h4>Content card</h4><p>Keep content blocks aligned to the design system's spacing and type hierarchy.</p><span class="btn primary" style="margin-top:14px">Continue</span></div>
-      </div>
-    </section>
+<section id="cards" style="background: var(--surface-1);">
+<div class="section-label">05 / Cards</div>
+<h2 class="section-title section-heading">Cards</h2>
+<div class="card-grid"><div class="card component-card sample-card" style="background:var(--surface, var(--canvas, #fff));color:var(--ink, #111);border:1px solid var(--border, rgba(0,0,0,.14));border-radius:16px;padding:16px;min-height:150px;display:grid;gap:12px;align-content:start;box-sizing:border-box;"><h3 class="card-title">Pricing Card</h3><div class="component-preview" style="display:flex;align-items:center;justify-content:flex-start;gap:12px;min-height:78px;flex-wrap:wrap;"><article class="sample-card" style="background:#0f1011;color:#f7f8f8;border-radius:12px;padding:24px;border:1px solid transparent;min-height:44px;display:grid;gap:10px;width:100%;box-sizing:border-box;"><div style="height:56px;border-radius:inherit;background:linear-gradient(135deg, currentColor, transparent);opacity:.14;"></div><strong>Pricing Card</strong><span style="opacity:.72;">Featured item</span></article></div></div><div class="card component-card sample-card" style="background:var(--surface, var(--canvas, #fff));color:var(--ink, #111);border:1px solid var(--border, rgba(0,0,0,.14));border-radius:16px;padding:16px;min-height:150px;display:grid;gap:12px;align-content:start;box-sizing:border-box;"><h3 class="card-title">Pricing Card Featured</h3><div class="component-preview" style="display:flex;align-items:center;justify-content:flex-start;gap:12px;min-height:78px;flex-wrap:wrap;"><article class="sample-card" style="background:#141516;color:#f7f8f8;border-radius:12px;padding:24px;border:1px solid transparent;min-height:44px;display:grid;gap:10px;width:100%;box-sizing:border-box;"><div style="height:56px;border-radius:inherit;background:linear-gradient(135deg, currentColor, transparent);opacity:.14;"></div><strong>Pricing Card Featured</strong><span style="opacity:.72;">Featured item</span></article></div></div><div class="card component-card sample-card" style="background:var(--surface, var(--canvas, #fff));color:var(--ink, #111);border:1px solid var(--border, rgba(0,0,0,.14));border-radius:16px;padding:16px;min-height:150px;display:grid;gap:12px;align-content:start;box-sizing:border-box;"><h3 class="card-title">Feature Card</h3><div class="component-preview" style="display:flex;align-items:center;justify-content:flex-start;gap:12px;min-height:78px;flex-wrap:wrap;"><article class="sample-card" style="background:#0f1011;color:#f7f8f8;border-radius:12px;padding:24px;border:1px solid transparent;min-height:44px;display:grid;gap:10px;width:100%;box-sizing:border-box;"><div style="height:56px;border-radius:inherit;background:linear-gradient(135deg, currentColor, transparent);opacity:.14;"></div><strong>Feature Card</strong><span style="opacity:.72;">Featured item</span></article></div></div><div class="card component-card sample-card" style="background:var(--surface, var(--canvas, #fff));color:var(--ink, #111);border:1px solid var(--border, rgba(0,0,0,.14));border-radius:16px;padding:16px;min-height:150px;display:grid;gap:12px;align-content:start;box-sizing:border-box;"><h3 class="card-title">Product Screenshot Card</h3><div class="component-preview" style="display:flex;align-items:center;justify-content:flex-start;gap:12px;min-height:78px;flex-wrap:wrap;"><article class="sample-card" style="background:#0f1011;color:#f7f8f8;border-radius:16px;padding:24px;border:1px solid transparent;min-height:44px;display:grid;gap:10px;width:100%;box-sizing:border-box;"><div style="height:56px;border-radius:inherit;background:linear-gradient(135deg, currentColor, transparent);opacity:.14;"></div><strong>Product Screenshot Card</strong><span style="opacity:.72;">Featured item</span></article></div></div><div class="card component-card sample-card" style="background:var(--surface, var(--canvas, #fff));color:var(--ink, #111);border:1px solid var(--border, rgba(0,0,0,.14));border-radius:16px;padding:16px;min-height:150px;display:grid;gap:12px;align-content:start;box-sizing:border-box;"><h3 class="card-title">Testimonial Card</h3><div class="component-preview" style="display:flex;align-items:center;justify-content:flex-start;gap:12px;min-height:78px;flex-wrap:wrap;"><article class="sample-card" style="background:#0f1011;color:#f7f8f8;border-radius:12px;padding:32px;border:1px solid transparent;min-height:44px;display:grid;gap:10px;width:100%;box-sizing:border-box;"><div style="height:56px;border-radius:inherit;background:linear-gradient(135deg, currentColor, transparent);opacity:.14;"></div><strong>Testimonial Card</strong><span style="opacity:.72;">Featured item</span></article></div></div><div class="card component-card sample-card" style="background:var(--surface, var(--canvas, #fff));color:var(--ink, #111);border:1px solid var(--border, rgba(0,0,0,.14));border-radius:16px;padding:16px;min-height:150px;display:grid;gap:12px;align-content:start;box-sizing:border-box;"><h3 class="card-title">Customer Logo Tile</h3><div class="component-preview" style="display:flex;align-items:center;justify-content:flex-start;gap:12px;min-height:78px;flex-wrap:wrap;"><article class="sample-card" style="background:#010102;color:#8a8f98;border-radius:4px;padding:16px;border:1px solid var(--border);min-height:44px;display:grid;gap:10px;width:100%;box-sizing:border-box;"><div style="height:56px;border-radius:inherit;background:linear-gradient(135deg, currentColor, transparent);opacity:.14;"></div><strong>Customer Logo Tile</strong><span style="opacity:.72;">Featured item</span></article></div></div></div>
+</section>
 
-    <section>
-      <div class="section-label">05 - Forms</div>
-      <h2 class="section-heading">Inputs and inline feedback</h2>
-      <div class="form-grid">
-        <div class="form-cell"><label class="button-label">Email</label><input class="text-input" value="team@example.com" aria-label="Email sample"></div>
-        <div class="form-cell"><label class="button-label">Status</label><span class="badge">Active</span></div>
-        <div class="form-cell"><label class="button-label">Action group</label><div style="display:flex;gap:10px;flex-wrap:wrap"><span class="btn primary">Save</span><span class="btn">Cancel</span></div></div>
-      </div>
-    </section>
+<section>
+  <div class="section-eyebrow">05 — Form Elements</div>
+  <h2 class="section-heading">Forms</h2>
+  <div class="form-grid">
+    <div class="form-field"><label class="form-label">text-input · default</label><input class="form-input" type="email" placeholder="Work email"></div>
+    <div class="form-field"><label class="form-label">text-input · focused</label><input class="form-input focused" type="text" value="Jane Doe"></div>
+    <div class="form-field"><label class="form-label">text-input · disabled</label><input class="form-input" type="text" value="—" disabled style="opacity:0.5"></div>
+    <div class="form-field" style="grid-column:span 2;min-width:0"><label class="form-label">textarea</label><textarea class="form-input" placeholder="Tell us about your team..."></textarea></div>
+    <div class="form-field"><button class="b-btn b-primary">Submit</button></div>
+  </div>
+</section>
 
-    <section>
-      <div class="section-label">06 - Spacing</div>
-      <h2 class="section-heading">Spacing scale</h2>
-      <div class="spacing-row">
-        <div class="spacing-block"><div class="spacing-bar" style="height:4px"></div><div class="spacing-label">xxs · 4px</div></div><div class="spacing-block"><div class="spacing-bar" style="height:8px"></div><div class="spacing-label">xs · 8px</div></div><div class="spacing-block"><div class="spacing-bar" style="height:12px"></div><div class="spacing-label">sm · 12px</div></div><div class="spacing-block"><div class="spacing-bar" style="height:16px"></div><div class="spacing-label">md · 16px</div></div><div class="spacing-block"><div class="spacing-bar" style="height:24px"></div><div class="spacing-label">lg · 24px</div></div><div class="spacing-block"><div class="spacing-bar" style="height:32px"></div><div class="spacing-label">xl · 32px</div></div><div class="spacing-block"><div class="spacing-bar" style="height:48px"></div><div class="spacing-label">xxl · 48px</div></div><div class="spacing-block"><div class="spacing-bar" style="height:96px"></div><div class="spacing-label">section · 96px</div></div>
-      </div>
-    </section>
+<section style="background: var(--surface-1);">
+  <div class="section-eyebrow">06 — Spacing &amp; Radius</div>
+  <h2 class="section-heading">Spacing</h2>
+  <div class="spacing-row">
+    <div class="spacing-cell"><div class="spacing-bar" style="width:4px"></div><div class="spacing-meta">xxs · 4px</div></div>
+    <div class="spacing-cell"><div class="spacing-bar" style="width:8px"></div><div class="spacing-meta">xs · 8px</div></div>
+    <div class="spacing-cell"><div class="spacing-bar" style="width:12px"></div><div class="spacing-meta">sm · 12px</div></div>
+    <div class="spacing-cell"><div class="spacing-bar" style="width:16px"></div><div class="spacing-meta">md · 16px</div></div>
+    <div class="spacing-cell"><div class="spacing-bar" style="width:24px"></div><div class="spacing-meta">lg · 24px</div></div>
+    <div class="spacing-cell"><div class="spacing-bar" style="width:32px"></div><div class="spacing-meta">xl · 32px</div></div>
+    <div class="spacing-cell"><div class="spacing-bar" style="width:48px"></div><div class="spacing-meta">xxl · 48px</div></div>
+    <div class="spacing-cell"><div class="spacing-bar" style="width:96px"></div><div class="spacing-meta">section · 96px</div></div>
+  </div>
+  <h3 style="font-size:28px;font-weight:600;letter-spacing:-0.6px;margin:48px 0 24px">Radius</h3>
+  <div class="radius-row">
+    <div class="radius-cell"><div class="radius-box" style="border-radius:4px"></div><div class="radius-meta">xs · 4px</div></div>
+    <div class="radius-cell"><div class="radius-box" style="border-radius:6px"></div><div class="radius-meta">sm · 6px</div></div>
+    <div class="radius-cell"><div class="radius-box" style="border-radius:8px"></div><div class="radius-meta">md · 8px</div></div>
+    <div class="radius-cell"><div class="radius-box" style="border-radius:12px"></div><div class="radius-meta">lg · 12px</div></div>
+    <div class="radius-cell"><div class="radius-box" style="border-radius:16px"></div><div class="radius-meta">xl · 16px</div></div>
+    <div class="radius-cell"><div class="radius-box" style="border-radius:24px"></div><div class="radius-meta">xxl · 24px</div></div>
+    <div class="radius-cell"><div class="radius-box" style="border-radius:9999px;width:96px"></div><div class="radius-meta">pill · 9999</div></div>
+  </div>
+</section>
 
-    <section>
-      <div class="section-label">07 - Radius</div>
-      <h2 class="section-heading">Shape language</h2>
-      <div class="radius-row">
-        <div class="radius-block" style="border-radius:4px">xs</div><div class="radius-block" style="border-radius:6px">sm</div><div class="radius-block" style="border-radius:8px">md</div><div class="radius-block" style="border-radius:12px">lg</div><div class="radius-block" style="border-radius:16px">xl</div><div class="radius-block" style="border-radius:24px">xxl</div><div class="radius-block" style="border-radius:9999px">pill</div><div class="radius-block" style="border-radius:9999px">full</div>
-      </div>
-    </section>
+<section>
+  <div class="section-eyebrow">07 — Elevation &amp; Depth</div>
+  <h2 class="section-heading">Elevation</h2>
+  <div class="elevation-grid">
+    <div class="elev-card elev-0">Level 0 — flat</div>
+    <div class="elev-card elev-1">Level 1 — surface-1</div>
+    <div class="elev-card elev-2">Level 2 — surface-2</div>
+    <div class="elev-card elev-3">Level 3 — surface-3</div>
+    <div class="elev-card elev-4">Level 4 — focus ring</div>
+  </div>
+</section>
 
-    <section id="responsive">
-      <div class="section-label">08 - Responsive Behavior</div>
-      <h2 class="section-heading">Layout strategy</h2>
-      <table class="responsive-table">
-        <thead><tr><th>Viewport</th><th>Behavior</th></tr></thead>
-        <tbody>
-          <tr><td>Mobile</td><td>Single column layout, compact nav, tighter section padding.</td></tr>
-          <tr><td>Tablet</td><td>Two-column component grids and readable type hierarchy.</td></tr>
-          <tr><td>Desktop</td><td>Wide token catalog, multi-column cards, expanded whitespace.</td></tr>
-        </tbody>
-      </table>
-    </section>
-  </main>
+<section style="background: var(--surface-1);">
+  <div class="section-eyebrow">08 — Responsive Behavior</div>
+  <h2 class="section-heading">Responsive</h2>
+  <table class="responsive-table">
+    <thead><tr><th>Name</th><th>Width</th><th>Key Changes</th></tr></thead>
+    <tbody>
+      <tr><td>Desktop-XL</td><td>1440px</td><td>Default desktop layout</td></tr>
+      <tr><td>Desktop</td><td>1280px</td><td>Card grid 3-up maintained</td></tr>
+      <tr><td>Tablet</td><td>1024px</td><td>Card grid 3-up → 2-up</td></tr>
+      <tr><td>Mobile-Lg</td><td>768px</td><td>Pricing comparison becomes accordion; nav hamburger</td></tr>
+      <tr><td>Mobile</td><td>480px</td><td>Single-column; display-xl scales 80px → ~36px</td></tr>
+    </tbody>
+  </table>
+  <div class="device-ladder">
+    <div class="device-cell" style="width:60px;height:120px">375</div>
+    <div class="device-cell" style="width:130px;height:170px">768</div>
+    <div class="device-cell" style="width:170px;height:200px">1024</div>
+    <div class="device-cell" style="width:220px;height:230px">1280</div>
+    <div class="device-cell" style="width:280px;height:260px">1440</div>
+  </div>
+  <div style="display:grid;grid-template-columns:1fr 1fr;gap:48px;margin-top:32px">
+    <div>
+      <div class="button-label" style="margin-bottom:12px">Touch Targets</div>
+      <ul style="font-size:15px;line-height:1.6;padding-left:20px;margin:0;color:var(--ink-subtle)">
+        <li>CTAs hold ≥40px tap height across viewports.</li>
+        <li>Pricing tab pills hold ≥36px → ≥44px on touch.</li>
+        <li>Form inputs hold ≥44px tap target on touch.</li>
+      </ul>
+    </div>
+    <div>
+      <div class="button-label" style="margin-bottom:12px">Collapsing Strategy</div>
+      <ul style="font-size:15px;line-height:1.6;padding-left:20px;margin:0;color:var(--ink-subtle)">
+        <li>Top nav: links collapse to hamburger below 768px.</li>
+        <li>Card grids: 3-up → 2-up at 1024px → 1-up below 768px.</li>
+        <li>Pricing comparison: per-tier accordion below 768px.</li>
+        <li>Display type scales 80px → 40px while preserving negative tracking.</li>
+      </ul>
+    </div>
+  </div>
+</section>
 
-  <footer class="footer">Generated from DESIGN.md tokens for local preview and review.</footer>
+<footer class="footer">
+  <div class="footer-shell">
+    <p>Linear</p>
+    <p class="token-meta">Design token preview</p>
+  </div>
+</footer>
+
 </body>
 </html>

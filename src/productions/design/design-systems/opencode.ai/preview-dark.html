@@ -1,174 +1,841 @@
 <!DOCTYPE html>
 <html lang="en">
 <head>
-  <meta charset="UTF-8">
-  <meta name="viewport" content="width=device-width, initial-scale=1.0">
-  <title>OpenCode Design System Preview</title>
-  <style>
-    :root {
-      --primary: #201d1d;
-      --on-primary: #ffffff;
-      --canvas: #0f1115;
-      --surface: #181b22;
-      --surface-strong: #20242d;
-      --ink: #f7f7f8;
-      --body: rgba(255,255,255,0.76);
-      --muted: rgba(255,255,255,0.52);
-      --border: rgba(15,0,0,0.12);
-      --display: Berkeley Mono;
-      --text: Berkeley Mono;
-      --mono: ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, monospace;
-    }
-    * { box-sizing: border-box; margin: 0; padding: 0; }
-    html, body { background: var(--canvas); color: var(--ink); font-family: var(--text); font-size: 16px; line-height: 1.5; }
-    body { min-width: 320px; }
-    .nav { position: sticky; top: 0; z-index: 20; display: grid; grid-template-columns: 1fr auto 1fr; align-items: center; gap: 20px; height: 64px; padding: 0 48px; background: color-mix(in srgb, var(--canvas) 92%, transparent); border-bottom: 1px solid var(--border); backdrop-filter: blur(14px); }
-    .brand { font-family: var(--display); font-weight: 700; letter-spacing: -0.02em; color: var(--ink); }
-    .nav-links { list-style: none; display: flex; gap: 24px; justify-content: center; }
-    .nav-links a { color: var(--body); text-decoration: none; font-size: 14px; font-weight: 600; }
-    .nav-cta { justify-self: end; border: 0; background: var(--primary); color: var(--on-primary); border-radius: 8px; padding: 11px 18px; font: 700 13px/1 var(--text); }
-    .hero { max-width: 1440px; margin: 0 auto; padding: 84px 48px 72px; display: grid; grid-template-columns: minmax(0, 1.1fr) minmax(320px, 0.9fr); gap: 48px; align-items: center; }
-    .eyebrow { color: var(--muted); font: 700 11px/1.2 var(--mono); letter-spacing: 0.12em; text-transform: uppercase; margin-bottom: 18px; }
-    h1 { font-family: var(--display); font-size: clamp(40px, 6vw, 72px); line-height: 1.04; letter-spacing: -0.045em; font-weight: 750; max-width: 980px; }
-    .hero p { margin-top: 26px; max-width: 760px; color: var(--body); font-size: 18px; line-height: 1.65; }
-    .hero-actions { margin-top: 34px; display: flex; gap: 12px; flex-wrap: wrap; }
-    .btn { display: inline-flex; align-items: center; justify-content: center; min-height: 44px; border-radius: 8px; padding: 0 20px; border: 1px solid var(--border); font: 700 14px/1 var(--text); color: var(--ink); background: var(--surface); }
-    .btn.primary { background: var(--primary); color: var(--on-primary); border-color: var(--primary); }
-    .hero-panel { background: var(--surface); border: 1px solid var(--border); border-radius: 18px; overflow: hidden; box-shadow: 0 24px 70px rgba(0,0,0,.12); }
-    .panel-top { height: 44px; display: flex; align-items: center; gap: 7px; padding: 0 16px; border-bottom: 1px solid var(--border); background: var(--surface-strong); }
-    .dot { width: 10px; height: 10px; border-radius: 999px; background: var(--primary); opacity: .85; }
-    .panel-body { padding: 22px; display: grid; gap: 14px; }
-    .metric { display: grid; grid-template-columns: 88px 1fr; gap: 14px; align-items: center; padding: 14px; border: 1px solid var(--border); border-radius: 12px; background: var(--canvas); }
-    .metric strong { color: var(--primary); font-family: var(--mono); font-size: 22px; }
-    .metric span { color: var(--body); font-size: 13px; }
-    section { max-width: 1440px; margin: 0 auto; padding: 78px 48px; border-top: 1px solid var(--border); }
-    .section-label { color: var(--muted); font: 800 11px/1.2 var(--mono); letter-spacing: .12em; text-transform: uppercase; margin-bottom: 12px; }
-    .section-heading { font-family: var(--display); font-size: clamp(26px, 3.5vw, 42px); line-height: 1.12; letter-spacing: -.025em; margin-bottom: 16px; }
-    .section-intro { color: var(--body); max-width: 760px; margin-bottom: 42px; line-height: 1.65; }
-    .palette-grid, .button-grid, .card-grid, .form-grid, .elevation-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(230px, 1fr)); gap: 18px; }
-    .swatch, .component-cell, .feature-card, .form-cell, .elevation-card { background: var(--surface); border: 1px solid var(--border); border-radius: 14px; overflow: hidden; min-width: 0; }
-    .swatch-color { height: 108px; border-bottom: 1px solid var(--border); }
-    .swatch-meta, .component-cell, .feature-card, .form-cell, .elevation-card { padding: 18px; }
-    .swatch-name, .button-label { font-weight: 800; font-size: 13px; color: var(--ink); margin-bottom: 5px; overflow-wrap: anywhere; }
-    .swatch-hex, .button-meta, .type-meta, .spacing-label { font-family: var(--mono); font-size: 12px; color: var(--muted); overflow-wrap: anywhere; }
-    .type-row { display: grid; grid-template-columns: 300px 1fr; gap: 32px; align-items: baseline; padding: 20px 0; border-bottom: 1px solid var(--border); }
-    .type-sample { color: var(--ink); overflow-wrap: anywhere; }
-    .demo-button { display: inline-flex; align-items: center; justify-content: center; min-height: 40px; border-radius: 8px; border: 1px solid var(--border); padding: 0 16px; font-weight: 700; max-width: 100%; }
-    .feature-card h4, .elevation-card h4 { font-size: 18px; margin-bottom: 8px; }
-    .feature-card p, .elevation-card p { color: var(--body); font-size: 14px; line-height: 1.55; }
-    .text-input { width: 100%; min-height: 44px; border-radius: 8px; border: 1px solid var(--border); background: var(--canvas); color: var(--ink); padding: 0 14px; font: 500 15px/1 var(--text); }
-    .badge { display: inline-flex; align-items: center; border-radius: 999px; background: var(--surface-strong); color: var(--ink); min-height: 28px; padding: 0 12px; font: 800 11px/1 var(--mono); letter-spacing: .08em; text-transform: uppercase; }
-    .spacing-row, .radius-row { display: flex; flex-wrap: wrap; gap: 18px; align-items: end; }
-    .spacing-block { display: grid; justify-items: center; gap: 8px; }
-    .spacing-bar { width: 54px; min-height: 4px; background: var(--primary); border-radius: 6px; }
-    .radius-block { width: 96px; height: 96px; display: grid; place-items: center; background: var(--surface); border: 1px solid var(--border); color: var(--muted); font: 700 12px/1 var(--mono); }
-    .responsive-table { width: 100%; border-collapse: collapse; background: var(--surface); border: 1px solid var(--border); border-radius: 14px; overflow: hidden; }
-    .responsive-table th, .responsive-table td { text-align: left; padding: 14px 16px; border-bottom: 1px solid var(--border); color: var(--body); }
-    .responsive-table th { color: var(--ink); font: 800 11px/1.2 var(--mono); letter-spacing: .1em; text-transform: uppercase; }
-    .footer { padding: 34px 48px; border-top: 1px solid var(--border); color: var(--muted); text-align: center; font-size: 13px; }
-    @media (max-width: 900px) { .nav { grid-template-columns: 1fr auto; padding: 0 20px; } .nav-links { display: none; } .nav-cta { display: none; } .hero { grid-template-columns: 1fr; padding: 56px 20px; } section { padding: 56px 20px; } .type-row { grid-template-columns: 1fr; gap: 8px; } }
-  </style>
+<meta charset="UTF-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1" />
+<title>OpenCode Design System Preview</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=JetBrains+Mono:wght@400;500;700&display=swap" rel="stylesheet">
+<style>
+  :root {
+--primary: #201d1d;
+    --on-primary: #fdfcfc;
+    --canvas: #1a1817;
+    --surface: #242120;
+    --surface-elevated: #2e2a29;
+    --surface-deep: #0e0c0c;
+    --hairline: rgba(255,255,255,0.12);
+    --hairline-strong: rgba(255,255,255,0.24);
+    --ink: #fdfcfc;
+    --body: rgba(255,255,255,0.85);
+    --mute: rgba(255,255,255,0.6);
+    --stone: rgba(255,255,255,0.45);
+    --ash: #9a9898;
+    --on-dark: #fdfcfc;
+    --on-dark-mute: #9a9898;
+    --accent: #007aff;
+    --warning: #ff9f0a;
+    --danger: #ff3b30;
+    --success: #30d158;
+
+    --font-mono: 'JetBrains Mono', 'Berkeley Mono', 'IBM Plex Mono', ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, monospace;
+  --color-primary: #201d1d;
+  --color-on-primary: #ffffff;
+  --color-ink: #f7f7f8;
+  --ink-deep: #0f0000;
+  --color-ink-deep: #0f0000;
+  --charcoal: #302c2c;
+  --color-charcoal: #302c2c;
+  --color-body: rgba(255,255,255,0.76);
+  --color-mute: #646262;
+  --color-stone: #6e6e73;
+  --color-ash: #9a9898;
+  --color-canvas: #0f1115;
+  --surface-soft: #f8f7f7;
+  --color-surface-soft: #f8f7f7;
+  --surface-card: #f1eeee;
+  --color-surface-card: #f1eeee;
+  --surface-dark: #201d1d;
+  --color-surface-dark: #201d1d;
+  --surface-dark-elevated: #302c2c;
+  --color-surface-dark-elevated: #302c2c;
+  --color-hairline: rgba(15,0,0,0.12);
+  --color-hairline-strong: #646262;
+  --color-on-dark: #fdfcfc;
+  --color-on-dark-mute: #9a9898;
+  --color-accent: #007aff;
+  --accent-hover: #0056b3;
+  --color-accent-hover: #0056b3;
+  --accent-active: #004085;
+  --color-accent-active: #004085;
+  --color-warning: #ff9f0a;
+  --warning-hover: #cc7f08;
+  --color-warning-hover: #cc7f08;
+  --warning-active: #995f06;
+  --color-warning-active: #995f06;
+  --color-danger: #ff3b30;
+  --danger-hover: #d70015;
+  --color-danger-hover: #d70015;
+  --danger-active: #a50011;
+  --color-danger-active: #a50011;
+  --color-success: #30d158;
+}
+
+  * { box-sizing: border-box; }
+  html, body { margin: 0; padding: 0; }
+  body {
+    font-family: var(--font-mono);
+    background: var(--canvas);
+    color: var(--ink);
+    -webkit-font-smoothing: antialiased;
+    line-height: 1.5;
+    font-size: 16px;
+  }
+
+  /* NAV */
+  .nav {
+    position: sticky;
+    top: 0;
+    z-index: 100;
+    background: var(--canvas);
+    color: var(--ink);
+    padding: 0 48px;
+    height: 64px;
+    border-bottom: 1px solid var(--hairline);
+  }
+  .nav-brand { font-family: var(--font-mono); font-weight: 700; font-size: 16px; color: var(--ink); }
+  .nav-links { list-style: none; display: flex; gap: 24px; padding: 0; margin: 0; }
+  .nav-links a { font-family: var(--font-mono); font-size: 15px; font-weight: 500; color: var(--ink); text-decoration: none; }
+  .nav-cta {
+    background: var(--primary);
+    color: var(--on-primary);
+    border: none;
+    border-radius: 4px;
+    padding: 0 20px;
+    height: 36px;
+    font-family: var(--font-mono);
+    font-size: 15px;
+    font-weight: 500;
+    cursor: pointer;
+  }
+
+  /* HERO */
+  .hero {
+    padding: 96px 48px;
+    background: var(--canvas);
+    display: block;
+    max-width: 1440px;
+    margin: 0 auto;
+  }
+  .hero-content { max-width: 1200px; }
+  .hero h1 {
+    font-family: var(--font-mono);
+    font-size: 48px;
+    font-weight: 700;
+    line-height: 1.5;
+    color: var(--ink);
+    margin: 0 0 32px;
+    letter-spacing: 0;
+    text-align: left;
+  }
+  .hero p {
+    font-size: 16px;
+    color: var(--body);
+    max-width: 900px;
+    margin: 0 0 40px;
+    line-height: 1.5;
+    text-align: left;
+  }
+  .hero-actions { display: flex; gap: 12px; flex-wrap: wrap; justify-content: flex-start; }
+  .btn {
+    font-family: var(--font-mono);
+    font-size: 16px;
+    font-weight: 500;
+    border-radius: 4px;
+    padding: 4px 20px;
+    height: 36px;
+    border: none;
+    cursor: pointer;
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    line-height: 2;
+  }
+  .btn-primary { background: var(--primary); color: var(--on-primary); }
+  .btn-secondary { background: var(--canvas); color: var(--ink); border: 1px solid var(--hairline-strong); }
+  .btn-disabled { background: var(--surface-elevated); color: var(--stone); cursor: not-allowed; }
+
+  /* SECTIONS */
+  section {
+    padding: 96px 48px;
+    max-width: 1440px;
+    margin: 0 auto;
+    border-top: 1px solid var(--hairline);
+  }
+  .section-eyebrow {
+    font-family: var(--font-mono);
+    font-size: 14px;
+    font-weight: 700;
+    color: var(--mute);
+    margin: 0 0 12px;
+  }
+  .section-heading {
+    font-family: var(--font-mono);
+    font-size: 24px;
+    font-weight: 700;
+    line-height: 1.5;
+    color: var(--ink);
+    margin: 0 0 16px;
+  }
+  .section-desc { font-size: 16px; color: var(--body); max-width: 820px; margin: 0 0 48px; }
+
+  /* PALETTE */
+  .palette-block { margin-bottom: 48px; }
+  .palette-block-label {
+    font-family: var(--font-mono);
+    font-size: 14px;
+    font-weight: 700;
+    color: var(--ink);
+    margin: 0 0 16px;
+  }
+  .palette-grid {
+    display: grid;
+    grid-template-columns: repeat(auto-fill, minmax(220px, 1fr));
+    gap: 16px;
+  }
+  .swatch {
+    background: var(--surface);
+    border: 1px solid var(--hairline);
+    border-radius: 4px;
+    overflow: hidden;
+  }
+  .swatch-color { height: 100px; }
+  .swatch-meta { padding: 14px 16px 16px; }
+  .swatch-name { font-family: var(--font-mono); font-size: 14px; font-weight: 700; color: var(--ink); margin: 0 0 2px; }
+  .swatch-hex { font-family: var(--font-mono); font-size: 12px; color: var(--mute); margin: 0 0 6px; }
+  .swatch-role { font-family: var(--font-mono); font-size: 13px; color: var(--body); margin: 0; line-height: 1.5; }
+
+  /* TYPOGRAPHY */
+  .type-row {
+    display: grid;
+    grid-template-columns: 280px 1fr;
+    gap: 32px;
+    padding: 24px 0;
+    border-bottom: 1px solid var(--hairline);
+    align-items: baseline;
+  }
+  .type-meta { font-family: var(--font-mono); font-size: 12px; color: var(--mute); line-height: 1.6; }
+  .type-meta strong { display: block; color: var(--ink); font-weight: 700; font-size: 13px; margin-bottom: 4px; }
+  .type-sample { color: var(--ink); font-family: var(--font-mono); }
+
+  /* BUTTONS GRID */
+  .button-grid {
+    display: grid;
+    grid-template-columns: repeat(auto-fill, minmax(280px, 1fr));
+    gap: 24px;
+  }
+  .button-cell {
+    border: 1px solid var(--hairline);
+    border-radius: 4px;
+    padding: 24px 20px 20px;
+    background: var(--surface);
+    color: var(--ink);
+    display: flex;
+    flex-direction: column;
+    align-items: flex-start;
+    gap: 12px;
+  }
+  .button-cell-label { font-family: var(--font-mono); font-size: 13px; font-weight: 700; color: var(--ink); margin: 0; }
+  .button-cell-spec { font-family: var(--font-mono); font-size: 11px; color: var(--mute); margin: 0; line-height: 1.5; }
+
+  /* TABS */
+  .tab-strip { display: flex; border-bottom: 2px solid var(--hairline-strong); }
+  .tab {
+    padding: 8px 16px;
+    background: transparent;
+    color: var(--mute);
+    border: none;
+    font-family: var(--font-mono);
+    font-size: 16px;
+    font-weight: 500;
+    cursor: pointer;
+    margin-bottom: -2px;
+  }
+  .tab.active { color: var(--ink); border-bottom: 2px solid var(--ink); }
+
+  /* BADGES */
+  .badge-news {
+    display: inline-block;
+    background: var(--surface-deep);
+    color: var(--on-dark);
+    padding: 2px 8px;
+    border-radius: 4px;
+    font-family: var(--font-mono);
+    font-size: 14px;
+    font-weight: 400;
+    border: 1px solid var(--hairline);
+  }
+
+  /* INSTALL SNIPPET */
+  .install-snippet {
+    background: var(--surface-elevated);
+    color: var(--ink);
+    font-family: var(--font-mono);
+    font-size: 16px;
+    padding: 12px 16px;
+    border-radius: 4px;
+    display: flex;
+    align-items: center;
+    gap: 12px;
+    width: 100%;
+  }
+  .install-snippet .copy { margin-left: auto; color: var(--mute); }
+
+  /* HERO TUI MOCKUP */
+  .hero-tui-mockup {
+    background: var(--surface-deep);
+    color: var(--on-dark);
+    padding: 64px 32px;
+    border-radius: 0;
+    text-align: center;
+    border: 1px solid var(--hairline);
+  }
+  .ascii-wordmark {
+    font-family: var(--font-mono);
+    font-weight: 700;
+    font-size: 56px;
+    line-height: 1;
+    color: var(--ash);
+    letter-spacing: 4px;
+    text-shadow: 0 0 1px var(--ash);
+    margin: 0 0 32px;
+  }
+  .tui-prompt-row {
+    background: var(--surface);
+    color: var(--on-dark);
+    padding: 8px 12px;
+    border-radius: 4px;
+    font-family: var(--font-mono);
+    font-size: 14px;
+    text-align: left;
+    max-width: 600px;
+    margin: 0 auto 16px;
+  }
+  .tui-prompt-row .pipe { color: var(--ash); }
+  .tui-keybindings {
+    font-family: var(--font-mono);
+    font-size: 13px;
+    color: var(--ash);
+    text-align: center;
+    margin: 16px 0 0;
+  }
+
+  /* LIST ROWS */
+  .list-rows { max-width: 720px; }
+  .list-row {
+    padding: 8px 0;
+    font-family: var(--font-mono);
+    font-size: 16px;
+    color: var(--body);
+    line-height: 1.5;
+  }
+  .list-row .marker { color: var(--ink); margin-right: 8px; }
+  .list-row .label { color: var(--ink); font-weight: 700; margin-right: 8px; }
+
+  /* FAQ */
+  .faq-list { max-width: 720px; }
+  .faq-row {
+    padding: 12px 0;
+    border-bottom: 1px solid var(--hairline);
+    font-family: var(--font-mono);
+    font-size: 16px;
+    color: var(--ink);
+  }
+  .faq-row .marker { color: var(--mute); margin-right: 12px; }
+
+  /* TESTIMONIAL */
+  .testimonial-row {
+    background: var(--surface);
+    color: var(--body);
+    padding: 16px 20px;
+    border-radius: 4px;
+    margin-bottom: 12px;
+    display: flex;
+    gap: 16px;
+    align-items: flex-start;
+    border: 1px solid var(--hairline);
+  }
+  .testimonial-avatar {
+    width: 32px;
+    height: 32px;
+    border-radius: 9999px;
+    background: var(--accent);
+    flex-shrink: 0;
+  }
+  .testimonial-name { font-weight: 700; color: var(--ink); }
+  .testimonial-meta { color: var(--mute); }
+
+  /* CHART TILES */
+  .chart-grid {
+    display: grid;
+    grid-template-columns: repeat(auto-fill, minmax(220px, 1fr));
+    gap: 32px;
+  }
+  .chart-tile {
+    background: var(--canvas);
+    color: var(--body);
+    padding: 16px;
+    border-radius: 0;
+  }
+  .chart-svg { width: 100%; height: 80px; }
+  .chart-caption { font-family: var(--font-mono); font-size: 14px; color: var(--mute); margin-top: 8px; }
+
+  /* FORMS */
+  .form-grid {
+    display: grid;
+    grid-template-columns: repeat(auto-fill, minmax(280px, 1fr));
+    gap: 24px;
+    max-width: 800px;
+  }
+  .form-cell { display: flex; flex-direction: column; gap: 6px; }
+  .form-label { font-family: var(--font-mono); font-size: 14px; font-weight: 700; color: var(--ink); }
+  .form-spec { font-family: var(--font-mono); font-size: 11px; color: var(--mute); margin-top: 4px; }
+  input.text-input, textarea.text-input {
+    height: 40px;
+    border: 1px solid var(--hairline);
+    background: var(--surface-elevated);
+    color: var(--ink);
+    border-radius: 4px;
+    padding: 0 12px;
+    font-family: var(--font-mono);
+    font-size: 16px;
+  }
+  textarea.text-input { height: auto; min-height: 96px; padding: 12px; resize: vertical; line-height: 1.5; }
+  input.text-input.focused { background: var(--surface); border-color: var(--ink); outline: none; }
+
+  /* SPACING + RADIUS */
+  .spacing-row, .radius-row { display: flex; align-items: flex-end; gap: 24px; flex-wrap: wrap; }
+  .spacing-cell { display: flex; flex-direction: column; align-items: center; gap: 8px; }
+  .spacing-bar { background: var(--ink); height: 32px; }
+  .spacing-label { font-family: var(--font-mono); font-size: 11px; color: var(--mute); }
+  .radius-cell { display: flex; flex-direction: column; align-items: center; gap: 8px; }
+  .radius-box { width: 100px; height: 100px; background: var(--surface-elevated); border: 1px solid var(--hairline); }
+  .radius-label { font-family: var(--font-mono); font-size: 11px; color: var(--mute); }
+  .radius-context { font-family: var(--font-mono); font-size: 12px; color: var(--body); text-align: center; max-width: 110px; }
+
+  /* ELEVATION */
+  .elevation-grid {
+    display: grid;
+    grid-template-columns: repeat(auto-fill, minmax(220px, 1fr));
+    gap: 24px;
+    background: var(--surface);
+    padding: 32px;
+    border-radius: 4px;
+  }
+  .elevation-card {
+    background: var(--canvas);
+    height: 140px;
+    padding: 20px;
+    display: flex;
+    flex-direction: column;
+    justify-content: space-between;
+    border-radius: 0;
+  }
+  .elevation-card.level-1 { border: 1px solid var(--hairline); }
+  .elevation-card.level-2 { border: 1px solid var(--hairline-strong); }
+  .elevation-card.level-3 { background: var(--surface-deep); border: 1px solid var(--hairline); }
+  .elevation-name { font-family: var(--font-mono); font-size: 14px; font-weight: 700; color: inherit; }
+  .elevation-spec { font-family: var(--font-mono); font-size: 11px; color: var(--mute); }
+
+  /* RESPONSIVE TABLE */
+  .responsive-table { width: 100%; border-collapse: collapse; font-family: var(--font-mono); font-size: 14px; }
+  .responsive-table th, .responsive-table td {
+    text-align: left;
+    padding: 14px 12px;
+    border-bottom: 1px solid var(--hairline);
+    vertical-align: top;
+  }
+  .responsive-table th { font-weight: 700; color: var(--ink); background: var(--surface); font-size: 13px; }
+  .responsive-table td { color: var(--body); }
+
+  .device-ladder { display: flex; align-items: flex-end; gap: 16px; margin-top: 32px; flex-wrap: wrap; }
+  .device { background: var(--surface); border: 1px solid var(--hairline); display: flex; flex-direction: column; align-items: center; justify-content: flex-end; padding: 12px; border-radius: 4px; }
+  .device .label { font-family: var(--font-mono); font-size: 11px; color: var(--mute); margin-top: 8px; }
+  .device .name { font-family: var(--font-mono); font-size: 11px; color: var(--ink); font-weight: 700; }
+  .device.phone { width: 48px; height: 96px; }
+  .device.phone-large { width: 64px; height: 120px; }
+  .device.tablet { width: 100px; height: 150px; }
+  .device.desktop-small { width: 160px; height: 130px; }
+  .device.desktop { width: 220px; height: 150px; }
+
+  .responsive-sub-block { margin-top: 40px; }
+  .responsive-sub-block h3 { font-family: var(--font-mono); font-size: 18px; font-weight: 700; margin: 0 0 12px; color: var(--ink); }
+  .responsive-sub-block ul { padding-left: 18px; line-height: 1.7; color: var(--body); font-family: var(--font-mono); font-size: 14px; }
+
+  /* FOOTER */
+  .footer {
+    padding: 32px 48px;
+    text-align: center;
+    background: var(--canvas);
+    border-top: 1px solid var(--hairline);
+    color: var(--body);
+    font-family: var(--font-mono);
+    font-size: 14px;
+  }
+  .footer a { color: var(--ink); font-weight: 700; }
+
+  /* Overflow guards */
+  .cell, .cell > *, .demo, .button-cell, .component-cell { min-width: 0; }
+  .cell.wide,
+  .button-cell.wide,
+  .component-cell.wide { grid-column: span 2; }
+
+  @media (max-width: 1024px) {
+    section { padding: 64px 32px; }
+    .section-heading { font-size: 22px; }
+    .nav { padding: 0 32px; }
+    .nav > :last-child { display: none; }
+    .type-row { grid-template-columns: 1fr; gap: 8px; }
+    .type-row .type-meta { padding-bottom: 4px; }
+    .form-grid { gap: 16px; }
+    .hero { padding: 64px 32px; }
+    .hero h1 { font-size: 38px; }
+    .ascii-wordmark { font-size: 40px; }
+  }
+
+  @media (max-width: 720px) {
+    .cell.wide, .button-cell.wide, .component-cell.wide { grid-column: span 1; }
+    .nav { padding: 12px 20px; height: auto; min-height: 56px; }
+    .nav-links { display: none; }
+    .hero { padding: 48px 20px; }
+    .hero h1 { font-size: 28px; }
+    .hero p { font-size: 15px; }
+    section { padding: 48px 20px; }
+    .section-heading { font-size: 20px; }
+    .palette-grid, .button-grid, .card-grid, .form-grid, .demo-grid, .elevation-grid, .chart-grid { grid-template-columns: 1fr !important; gap: 16px; }
+    .ascii-wordmark { font-size: 28px; letter-spacing: 2px; }
+    .hero-tui-mockup { padding: 32px 16px; }
+    .spacing-row, .radius-row { gap: 12px; }
+    .responsive-table { font-size: 12px; }
+    .responsive-table th, .responsive-table td { padding: 10px 8px; }
+    .device-ladder { gap: 8px; }
+    .footer { padding: 24px 16px; font-size: 12px; }
+  }
+
+  /* design catalog nav additions */
+  .nav-left { display: flex; align-items: center; gap: 20px; }
+  .nav-brand-link,
+  .nav-brand-link:link,
+  .nav-brand-link:visited,
+  .nav-brand-link:hover,
+  .nav-brand-link:active { text-decoration: none; color: inherit; }
+  .nav-github,
+  .nav-github:link,
+  .nav-github:visited,
+  .nav-github:hover,
+  .nav-github:active {
+    display: inline-flex;
+    align-items: center;
+    gap: 6px;
+    font-size: 12px;
+    font-weight: 600;
+    color: inherit;
+    text-decoration: none;
+    padding: 5px 10px;
+    border: 1px solid rgba(128, 128, 128, 0.3);
+    border-radius: 6px;
+    opacity: 0.75;
+    transition: opacity 200ms ease, border-color 200ms ease;
+    font-family: inherit;
+    line-height: 1;
+    white-space: nowrap;
+  }
+  .nav-github:hover { opacity: 1; border-color: rgba(128, 128, 128, 0.55); }
+  .nav-github svg { display: block; flex-shrink: 0; }
+
+  /* design catalog nav centering */
+  .nav { display: grid; grid-template-columns: 1fr auto 1fr; align-items: center; }
+  .nav > .nav-left { justify-self: start; }
+  .nav > .nav-links { justify-self: center; }
+  .nav > :last-child { justify-self: end; }
+
+  /* Dark-nav GitHub override */
+  .nav .nav-github { color: #ffffff; border-color: rgba(255, 255, 255, 0.25); }
+  .nav .nav-github:hover { border-color: rgba(255, 255, 255, 0.5); }
+
+
+  /* Shared Agent Platform footer content */
+  .footer { text-align: left; }
+  .footer-shell { max-width: 1200px; margin: 0 auto; }
+  .footer-grid { display: grid; grid-template-columns: repeat(4, minmax(0, 1fr)); gap: 32px; }
+  .footer-col h6 { margin: 0 0 14px; color: inherit; font: inherit; font-weight: 700; font-size: 14px; line-height: 1.2; }
+  .footer-col span { display: block; margin: 0 0 10px; color: inherit; opacity: 0.72; font-size: 14px; line-height: 1.35; }
+  .footer-credit { margin-top: 48px; padding-top: 24px; border-top: 1px solid currentColor; color: inherit; opacity: 0.78; font-size: 13px; line-height: 1.4; }
+  .footer-credit a { color: inherit; text-decoration: none; font-weight: 600; }
+  .footer-credit img { border-radius: 3px; vertical-align: -2px; margin-right: 3px; }
+  @media (max-width: 760px) {
+    .footer-grid { grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 24px; }
+  }
+</style>
 </head>
 <body>
-  <nav class="nav">
-    <div class="brand">OpenCode</div>
-    <ul class="nav-links"><li><a href="#colors">Colors</a></li><li><a href="#type">Typography</a></li><li><a href="#components">Components</a></li><li><a href="#responsive">Responsive</a></li></ul>
-    <button class="nav-cta">Preview</button>
-  </nav>
 
-  <main>
-    <div class="hero">
+<nav class="nav">
+  <div class="nav-left">
+    <a href="#" target="_blank" rel="noopener noreferrer" class="nav-brand-link">
+      <span class="nav-brand">OpenCode</span>
+    </a>
+
+  </div>
+  <ul class="nav-links">
+    <li><a href="#colors">Colors</a></li>
+    <li><a href="#typography">Typography</a></li>
+    <li><a href="#components">Components</a></li>
+    <li><a href="#layout">Layout</a></li>
+  </ul>
+  <button class="nav-cta">↓ Download</button>
+</nav>
+
+<header class="hero">
+  <div class="hero-content">
+    <h1>Design System Inspiration of OpenCode</h1>
+    <p>Terminal-native marketing system rendered entirely in monospace. In dark mode the warm cream canvas inverts to a deep warm-tinted near-black while every typographic decision and layout rhythm stays unchanged. Bracketed [+] / [-] / [x] ASCII markers, 4px-radius rectangles, and the same hero TUI mockup remain the brand's identity.</p>
+    <div class="hero-actions">
+      <button class="btn btn-primary">↓ Download</button>
+      <button class="btn btn-secondary">Read docs →</button>
+    </div>
+  </div>
+</header>
+
+<!-- COLOR PALETTE -->
+<section id="colors">
+<div class="section-label">01 / Color Palette</div>
+<h2 class="section-title section-heading">Color Palette</h2>
+<div class="palette-group color-group"><h3 class="subhead color-group-title color-group-label">Brand &amp; Accent</h3><div class="palette-grid swatch-grid color-grid"><div class="swatch color-swatch"><div class="swatch-color color-swatch-block color-swatch-preview fill chip" style="background:#201d1d"></div><div class="swatch-info swatch-meta color-swatch-info info meta"><div class="swatch-name color-swatch-name name">Primary</div><div class="swatch-hex color-swatch-hex hex">#201d1d</div><div class="swatch-role color-swatch-role role">Brand &amp; Accent</div></div></div><div class="swatch color-swatch"><div class="swatch-color color-swatch-block color-swatch-preview fill chip" style="background:#fdfcfc"></div><div class="swatch-info swatch-meta color-swatch-info info meta"><div class="swatch-name color-swatch-name name">On Primary</div><div class="swatch-hex color-swatch-hex hex">#fdfcfc</div><div class="swatch-role color-swatch-role role">Brand &amp; Accent</div></div></div><div class="swatch color-swatch"><div class="swatch-color color-swatch-block color-swatch-preview fill chip" style="background:#007aff"></div><div class="swatch-info swatch-meta color-swatch-info info meta"><div class="swatch-name color-swatch-name name">Accent</div><div class="swatch-hex color-swatch-hex hex">#007aff</div><div class="swatch-role color-swatch-role role">Brand &amp; Accent</div></div></div><div class="swatch color-swatch"><div class="swatch-color color-swatch-block color-swatch-preview fill chip" style="background:#0056b3"></div><div class="swatch-info swatch-meta color-swatch-info info meta"><div class="swatch-name color-swatch-name name">Accent Hover</div><div class="swatch-hex color-swatch-hex hex">#0056b3</div><div class="swatch-role color-swatch-role role">Brand &amp; Accent</div></div></div><div class="swatch color-swatch"><div class="swatch-color color-swatch-block color-swatch-preview fill chip" style="background:#004085"></div><div class="swatch-info swatch-meta color-swatch-info info meta"><div class="swatch-name color-swatch-name name">Accent Active</div><div class="swatch-hex color-swatch-hex hex">#004085</div><div class="swatch-role color-swatch-role role">Brand &amp; Accent</div></div></div></div></div><div class="palette-group color-group"><h3 class="subhead color-group-title color-group-label">Surface</h3><div class="palette-grid swatch-grid color-grid"><div class="swatch color-swatch"><div class="swatch-color color-swatch-block color-swatch-preview fill chip" style="background:#fdfcfc"></div><div class="swatch-info swatch-meta color-swatch-info info meta"><div class="swatch-name color-swatch-name name">Canvas</div><div class="swatch-hex color-swatch-hex hex">#fdfcfc</div><div class="swatch-role color-swatch-role role">Surface</div></div></div><div class="swatch color-swatch"><div class="swatch-color color-swatch-block color-swatch-preview fill chip" style="background:#f8f7f7"></div><div class="swatch-info swatch-meta color-swatch-info info meta"><div class="swatch-name color-swatch-name name">Surface Soft</div><div class="swatch-hex color-swatch-hex hex">#f8f7f7</div><div class="swatch-role color-swatch-role role">Surface</div></div></div><div class="swatch color-swatch"><div class="swatch-color color-swatch-block color-swatch-preview fill chip" style="background:#f1eeee"></div><div class="swatch-info swatch-meta color-swatch-info info meta"><div class="swatch-name color-swatch-name name">Surface Card</div><div class="swatch-hex color-swatch-hex hex">#f1eeee</div><div class="swatch-role color-swatch-role role">Surface</div></div></div><div class="swatch color-swatch"><div class="swatch-color color-swatch-block color-swatch-preview fill chip" style="background:#201d1d"></div><div class="swatch-info swatch-meta color-swatch-info info meta"><div class="swatch-name color-swatch-name name">Surface Dark</div><div class="swatch-hex color-swatch-hex hex">#201d1d</div><div class="swatch-role color-swatch-role role">Surface</div></div></div><div class="swatch color-swatch"><div class="swatch-color color-swatch-block color-swatch-preview fill chip" style="background:#302c2c"></div><div class="swatch-info swatch-meta color-swatch-info info meta"><div class="swatch-name color-swatch-name name">Surface Dark Elevated</div><div class="swatch-hex color-swatch-hex hex">#302c2c</div><div class="swatch-role color-swatch-role role">Surface</div></div></div></div></div><div class="palette-group color-group"><h3 class="subhead color-group-title color-group-label">Text</h3><div class="palette-grid swatch-grid color-grid"><div class="swatch color-swatch"><div class="swatch-color color-swatch-block color-swatch-preview fill chip" style="background:#201d1d"></div><div class="swatch-info swatch-meta color-swatch-info info meta"><div class="swatch-name color-swatch-name name">Ink</div><div class="swatch-hex color-swatch-hex hex">#201d1d</div><div class="swatch-role color-swatch-role role">Text</div></div></div><div class="swatch color-swatch"><div class="swatch-color color-swatch-block color-swatch-preview fill chip" style="background:#0f0000"></div><div class="swatch-info swatch-meta color-swatch-info info meta"><div class="swatch-name color-swatch-name name">Ink Deep</div><div class="swatch-hex color-swatch-hex hex">#0f0000</div><div class="swatch-role color-swatch-role role">Text</div></div></div><div class="swatch color-swatch"><div class="swatch-color color-swatch-block color-swatch-preview fill chip" style="background:#424245"></div><div class="swatch-info swatch-meta color-swatch-info info meta"><div class="swatch-name color-swatch-name name">Body</div><div class="swatch-hex color-swatch-hex hex">#424245</div><div class="swatch-role color-swatch-role role">Text</div></div></div><div class="swatch color-swatch"><div class="swatch-color color-swatch-block color-swatch-preview fill chip" style="background:#fdfcfc"></div><div class="swatch-info swatch-meta color-swatch-info info meta"><div class="swatch-name color-swatch-name name">On Dark</div><div class="swatch-hex color-swatch-hex hex">#fdfcfc</div><div class="swatch-role color-swatch-role role">Text</div></div></div><div class="swatch color-swatch"><div class="swatch-color color-swatch-block color-swatch-preview fill chip" style="background:#9a9898"></div><div class="swatch-info swatch-meta color-swatch-info info meta"><div class="swatch-name color-swatch-name name">On Dark Mute</div><div class="swatch-hex color-swatch-hex hex">#9a9898</div><div class="swatch-role color-swatch-role role">Text</div></div></div></div></div><div class="palette-group color-group"><h3 class="subhead color-group-title color-group-label">Borders &amp; Lines</h3><div class="palette-grid swatch-grid color-grid"><div class="swatch color-swatch"><div class="swatch-color color-swatch-block color-swatch-preview fill chip" style="background:rgba(15,0,0,0.12)"></div><div class="swatch-info swatch-meta color-swatch-info info meta"><div class="swatch-name color-swatch-name name">Hairline</div><div class="swatch-hex color-swatch-hex hex">rgba(15,0,0,0.12)</div><div class="swatch-role color-swatch-role role">Borders &amp; Lines</div></div></div><div class="swatch color-swatch"><div class="swatch-color color-swatch-block color-swatch-preview fill chip" style="background:#646262"></div><div class="swatch-info swatch-meta color-swatch-info info meta"><div class="swatch-name color-swatch-name name">Hairline Strong</div><div class="swatch-hex color-swatch-hex hex">#646262</div><div class="swatch-role color-swatch-role role">Borders &amp; Lines</div></div></div></div></div><div class="palette-group color-group"><h3 class="subhead color-group-title color-group-label">Semantic</h3><div class="palette-grid swatch-grid color-grid"><div class="swatch color-swatch"><div class="swatch-color color-swatch-block color-swatch-preview fill chip" style="background:#ff9f0a"></div><div class="swatch-info swatch-meta color-swatch-info info meta"><div class="swatch-name color-swatch-name name">Warning</div><div class="swatch-hex color-swatch-hex hex">#ff9f0a</div><div class="swatch-role color-swatch-role role">Semantic</div></div></div><div class="swatch color-swatch"><div class="swatch-color color-swatch-block color-swatch-preview fill chip" style="background:#cc7f08"></div><div class="swatch-info swatch-meta color-swatch-info info meta"><div class="swatch-name color-swatch-name name">Warning Hover</div><div class="swatch-hex color-swatch-hex hex">#cc7f08</div><div class="swatch-role color-swatch-role role">Semantic</div></div></div><div class="swatch color-swatch"><div class="swatch-color color-swatch-block color-swatch-preview fill chip" style="background:#995f06"></div><div class="swatch-info swatch-meta color-swatch-info info meta"><div class="swatch-name color-swatch-name name">Warning Active</div><div class="swatch-hex color-swatch-hex hex">#995f06</div><div class="swatch-role color-swatch-role role">Semantic</div></div></div><div class="swatch color-swatch"><div class="swatch-color color-swatch-block color-swatch-preview fill chip" style="background:#ff3b30"></div><div class="swatch-info swatch-meta color-swatch-info info meta"><div class="swatch-name color-swatch-name name">Danger</div><div class="swatch-hex color-swatch-hex hex">#ff3b30</div><div class="swatch-role color-swatch-role role">Semantic</div></div></div><div class="swatch color-swatch"><div class="swatch-color color-swatch-block color-swatch-preview fill chip" style="background:#d70015"></div><div class="swatch-info swatch-meta color-swatch-info info meta"><div class="swatch-name color-swatch-name name">Danger Hover</div><div class="swatch-hex color-swatch-hex hex">#d70015</div><div class="swatch-role color-swatch-role role">Semantic</div></div></div><div class="swatch color-swatch"><div class="swatch-color color-swatch-block color-swatch-preview fill chip" style="background:#a50011"></div><div class="swatch-info swatch-meta color-swatch-info info meta"><div class="swatch-name color-swatch-name name">Danger Active</div><div class="swatch-hex color-swatch-hex hex">#a50011</div><div class="swatch-role color-swatch-role role">Semantic</div></div></div><div class="swatch color-swatch"><div class="swatch-color color-swatch-block color-swatch-preview fill chip" style="background:#30d158"></div><div class="swatch-info swatch-meta color-swatch-info info meta"><div class="swatch-name color-swatch-name name">Success</div><div class="swatch-hex color-swatch-hex hex">#30d158</div><div class="swatch-role color-swatch-role role">Semantic</div></div></div></div></div><div class="palette-group color-group"><h3 class="subhead color-group-title color-group-label">Supporting</h3><div class="palette-grid swatch-grid color-grid"><div class="swatch color-swatch"><div class="swatch-color color-swatch-block color-swatch-preview fill chip" style="background:#302c2c"></div><div class="swatch-info swatch-meta color-swatch-info info meta"><div class="swatch-name color-swatch-name name">Charcoal</div><div class="swatch-hex color-swatch-hex hex">#302c2c</div><div class="swatch-role color-swatch-role role">Supporting</div></div></div><div class="swatch color-swatch"><div class="swatch-color color-swatch-block color-swatch-preview fill chip" style="background:#646262"></div><div class="swatch-info swatch-meta color-swatch-info info meta"><div class="swatch-name color-swatch-name name">Mute</div><div class="swatch-hex color-swatch-hex hex">#646262</div><div class="swatch-role color-swatch-role role">Supporting</div></div></div><div class="swatch color-swatch"><div class="swatch-color color-swatch-block color-swatch-preview fill chip" style="background:#6e6e73"></div><div class="swatch-info swatch-meta color-swatch-info info meta"><div class="swatch-name color-swatch-name name">Stone</div><div class="swatch-hex color-swatch-hex hex">#6e6e73</div><div class="swatch-role color-swatch-role role">Supporting</div></div></div><div class="swatch color-swatch"><div class="swatch-color color-swatch-block color-swatch-preview fill chip" style="background:#9a9898"></div><div class="swatch-info swatch-meta color-swatch-info info meta"><div class="swatch-name color-swatch-name name">Ash</div><div class="swatch-hex color-swatch-hex hex">#9a9898</div><div class="swatch-role color-swatch-role role">Supporting</div></div></div></div></div>
+</section>
+
+<!-- TYPOGRAPHY -->
+<section id="typography">
+<div class="section-label">02 / Typography</div>
+<h2 class="section-title section-heading">Typography</h2>
+<div class="type-row type-sample"><div class="type-meta type-label type-sample-label"><strong>display-xl</strong>38px / 700 / 1.5 / 0px</div><div class="type-sample-text type-preview" style="font-family:Berkeley Mono;font-size:38px;font-weight:700;line-height:1.5;letter-spacing:0px;text-transform:none">Build a clear product interface with Display Xl rhythm.</div></div><div class="type-row type-sample"><div class="type-meta type-label type-sample-label"><strong>heading-md</strong>16px / 700 / 1.5 / 0px</div><div class="type-sample-text type-preview" style="font-family:Berkeley Mono;font-size:16px;font-weight:700;line-height:1.5;letter-spacing:0px;text-transform:none">Build a clear product interface with Heading Md rhythm.</div></div><div class="type-row type-sample"><div class="type-meta type-label type-sample-label"><strong>body-md</strong>16px / 400 / 1.5 / 0px</div><div class="type-sample-text type-preview" style="font-family:Berkeley Mono;font-size:16px;font-weight:400;line-height:1.5;letter-spacing:0px;text-transform:none">Build a clear product interface with Body Md rhythm.</div></div><div class="type-row type-sample"><div class="type-meta type-label type-sample-label"><strong>body-strong</strong>16px / 500 / 1.5 / 0px</div><div class="type-sample-text type-preview" style="font-family:Berkeley Mono;font-size:16px;font-weight:500;line-height:1.5;letter-spacing:0px;text-transform:none">Build a clear product interface with Body Strong rhythm.</div></div><div class="type-row type-sample"><div class="type-meta type-label type-sample-label"><strong>body-tight</strong>16px / 500 / 1 / 0px</div><div class="type-sample-text type-preview" style="font-family:Berkeley Mono;font-size:16px;font-weight:500;line-height:1;letter-spacing:0px;text-transform:none">Build a clear product interface with Body Tight rhythm.</div></div><div class="type-row type-sample"><div class="type-meta type-label type-sample-label"><strong>link-md</strong>16px / 400 / 1.5 / 0px</div><div class="type-sample-text type-preview" style="font-family:Berkeley Mono;font-size:16px;font-weight:400;line-height:1.5;letter-spacing:0px;text-transform:none">Build a clear product interface with Link Md rhythm.</div></div><div class="type-row type-sample"><div class="type-meta type-label type-sample-label"><strong>button-md</strong>16px / 500 / 2 / 0px</div><div class="type-sample-text type-preview" style="font-family:Berkeley Mono;font-size:16px;font-weight:500;line-height:2;letter-spacing:0px;text-transform:none">Build a clear product interface with Button Md rhythm.</div></div><div class="type-row type-sample"><div class="type-meta type-label type-sample-label"><strong>caption-md</strong>14px / 400 / 2 / 0px</div><div class="type-sample-text type-preview" style="font-family:Berkeley Mono;font-size:14px;font-weight:400;line-height:2;letter-spacing:0px;text-transform:none">Build a clear product interface with Caption Md rhythm.</div></div>
+</section>
+
+<!-- BUTTONS -->
+<section id="components">
+<div class="section-label">04 / Components</div>
+<h2 class="section-title section-heading">Components</h2>
+<div class="card-grid component-grid inventory-grid"><div class="card component-card sample-card" style="background:var(--surface, var(--canvas, #fff));color:var(--ink, #111);border:1px solid var(--border, rgba(0,0,0,.14));border-radius:16px;padding:16px;min-height:150px;display:grid;gap:12px;align-content:start;box-sizing:border-box;"><h3 class="card-title">Button Primary</h3><div class="component-preview" style="display:flex;align-items:center;justify-content:flex-start;gap:12px;min-height:78px;flex-wrap:wrap;"><button type="button" class="btn demo-control" style="background:#201d1d;color:#fdfcfc;border-radius:4px;padding:4px 20px;border:1px solid transparent;min-height:36px;display:inline-flex;align-items:center;justify-content:center;gap:8px;max-width:100%;box-sizing:border-box;font:inherit;text-decoration:none;white-space:normal;">Button Primary</button></div></div><div class="card component-card sample-card" style="background:var(--surface, var(--canvas, #fff));color:var(--ink, #111);border:1px solid var(--border, rgba(0,0,0,.14));border-radius:16px;padding:16px;min-height:150px;display:grid;gap:12px;align-content:start;box-sizing:border-box;"><h3 class="card-title">Button Primary Active</h3><div class="component-preview" style="display:flex;align-items:center;justify-content:flex-start;gap:12px;min-height:78px;flex-wrap:wrap;"><button type="button" class="btn demo-control" style="background:#0f0000;color:#fdfcfc;border-radius:4px;padding:12px 18px;border:1px solid transparent;min-height:44px;display:inline-flex;align-items:center;justify-content:center;gap:8px;max-width:100%;box-sizing:border-box;font:inherit;text-decoration:none;white-space:normal;">Button Primary Active</button></div></div><div class="card component-card sample-card" style="background:var(--surface, var(--canvas, #fff));color:var(--ink, #111);border:1px solid var(--border, rgba(0,0,0,.14));border-radius:16px;padding:16px;min-height:150px;display:grid;gap:12px;align-content:start;box-sizing:border-box;"><h3 class="card-title">Button Secondary</h3><div class="component-preview" style="display:flex;align-items:center;justify-content:flex-start;gap:12px;min-height:78px;flex-wrap:wrap;"><button type="button" class="btn demo-control" style="background:#fdfcfc;color:#201d1d;border-radius:4px;padding:4px 20px;border:1px solid transparent;min-height:44px;display:inline-flex;align-items:center;justify-content:center;gap:8px;max-width:100%;box-sizing:border-box;font:inherit;text-decoration:none;white-space:normal;">Button Secondary</button></div></div><div class="card component-card sample-card" style="background:var(--surface, var(--canvas, #fff));color:var(--ink, #111);border:1px solid var(--border, rgba(0,0,0,.14));border-radius:16px;padding:16px;min-height:150px;display:grid;gap:12px;align-content:start;box-sizing:border-box;"><h3 class="card-title">Button Tab</h3><div class="component-preview" style="display:flex;align-items:center;justify-content:flex-start;gap:12px;min-height:78px;flex-wrap:wrap;"><button type="button" class="btn demo-control" style="background:transparent;color:#646262;border-radius:0px;padding:8px 16px;border:1px solid var(--border);min-height:44px;display:inline-flex;align-items:center;justify-content:center;gap:8px;max-width:100%;box-sizing:border-box;font:inherit;text-decoration:none;white-space:normal;">Button Tab</button></div></div><div class="card component-card sample-card" style="background:var(--surface, var(--canvas, #fff));color:var(--ink, #111);border:1px solid var(--border, rgba(0,0,0,.14));border-radius:16px;padding:16px;min-height:150px;display:grid;gap:12px;align-content:start;box-sizing:border-box;"><h3 class="card-title">Button Tab Active</h3><div class="component-preview" style="display:flex;align-items:center;justify-content:flex-start;gap:12px;min-height:78px;flex-wrap:wrap;"><button type="button" class="btn demo-control" style="background:transparent;color:#201d1d;border-radius:0px;padding:12px 18px;border:1px solid var(--border);min-height:44px;display:inline-flex;align-items:center;justify-content:center;gap:8px;max-width:100%;box-sizing:border-box;font:inherit;text-decoration:none;white-space:normal;">Button Tab Active</button></div></div><div class="card component-card sample-card" style="background:var(--surface, var(--canvas, #fff));color:var(--ink, #111);border:1px solid var(--border, rgba(0,0,0,.14));border-radius:16px;padding:16px;min-height:150px;display:grid;gap:12px;align-content:start;box-sizing:border-box;"><h3 class="card-title">Button Disabled</h3><div class="component-preview" style="display:flex;align-items:center;justify-content:flex-start;gap:12px;min-height:78px;flex-wrap:wrap;"><button type="button" class="btn demo-control" style="background:#f1eeee;color:#9a9898;border-radius:4px;padding:12px 18px;border:1px solid transparent;min-height:44px;display:inline-flex;align-items:center;justify-content:center;gap:8px;max-width:100%;box-sizing:border-box;font:inherit;text-decoration:none;white-space:normal;">Button Disabled</button></div></div><div class="card component-card sample-card" style="background:var(--surface, var(--canvas, #fff));color:var(--ink, #111);border:1px solid var(--border, rgba(0,0,0,.14));border-radius:16px;padding:16px;min-height:150px;display:grid;gap:12px;align-content:start;box-sizing:border-box;"><h3 class="card-title">Badge News</h3><div class="component-preview" style="display:flex;align-items:center;justify-content:flex-start;gap:12px;min-height:78px;flex-wrap:wrap;"><span class="badge chip demo-control" style="background:#201d1d;color:#fdfcfc;border-radius:4px;padding:2px 8px;border:1px solid transparent;min-height:44px;display:inline-flex;align-items:center;justify-content:center;gap:8px;max-width:100%;box-sizing:border-box;font:inherit;text-decoration:none;white-space:normal;">Badge News</span></div></div><div class="card component-card sample-card" style="background:var(--surface, var(--canvas, #fff));color:var(--ink, #111);border:1px solid var(--border, rgba(0,0,0,.14));border-radius:16px;padding:16px;min-height:150px;display:grid;gap:12px;align-content:start;box-sizing:border-box;"><h3 class="card-title">Text Input</h3><div class="component-preview" style="display:flex;align-items:center;justify-content:flex-start;gap:12px;min-height:78px;flex-wrap:wrap;"><label class="form-token" style="display:grid;gap:8px;width:100%;"><span style="font-size:12px;font-weight:700;color:var(--muted, currentColor);">Text Input</span><input class="form-input" value="Text Input" style="background:#f8f7f7;color:#201d1d;border-radius:4px;padding:8px 12px;border:1px solid transparent;min-height:40px;width:100%;box-sizing:border-box;font:inherit;"></label></div></div><div class="card component-card sample-card" style="background:var(--surface, var(--canvas, #fff));color:var(--ink, #111);border:1px solid var(--border, rgba(0,0,0,.14));border-radius:16px;padding:16px;min-height:150px;display:grid;gap:12px;align-content:start;box-sizing:border-box;"><h3 class="card-title">Text Input Focused</h3><div class="component-preview" style="display:flex;align-items:center;justify-content:flex-start;gap:12px;min-height:78px;flex-wrap:wrap;"><label class="form-token" style="display:grid;gap:8px;width:100%;"><span style="font-size:12px;font-weight:700;color:var(--muted, currentColor);">Text Input Focused</span><input class="form-input" value="Text Input Focused" style="background:#fdfcfc;color:#201d1d;border-radius:4px;padding:12px 18px;border:1px solid transparent;min-height:44px;width:100%;box-sizing:border-box;font:inherit;"></label></div></div><div class="card component-card sample-card" style="background:var(--surface, var(--canvas, #fff));color:var(--ink, #111);border:1px solid var(--border, rgba(0,0,0,.14));border-radius:16px;padding:16px;min-height:150px;display:grid;gap:12px;align-content:start;box-sizing:border-box;"><h3 class="card-title">Textarea</h3><div class="component-preview" style="display:flex;align-items:center;justify-content:flex-start;gap:12px;min-height:78px;flex-wrap:wrap;"><label class="form-token" style="display:grid;gap:8px;width:100%;"><span style="font-size:12px;font-weight:700;color:var(--muted, currentColor);">Textarea</span><input class="form-input" value="Textarea" style="background:#f8f7f7;color:#201d1d;border-radius:4px;padding:12px;border:1px solid transparent;min-height:44px;width:100%;box-sizing:border-box;font:inherit;"></label></div></div><div class="card component-card sample-card" style="background:var(--surface, var(--canvas, #fff));color:var(--ink, #111);border:1px solid var(--border, rgba(0,0,0,.14));border-radius:16px;padding:16px;min-height:150px;display:grid;gap:12px;align-content:start;box-sizing:border-box;"><h3 class="card-title">Install Snippet</h3><div class="component-preview" style="display:flex;align-items:center;justify-content:flex-start;gap:12px;min-height:78px;flex-wrap:wrap;"><div class="surface-token" style="background:#f1eeee;color:#201d1d;border-radius:4px;padding:12px 16px;border:1px solid transparent;min-height:44px;width:100%;box-sizing:border-box;"><strong>Install Snippet</strong></div></div></div><div class="card component-card sample-card" style="background:var(--surface, var(--canvas, #fff));color:var(--ink, #111);border:1px solid var(--border, rgba(0,0,0,.14));border-radius:16px;padding:16px;min-height:150px;display:grid;gap:12px;align-content:start;box-sizing:border-box;"><h3 class="card-title">Hero Tui Mockup</h3><div class="component-preview" style="display:flex;align-items:center;justify-content:flex-start;gap:12px;min-height:78px;flex-wrap:wrap;"><article class="sample-card" style="background:#201d1d;color:#fdfcfc;border-radius:0px;padding:64px 32px;border:1px solid transparent;min-height:44px;display:grid;gap:10px;width:100%;box-sizing:border-box;"><div style="height:56px;border-radius:inherit;background:linear-gradient(135deg, currentColor, transparent);opacity:.14;"></div><strong>Hero Tui Mockup</strong><span style="opacity:.72;">Featured item</span></article></div></div><div class="card component-card sample-card" style="background:var(--surface, var(--canvas, #fff));color:var(--ink, #111);border:1px solid var(--border, rgba(0,0,0,.14));border-radius:16px;padding:16px;min-height:150px;display:grid;gap:12px;align-content:start;box-sizing:border-box;"><h3 class="card-title">Tui Prompt Row</h3><div class="component-preview" style="display:flex;align-items:center;justify-content:flex-start;gap:12px;min-height:78px;flex-wrap:wrap;"><div class="surface-token" style="background:#302c2c;color:#fdfcfc;border-radius:4px;padding:8px 12px;border:1px solid transparent;min-height:44px;width:100%;box-sizing:border-box;"><strong>Tui Prompt Row</strong></div></div></div><div class="card component-card sample-card" style="background:var(--surface, var(--canvas, #fff));color:var(--ink, #111);border:1px solid var(--border, rgba(0,0,0,.14));border-radius:16px;padding:16px;min-height:150px;display:grid;gap:12px;align-content:start;box-sizing:border-box;"><h3 class="card-title">List Row</h3><div class="component-preview" style="display:flex;align-items:center;justify-content:flex-start;gap:12px;min-height:78px;flex-wrap:wrap;"><div class="list-row" style="background:#fdfcfc;color:#424245;border-radius:0px;padding:8px 0px;border:1px solid transparent;min-height:44px;display:flex;align-items:center;gap:12px;width:100%;box-sizing:border-box;"><span style="width:32px;height:32px;border-radius:9999px;background:currentColor;opacity:.14;flex:0 0 auto;"></span><strong>List Row</strong></div></div></div><div class="card component-card sample-card" style="background:var(--surface, var(--canvas, #fff));color:var(--ink, #111);border:1px solid var(--border, rgba(0,0,0,.14));border-radius:16px;padding:16px;min-height:150px;display:grid;gap:12px;align-content:start;box-sizing:border-box;"><h3 class="card-title">Faq Row</h3><div class="component-preview" style="display:flex;align-items:center;justify-content:flex-start;gap:12px;min-height:78px;flex-wrap:wrap;"><div class="surface-token" style="background:#fdfcfc;color:#201d1d;border-radius:0px;padding:12px 0px;border:1px solid transparent;min-height:44px;width:100%;box-sizing:border-box;"><strong>Faq Row</strong></div></div></div><div class="card component-card sample-card" style="background:var(--surface, var(--canvas, #fff));color:var(--ink, #111);border:1px solid var(--border, rgba(0,0,0,.14));border-radius:16px;padding:16px;min-height:150px;display:grid;gap:12px;align-content:start;box-sizing:border-box;"><h3 class="card-title">Testimonial Row</h3><div class="component-preview" style="display:flex;align-items:center;justify-content:flex-start;gap:12px;min-height:78px;flex-wrap:wrap;"><div class="list-row" style="background:#f8f7f7;color:#424245;border-radius:4px;padding:16px 20px;border:1px solid transparent;min-height:44px;display:flex;align-items:center;gap:12px;width:100%;box-sizing:border-box;"><span style="width:32px;height:32px;border-radius:9999px;background:currentColor;opacity:.14;flex:0 0 auto;"></span><strong>Testimonial Row</strong></div></div></div><div class="card component-card sample-card" style="background:var(--surface, var(--canvas, #fff));color:var(--ink, #111);border:1px solid var(--border, rgba(0,0,0,.14));border-radius:16px;padding:16px;min-height:150px;display:grid;gap:12px;align-content:start;box-sizing:border-box;"><h3 class="card-title">Chart Tile</h3><div class="component-preview" style="display:flex;align-items:center;justify-content:flex-start;gap:12px;min-height:78px;flex-wrap:wrap;"><article class="sample-card" style="background:#fdfcfc;color:#424245;border-radius:0px;padding:16px;border:1px solid transparent;min-height:44px;display:grid;gap:10px;width:100%;box-sizing:border-box;"><div style="height:56px;border-radius:inherit;background:linear-gradient(135deg, currentColor, transparent);opacity:.14;"></div><strong>Chart Tile</strong><span style="opacity:.72;">Featured item</span></article></div></div><div class="card component-card sample-card" style="background:var(--surface, var(--canvas, #fff));color:var(--ink, #111);border:1px solid var(--border, rgba(0,0,0,.14));border-radius:16px;padding:16px;min-height:150px;display:grid;gap:12px;align-content:start;box-sizing:border-box;"><h3 class="card-title">Primary Nav</h3><div class="component-preview" style="display:flex;align-items:center;justify-content:flex-start;gap:12px;min-height:78px;flex-wrap:wrap;"><nav class="nav-token" aria-label="primary-nav" style="display:flex;align-items:center;gap:8px;flex-wrap:wrap;"><a style="background:#fdfcfc;color:#201d1d;border-radius:0px;padding:12px 18px;border:1px solid transparent;min-height:56px;display:inline-flex;align-items:center;justify-content:center;gap:8px;max-width:100%;box-sizing:border-box;font:inherit;text-decoration:none;white-space:normal;">Primary Nav</a><a style="color:var(--muted, currentColor);text-decoration:none;padding:8px 10px;">Overview</a></nav></div></div><div class="card component-card sample-card" style="background:var(--surface, var(--canvas, #fff));color:var(--ink, #111);border:1px solid var(--border, rgba(0,0,0,.14));border-radius:16px;padding:16px;min-height:150px;display:grid;gap:12px;align-content:start;box-sizing:border-box;"><h3 class="card-title">Footer Section</h3><div class="component-preview" style="display:flex;align-items:center;justify-content:flex-start;gap:12px;min-height:78px;flex-wrap:wrap;"><div role="contentinfo" class="footer-token" style="background:#fdfcfc;color:#424245;border-radius:0px;padding:32px 0px;border:1px solid transparent;min-height:44px;display:flex;align-items:center;justify-content:space-between;gap:12px;width:100%;box-sizing:border-box;flex-wrap:wrap;"><strong>Footer Section</strong><a style="color:inherit;text-decoration:underline;">Terms</a></div></div></div><div class="card component-card sample-card" style="background:var(--surface, var(--canvas, #fff));color:var(--ink, #111);border:1px solid var(--border, rgba(0,0,0,.14));border-radius:16px;padding:16px;min-height:150px;display:grid;gap:12px;align-content:start;box-sizing:border-box;"><h3 class="card-title">Link Inline</h3><div class="component-preview" style="display:flex;align-items:center;justify-content:flex-start;gap:12px;min-height:78px;flex-wrap:wrap;"><button type="button" class="btn demo-control" style="background:#181b22;color:#201d1d;border-radius:12px;padding:12px 18px;border:1px solid transparent;min-height:44px;display:inline-flex;align-items:center;justify-content:center;gap:8px;max-width:100%;box-sizing:border-box;font:inherit;text-decoration:none;white-space:normal;">Learn more</button></div></div><div class="card component-card sample-card" style="background:var(--surface, var(--canvas, #fff));color:var(--ink, #111);border:1px solid var(--border, rgba(0,0,0,.14));border-radius:16px;padding:16px;min-height:150px;display:grid;gap:12px;align-content:start;box-sizing:border-box;"><h3 class="card-title">Badge Section Label</h3><div class="component-preview" style="display:flex;align-items:center;justify-content:flex-start;gap:12px;min-height:78px;flex-wrap:wrap;"><span class="badge chip demo-control" style="background:transparent;color:#201d1d;border-radius:0px;padding:12px 18px;border:1px solid var(--border);min-height:44px;display:inline-flex;align-items:center;justify-content:center;gap:8px;max-width:100%;box-sizing:border-box;font:inherit;text-decoration:none;white-space:normal;">Badge Section Label</span></div></div></div>
+</section>
+
+<!-- HERO TUI MOCKUP -->
+<section>
+  <p class="section-eyebrow">[04] Signature</p>
+  <h2 class="section-heading">Hero TUI Mockup</h2>
+  <p class="section-desc">The deepest dark surface in the system, sitting one notch below canvas — with the same ASCII block-pixel wordmark, inset prompt row, and keybinding hints.</p>
+
+  <div class="hero-tui-mockup">
+    <div class="ascii-wordmark">opencode</div>
+    <div class="tui-prompt-row">
+      <span class="pipe">│ </span><span style="color:var(--accent)">Build</span>  <span style="color:var(--ash)">Claude Opus 4.5  OpenCode Zen</span>
+    </div>
+    <div class="tui-keybindings">tab switch agent  ctrl-p commands</div>
+  </div>
+</section>
+
+<!-- LIST + FAQ + TESTIMONIAL -->
+<section>
+  <p class="section-eyebrow">[05] Content Rows</p>
+  <h2 class="section-heading">List · FAQ · Testimonial Rows</h2>
+  <p class="section-desc">Bracketed ASCII markers carry the bullet vocabulary on dark canvas exactly as on light.</p>
+
+  <p class="palette-block-label">[+] List Rows</p>
+  <div class="list-rows" style="margin-bottom:48px">
+    <div class="list-row"><span class="marker">[+]</span> <span class="label">LSP enabled</span> Automatically loads the right LSPs for the IDE</div>
+    <div class="list-row"><span class="marker">[+]</span> <span class="label">Multi-session</span> Start multiple agents in parallel on the same project</div>
+    <div class="list-row"><span class="marker">[+]</span> <span class="label">Share Links</span> Share a link to any session for others to debug</div>
+    <div class="list-row"><span class="marker">[+]</span> <span class="label">GitHub Copilot</span> Log in with GitHub to use your Copilot account</div>
+    <div class="list-row"><span class="marker">[+]</span> <span class="label">Any model</span> 75+ LLM providers through Models.dev, including local models</div>
+    <div class="list-row"><span class="marker">[+]</span> <span class="label">Any editor</span> Available as a terminal interface, desktop app, and IDE extension</div>
+  </div>
+
+  <p class="palette-block-label">[+] FAQ Rows</p>
+  <div class="faq-list" style="margin-bottom:48px">
+    <div class="faq-row"><span class="marker">+</span>What is OpenCode?</div>
+    <div class="faq-row"><span class="marker">+</span>How do I use OpenCode?</div>
+    <div class="faq-row"><span class="marker">+</span>Do I need extra subscriptions to use OpenCode?</div>
+    <div class="faq-row"><span class="marker">+</span>Can I use my existing subscriptions with OpenCode?</div>
+    <div class="faq-row"><span class="marker">+</span>How much does OpenCode cost?</div>
+    <div class="faq-row"><span class="marker">+</span>Is OpenCode open source?</div>
+  </div>
+
+  <p class="palette-block-label">[+] Testimonial Rows</p>
+  <div>
+    <div class="testimonial-row">
+      <div class="testimonial-avatar"></div>
       <div>
-        <div class="eyebrow">Design System Preview</div>
-        <h1>OpenCode visual system</h1>
-        <p>A terminal-native marketing system rendered entirely in Berkeley Mono — every word on the page, from the hero headline down to the footer fine print, is monospaced. The page itself.</p>
-        <div class="hero-actions"><span class="btn primary">Primary action</span><span class="btn">Secondary action</span></div>
-      </div>
-      <div class="hero-panel" aria-label="Interface sample">
-        <div class="panel-top"><span class="dot"></span><span class="dot"></span><span class="dot"></span></div>
-        <div class="panel-body">
-          <div class="metric"><strong>01</strong><span>Token driven color, type, spacing, and component decisions.</span></div>
-          <div class="metric"><strong>AA</strong><span>Preview surfaces highlight contrast, hierarchy, and UI rhythm.</span></div>
-          <div class="metric"><strong>UI</strong><span>Reusable cards, controls, form fields, labels, and responsive states.</span></div>
-        </div>
+        <div><span class="testimonial-name">Row label</span> <span class="testimonial-meta">role · company</span></div>
+        <div>Generic testimonial body rendered in body-md on a surface row at 4px radius.</div>
       </div>
     </div>
-
-    <section id="colors">
-      <div class="section-label">01 - Color Palette</div>
-      <h2 class="section-heading">Core colors and semantic surfaces</h2>
-      <p class="section-intro">The palette below is extracted from the structured design tokens. Swatches show the available roles and their exact CSS values.</p>
-      <div class="palette-grid">
-        <div class="swatch"><div class="swatch-color" style="background:#201d1d"></div><div class="swatch-meta"><div class="swatch-name">primary</div><div class="swatch-hex">#201d1d</div></div></div><div class="swatch"><div class="swatch-color" style="background:#fdfcfc"></div><div class="swatch-meta"><div class="swatch-name">on-primary</div><div class="swatch-hex">#fdfcfc</div></div></div><div class="swatch"><div class="swatch-color" style="background:#201d1d"></div><div class="swatch-meta"><div class="swatch-name">ink</div><div class="swatch-hex">#201d1d</div></div></div><div class="swatch"><div class="swatch-color" style="background:#0f0000"></div><div class="swatch-meta"><div class="swatch-name">ink-deep</div><div class="swatch-hex">#0f0000</div></div></div><div class="swatch"><div class="swatch-color" style="background:#302c2c"></div><div class="swatch-meta"><div class="swatch-name">charcoal</div><div class="swatch-hex">#302c2c</div></div></div><div class="swatch"><div class="swatch-color" style="background:#424245"></div><div class="swatch-meta"><div class="swatch-name">body</div><div class="swatch-hex">#424245</div></div></div><div class="swatch"><div class="swatch-color" style="background:#646262"></div><div class="swatch-meta"><div class="swatch-name">mute</div><div class="swatch-hex">#646262</div></div></div><div class="swatch"><div class="swatch-color" style="background:#6e6e73"></div><div class="swatch-meta"><div class="swatch-name">stone</div><div class="swatch-hex">#6e6e73</div></div></div><div class="swatch"><div class="swatch-color" style="background:#9a9898"></div><div class="swatch-meta"><div class="swatch-name">ash</div><div class="swatch-hex">#9a9898</div></div></div><div class="swatch"><div class="swatch-color" style="background:#fdfcfc"></div><div class="swatch-meta"><div class="swatch-name">canvas</div><div class="swatch-hex">#fdfcfc</div></div></div><div class="swatch"><div class="swatch-color" style="background:#f8f7f7"></div><div class="swatch-meta"><div class="swatch-name">surface-soft</div><div class="swatch-hex">#f8f7f7</div></div></div><div class="swatch"><div class="swatch-color" style="background:#f1eeee"></div><div class="swatch-meta"><div class="swatch-name">surface-card</div><div class="swatch-hex">#f1eeee</div></div></div><div class="swatch"><div class="swatch-color" style="background:#201d1d"></div><div class="swatch-meta"><div class="swatch-name">surface-dark</div><div class="swatch-hex">#201d1d</div></div></div><div class="swatch"><div class="swatch-color" style="background:#302c2c"></div><div class="swatch-meta"><div class="swatch-name">surface-dark-elevated</div><div class="swatch-hex">#302c2c</div></div></div><div class="swatch"><div class="swatch-color" style="background:rgba(15,0,0,0.12)"></div><div class="swatch-meta"><div class="swatch-name">hairline</div><div class="swatch-hex">rgba(15,0,0,0.12)</div></div></div><div class="swatch"><div class="swatch-color" style="background:#646262"></div><div class="swatch-meta"><div class="swatch-name">hairline-strong</div><div class="swatch-hex">#646262</div></div></div><div class="swatch"><div class="swatch-color" style="background:#fdfcfc"></div><div class="swatch-meta"><div class="swatch-name">on-dark</div><div class="swatch-hex">#fdfcfc</div></div></div><div class="swatch"><div class="swatch-color" style="background:#9a9898"></div><div class="swatch-meta"><div class="swatch-name">on-dark-mute</div><div class="swatch-hex">#9a9898</div></div></div><div class="swatch"><div class="swatch-color" style="background:#007aff"></div><div class="swatch-meta"><div class="swatch-name">accent</div><div class="swatch-hex">#007aff</div></div></div><div class="swatch"><div class="swatch-color" style="background:#0056b3"></div><div class="swatch-meta"><div class="swatch-name">accent-hover</div><div class="swatch-hex">#0056b3</div></div></div><div class="swatch"><div class="swatch-color" style="background:#004085"></div><div class="swatch-meta"><div class="swatch-name">accent-active</div><div class="swatch-hex">#004085</div></div></div><div class="swatch"><div class="swatch-color" style="background:#ff9f0a"></div><div class="swatch-meta"><div class="swatch-name">warning</div><div class="swatch-hex">#ff9f0a</div></div></div><div class="swatch"><div class="swatch-color" style="background:#cc7f08"></div><div class="swatch-meta"><div class="swatch-name">warning-hover</div><div class="swatch-hex">#cc7f08</div></div></div><div class="swatch"><div class="swatch-color" style="background:#995f06"></div><div class="swatch-meta"><div class="swatch-name">warning-active</div><div class="swatch-hex">#995f06</div></div></div>
+    <div class="testimonial-row">
+      <div class="testimonial-avatar" style="background:var(--warning)"></div>
+      <div>
+        <div><span class="testimonial-name">Row label</span> <span class="testimonial-meta">role · company</span></div>
+        <div>Second example row to show avatar-dot color variation.</div>
       </div>
-    </section>
+    </div>
+  </div>
+</section>
 
-    <section id="type">
-      <div class="section-label">02 - Typography</div>
-      <h2 class="section-heading">Type scale and voice</h2>
-      <p class="section-intro">Typography samples show how major text levels render when the token values are applied to real interface copy.</p>
-      <div class="type-row"><div class="type-meta"><strong>display-xl</strong>38px / 700 / 1.5 / 0px</div><div class="type-sample" style="font-family:Berkeley Mono;font-size:38px;font-weight:700;line-height:1.5;letter-spacing:0px">Build a clear product interface with OpenCode rhythm.</div></div><div class="type-row"><div class="type-meta"><strong>heading-md</strong>16px / 700 / 1.5 / 0px</div><div class="type-sample" style="font-family:Berkeley Mono;font-size:16px;font-weight:700;line-height:1.5;letter-spacing:0px">Build a clear product interface with OpenCode rhythm.</div></div><div class="type-row"><div class="type-meta"><strong>body-md</strong>16px / 400 / 1.5 / 0px</div><div class="type-sample" style="font-family:Berkeley Mono;font-size:16px;font-weight:400;line-height:1.5;letter-spacing:0px">Build a clear product interface with OpenCode rhythm.</div></div><div class="type-row"><div class="type-meta"><strong>body-strong</strong>16px / 500 / 1.5 / 0px</div><div class="type-sample" style="font-family:Berkeley Mono;font-size:16px;font-weight:500;line-height:1.5;letter-spacing:0px">Build a clear product interface with OpenCode rhythm.</div></div><div class="type-row"><div class="type-meta"><strong>body-tight</strong>16px / 500 / 1 / 0px</div><div class="type-sample" style="font-family:Berkeley Mono;font-size:16px;font-weight:500;line-height:1;letter-spacing:0px">Build a clear product interface with OpenCode rhythm.</div></div><div class="type-row"><div class="type-meta"><strong>link-md</strong>16px / 400 / 1.5 / 0px</div><div class="type-sample" style="font-family:Berkeley Mono;font-size:16px;font-weight:400;line-height:1.5;letter-spacing:0px">Build a clear product interface with OpenCode rhythm.</div></div><div class="type-row"><div class="type-meta"><strong>button-md</strong>16px / 500 / 2 / 0px</div><div class="type-sample" style="font-family:Berkeley Mono;font-size:16px;font-weight:500;line-height:2;letter-spacing:0px">Build a clear product interface with OpenCode rhythm.</div></div><div class="type-row"><div class="type-meta"><strong>caption-md</strong>14px / 400 / 2 / 0px</div><div class="type-sample" style="font-family:Berkeley Mono;font-size:14px;font-weight:400;line-height:2;letter-spacing:0px">Build a clear product interface with OpenCode rhythm.</div></div>
-    </section>
+<!-- CHART TILES -->
+<section>
+  <p class="section-eyebrow">[06] Stat Block</p>
+  <h2 class="section-heading">Chart Tiles</h2>
+  <p class="section-desc">Three thin abstract sparse-line charts with caption-md mute captions underneath.</p>
 
-    <section id="components">
-      <div class="section-label">03 - Components</div>
-      <h2 class="section-heading">Buttons, cards, labels, and controls</h2>
-      <p class="section-intro">Component samples apply available token references where possible, with neutral fallbacks for properties not present in the source system.</p>
-      <div class="button-grid">
-        <div class="component-cell"><div class="button-label">button-primary</div><span class="demo-button" style="background:#201d1d;color:#fdfcfc;border-radius:4px;padding:0 14px">Sample action</span><div class="button-meta">#201d1d / #fdfcfc</div></div><div class="component-cell"><div class="button-label">button-primary-active</div><span class="demo-button" style="background:#0f0000;color:#fdfcfc;border-radius:4px;padding:0 14px">Sample action</span><div class="button-meta">#0f0000 / #fdfcfc</div></div><div class="component-cell"><div class="button-label">button-secondary</div><span class="demo-button" style="background:#fdfcfc;color:#201d1d;border-radius:4px;padding:0 14px">Sample action</span><div class="button-meta">#fdfcfc / #201d1d</div></div><div class="component-cell"><div class="button-label">button-tab</div><span class="demo-button" style="background:transparent;color:#646262;border-radius:0px;padding:0 14px">Sample action</span><div class="button-meta">transparent / #646262</div></div><div class="component-cell"><div class="button-label">button-tab-active</div><span class="demo-button" style="background:transparent;color:#201d1d;border-radius:0px;padding:0 14px">Sample action</span><div class="button-meta">transparent / #201d1d</div></div><div class="component-cell"><div class="button-label">button-disabled</div><span class="demo-button" style="background:#f1eeee;color:#9a9898;border-radius:4px;padding:0 14px">Sample action</span><div class="button-meta">#f1eeee / #9a9898</div></div><div class="component-cell"><div class="button-label">badge-news</div><span class="demo-button" style="background:#201d1d;color:#fdfcfc;border-radius:4px;padding:0 14px">Sample action</span><div class="button-meta">#201d1d / #fdfcfc</div></div><div class="component-cell"><div class="button-label">text-input</div><span class="demo-button" style="background:#f8f7f7;color:#201d1d;border-radius:4px;padding:0 14px">Sample action</span><div class="button-meta">#f8f7f7 / #201d1d</div></div><div class="component-cell"><div class="button-label">text-input-focused</div><span class="demo-button" style="background:#fdfcfc;color:#201d1d;border-radius:4px;padding:0 14px">Sample action</span><div class="button-meta">#fdfcfc / #201d1d</div></div><div class="component-cell"><div class="button-label">textarea</div><span class="demo-button" style="background:#f8f7f7;color:#201d1d;border-radius:4px;padding:0 12px">Sample action</span><div class="button-meta">#f8f7f7 / #201d1d</div></div><div class="component-cell"><div class="button-label">install-snippet</div><span class="demo-button" style="background:#f1eeee;color:#201d1d;border-radius:4px;padding:0 14px">Sample action</span><div class="button-meta">#f1eeee / #201d1d</div></div><div class="component-cell"><div class="button-label">hero-tui-mockup</div><span class="demo-button" style="background:#201d1d;color:#fdfcfc;border-radius:0px;padding:0 14px">Sample action</span><div class="button-meta">#201d1d / #fdfcfc</div></div>
-      </div>
-    </section>
+  <div class="chart-grid">
+    <div class="chart-tile">
+      <svg class="chart-svg" viewBox="0 0 200 80" preserveAspectRatio="none"><polyline points="0,70 30,55 60,40 100,30 140,18 180,8 200,4" fill="none" stroke="rgba(255,255,255,0.85)" stroke-width="1.5"/></svg>
+      <p class="chart-caption">Fig 1. Generic ascending line</p>
+    </div>
+    <div class="chart-tile">
+      <svg class="chart-svg" viewBox="0 0 200 80" preserveAspectRatio="none">
+        <g fill="rgba(255,255,255,0.7)">
+          <circle cx="20" cy="50" r="1"/><circle cx="40" cy="40" r="1"/><circle cx="60" cy="60" r="1"/><circle cx="80" cy="35" r="1"/><circle cx="100" cy="55" r="1"/><circle cx="120" cy="30" r="1"/><circle cx="140" cy="45" r="1"/><circle cx="160" cy="25" r="1"/><circle cx="180" cy="50" r="1"/>
+          <circle cx="30" cy="60" r="1"/><circle cx="70" cy="20" r="1"/><circle cx="110" cy="65" r="1"/><circle cx="150" cy="40" r="1"/>
+        </g>
+      </svg>
+      <p class="chart-caption">Fig 2. Generic dotted scatter</p>
+    </div>
+    <div class="chart-tile">
+      <svg class="chart-svg" viewBox="0 0 200 80" preserveAspectRatio="none">
+        <g stroke="rgba(255,255,255,0.85)" stroke-width="1">
+          <line x1="10" y1="70" x2="10" y2="40"/><line x1="20" y1="70" x2="20" y2="35"/><line x1="30" y1="70" x2="30" y2="55"/><line x1="40" y1="70" x2="40" y2="20"/><line x1="50" y1="70" x2="50" y2="50"/><line x1="60" y1="70" x2="60" y2="30"/><line x1="70" y1="70" x2="70" y2="45"/><line x1="80" y1="70" x2="80" y2="15"/><line x1="90" y1="70" x2="90" y2="40"/><line x1="100" y1="70" x2="100" y2="25"/><line x1="110" y1="70" x2="110" y2="50"/><line x1="120" y1="70" x2="120" y2="20"/><line x1="130" y1="70" x2="130" y2="35"/><line x1="140" y1="70" x2="140" y2="10"/><line x1="150" y1="70" x2="150" y2="40"/><line x1="160" y1="70" x2="160" y2="20"/><line x1="170" y1="70" x2="170" y2="30"/><line x1="180" y1="70" x2="180" y2="15"/>
+        </g>
+      </svg>
+      <p class="chart-caption">Fig 3. Generic monthly bars</p>
+    </div>
+  </div>
+</section>
 
-    <section>
-      <div class="section-label">04 - Interface Samples</div>
-      <h2 class="section-heading">Reusable product surfaces</h2>
-      <div class="card-grid">
-        <div class="feature-card"><h4>Feature card</h4><p>Use this card treatment for summaries, benefits, or product modules with concise supporting text.</p><span class="badge">New</span></div>
-        <div class="feature-card"><h4>Data card</h4><p>Pair a strong heading with a compact metric and muted explanatory copy.</p><div style="font:800 36px/1 var(--display);color:var(--primary);margin-top:14px">24%</div></div>
-        <div class="feature-card"><h4>Content card</h4><p>Keep content blocks aligned to the design system's spacing and type hierarchy.</p><span class="btn primary" style="margin-top:14px">Continue</span></div>
-      </div>
-    </section>
+<!-- FORMS -->
+<section>
+  <p class="section-eyebrow">[07] Forms</p>
+  <h2 class="section-heading">Form Elements</h2>
+  <p class="section-desc">Inputs sit on the surface-elevated fill by default; on focus the background flips to surface with an ink-colored border.</p>
 
-    <section>
-      <div class="section-label">05 - Forms</div>
-      <h2 class="section-heading">Inputs and inline feedback</h2>
-      <div class="form-grid">
-        <div class="form-cell"><label class="button-label">Email</label><input class="text-input" value="team@example.com" aria-label="Email sample"></div>
-        <div class="form-cell"><label class="button-label">Status</label><span class="badge">Active</span></div>
-        <div class="form-cell"><label class="button-label">Action group</label><div style="display:flex;gap:10px;flex-wrap:wrap"><span class="btn primary">Save</span><span class="btn">Cancel</span></div></div>
-      </div>
-    </section>
+  <div class="form-grid">
+    <div class="form-cell">
+      <label class="form-label">Default Input</label>
+      <input class="text-input" placeholder="Acme Inc" />
+      <span class="form-spec">surface-elevated bg · 1px hairline · rounded 4px</span>
+    </div>
+    <div class="form-cell">
+      <label class="form-label">Focused Input</label>
+      <input class="text-input focused" value="Acme Inc" />
+      <span class="form-spec">surface bg · 1px ink border · rounded 4px</span>
+    </div>
+    <div class="form-cell wide">
+      <label class="form-label">Textarea</label>
+      <textarea class="text-input" placeholder="We need help with..."></textarea>
+      <span class="form-spec">surface-elevated bg · 1px hairline · rounded 4px</span>
+    </div>
+    <div class="form-cell">
+      <label class="form-label">Submit</label>
+      <button class="btn btn-primary" style="width:100%">Send</button>
+      <span class="form-spec">button-primary · always full-width</span>
+    </div>
+  </div>
+</section>
 
-    <section>
-      <div class="section-label">06 - Spacing</div>
-      <h2 class="section-heading">Spacing scale</h2>
-      <div class="spacing-row">
-        <div class="spacing-block"><div class="spacing-bar" style="height:1px"></div><div class="spacing-label">xxs · 1px</div></div><div class="spacing-block"><div class="spacing-bar" style="height:4px"></div><div class="spacing-label">xs · 4px</div></div><div class="spacing-block"><div class="spacing-bar" style="height:8px"></div><div class="spacing-label">sm · 8px</div></div><div class="spacing-block"><div class="spacing-bar" style="height:12px"></div><div class="spacing-label">md · 12px</div></div><div class="spacing-block"><div class="spacing-bar" style="height:16px"></div><div class="spacing-label">lg · 16px</div></div><div class="spacing-block"><div class="spacing-bar" style="height:24px"></div><div class="spacing-label">xl · 24px</div></div><div class="spacing-block"><div class="spacing-bar" style="height:32px"></div><div class="spacing-label">xxl · 32px</div></div><div class="spacing-block"><div class="spacing-bar" style="height:96px"></div><div class="spacing-label">section · 96px</div></div>
-      </div>
-    </section>
+<!-- SPACING -->
+<section>
+  <p class="section-eyebrow">[08] Layout</p>
+  <h2 class="section-heading">Spacing Scale</h2>
+  <p class="section-desc">8px base unit. Section rhythm at 96px is preserved across modes.</p>
+  <div class="spacing-row">
+    <div class="spacing-cell"><div class="spacing-bar" style="width:1px"></div><span class="spacing-label">xxs · 1</span></div>
+    <div class="spacing-cell"><div class="spacing-bar" style="width:4px"></div><span class="spacing-label">xs · 4</span></div>
+    <div class="spacing-cell"><div class="spacing-bar" style="width:8px"></div><span class="spacing-label">sm · 8</span></div>
+    <div class="spacing-cell"><div class="spacing-bar" style="width:12px"></div><span class="spacing-label">md · 12</span></div>
+    <div class="spacing-cell"><div class="spacing-bar" style="width:16px"></div><span class="spacing-label">lg · 16</span></div>
+    <div class="spacing-cell"><div class="spacing-bar" style="width:24px"></div><span class="spacing-label">xl · 24</span></div>
+    <div class="spacing-cell"><div class="spacing-bar" style="width:32px"></div><span class="spacing-label">xxl · 32</span></div>
+    <div class="spacing-cell"><div class="spacing-bar" style="width:96px"></div><span class="spacing-label">section · 96</span></div>
+  </div>
+</section>
 
-    <section>
-      <div class="section-label">07 - Radius</div>
-      <h2 class="section-heading">Shape language</h2>
-      <div class="radius-row">
-        <div class="radius-block" style="border-radius:0px">none</div><div class="radius-block" style="border-radius:4px">sm</div><div class="radius-block" style="border-radius:9999px">full</div>
-      </div>
-    </section>
+<!-- RADIUS -->
+<section>
+  <p class="section-eyebrow">[09] Shapes</p>
+  <h2 class="section-heading">Border Radius Scale</h2>
+  <p class="section-desc">Identical to light mode: 4px for interactive elements, 0px for everything else.</p>
+  <div class="radius-row">
+    <div class="radius-cell"><div class="radius-box" style="border-radius:0"></div><span class="radius-label">none · 0</span><p class="radius-context">Sections, hero TUI, nav, footer</p></div>
+    <div class="radius-cell"><div class="radius-box" style="border-radius:4px"></div><span class="radius-label">sm · 4</span><p class="radius-context">Every interactive element</p></div>
+    <div class="radius-cell"><div class="radius-box" style="border-radius:9999px"></div><span class="radius-label">full · 9999</span><p class="radius-context">Avatar circles in testimonials</p></div>
+  </div>
+</section>
 
-    <section id="responsive">
-      <div class="section-label">08 - Responsive Behavior</div>
-      <h2 class="section-heading">Layout strategy</h2>
-      <table class="responsive-table">
-        <thead><tr><th>Viewport</th><th>Behavior</th></tr></thead>
-        <tbody>
-          <tr><td>Mobile</td><td>Single column layout, compact nav, tighter section padding.</td></tr>
-          <tr><td>Tablet</td><td>Two-column component grids and readable type hierarchy.</td></tr>
-          <tr><td>Desktop</td><td>Wide token catalog, multi-column cards, expanded whitespace.</td></tr>
-        </tbody>
-      </table>
-    </section>
-  </main>
+<!-- ELEVATION -->
+<section>
+  <p class="section-eyebrow">[10] Depth</p>
+  <h2 class="section-heading">Elevation & Depth</h2>
+  <p class="section-desc">No drop shadows. Depth comes from the brightness-step surface ladder.</p>
+  <div class="elevation-grid">
+    <div class="elevation-card level-0"><div class="elevation-name">Level 0 — Flat (canvas)</div><div class="elevation-spec">no border / no shadow</div></div>
+    <div class="elevation-card level-1"><div class="elevation-name">Level 1 — Hairline</div><div class="elevation-spec">1px solid rgba(255,255,255,0.12)</div></div>
+    <div class="elevation-card level-2"><div class="elevation-name">Level 2 — Hairline Strong</div><div class="elevation-spec">1px solid rgba(255,255,255,0.24)</div></div>
+    <div class="elevation-card level-3"><div class="elevation-name">Level 3 — Surface Deep</div><div class="elevation-spec">bg #0e0c0c · the deepest dark surface</div></div>
+  </div>
+</section>
 
-  <footer class="footer">Generated from DESIGN.md tokens for local preview and review.</footer>
+<!-- RESPONSIVE -->
+<section id="layout">
+  <p class="section-eyebrow">[11] Responsive</p>
+  <h2 class="section-heading">Responsive Behavior</h2>
+  <p class="section-desc">Identical breakpoint stack to light mode.</p>
+
+  <table class="responsive-table">
+    <thead><tr><th>Name</th><th>Width</th><th>Key Changes</th></tr></thead>
+    <tbody>
+      <tr><td>desktop-large</td><td>1280px+</td><td>Default — 960px content column, 5-up footer</td></tr>
+      <tr><td>desktop</td><td>1024px</td><td>Same layout; nav remains horizontal</td></tr>
+      <tr><td>tablet</td><td>850px</td><td>Footer 5-up → 2-up; /enterprise two-column form stacks</td></tr>
+      <tr><td>tablet-narrow</td><td>768px</td><td>Primary nav becomes hamburger</td></tr>
+      <tr><td>mobile</td><td>640px</td><td>Single-column; hero 38px → ~28px</td></tr>
+    </tbody>
+  </table>
+
+  <div class="device-ladder">
+    <div class="device phone"><span class="name">375</span><span class="label">mobile</span></div>
+    <div class="device phone-large"><span class="name">640</span><span class="label">mobile</span></div>
+    <div class="device tablet"><span class="name">768</span><span class="label">tablet-narrow</span></div>
+    <div class="device desktop-small"><span class="name">1024</span><span class="label">desktop</span></div>
+    <div class="device desktop"><span class="name">1280</span><span class="label">desktop-large</span></div>
+  </div>
+
+  <div class="responsive-sub-block">
+    <h3>Touch Targets</h3>
+    <ul>
+      <li><strong>WCAG AA:</strong> button-primary at 36px height with 20px padding.</li>
+      <li><strong>Text input + textarea:</strong> 40px height.</li>
+      <li><strong>Tab strip:</strong> ~32–36px height; extends to 44px tappable cell via padding.</li>
+      <li><strong>Footer links:</strong> 14px caption-md with line-height 2.0 (~44px tap row).</li>
+    </ul>
+  </div>
+
+  <div class="responsive-sub-block">
+    <h3>Collapsing Strategy</h3>
+    <ul>
+      <li><strong>Primary nav:</strong> desktop horizontal → tablet-narrow hamburger drawer.</li>
+      <li><strong>Hero TUI mockup:</strong> stays full-bleed at every breakpoint.</li>
+      <li><strong>Tab strip:</strong> desktop fixed-width → mobile horizontal scroll.</li>
+      <li><strong>Footer:</strong> 5-up → 2-up at tablet → 1-up at mobile.</li>
+      <li><strong>Section padding:</strong> 96px → 64px → 48px.</li>
+      <li><strong>Hero headline:</strong> 38px → ~28px at mobile.</li>
+    </ul>
+  </div>
+</section>
+
+<footer class="footer">
+  <div class="footer-shell">
+    <p>OpenCode</p>
+    <p class="token-meta">Design token preview</p>
+  </div>
+</footer>
+
 </body>
 </html>

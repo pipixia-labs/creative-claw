@@ -18,6 +18,7 @@ from pydantic import PrivateAttr
 
 from conf.llm import build_llm
 from conf.path import PROJECT_PATH
+from src.productions.design.design_systems import list_design_systems, read_design_system
 from src.productions.design.design_product_manager.design_code_generation_agent import (
     DesignCodeGenerationAgent,
 )
@@ -218,6 +219,7 @@ Always call `register_design_delivery` before finishing. It must contain a user-
                 original_task=original_task or clean_task,
                 answer_payload=answer_payload,
             )
+            clean_task = _append_selected_design_system_context(clean_task, answer_payload)
         elif _should_request_web_brief_form(tool_context.state):
             invocation_context = tool_context._invocation_context
             try:
@@ -652,6 +654,36 @@ def _should_request_web_brief_form(state: Any) -> bool:
     if state.get(DESIGN_BRIEF_FORM_PENDING_TASK_STATE_KEY):
         return False
     return True
+
+
+def _append_selected_design_system_context(task: str, answer_payload: dict[str, Any]) -> str:
+    """Append full DESIGN.md context when the Web brief selects one local design system."""
+    answers = answer_payload.get("answers")
+    if not isinstance(answers, dict):
+        return task
+    raw_value = answers.get("design_system_reference")
+    if isinstance(raw_value, list):
+        raw_value = raw_value[0] if raw_value else ""
+    design_system_id = str(raw_value or "").strip()
+    if not design_system_id or design_system_id in {"decide_for_me", "other"}:
+        return task
+
+    design_system_body = read_design_system(design_system_id)
+    if not design_system_body:
+        return task
+
+    title = next(
+        (item.title for item in list_design_systems() if item.id == design_system_id),
+        design_system_id,
+    )
+    return "\n".join(
+        [
+            task.strip(),
+            "",
+            f"# Selected design system: {title} ({design_system_id})",
+            design_system_body.strip(),
+        ]
+    ).strip()
 
 
 def _copy_state(state: Any) -> dict[str, Any]:

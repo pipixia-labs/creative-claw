@@ -4,103 +4,199 @@ name: "Lovable"
 description: "Lovable's website radiates warmth through restraint. The entire page sits on a creamy, parchment-toned background (#f7f4ed) that immediately separates it from the cold-white conventions of most developer tool sites. This isn't minimalism for minimalism's sake — it's a deliberate choice to feel approachable, almost analog, like a well-crafted notebook. The near-black text (#1c1c1c) against this warm cream creates a contrast ratio that's easy on the eyes while maintaining sharp readability."
 
 colors:
-  primary: "#f7f4ed"
-  on-primary: "#000000"
-  canvas: "#ffffff"
-  surface: "#ffffff"
-  ink: "#171717"
-  body: "#4d4d4d"
-  muted: "#666666"
-  hairline: "#ebebeb"
-  accent: "#1c1c1c"
+  primary: "#1c1c1c"
+  on-primary: "#fcfbf8"
+  canvas: "#f7f4ed"
+  surface: "#f7f4ed"
+  ink: "#1c1c1c"
+  ink-strong: "rgba(28,28,28,0.83)"
+  body: "rgba(28,28,28,0.82)"
+  muted: "#5f5f5d"
+  border: "#eceae4"
+  interactive-border: "rgba(28,28,28,0.4)"
+  tint: "rgba(28,28,28,0.04)"
+  tint-subtle: "rgba(28,28,28,0.03)"
+  ring-blue: "rgba(59,130,246,0.5)"
 
 typography:
   display-hero:
-    fontFamily: "Inter, system-ui, -apple-system, BlinkMacSystemFont, sans-serif"
-    fontSize: 48px
-    fontWeight: 700
-    lineHeight: 1.15
-    letterSpacing: -1px
+    fontFamily: "Camera Plain Variable, ui-sans-serif, system-ui"
+    fontSize: 60px
+    fontWeight: 600
+    lineHeight: 1.1
+    letterSpacing: -1.5px
+  display-alt:
+    fontFamily: "Camera Plain Variable, ui-sans-serif, system-ui"
+    fontSize: 60px
+    fontWeight: 480
+    lineHeight: 1
+    letterSpacing: 0px
   heading-lg:
-    fontFamily: "Inter, system-ui, -apple-system, BlinkMacSystemFont, sans-serif"
-    fontSize: 32px
-    fontWeight: 700
+    fontFamily: "Camera Plain Variable, ui-sans-serif, system-ui"
+    fontSize: 48px
+    fontWeight: 600
+    lineHeight: 1
+    letterSpacing: -1.2px
+  heading-md:
+    fontFamily: "Camera Plain Variable, ui-sans-serif, system-ui"
+    fontSize: 36px
+    fontWeight: 600
+    lineHeight: 1.1
+    letterSpacing: -0.9px
+  card-title:
+    fontFamily: "Camera Plain Variable, ui-sans-serif, system-ui"
+    fontSize: 20px
+    fontWeight: 400
     lineHeight: 1.25
-    letterSpacing: -0.5px
+    letterSpacing: 0px
+  body-lg:
+    fontFamily: "Camera Plain Variable, ui-sans-serif, system-ui"
+    fontSize: 18px
+    fontWeight: 400
+    lineHeight: 1.38
+    letterSpacing: 0px
   body-md:
-    fontFamily: "Inter, system-ui, -apple-system, BlinkMacSystemFont, sans-serif"
+    fontFamily: "Camera Plain Variable, ui-sans-serif, system-ui"
     fontSize: 16px
     fontWeight: 400
     lineHeight: 1.5
     letterSpacing: 0px
   button:
-    fontFamily: "Inter, system-ui, -apple-system, BlinkMacSystemFont, sans-serif"
+    fontFamily: "Camera Plain Variable, ui-sans-serif, system-ui"
+    fontSize: 16px
+    fontWeight: 400
+    lineHeight: 1.5
+    letterSpacing: 0px
+  button-sm:
+    fontFamily: "Camera Plain Variable, ui-sans-serif, system-ui"
     fontSize: 14px
-    fontWeight: 600
-    lineHeight: 1.2
+    fontWeight: 400
+    lineHeight: 1.5
+    letterSpacing: 0px
+  link:
+    fontFamily: "Camera Plain Variable, ui-sans-serif, system-ui"
+    fontSize: 16px
+    fontWeight: 400
+    lineHeight: 1.5
+    letterSpacing: 0px
+  link-sm:
+    fontFamily: "Camera Plain Variable, ui-sans-serif, system-ui"
+    fontSize: 14px
+    fontWeight: 400
+    lineHeight: 1.5
     letterSpacing: 0px
   caption:
-    fontFamily: "Inter, system-ui, -apple-system, BlinkMacSystemFont, sans-serif"
-    fontSize: 12px
-    fontWeight: 500
-    lineHeight: 1.33
+    fontFamily: "Camera Plain Variable, ui-sans-serif, system-ui"
+    fontSize: 14px
+    fontWeight: 400
+    lineHeight: 1.5
     letterSpacing: 0px
 
 rounded:
-  sm: 4px
+  xs: 4px
+  sm: 6px
   md: 8px
   lg: 12px
+  xl: 16px
   pill: 9999px
 
 spacing:
-  xs: 4px
-  sm: 8px
-  md: 16px
-  lg: 24px
-  xl: 32px
+  xs: 8px
+  sm: 10px
+  md: 12px
+  lg: 16px
+  xl: 24px
+  xxl: 32px
+  section-sm: 40px
+  section-md: 56px
   section: 80px
+  section-lg: 96px
+  section-xl: 128px
+  section-xxl: 176px
+  section-xxxl: 192px
+  section-max: 208px
 
 components:
   button-primary:
     backgroundColor: "{colors.primary}"
     textColor: "{colors.on-primary}"
     typography: "{typography.button}"
-    rounded: "{rounded.md}"
-    padding: 16px
-  button-secondary:
-    backgroundColor: "{colors.canvas}"
-    textColor: "{colors.ink}"
+    rounded: "{rounded.sm}"
+    padding: 8px 16px
+  button-ghost:
+    backgroundColor: transparent
+    textColor: "{colors.primary}"
     typography: "{typography.button}"
-    rounded: "{rounded.md}"
-    padding: 16px
+    rounded: "{rounded.sm}"
+    padding: 8px 16px
+  button-cream:
+    backgroundColor: "{colors.canvas}"
+    textColor: "{colors.primary}"
+    typography: "{typography.button}"
+    rounded: "{rounded.sm}"
+    padding: 8px 16px
+  button-pill-icon:
+    backgroundColor: "{colors.canvas}"
+    textColor: "{colors.primary}"
+    typography: "{typography.button-sm}"
+    rounded: "{rounded.pill}"
+    padding: 8px 16px
   card:
     backgroundColor: "{colors.surface}"
-    textColor: "{colors.ink}"
+    textColor: "{colors.primary}"
     typography: "{typography.body-md}"
     rounded: "{rounded.lg}"
     padding: 24px
-  text-body:
+  card-featured:
+    backgroundColor: "{colors.surface}"
+    textColor: "{colors.primary}"
+    typography: "{typography.body-md}"
+    rounded: "{rounded.xl}"
+    padding: 24px
+  card-compact:
+    backgroundColor: "{colors.surface}"
+    textColor: "{colors.primary}"
+    typography: "{typography.body-md}"
+    rounded: "{rounded.md}"
+    padding: 12px
+  text-input:
     backgroundColor: "{colors.canvas}"
-    textColor: "{colors.body}"
+    textColor: "{colors.primary}"
     typography: "{typography.body-md}"
     rounded: "{rounded.sm}"
-    padding: 8px
-  muted-label:
+    padding: 8px 16px
+  suggestion-pill:
     backgroundColor: "{colors.canvas}"
+    textColor: "{colors.primary}"
+    typography: "{typography.button-sm}"
+    rounded: "{rounded.pill}"
+    padding: 8px 16px
+  template-card:
+    backgroundColor: "{colors.surface}"
+    textColor: "{colors.primary}"
+    typography: "{typography.card-title}"
+    rounded: "{rounded.lg}"
+    padding: 24px
+  stats-number:
+    backgroundColor: "{colors.canvas}"
+    textColor: "{colors.primary}"
+    typography: "{typography.heading-lg}"
+  text-body:
+    backgroundColor: transparent
+    textColor: "{colors.body}"
+    typography: "{typography.body-md}"
+  muted-label:
+    backgroundColor: transparent
     textColor: "{colors.muted}"
     typography: "{typography.caption}"
-    rounded: "{rounded.sm}"
-    padding: 4px
   link:
-    backgroundColor: "{colors.canvas}"
-    textColor: "{colors.accent}"
-    typography: "{typography.button}"
-    rounded: "{rounded.sm}"
-    padding: 4px
+    backgroundColor: transparent
+    textColor: "{colors.primary}"
+    typography: "{typography.link}"
   divider:
-    backgroundColor: "{colors.hairline}"
-    textColor: "{colors.ink}"
-    rounded: "{rounded.sm}"
+    backgroundColor: "{colors.border}"
+    textColor: "{colors.primary}"
+    rounded: "{rounded.xs}"
     height: 1px
 ---
 

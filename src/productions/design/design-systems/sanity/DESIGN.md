@@ -4,103 +4,273 @@ name: "Sanity"
 description: "Sanity's website is a developer-content platform rendered as a nocturnal command center -- dark, precise, and deeply structured. The entire experience sits on a near-black canvas (#0b0b0b) that reads less like a \"dark mode toggle\" and more like the natural state of a tool built for people who live in terminals. Where most CMS marketing pages reach for friendly pastels and soft illustration, Sanity leans into the gravity of its own product: structured content deserves a structured stage."
 
 colors:
-  primary: "#0b0b0b"
+  primary: "#f36458"
   on-primary: "#ffffff"
-  canvas: "#ffffff"
-  surface: "#ffffff"
-  ink: "#000000"
-  body: "#4d4d4d"
-  muted: "#666666"
-  hairline: "#ebebeb"
-  accent: "#212121"
+  canvas: "#0b0b0b"
+  black: "#000000"
+  surface: "#212121"
+  surface-prominent: "#353535"
+  surface-light: "#ededed"
+  white: "#ffffff"
+  ink: "#ffffff"
+  body: "#b9b9b9"
+  muted: "#797979"
+  charcoal: "#212121"
+  interactive-blue: "#0052ef"
+  light-blue: "#55beff"
+  light-blue-soft: "#afe3ff"
+  neon-green: "#19d600"
+  gpc-green: "#37cd84"
+  error: "#dd0000"
+  border-dark: "#0b0b0b"
+  border-subtle: "#212121"
+  border-medium: "#353535"
+  border-light: "#ffffff"
+  focus-bg: "#072227"
 
 typography:
   display-hero:
-    fontFamily: "Inter, system-ui, -apple-system, BlinkMacSystemFont, sans-serif"
-    fontSize: 48px
-    fontWeight: 700
-    lineHeight: 1.15
-    letterSpacing: -1px
+    fontFamily: "waldenburgNormal, waldenburgNormal Fallback, ui-sans-serif, system-ui"
+    fontSize: 112px
+    fontWeight: 400
+    lineHeight: 1
+    letterSpacing: -4.48px
+    fontFeature: "\"cv01\", \"cv11\", \"cv12\", \"cv13\", \"ss07\""
+  hero-secondary:
+    fontFamily: "waldenburgNormal, waldenburgNormal Fallback, ui-sans-serif, system-ui"
+    fontSize: 72px
+    fontWeight: 400
+    lineHeight: 1.05
+    letterSpacing: -2.88px
+    fontFeature: "\"cv01\", \"cv11\", \"cv12\", \"cv13\", \"ss07\""
   heading-lg:
-    fontFamily: "Inter, system-ui, -apple-system, BlinkMacSystemFont, sans-serif"
+    fontFamily: "waldenburgNormal, waldenburgNormal Fallback, ui-sans-serif, system-ui"
+    fontSize: 48px
+    fontWeight: 400
+    lineHeight: 1.08
+    letterSpacing: -1.68px
+    fontFeature: "\"cv01\", \"cv11\", \"cv12\", \"cv13\", \"ss07\""
+  heading-md:
+    fontFamily: "waldenburgNormal, waldenburgNormal Fallback, ui-sans-serif, system-ui"
+    fontSize: 38px
+    fontWeight: 400
+    lineHeight: 1.1
+    letterSpacing: -1.14px
+  card-title:
+    fontFamily: "waldenburgNormal, waldenburgNormal Fallback, ui-sans-serif, system-ui"
     fontSize: 32px
-    fontWeight: 700
-    lineHeight: 1.25
-    letterSpacing: -0.5px
+    fontWeight: 425
+    lineHeight: 1.24
+    letterSpacing: -0.32px
+  heading-sm:
+    fontFamily: "waldenburgNormal, waldenburgNormal Fallback, ui-sans-serif, system-ui"
+    fontSize: 24px
+    fontWeight: 425
+    lineHeight: 1.24
+    letterSpacing: -0.24px
+  subheading:
+    fontFamily: "waldenburgNormal, waldenburgNormal Fallback, ui-sans-serif, system-ui"
+    fontSize: 20px
+    fontWeight: 425
+    lineHeight: 1.13
+    letterSpacing: -0.2px
+  body-lg:
+    fontFamily: "waldenburgNormal, waldenburgNormal Fallback, ui-sans-serif, system-ui"
+    fontSize: 18px
+    fontWeight: 400
+    lineHeight: 1.5
+    letterSpacing: -0.18px
+    fontFeature: "\"calt\" 0"
   body-md:
-    fontFamily: "Inter, system-ui, -apple-system, BlinkMacSystemFont, sans-serif"
+    fontFamily: "waldenburgNormal, waldenburgNormal Fallback, ui-sans-serif, system-ui"
     fontSize: 16px
     fontWeight: 400
     lineHeight: 1.5
     letterSpacing: 0px
+    fontFeature: "\"calt\" 0"
+  body-sm:
+    fontFamily: "waldenburgNormal, waldenburgNormal Fallback, ui-sans-serif, system-ui"
+    fontSize: 15px
+    fontWeight: 400
+    lineHeight: 1.5
+    letterSpacing: -0.15px
+    fontFeature: "\"calt\" 0"
   button:
-    fontFamily: "Inter, system-ui, -apple-system, BlinkMacSystemFont, sans-serif"
-    fontSize: 14px
-    fontWeight: 600
-    lineHeight: 1.2
+    fontFamily: "waldenburgNormal, waldenburgNormal Fallback, ui-sans-serif, system-ui"
+    fontSize: 16px
+    fontWeight: 400
+    lineHeight: 1.5
     letterSpacing: 0px
   caption:
-    fontFamily: "Inter, system-ui, -apple-system, BlinkMacSystemFont, sans-serif"
+    fontFamily: "waldenburgNormal, waldenburgNormal Fallback, ui-sans-serif, system-ui"
+    fontSize: 13px
+    fontWeight: 400
+    lineHeight: 1.5
+    letterSpacing: -0.13px
+  caption-sm:
+    fontFamily: "waldenburgNormal, waldenburgNormal Fallback, ui-sans-serif, system-ui"
     fontSize: 12px
-    fontWeight: 500
-    lineHeight: 1.33
+    fontWeight: 400
+    lineHeight: 1.5
+    letterSpacing: -0.12px
+  micro:
+    fontFamily: "waldenburgNormal, waldenburgNormal Fallback, ui-sans-serif, system-ui"
+    fontSize: 11px
+    fontWeight: 600
+    lineHeight: 1
     letterSpacing: 0px
+    textTransform: uppercase
+  code-md:
+    fontFamily: "IBM Plex Mono, ibmPlexMono Fallback, ui-monospace"
+    fontSize: 15px
+    fontWeight: 400
+    lineHeight: 1.5
+    letterSpacing: 0px
+  code-caption:
+    fontFamily: "IBM Plex Mono, ibmPlexMono Fallback, ui-monospace"
+    fontSize: 13px
+    fontWeight: 400
+    lineHeight: 1.5
+    letterSpacing: 0px
+    textTransform: uppercase
+  code-micro:
+    fontFamily: "IBM Plex Mono, ibmPlexMono Fallback, ui-monospace"
+    fontSize: 10px
+    fontWeight: 400
+    lineHeight: 1.3
+    letterSpacing: 0px
+    textTransform: uppercase
 
 rounded:
-  sm: 4px
-  md: 8px
+  xs: 3px
+  sm: 5px
+  md: 6px
   lg: 12px
-  pill: 9999px
+  pill: 99999px
 
 spacing:
+  hairline: 1px
+  xxs: 2px
   xs: 4px
-  sm: 8px
-  md: 16px
-  lg: 24px
-  xl: 32px
-  section: 80px
+  sm: 6px
+  base: 8px
+  md: 12px
+  lg: 16px
+  xl: 24px
+  xxl: 32px
+  section-sm: 48px
+  section: 64px
+  section-lg: 96px
+  hero: 120px
 
 components:
   button-primary:
     backgroundColor: "{colors.primary}"
     textColor: "{colors.on-primary}"
     typography: "{typography.button}"
-    rounded: "{rounded.md}"
-    padding: 16px
+    rounded: "{rounded.pill}"
+    padding: 8px 16px
+  button-primary-hover:
+    backgroundColor: "{colors.interactive-blue}"
+    textColor: "{colors.on-primary}"
+    typography: "{typography.button}"
+    rounded: "{rounded.pill}"
   button-secondary:
     backgroundColor: "{colors.canvas}"
-    textColor: "{colors.ink}"
+    textColor: "{colors.body}"
     typography: "{typography.button}"
-    rounded: "{rounded.md}"
-    padding: 16px
+    rounded: "{rounded.pill}"
+    padding: 8px 12px
+  button-secondary-hover:
+    backgroundColor: "{colors.interactive-blue}"
+    textColor: "{colors.on-primary}"
+    typography: "{typography.button}"
+    rounded: "{rounded.pill}"
+  button-outlined:
+    backgroundColor: "{colors.white}"
+    textColor: "{colors.canvas}"
+    typography: "{typography.button}"
+    rounded: "{rounded.pill}"
+    padding: 8px
+  button-ghost:
+    backgroundColor: "{colors.surface}"
+    textColor: "{colors.body}"
+    typography: "{typography.micro}"
+    rounded: "{rounded.sm}"
+    padding: 0px 12px
+  button-label:
+    backgroundColor: transparent
+    textColor: "{colors.body}"
+    typography: "{typography.micro}"
   card:
     backgroundColor: "{colors.surface}"
     textColor: "{colors.ink}"
     typography: "{typography.body-md}"
-    rounded: "{rounded.lg}"
+    rounded: "{rounded.md}"
     padding: 24px
+  feature-card:
+    backgroundColor: "{colors.canvas}"
+    textColor: "{colors.ink}"
+    typography: "{typography.body-md}"
+    rounded: "{rounded.lg}"
+    padding: 32px 48px
+  text-input:
+    backgroundColor: "{colors.canvas}"
+    textColor: "{colors.body}"
+    typography: "{typography.body-md}"
+    rounded: "{rounded.xs}"
+    padding: 8px 12px
+  text-input-focused:
+    backgroundColor: "{colors.focus-bg}"
+    textColor: "{colors.body}"
+    typography: "{typography.body-md}"
+    rounded: "{rounded.xs}"
+  search-input:
+    backgroundColor: "{colors.canvas}"
+    textColor: "{colors.body}"
+    typography: "{typography.body-md}"
+    rounded: "{rounded.xs}"
+    padding: 0px 12px
+  nav:
+    backgroundColor: "{colors.canvas}"
+    textColor: "{colors.body}"
+    typography: "{typography.body-md}"
+  footer:
+    backgroundColor: "{colors.canvas}"
+    textColor: "{colors.body}"
+    typography: "{typography.body-md}"
+  footer-header:
+    backgroundColor: "{colors.canvas}"
+    textColor: "{colors.ink}"
+    typography: "{typography.code-caption}"
+  badge-neutral-subtle:
+    backgroundColor: "{colors.white}"
+    textColor: "{colors.canvas}"
+    typography: "{typography.caption}"
+    rounded: "{rounded.pill}"
+    padding: 8px
+  badge-neutral-filled:
+    backgroundColor: "{colors.canvas}"
+    textColor: "{colors.white}"
+    typography: "{typography.caption}"
+    rounded: "{rounded.pill}"
+    padding: 8px
   text-body:
     backgroundColor: "{colors.canvas}"
     textColor: "{colors.body}"
     typography: "{typography.body-md}"
-    rounded: "{rounded.sm}"
-    padding: 8px
   muted-label:
-    backgroundColor: "{colors.canvas}"
+    backgroundColor: transparent
     textColor: "{colors.muted}"
     typography: "{typography.caption}"
-    rounded: "{rounded.sm}"
-    padding: 4px
   link:
-    backgroundColor: "{colors.canvas}"
-    textColor: "{colors.accent}"
-    typography: "{typography.button}"
-    rounded: "{rounded.sm}"
-    padding: 4px
+    backgroundColor: transparent
+    textColor: "{colors.interactive-blue}"
+    typography: "{typography.body-md}"
   divider:
-    backgroundColor: "{colors.hairline}"
+    backgroundColor: "{colors.border-subtle}"
     textColor: "{colors.ink}"
-    rounded: "{rounded.sm}"
+    rounded: "{rounded.xs}"
     height: 1px
 ---
 

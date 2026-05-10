@@ -4,103 +4,223 @@ name: "Spotify"
 description: "Spotify's web interface is a dark, immersive music player that wraps listeners in a near-black cocoon (#121212, #181818, #1f1f1f) where album art and content become the primary source of color. The design philosophy is \"content-first darkness\" — the UI recedes into shadow so that music, podcasts, and playlists can glow. Every surface is a shade of charcoal, creating a theater-like environment where the only true color comes from the iconic Spotify Green (#1ed760) and the album artwork itself."
 
 colors:
-  primary: "#121212"
-  on-primary: "#ffffff"
-  canvas: "#ffffff"
-  surface: "#ffffff"
-  ink: "#000000"
-  body: "#4d4d4d"
-  muted: "#666666"
-  hairline: "#ebebeb"
-  accent: "#181818"
+  primary: "#1ed760"
+  on-primary: "#000000"
+  canvas: "#121212"
+  surface: "#181818"
+  surface-mid: "#1f1f1f"
+  dark-card: "#252525"
+  mid-card: "#272727"
+  ink: "#ffffff"
+  silver: "#b3b3b3"
+  near-white: "#cbcbcb"
+  light: "#fdfdfd"
+  negative: "#f3727f"
+  warning: "#ffa42b"
+  announcement: "#539df5"
+  border-gray: "#4d4d4d"
+  border-light: "#7c7c7c"
+  separator: "#b3b3b3"
+  surface-light: "#eeeeee"
+  green-border: "#1db954"
 
 typography:
   display-hero:
-    fontFamily: "Inter, system-ui, -apple-system, BlinkMacSystemFont, sans-serif"
-    fontSize: 48px
+    fontFamily: "SpotifyMixUITitle, CircularSp-Arab, CircularSp-Hebr, CircularSp-Cyrl, CircularSp-Grek, CircularSp-Deva, Helvetica Neue, helvetica, arial, Hiragino Sans, Hiragino Kaku Gothic ProN, Meiryo, MS Gothic"
+    fontSize: 24px
     fontWeight: 700
-    lineHeight: 1.15
-    letterSpacing: -1px
+    letterSpacing: 0px
   heading-lg:
-    fontFamily: "Inter, system-ui, -apple-system, BlinkMacSystemFont, sans-serif"
-    fontSize: 32px
+    fontFamily: "SpotifyMixUI, CircularSp-Arab, CircularSp-Hebr, CircularSp-Cyrl, CircularSp-Grek, CircularSp-Deva, Helvetica Neue, helvetica, arial, Hiragino Sans, Hiragino Kaku Gothic ProN, Meiryo, MS Gothic"
+    fontSize: 18px
+    fontWeight: 600
+    lineHeight: 1.3
+    letterSpacing: 0px
+  body-bold:
+    fontFamily: "SpotifyMixUI, CircularSp-Arab, CircularSp-Hebr, CircularSp-Cyrl, CircularSp-Grek, CircularSp-Deva, Helvetica Neue, helvetica, arial, Hiragino Sans, Hiragino Kaku Gothic ProN, Meiryo, MS Gothic"
+    fontSize: 16px
     fontWeight: 700
-    lineHeight: 1.25
-    letterSpacing: -0.5px
+    letterSpacing: 0px
   body-md:
-    fontFamily: "Inter, system-ui, -apple-system, BlinkMacSystemFont, sans-serif"
+    fontFamily: "SpotifyMixUI, CircularSp-Arab, CircularSp-Hebr, CircularSp-Cyrl, CircularSp-Grek, CircularSp-Deva, Helvetica Neue, helvetica, arial, Hiragino Sans, Hiragino Kaku Gothic ProN, Meiryo, MS Gothic"
     fontSize: 16px
     fontWeight: 400
-    lineHeight: 1.5
     letterSpacing: 0px
-  button:
-    fontFamily: "Inter, system-ui, -apple-system, BlinkMacSystemFont, sans-serif"
+  button-uppercase:
+    fontFamily: "SpotifyMixUI, CircularSp-Arab, CircularSp-Hebr, CircularSp-Cyrl, CircularSp-Grek, CircularSp-Deva, Helvetica Neue, helvetica, arial, Hiragino Sans, Hiragino Kaku Gothic ProN, Meiryo, MS Gothic"
     fontSize: 14px
-    fontWeight: 600
-    lineHeight: 1.2
+    fontWeight: 700
+    lineHeight: 1
+    letterSpacing: 1.4px
+    textTransform: uppercase
+  button:
+    fontFamily: "SpotifyMixUI, CircularSp-Arab, CircularSp-Hebr, CircularSp-Cyrl, CircularSp-Grek, CircularSp-Deva, Helvetica Neue, helvetica, arial, Hiragino Sans, Hiragino Kaku Gothic ProN, Meiryo, MS Gothic"
+    fontSize: 14px
+    fontWeight: 700
+    letterSpacing: 0.14px
+  nav-link-bold:
+    fontFamily: "SpotifyMixUI, CircularSp-Arab, CircularSp-Hebr, CircularSp-Cyrl, CircularSp-Grek, CircularSp-Deva, Helvetica Neue, helvetica, arial, Hiragino Sans, Hiragino Kaku Gothic ProN, Meiryo, MS Gothic"
+    fontSize: 14px
+    fontWeight: 700
+    letterSpacing: 0px
+  nav-link:
+    fontFamily: "SpotifyMixUI, CircularSp-Arab, CircularSp-Hebr, CircularSp-Cyrl, CircularSp-Grek, CircularSp-Deva, Helvetica Neue, helvetica, arial, Hiragino Sans, Hiragino Kaku Gothic ProN, Meiryo, MS Gothic"
+    fontSize: 14px
+    fontWeight: 400
     letterSpacing: 0px
   caption:
-    fontFamily: "Inter, system-ui, -apple-system, BlinkMacSystemFont, sans-serif"
+    fontFamily: "SpotifyMixUI, CircularSp-Arab, CircularSp-Hebr, CircularSp-Cyrl, CircularSp-Grek, CircularSp-Deva, Helvetica Neue, helvetica, arial, Hiragino Sans, Hiragino Kaku Gothic ProN, Meiryo, MS Gothic"
+    fontSize: 14px
+    fontWeight: 400
+    letterSpacing: 0px
+  caption-bold:
+    fontFamily: "SpotifyMixUI, CircularSp-Arab, CircularSp-Hebr, CircularSp-Cyrl, CircularSp-Grek, CircularSp-Deva, Helvetica Neue, helvetica, arial, Hiragino Sans, Hiragino Kaku Gothic ProN, Meiryo, MS Gothic"
+    fontSize: 14px
+    fontWeight: 700
+    lineHeight: 1.5
+    letterSpacing: 0px
+  small-bold:
+    fontFamily: "SpotifyMixUI, CircularSp-Arab, CircularSp-Hebr, CircularSp-Cyrl, CircularSp-Grek, CircularSp-Deva, Helvetica Neue, helvetica, arial, Hiragino Sans, Hiragino Kaku Gothic ProN, Meiryo, MS Gothic"
     fontSize: 12px
-    fontWeight: 500
+    fontWeight: 700
+    lineHeight: 1.5
+    letterSpacing: 0px
+  small:
+    fontFamily: "SpotifyMixUI, CircularSp-Arab, CircularSp-Hebr, CircularSp-Cyrl, CircularSp-Grek, CircularSp-Deva, Helvetica Neue, helvetica, arial, Hiragino Sans, Hiragino Kaku Gothic ProN, Meiryo, MS Gothic"
+    fontSize: 12px
+    fontWeight: 400
+    letterSpacing: 0px
+  badge:
+    fontFamily: "SpotifyMixUI, CircularSp-Arab, CircularSp-Hebr, CircularSp-Cyrl, CircularSp-Grek, CircularSp-Deva, Helvetica Neue, helvetica, arial, Hiragino Sans, Hiragino Kaku Gothic ProN, Meiryo, MS Gothic"
+    fontSize: 10.5px
+    fontWeight: 600
     lineHeight: 1.33
+    letterSpacing: 0px
+    textTransform: capitalize
+  micro:
+    fontFamily: "SpotifyMixUI, CircularSp-Arab, CircularSp-Hebr, CircularSp-Cyrl, CircularSp-Grek, CircularSp-Deva, Helvetica Neue, helvetica, arial, Hiragino Sans, Hiragino Kaku Gothic ProN, Meiryo, MS Gothic"
+    fontSize: 10px
+    fontWeight: 400
     letterSpacing: 0px
 
 rounded:
-  sm: 4px
-  md: 8px
-  lg: 12px
-  pill: 9999px
+  minimal: 2px
+  subtle: 4px
+  standard: 6px
+  comfortable: 8px
+  medium: 20px
+  large: 100px
+  pill: 500px
+  full: 9999px
+  circle: 9999px
 
 spacing:
+  hairline: 1px
+  xxs: 2px
+  xxxs: 3px
   xs: 4px
-  sm: 8px
-  md: 16px
-  lg: 24px
-  xl: 32px
-  section: 80px
+  xsm: 5px
+  sm: 6px
+  base: 8px
+  md: 10px
+  lg: 12px
+  xlg: 14px
+  nav: 15px
+  xl: 16px
+  xxl: 20px
 
 components:
   button-primary:
     backgroundColor: "{colors.primary}"
     textColor: "{colors.on-primary}"
-    typography: "{typography.button}"
-    rounded: "{rounded.md}"
-    padding: 16px
-  button-secondary:
-    backgroundColor: "{colors.canvas}"
+    typography: "{typography.button-uppercase}"
+    rounded: "{rounded.full}"
+    padding: 8px 16px
+  button-dark-pill:
+    backgroundColor: "{colors.surface-mid}"
+    textColor: "{colors.ink}"
+    typography: "{typography.button-uppercase}"
+    rounded: "{rounded.full}"
+    padding: 8px 16px
+  button-dark-large-pill:
+    backgroundColor: "{colors.surface}"
     textColor: "{colors.ink}"
     typography: "{typography.button}"
-    rounded: "{rounded.md}"
-    padding: 16px
+    rounded: "{rounded.pill}"
+    padding: 0px 43px
+  button-light-pill:
+    backgroundColor: "{colors.surface-light}"
+    textColor: "{colors.surface}"
+    typography: "{typography.button}"
+    rounded: "{rounded.pill}"
+  button-outlined-pill:
+    backgroundColor: transparent
+    textColor: "{colors.ink}"
+    typography: "{typography.button}"
+    rounded: "{rounded.full}"
+    padding: 4px 16px 4px 36px
+  button-circular-play:
+    backgroundColor: "{colors.surface-mid}"
+    textColor: "{colors.ink}"
+    typography: "{typography.button}"
+    rounded: "{rounded.circle}"
+    padding: 12px
+  button-circular-play-active:
+    backgroundColor: "{colors.primary}"
+    textColor: "{colors.on-primary}"
+    typography: "{typography.button}"
+    rounded: "{rounded.circle}"
+    padding: 12px
   card:
     backgroundColor: "{colors.surface}"
     textColor: "{colors.ink}"
     typography: "{typography.body-md}"
-    rounded: "{rounded.lg}"
-    padding: 24px
+    rounded: "{rounded.comfortable}"
+  card-elevated:
+    backgroundColor: "{colors.dark-card}"
+    textColor: "{colors.ink}"
+    typography: "{typography.body-md}"
+    rounded: "{rounded.comfortable}"
+  search-input:
+    backgroundColor: "{colors.surface-mid}"
+    textColor: "{colors.ink}"
+    typography: "{typography.body-md}"
+    rounded: "{rounded.pill}"
+    padding: 12px 96px 12px 48px
+  sidebar-nav-active:
+    backgroundColor: "{colors.canvas}"
+    textColor: "{colors.ink}"
+    typography: "{typography.nav-link-bold}"
+  sidebar-nav-inactive:
+    backgroundColor: "{colors.canvas}"
+    textColor: "{colors.silver}"
+    typography: "{typography.nav-link}"
   text-body:
     backgroundColor: "{colors.canvas}"
-    textColor: "{colors.body}"
+    textColor: "{colors.ink}"
     typography: "{typography.body-md}"
-    rounded: "{rounded.sm}"
-    padding: 8px
   muted-label:
     backgroundColor: "{colors.canvas}"
-    textColor: "{colors.muted}"
+    textColor: "{colors.silver}"
     typography: "{typography.caption}"
-    rounded: "{rounded.sm}"
-    padding: 4px
+  badge:
+    backgroundColor: "{colors.surface-mid}"
+    textColor: "{colors.silver}"
+    typography: "{typography.badge}"
+    rounded: "{rounded.minimal}"
+    padding: 2px 6px
   link:
-    backgroundColor: "{colors.canvas}"
-    textColor: "{colors.accent}"
-    typography: "{typography.button}"
-    rounded: "{rounded.sm}"
-    padding: 4px
+    backgroundColor: transparent
+    textColor: "{colors.silver}"
+    typography: "{typography.nav-link}"
+  link-active:
+    backgroundColor: transparent
+    textColor: "{colors.primary}"
+    typography: "{typography.nav-link-bold}"
   divider:
-    backgroundColor: "{colors.hairline}"
+    backgroundColor: "{colors.separator}"
     textColor: "{colors.ink}"
-    rounded: "{rounded.sm}"
+    rounded: "{rounded.minimal}"
     height: 1px
 ---
 

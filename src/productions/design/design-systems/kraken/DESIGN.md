@@ -5,103 +5,155 @@ description: "Kraken's website is a clean, trustworthy crypto exchange that uses
 
 colors:
   primary: "#7132f5"
+  primary-dark: "#5741d8"
+  primary-deep: "#5b1ecf"
+  primary-subtle: "rgba(133,91,251,0.16)"
   on-primary: "#ffffff"
   canvas: "#ffffff"
   surface: "#ffffff"
-  ink: "#171717"
-  body: "#4d4d4d"
-  muted: "#666666"
-  hairline: "#ebebeb"
-  accent: "#5741d8"
+  ink: "#101114"
+  neutral: "#686b82"
+  muted: "#9497a9"
+  hairline: "#dedee5"
+  neutral-subtle: "rgba(148,151,169,0.08)"
+  neutral-badge: "rgba(104,107,130,0.12)"
+  neutral-badge-text: "#484b5e"
+  success: "#149e61"
+  success-subtle: "rgba(20,158,97,0.16)"
+  success-strong: "#026b3f"
 
 typography:
   display-hero:
-    fontFamily: "Inter, system-ui, -apple-system, BlinkMacSystemFont, sans-serif"
+    fontFamily: "Kraken-Brand, IBM Plex Sans, Helvetica, Arial, sans-serif"
     fontSize: 48px
     fontWeight: 700
-    lineHeight: 1.15
+    lineHeight: 1.17
     letterSpacing: -1px
   heading-lg:
-    fontFamily: "Inter, system-ui, -apple-system, BlinkMacSystemFont, sans-serif"
-    fontSize: 32px
+    fontFamily: "Kraken-Brand, IBM Plex Sans, Helvetica, Arial, sans-serif"
+    fontSize: 36px
     fontWeight: 700
-    lineHeight: 1.25
+    lineHeight: 1.22
     letterSpacing: -0.5px
-  body-md:
-    fontFamily: "Inter, system-ui, -apple-system, BlinkMacSystemFont, sans-serif"
-    fontSize: 16px
-    fontWeight: 400
-    lineHeight: 1.5
-    letterSpacing: 0px
-  button:
-    fontFamily: "Inter, system-ui, -apple-system, BlinkMacSystemFont, sans-serif"
-    fontSize: 14px
+  heading-md:
+    fontFamily: "Kraken-Brand, IBM Plex Sans, Helvetica, Arial, sans-serif"
+    fontSize: 28px
+    fontWeight: 700
+    lineHeight: 1.29
+    letterSpacing: -0.5px
+  feature-title:
+    fontFamily: "Kraken-Product, Helvetica Neue, Helvetica, Arial, sans-serif"
+    fontSize: 22px
     fontWeight: 600
     lineHeight: 1.2
     letterSpacing: 0px
-  caption:
-    fontFamily: "Inter, system-ui, -apple-system, BlinkMacSystemFont, sans-serif"
-    fontSize: 12px
+  body-md:
+    fontFamily: "Kraken-Product, Helvetica Neue, Helvetica, Arial, sans-serif"
+    fontSize: 16px
+    fontWeight: 400
+    lineHeight: 1.38
+    letterSpacing: 0px
+  body-medium:
+    fontFamily: "Kraken-Product, Helvetica Neue, Helvetica, Arial, sans-serif"
+    fontSize: 16px
     fontWeight: 500
+    lineHeight: 1.38
+    letterSpacing: 0px
+  button:
+    fontFamily: "Kraken-Product, Helvetica Neue, Helvetica, Arial, sans-serif"
+    fontSize: 16px
+    fontWeight: 500
+    lineHeight: 1.38
+    letterSpacing: 0px
+  caption:
+    fontFamily: "Kraken-Product, Helvetica Neue, Helvetica, Arial, sans-serif"
+    fontSize: 14px
+    fontWeight: 400
+    lineHeight: 1.43
+    letterSpacing: 0px
+  small:
+    fontFamily: "Kraken-Product, Helvetica Neue, Helvetica, Arial, sans-serif"
+    fontSize: 12px
+    fontWeight: 400
     lineHeight: 1.33
     letterSpacing: 0px
+  micro:
+    fontFamily: "Kraken-Product, Helvetica Neue, Helvetica, Arial, sans-serif"
+    fontSize: 7px
+    fontWeight: 500
+    lineHeight: 1
+    letterSpacing: 0px
+    textTransform: uppercase
 
 rounded:
-  sm: 4px
+  xs: 3px
+  sm: 6px
   md: 8px
-  lg: 12px
+  white-button: 10px
+  button: 12px
+  xl: 16px
   pill: 9999px
+  full: 9999px
 
 spacing:
+  hair: 1px
+  xxs: 2px
+  xxxs: 3px
   xs: 4px
-  sm: 8px
-  md: 16px
-  lg: 24px
-  xl: 32px
-  section: 80px
+  xxs-plus: 5px
+  sm: 6px
+  md: 8px
+  input-y: 10px
+  lg: 12px
+  button-y: 13px
+  xl: 16px
+  xxl: 20px
+  xxxl: 24px
+  max: 25px
 
 components:
   button-primary:
     backgroundColor: "{colors.primary}"
     textColor: "{colors.on-primary}"
     typography: "{typography.button}"
-    rounded: "{rounded.md}"
-    padding: 16px
-  button-secondary:
+    rounded: "{rounded.button}"
+    padding: 13px 16px
+  button-purple-outlined:
+    backgroundColor: "{colors.canvas}"
+    textColor: "{colors.primary-dark}"
+    typography: "{typography.button}"
+    rounded: "{rounded.button}"
+    padding: 13px 16px
+  button-purple-subtle:
+    backgroundColor: "{colors.primary-subtle}"
+    textColor: "{colors.primary}"
+    typography: "{typography.button}"
+    rounded: "{rounded.button}"
+    padding: 8px
+  button-white:
     backgroundColor: "{colors.canvas}"
     textColor: "{colors.ink}"
     typography: "{typography.button}"
-    rounded: "{rounded.md}"
-    padding: 16px
-  card:
-    backgroundColor: "{colors.surface}"
+    rounded: "{rounded.white-button}"
+  button-secondary-gray:
+    backgroundColor: "{colors.neutral-subtle}"
     textColor: "{colors.ink}"
-    typography: "{typography.body-md}"
-    rounded: "{rounded.lg}"
-    padding: 24px
-  text-body:
-    backgroundColor: "{colors.canvas}"
-    textColor: "{colors.body}"
-    typography: "{typography.body-md}"
-    rounded: "{rounded.sm}"
-    padding: 8px
-  muted-label:
-    backgroundColor: "{colors.canvas}"
-    textColor: "{colors.muted}"
+    typography: "{typography.button}"
+    rounded: "{rounded.button}"
+  link:
+    backgroundColor: transparent
+    textColor: "{colors.primary}"
+    typography: "{typography.button}"
+  badge-success:
+    backgroundColor: "{colors.success-subtle}"
+    textColor: "{colors.success-strong}"
     typography: "{typography.caption}"
     rounded: "{rounded.sm}"
-    padding: 4px
-  link:
-    backgroundColor: "{colors.canvas}"
-    textColor: "{colors.accent}"
-    typography: "{typography.button}"
-    rounded: "{rounded.sm}"
-    padding: 4px
-  divider:
-    backgroundColor: "{colors.hairline}"
-    textColor: "{colors.ink}"
-    rounded: "{rounded.sm}"
-    height: 1px
+  badge-neutral:
+    backgroundColor: "{colors.neutral-badge}"
+    textColor: "{colors.neutral-badge-text}"
+    typography: "{typography.caption}"
+    rounded: "{rounded.md}"
 ---
 
 # Design System Inspired by Kraken

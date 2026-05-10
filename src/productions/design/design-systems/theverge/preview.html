@@ -1,174 +1,1000 @@
 <!DOCTYPE html>
 <html lang="en">
 <head>
-  <meta charset="UTF-8">
-  <meta name="viewport" content="width=device-width, initial-scale=1.0">
-  <title>The Verge Design System Preview</title>
-  <style>
-    :root {
-      --primary: #131313;
-      --on-primary: #ffffff;
-      --canvas: #ffffff;
-      --surface: #ffffff;
-      --surface-strong: #f3f3f3;
-      --ink: #000000;
-      --body: #4d4d4d;
-      --muted: #666666;
-      --border: #ebebeb;
-      --display: Inter, system-ui, -apple-system, BlinkMacSystemFont, sans-serif;
-      --text: Inter, system-ui, -apple-system, BlinkMacSystemFont, sans-serif;
-      --mono: ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, monospace;
-    }
-    * { box-sizing: border-box; margin: 0; padding: 0; }
-    html, body { background: var(--canvas); color: var(--ink); font-family: var(--text); font-size: 16px; line-height: 1.5; }
-    body { min-width: 320px; }
-    .nav { position: sticky; top: 0; z-index: 20; display: grid; grid-template-columns: 1fr auto 1fr; align-items: center; gap: 20px; height: 64px; padding: 0 48px; background: color-mix(in srgb, var(--canvas) 92%, transparent); border-bottom: 1px solid var(--border); backdrop-filter: blur(14px); }
-    .brand { font-family: var(--display); font-weight: 700; letter-spacing: -0.02em; color: var(--ink); }
-    .nav-links { list-style: none; display: flex; gap: 24px; justify-content: center; }
-    .nav-links a { color: var(--body); text-decoration: none; font-size: 14px; font-weight: 600; }
-    .nav-cta { justify-self: end; border: 0; background: var(--primary); color: var(--on-primary); border-radius: 8px; padding: 11px 18px; font: 700 13px/1 var(--text); }
-    .hero { max-width: 1440px; margin: 0 auto; padding: 84px 48px 72px; display: grid; grid-template-columns: minmax(0, 1.1fr) minmax(320px, 0.9fr); gap: 48px; align-items: center; }
-    .eyebrow { color: var(--muted); font: 700 11px/1.2 var(--mono); letter-spacing: 0.12em; text-transform: uppercase; margin-bottom: 18px; }
-    h1 { font-family: var(--display); font-size: clamp(40px, 6vw, 72px); line-height: 1.04; letter-spacing: -0.045em; font-weight: 750; max-width: 980px; }
-    .hero p { margin-top: 26px; max-width: 760px; color: var(--body); font-size: 18px; line-height: 1.65; }
-    .hero-actions { margin-top: 34px; display: flex; gap: 12px; flex-wrap: wrap; }
-    .btn { display: inline-flex; align-items: center; justify-content: center; min-height: 44px; border-radius: 8px; padding: 0 20px; border: 1px solid var(--border); font: 700 14px/1 var(--text); color: var(--ink); background: var(--surface); }
-    .btn.primary { background: var(--primary); color: var(--on-primary); border-color: var(--primary); }
-    .hero-panel { background: var(--surface); border: 1px solid var(--border); border-radius: 18px; overflow: hidden; box-shadow: 0 24px 70px rgba(0,0,0,.12); }
-    .panel-top { height: 44px; display: flex; align-items: center; gap: 7px; padding: 0 16px; border-bottom: 1px solid var(--border); background: var(--surface-strong); }
-    .dot { width: 10px; height: 10px; border-radius: 999px; background: var(--primary); opacity: .85; }
-    .panel-body { padding: 22px; display: grid; gap: 14px; }
-    .metric { display: grid; grid-template-columns: 88px 1fr; gap: 14px; align-items: center; padding: 14px; border: 1px solid var(--border); border-radius: 12px; background: var(--canvas); }
-    .metric strong { color: var(--primary); font-family: var(--mono); font-size: 22px; }
-    .metric span { color: var(--body); font-size: 13px; }
-    section { max-width: 1440px; margin: 0 auto; padding: 78px 48px; border-top: 1px solid var(--border); }
-    .section-label { color: var(--muted); font: 800 11px/1.2 var(--mono); letter-spacing: .12em; text-transform: uppercase; margin-bottom: 12px; }
-    .section-heading { font-family: var(--display); font-size: clamp(26px, 3.5vw, 42px); line-height: 1.12; letter-spacing: -.025em; margin-bottom: 16px; }
-    .section-intro { color: var(--body); max-width: 760px; margin-bottom: 42px; line-height: 1.65; }
-    .palette-grid, .button-grid, .card-grid, .form-grid, .elevation-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(230px, 1fr)); gap: 18px; }
-    .swatch, .component-cell, .feature-card, .form-cell, .elevation-card { background: var(--surface); border: 1px solid var(--border); border-radius: 14px; overflow: hidden; min-width: 0; }
-    .swatch-color { height: 108px; border-bottom: 1px solid var(--border); }
-    .swatch-meta, .component-cell, .feature-card, .form-cell, .elevation-card { padding: 18px; }
-    .swatch-name, .button-label { font-weight: 800; font-size: 13px; color: var(--ink); margin-bottom: 5px; overflow-wrap: anywhere; }
-    .swatch-hex, .button-meta, .type-meta, .spacing-label { font-family: var(--mono); font-size: 12px; color: var(--muted); overflow-wrap: anywhere; }
-    .type-row { display: grid; grid-template-columns: 300px 1fr; gap: 32px; align-items: baseline; padding: 20px 0; border-bottom: 1px solid var(--border); }
-    .type-sample { color: var(--ink); overflow-wrap: anywhere; }
-    .demo-button { display: inline-flex; align-items: center; justify-content: center; min-height: 40px; border-radius: 8px; border: 1px solid var(--border); padding: 0 16px; font-weight: 700; max-width: 100%; }
-    .feature-card h4, .elevation-card h4 { font-size: 18px; margin-bottom: 8px; }
-    .feature-card p, .elevation-card p { color: var(--body); font-size: 14px; line-height: 1.55; }
-    .text-input { width: 100%; min-height: 44px; border-radius: 8px; border: 1px solid var(--border); background: var(--canvas); color: var(--ink); padding: 0 14px; font: 500 15px/1 var(--text); }
-    .badge { display: inline-flex; align-items: center; border-radius: 999px; background: var(--surface-strong); color: var(--ink); min-height: 28px; padding: 0 12px; font: 800 11px/1 var(--mono); letter-spacing: .08em; text-transform: uppercase; }
-    .spacing-row, .radius-row { display: flex; flex-wrap: wrap; gap: 18px; align-items: end; }
-    .spacing-block { display: grid; justify-items: center; gap: 8px; }
-    .spacing-bar { width: 54px; min-height: 4px; background: var(--primary); border-radius: 6px; }
-    .radius-block { width: 96px; height: 96px; display: grid; place-items: center; background: var(--surface); border: 1px solid var(--border); color: var(--muted); font: 700 12px/1 var(--mono); }
-    .responsive-table { width: 100%; border-collapse: collapse; background: var(--surface); border: 1px solid var(--border); border-radius: 14px; overflow: hidden; }
-    .responsive-table th, .responsive-table td { text-align: left; padding: 14px 16px; border-bottom: 1px solid var(--border); color: var(--body); }
-    .responsive-table th { color: var(--ink); font: 800 11px/1.2 var(--mono); letter-spacing: .1em; text-transform: uppercase; }
-    .footer { padding: 34px 48px; border-top: 1px solid var(--border); color: var(--muted); text-align: center; font-size: 13px; }
-    @media (max-width: 900px) { .nav { grid-template-columns: 1fr auto; padding: 0 20px; } .nav-links { display: none; } .nav-cta { display: none; } .hero { grid-template-columns: 1fr; padding: 56px 20px; } section { padding: 56px 20px; } .type-row { grid-template-columns: 1fr; gap: 8px; } }
-  </style>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>The Verge Design System Preview</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Anton&family=Space+Grotesk:wght@300;400;500;700&family=Space+Mono:wght@400;700&family=Newsreader:ital,wght@0,400;0,500;1,400&display=swap" rel="stylesheet">
+<style>
+  :root {
+--canvas: #131313;
+    --canvas-inverted: #131313;
+    --surface-slate: #2d2d2d;
+    --surface-slate-2: #2d2d2d;
+    --image-frame: #313131;
+    --hazard-white: #ffffff;
+    --absolute-black: #000000;
+
+    --jelly-mint: #3cffd0;
+    --verge-ultraviolet: #5200ff;
+    --console-mint-border: #309875;
+    --deep-link-blue: #3860be;
+    --focus-cyan: #1eaedb;
+    --purple-rule: #3d00bf;
+    --dim-gray: #8c8c8c;
+
+    --primary-text: #ffffff;
+    --secondary-text: #949494;
+    --muted-text: #e9e9e9;
+    --inverted-text: #131313;
+
+    --font-display: 'Anton', Impact, Helvetica, sans-serif;
+    --font-sans: 'Space Grotesk', Helvetica, Arial, sans-serif;
+    --font-mono: 'Space Mono', 'Courier New', Courier, monospace;
+    --font-serif: 'Newsreader', Georgia, serif;
+  --primary: #3cffd0;
+  --color-primary: #3cffd0;
+  --on-primary: #000000;
+  --color-on-primary: #000000;
+  --color-canvas: #131313;
+  --surface: #2d2d2d;
+  --color-surface: #2d2d2d;
+  --ink: #ffffff;
+  --color-ink: #ffffff;
+  --body: #e9e9e9;
+  --color-body: #e9e9e9;
+  --muted: #949494;
+  --color-muted: #949494;
+  --hairline: #ffffff;
+  --color-hairline: #ffffff;
+  --accent: #5200ff;
+  --color-accent: #5200ff;
+  --color-jelly-mint: #3cffd0;
+  --color-verge-ultraviolet: #5200ff;
+  --color-console-mint-border: #309875;
+  --color-deep-link-blue: #3860be;
+  --color-focus-cyan: #1eaedb;
+  --focus-border: #0500ff;
+  --color-focus-border: #0500ff;
+  --color-purple-rule: #3d00bf;
+  --canvas-black: #131313;
+  --color-canvas-black: #131313;
+  --color-surface-slate: #2d2d2d;
+  --color-image-frame: #313131;
+  --color-hazard-white: #ffffff;
+  --color-absolute-black: #000000;
+  --color-primary-text: #ffffff;
+  --color-secondary-text: #949494;
+  --color-muted-text: #e9e9e9;
+  --color-inverted-text: #131313;
+  --overlay-black: rgba(0, 0, 0, 0.33);
+  --color-overlay-black: rgba(0, 0, 0, 0.33);
+  --hover-wash: rgba(255, 255, 255, 0.2);
+  --color-hover-wash: rgba(255, 255, 255, 0.2);
+  --color-dim-gray: #8c8c8c;
+  --active-gray: rgba(140, 140, 140, 0.87);
+  --color-active-gray: rgba(140, 140, 140, 0.87);
+  --ring-gray: #c2c2c2;
+  --color-ring-gray: #c2c2c2;
+}
+  * { margin: 0; padding: 0; box-sizing: border-box; }
+  html { -webkit-font-smoothing: antialiased; -moz-osx-font-smoothing: grayscale; }
+  body {
+    background: var(--canvas);
+    color: var(--primary-text);
+    font-family: var(--font-sans);
+    font-size: 16px;
+    font-weight: 500;
+    line-height: 1.60;
+  }
+  a { color: inherit; text-decoration: none; transition: color 150ms ease; }
+  a:hover { color: var(--deep-link-blue); }
+  button { font-family: inherit; cursor: pointer; border: none; background: none; }
+
+  /* NAV */
+  .nav {
+    position: sticky; top: 0; z-index: 100;
+    padding: 14px 32px;
+    background: var(--canvas);
+    border-bottom: 1px solid rgba(19, 19, 19, 0.1);
+  }
+  .nav-brand {
+    font-family: var(--font-display);
+    font-size: 30px;
+    font-weight: 400;
+    color: var(--primary-text);
+    letter-spacing: 0.5px;
+    text-transform: uppercase;
+    line-height: 1;
+  }
+  .nav-links {
+    display: flex; gap: 26px; list-style: none; align-items: center;
+  }
+  .nav-links a {
+    font-family: var(--font-mono);
+    font-size: 11px;
+    font-weight: 700;
+    color: var(--primary-text);
+    text-transform: uppercase;
+    letter-spacing: 1.1px;
+  }
+  .nav-cta {
+    display: inline-block;
+    background: var(--jelly-mint);
+    color: var(--absolute-black);
+    padding: 10px 22px;
+    border: none;
+    border-radius: 24px;
+    font-family: var(--font-mono);
+    font-size: 12px;
+    font-weight: 700;
+    letter-spacing: 1.5px;
+    text-transform: uppercase;
+    transition: background 180ms ease, box-shadow 180ms ease;
+  }
+  .nav-cta:hover { background: rgba(60, 255, 208, 0.3); box-shadow: 0 0 0 1px var(--console-mint-border); }
+
+  /* HERO */
+  .hero {
+    padding: 72px 48px 64px;
+    background: var(--canvas);
+    position: relative;
+    overflow: hidden;
+  }
+  .hero-kicker {
+    font-family: var(--font-sans);
+    font-size: 19px;
+    font-weight: 300;
+    line-height: 1.20;
+    letter-spacing: 1.9px;
+    color: var(--primary-text);
+    text-transform: capitalize;
+    margin-bottom: 24px;
+    display: block;
+  }
+  .hero h1 {
+    font-family: var(--font-display);
+    font-size: 104px;
+    font-weight: 400;
+    line-height: 0.95;
+    letter-spacing: 1px;
+    color: var(--primary-text);
+    margin-bottom: 28px;
+    text-transform: uppercase;
+    max-width: 1200px;
+  }
+  .hero p {
+    font-family: var(--font-sans);
+    font-size: 16px;
+    font-weight: 500;
+    line-height: 1.60;
+    color: var(--secondary-text);
+    max-width: 620px;
+    margin-bottom: 36px;
+  }
+  .hero-buttons { display: flex; gap: 14px; flex-wrap: wrap; }
+
+  /* BUTTONS */
+  .btn-primary {
+    display: inline-block;
+    background: var(--jelly-mint);
+    color: var(--absolute-black);
+    padding: 12px 28px;
+    border: none;
+    border-radius: 24px;
+    font-family: var(--font-mono);
+    font-size: 13px;
+    font-weight: 700;
+    letter-spacing: 1.5px;
+    text-transform: uppercase;
+    transition: background 180ms ease, box-shadow 180ms ease;
+  }
+  .btn-primary:hover {
+    background: rgba(60, 255, 208, 0.3);
+    box-shadow: 0 0 0 1px var(--console-mint-border);
+    color: var(--absolute-black);
+  }
+  .btn-secondary {
+    display: inline-block;
+    background: var(--primary-text);
+    color: var(--hazard-white);
+    padding: 12px 28px;
+    border: none;
+    border-radius: 24px;
+    font-family: var(--font-mono);
+    font-size: 13px;
+    font-weight: 700;
+    letter-spacing: 1.5px;
+    text-transform: uppercase;
+    transition: background 180ms ease, box-shadow 180ms ease;
+  }
+  .btn-secondary:hover {
+    background: rgba(19, 19, 19, 0.2);
+    color: var(--primary-text);
+    box-shadow: 0 0 0 1px var(--dim-gray);
+  }
+  .btn-outline-mint {
+    display: inline-block;
+    background: transparent;
+    color: var(--console-mint-border);
+    padding: 12px 24px;
+    border: 1px solid var(--console-mint-border);
+    border-radius: 40px;
+    font-family: var(--font-mono);
+    font-size: 12px;
+    font-weight: 700;
+    letter-spacing: 1.5px;
+    text-transform: uppercase;
+    transition: background 180ms ease, color 180ms ease;
+  }
+  .btn-outline-mint:hover { background: var(--jelly-mint); color: var(--absolute-black); border-color: var(--jelly-mint); }
+  .btn-outline-uv {
+    display: inline-block;
+    background: transparent;
+    color: var(--verge-ultraviolet);
+    padding: 12px 24px;
+    border: 1px solid var(--verge-ultraviolet);
+    border-radius: 30px;
+    font-family: var(--font-mono);
+    font-size: 12px;
+    font-weight: 700;
+    letter-spacing: 1.5px;
+    text-transform: uppercase;
+    transition: background 180ms ease, color 180ms ease;
+  }
+  .btn-outline-uv:hover { background: var(--verge-ultraviolet); color: var(--hazard-white); }
+  .btn-icon {
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    width: 44px;
+    height: 44px;
+    background: var(--primary-text);
+    color: var(--hazard-white);
+    border: 1px solid var(--primary-text);
+    border-radius: 50%;
+    font-family: var(--font-mono);
+    font-size: 12px;
+    font-weight: 700;
+    transition: background 180ms ease, color 180ms ease;
+  }
+  .btn-icon:hover { background: var(--jelly-mint); color: var(--absolute-black); border-color: var(--jelly-mint); }
+  .btn-tag {
+    display: inline-block;
+    background: var(--jelly-mint);
+    color: var(--absolute-black);
+    padding: 6px 14px;
+    border: none;
+    border-radius: 20px;
+    font-family: var(--font-mono);
+    font-size: 11px;
+    font-weight: 700;
+    letter-spacing: 1.8px;
+    text-transform: uppercase;
+  }
+
+  /* SECTION FRAME */
+  section.preview-section {
+    padding: 72px 48px;
+    background: var(--canvas);
+    border-top: 1px solid rgba(19, 19, 19, 0.1);
+  }
+  .section-ribbon {
+    display: inline-block;
+    background: var(--primary-text);
+    color: var(--jelly-mint);
+    padding: 10px 20px;
+    font-family: var(--font-mono);
+    font-size: 12px;
+    font-weight: 700;
+    text-transform: uppercase;
+    letter-spacing: 1.5px;
+    border-radius: 20px;
+    margin-bottom: 28px;
+  }
+  .section-title {
+    font-family: var(--font-display);
+    font-size: 72px;
+    font-weight: 400;
+    line-height: 0.85;
+    letter-spacing: 0.5px;
+    color: var(--primary-text);
+    text-transform: uppercase;
+    margin-bottom: 16px;
+  }
+  .section-subtitle {
+    font-family: var(--font-sans);
+    font-size: 18px;
+    font-weight: 300;
+    line-height: 1.40;
+    letter-spacing: 1.8px;
+    color: var(--secondary-text);
+    text-transform: uppercase;
+    margin-bottom: 48px;
+    max-width: 760px;
+  }
+
+  /* COLOR PALETTE */
+  .color-group { margin-bottom: 36px; }
+  .color-group-label {
+    font-family: var(--font-mono);
+    font-size: 11px;
+    font-weight: 700;
+    text-transform: uppercase;
+    letter-spacing: 1.8px;
+    color: var(--primary-text);
+    padding-bottom: 14px;
+    margin-bottom: 20px;
+    border-bottom: 1px solid rgba(19, 19, 19, 0.15);
+  }
+  .color-grid {
+    display: grid;
+    grid-template-columns: repeat(auto-fill, minmax(240px, 1fr));
+    gap: 20px;
+  }
+  .color-swatch {
+    background: var(--surface-slate);
+    border-radius: 20px;
+    padding: 0;
+    overflow: hidden;
+    border: 1px solid rgba(19, 19, 19, 0.08);
+  }
+  .color-block {
+    height: 140px;
+    border-bottom: 1px solid rgba(19, 19, 19, 0.05);
+  }
+  .color-meta { padding: 20px 22px 22px; }
+  .color-name {
+    font-family: var(--font-sans);
+    font-size: 20px;
+    font-weight: 700;
+    line-height: 1;
+    color: var(--primary-text);
+    margin-bottom: 8px;
+  }
+  .color-hex {
+    font-family: var(--font-mono);
+    font-size: 11px;
+    font-weight: 700;
+    text-transform: uppercase;
+    letter-spacing: 1.1px;
+    color: var(--muted-text);
+    margin-bottom: 10px;
+  }
+  .color-role {
+    font-family: var(--font-sans);
+    font-size: 13px;
+    font-weight: 500;
+    line-height: 1.50;
+    color: var(--secondary-text);
+  }
+
+  /* TYPOGRAPHY */
+  .type-row {
+    display: grid;
+    grid-template-columns: 260px 1fr;
+    gap: 40px;
+    padding: 32px 0;
+    border-bottom: 1px solid rgba(19, 19, 19, 0.08);
+    align-items: baseline;
+  }
+  .type-row:last-child { border-bottom: none; }
+  .type-meta {
+    font-family: var(--font-mono);
+    font-size: 11px;
+    font-weight: 400;
+    text-transform: uppercase;
+    letter-spacing: 1.1px;
+    color: var(--muted-text);
+    line-height: 1.7;
+  }
+  .type-meta strong {
+    display: block;
+    color: var(--primary-text);
+    font-weight: 700;
+    margin-bottom: 6px;
+    font-size: 12px;
+  }
+  .type-sample { color: var(--primary-text); }
+
+  /* BUTTONS GRID */
+  .button-grid {
+    display: grid;
+    grid-template-columns: repeat(auto-fill, minmax(300px, 1fr));
+    gap: 20px;
+  }
+  .button-cell {
+    padding: 40px 32px;
+    border: 1px solid rgba(19, 19, 19, 0.08);
+    border-radius: 24px;
+    background: var(--canvas);
+    display: flex;
+    flex-direction: column;
+    gap: 22px;
+  }
+  .button-cell .label {
+    font-family: var(--font-mono);
+    font-size: 11px;
+    font-weight: 700;
+    text-transform: uppercase;
+    letter-spacing: 1.1px;
+    color: var(--muted-text);
+  }
+
+  /* STORYSTREAM TILES */
+  .storystream-grid {
+    display: grid;
+    grid-template-columns: 2fr 1fr;
+    gap: 24px;
+  }
+  .story-tile {
+    padding: 32px;
+    border-radius: 24px;
+    border: 1px solid rgba(19, 19, 19, 0.12);
+    background: var(--canvas);
+    display: flex;
+    flex-direction: column;
+    gap: 16px;
+    transition: transform 180ms ease;
+  }
+  .story-tile.mint { background: var(--jelly-mint); color: var(--absolute-black); border-color: var(--console-mint-border); }
+  .story-tile.uv { background: var(--verge-ultraviolet); color: var(--hazard-white); border-color: var(--verge-ultraviolet); }
+  .story-tile.dark { background: var(--primary-text); color: var(--hazard-white); border-color: var(--primary-text); }
+  .story-tile.yellow { background: #f5ff3c; color: var(--absolute-black); border-color: #c2cc30; }
+  .story-kicker {
+    font-family: var(--font-mono);
+    font-size: 11px;
+    font-weight: 700;
+    text-transform: uppercase;
+    letter-spacing: 1.8px;
+    color: inherit;
+    display: block;
+  }
+  .story-headline {
+    font-family: var(--font-sans);
+    font-size: 32px;
+    font-weight: 700;
+    line-height: 1.0;
+    letter-spacing: -0.3px;
+    color: inherit;
+  }
+  .story-tile.compact .story-headline { font-size: 24px; }
+  .story-deck {
+    font-family: var(--font-sans);
+    font-size: 15px;
+    font-weight: 400;
+    line-height: 1.50;
+    color: inherit;
+    opacity: 0.8;
+  }
+  .story-meta {
+    font-family: var(--font-mono);
+    font-size: 10px;
+    font-weight: 500;
+    text-transform: uppercase;
+    letter-spacing: 1.5px;
+    color: inherit;
+    opacity: 0.7;
+  }
+
+  /* TIMELINE */
+  .timeline-list {
+    display: flex;
+    flex-direction: column;
+    gap: 14px;
+    border-left: 1px dashed var(--purple-rule);
+    padding-left: 32px;
+    margin-left: 8px;
+  }
+  .timeline-item {
+    display: grid;
+    grid-template-columns: 120px 1fr;
+    gap: 20px;
+    align-items: flex-start;
+  }
+  .timeline-time {
+    font-family: var(--font-mono);
+    font-size: 11px;
+    font-weight: 700;
+    text-transform: uppercase;
+    letter-spacing: 1.1px;
+    color: var(--muted-text);
+    padding-top: 4px;
+  }
+  .timeline-body {
+    padding: 20px 24px;
+    border-radius: 20px;
+    background: var(--surface-slate);
+    border: 1px solid rgba(19, 19, 19, 0.08);
+  }
+  .timeline-body.highlight {
+    background: var(--jelly-mint);
+    border-color: var(--console-mint-border);
+  }
+  .timeline-body .story-kicker { margin-bottom: 6px; color: var(--primary-text); }
+  .timeline-body.highlight .story-kicker { color: var(--absolute-black); }
+  .timeline-body h4 {
+    font-family: var(--font-sans);
+    font-size: 20px;
+    font-weight: 700;
+    line-height: 1.1;
+    color: var(--primary-text);
+  }
+  .timeline-body.highlight h4 { color: var(--absolute-black); }
+
+  /* FORMS */
+  .form-stack {
+    display: grid;
+    grid-template-columns: 1fr 1fr;
+    gap: 28px;
+    max-width: 880px;
+  }
+  .form-field { display: flex; flex-direction: column; gap: 10px; }
+  .form-label {
+    font-family: var(--font-mono);
+    font-size: 11px;
+    font-weight: 700;
+    text-transform: uppercase;
+    letter-spacing: 1.1px;
+    color: var(--primary-text);
+  }
+  .form-input {
+    background: var(--surface-slate);
+    border: 1px solid rgba(19, 19, 19, 0.15);
+    border-radius: 2px;
+    padding: 14px 16px;
+    font-family: var(--font-sans);
+    font-size: 15px;
+    font-weight: 500;
+    color: var(--primary-text);
+    outline: none;
+    transition: border-color 150ms ease;
+  }
+  .form-input::placeholder { color: var(--muted-text); }
+  .form-input.focus { border-color: var(--jelly-mint); box-shadow: inset 0 0 0 1px var(--verge-ultraviolet); }
+  .form-input.error { border-color: var(--verge-ultraviolet); color: var(--verge-ultraviolet); }
+  .form-error {
+    font-family: var(--font-mono);
+    font-size: 11px;
+    font-weight: 700;
+    text-transform: uppercase;
+    letter-spacing: 1.1px;
+    color: var(--verge-ultraviolet);
+  }
+  .form-textarea {
+    min-height: 120px;
+    resize: vertical;
+    line-height: 1.5;
+  }
+
+  /* SPACING */
+  .spacing-row {
+    display: flex;
+    align-items: flex-end;
+    gap: 20px;
+    flex-wrap: wrap;
+  }
+  .spacing-item { display: flex; flex-direction: column; gap: 12px; align-items: flex-start; }
+  .spacing-block {
+    background: var(--primary-text);
+    height: 72px;
+    border-radius: 2px;
+  }
+  .spacing-label {
+    font-family: var(--font-mono);
+    font-size: 10px;
+    font-weight: 700;
+    text-transform: uppercase;
+    letter-spacing: 1.5px;
+    color: var(--primary-text);
+  }
+
+  /* RADIUS */
+  .radius-row {
+    display: flex;
+    gap: 28px;
+    flex-wrap: wrap;
+    align-items: flex-end;
+  }
+  .radius-item { display: flex; flex-direction: column; gap: 14px; align-items: center; }
+  .radius-block {
+    width: 110px;
+    height: 110px;
+    background: var(--primary-text);
+    border: 1px solid var(--jelly-mint);
+  }
+  .radius-block.r2 { border-radius: 2px; }
+  .radius-block.r3 { border-radius: 3px; }
+  .radius-block.r4 { border-radius: 4px; }
+  .radius-block.r20 { border-radius: 20px; }
+  .radius-block.r24 { border-radius: 24px; }
+  .radius-block.r30 { border-radius: 30px; }
+  .radius-block.r40 { border-radius: 40px; width: 150px; height: 50px; }
+  .radius-block.r50 { border-radius: 50%; }
+  .radius-label {
+    font-family: var(--font-mono);
+    font-size: 10px;
+    font-weight: 700;
+    text-transform: uppercase;
+    letter-spacing: 1.1px;
+    color: var(--primary-text);
+    text-align: center;
+  }
+  .radius-label small { display: block; color: var(--muted-text); margin-top: 4px; font-weight: 400; font-size: 9px; }
+
+  /* ELEVATION */
+  .elevation-grid {
+    display: grid;
+    grid-template-columns: repeat(auto-fill, minmax(220px, 1fr));
+    gap: 20px;
+  }
+  .elevation-cell {
+    padding: 40px 24px;
+    border-radius: 24px;
+    background: var(--canvas);
+    text-align: center;
+    min-height: 180px;
+    display: flex;
+    flex-direction: column;
+    justify-content: center;
+    align-items: center;
+    gap: 14px;
+    border: 1px solid rgba(19, 19, 19, 0.08);
+  }
+  .elevation-cell.lvl-2 { border: 1px solid var(--image-frame); }
+  .elevation-cell.lvl-3 { border: 1px solid var(--console-mint-border); }
+  .elevation-cell.lvl-4 { border: 1px solid var(--verge-ultraviolet); }
+  .elevation-cell.lvl-5 { box-shadow: 0 0 0 1px rgba(19, 19, 19, 0.33); }
+  .elevation-cell.lvl-6 { background: var(--surface-slate); box-shadow: inset 0 -2px 0 0 var(--jelly-mint); }
+  .elevation-cell.lvl-7 { background: var(--jelly-mint); border-color: var(--console-mint-border); color: var(--absolute-black); }
+  .elevation-cell .label {
+    font-family: var(--font-mono);
+    font-size: 11px;
+    font-weight: 700;
+    text-transform: uppercase;
+    letter-spacing: 1.5px;
+    color: inherit;
+  }
+  .elevation-cell .desc {
+    font-family: var(--font-sans);
+    font-size: 13px;
+    line-height: 1.4;
+    color: inherit;
+    opacity: 0.8;
+  }
+
+  /* FOOTER */
+  .footer {
+    background: var(--primary-text);
+    color: var(--hazard-white);
+    padding: 40px 48px;
+    font-family: var(--font-mono);
+    font-size: 11px;
+    font-weight: 500;
+    text-transform: uppercase;
+    letter-spacing: 1.5px;
+    text-align: center;
+  }
+  .footer a { color: var(--jelly-mint); }
+
+  /* RESPONSIVE */
+  @media (max-width: 900px) {
+    .hero { padding: 56px 24px 48px; }
+    .hero h1 { font-size: 64px; letter-spacing: 0.5px; }
+    .section-title { font-size: 48px; }
+    section.preview-section { padding: 56px 24px; }
+    .storystream-grid { grid-template-columns: 1fr; }
+    .form-stack { grid-template-columns: 1fr; }
+    .type-row { grid-template-columns: 1fr; gap: 16px; }
+    .nav { padding: 12px 20px; }
+    .nav-links { display: none; }
+    .timeline-item { grid-template-columns: 1fr; }
+  }
+
+  /* design catalog nav additions */
+  .nav-left { display: flex; align-items: center; gap: 20px; }
+  .nav-brand-link,
+  .nav-brand-link:link,
+  .nav-brand-link:visited,
+  .nav-brand-link:hover,
+  .nav-brand-link:active { text-decoration: none; color: inherit; }
+  .nav-github,
+  .nav-github:link,
+  .nav-github:visited,
+  .nav-github:hover,
+  .nav-github:active {
+    display: inline-flex;
+    align-items: center;
+    gap: 6px;
+    font-size: 12px;
+    font-weight: 600;
+    color: inherit;
+    text-decoration: none;
+    padding: 5px 10px;
+    border: 1px solid rgba(128, 128, 128, 0.3);
+    border-radius: 6px;
+    opacity: 0.75;
+    transition: opacity 200ms ease, border-color 200ms ease;
+    font-family: inherit;
+    line-height: 1;
+    white-space: nowrap;
+  }
+  .nav-github:hover { opacity: 1; border-color: rgba(128, 128, 128, 0.55); }
+  .nav-github svg { display: block; flex-shrink: 0; }
+
+  /* design catalog nav centering */
+  .nav { display: grid; grid-template-columns: 1fr auto 1fr; align-items: center; }
+  .nav > .nav-left { justify-self: start; }
+  .nav > .nav-links { justify-self: center; }
+  .nav > :last-child { justify-self: end; }
+
+
+  /* Shared Agent Platform footer content */
+  .footer { text-align: left; }
+  .footer-shell { max-width: 1200px; margin: 0 auto; }
+  .footer-grid { display: grid; grid-template-columns: repeat(4, minmax(0, 1fr)); gap: 32px; }
+  .footer-col h6 { margin: 0 0 14px; color: inherit; font: inherit; font-weight: 700; font-size: 14px; line-height: 1.2; }
+  .footer-col span { display: block; margin: 0 0 10px; color: inherit; opacity: 0.72; font-size: 14px; line-height: 1.35; }
+  .footer-credit { margin-top: 48px; padding-top: 24px; border-top: 1px solid currentColor; color: inherit; opacity: 0.78; font-size: 13px; line-height: 1.4; }
+  .footer-credit a { color: inherit; text-decoration: none; font-weight: 600; }
+  .footer-credit img { border-radius: 3px; vertical-align: -2px; margin-right: 3px; }
+  @media (max-width: 760px) {
+    .footer-grid { grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 24px; }
+  }
+</style>
 </head>
 <body>
-  <nav class="nav">
-    <div class="brand">The Verge</div>
-    <ul class="nav-links"><li><a href="#colors">Colors</a></li><li><a href="#type">Typography</a></li><li><a href="#components">Components</a></li><li><a href="#responsive">Responsive</a></li></ul>
-    <button class="nav-cta">Preview</button>
-  </nav>
 
-  <main>
-    <div class="hero">
-      <div>
-        <div class="eyebrow">Design System Preview</div>
-        <h1>The Verge visual system</h1>
-        <p>The Verge&#39;s 2024 redesign feels like somebody wired a Condé Nast magazine to a chiptune soundboard. The canvas is almost-black (#131313), the headlines are built from a brutally heavy display.</p>
-        <div class="hero-actions"><span class="btn primary">Primary action</span><span class="btn">Secondary action</span></div>
-      </div>
-      <div class="hero-panel" aria-label="Interface sample">
-        <div class="panel-top"><span class="dot"></span><span class="dot"></span><span class="dot"></span></div>
-        <div class="panel-body">
-          <div class="metric"><strong>01</strong><span>Token driven color, type, spacing, and component decisions.</span></div>
-          <div class="metric"><strong>AA</strong><span>Preview surfaces highlight contrast, hierarchy, and UI rhythm.</span></div>
-          <div class="metric"><strong>UI</strong><span>Reusable cards, controls, form fields, labels, and responsive states.</span></div>
-        </div>
+<nav class="nav">
+  <div class="nav-left">
+    <a href="#" target="_blank" rel="noopener noreferrer" class="nav-brand-link">
+      <span class="nav-brand">The Verge</span>
+    </a>
+
+  </div>
+
+  <ul class="nav-links">
+    <li><a href="#palette">Palette</a></li>
+    <li><a href="#typography">Type</a></li>
+    <li><a href="#components">Components</a></li>
+    <li><a href="#layout">Layout</a></li>
+  </ul>
+
+  <button class="nav-cta">Subscribe</button>
+</nav>
+
+<section class="hero">
+  <span class="hero-kicker">Design System / Editorial Hazard</span>
+  <h1>Design System Inspiration of The Verge</h1>
+  <p>The Verge&#39;s 2024 redesign uses an almost-black editorial canvas (#131313), acid-mint #3cffd0, ultraviolet #5200ff, massive Manuka display type, and rounded StoryStream tiles to create a dark, loud, magazine-meets-console interface.</p>
+  <div class="hero-buttons">
+    <button class="btn-primary">Explore The System</button>
+    <button class="btn-secondary">Read The Stream</button>
+  </div>
+</section>
+
+<!-- 1. PALETTE -->
+<section class="preview-section" id="palette">
+<div class="section-label">01 / Color Palette</div>
+<h2 class="section-title section-heading">Color Palette</h2>
+<div class="palette-group color-group"><h3 class="subhead color-group-title color-group-label">Brand &amp; Accent</h3><div class="palette-grid swatch-grid color-grid"><div class="swatch color-swatch"><div class="swatch-color color-swatch-block color-swatch-preview fill chip" style="background:#3cffd0"></div><div class="swatch-info swatch-meta color-swatch-info info meta"><div class="swatch-name color-swatch-name name">Primary</div><div class="swatch-hex color-swatch-hex hex">#3cffd0</div><div class="swatch-role color-swatch-role role">Brand &amp; Accent</div></div></div><div class="swatch color-swatch"><div class="swatch-color color-swatch-block color-swatch-preview fill chip" style="background:#000000"></div><div class="swatch-info swatch-meta color-swatch-info info meta"><div class="swatch-name color-swatch-name name">On Primary</div><div class="swatch-hex color-swatch-hex hex">#000000</div><div class="swatch-role color-swatch-role role">Brand &amp; Accent</div></div></div><div class="swatch color-swatch"><div class="swatch-color color-swatch-block color-swatch-preview fill chip" style="background:#5200ff"></div><div class="swatch-info swatch-meta color-swatch-info info meta"><div class="swatch-name color-swatch-name name">Accent</div><div class="swatch-hex color-swatch-hex hex">#5200ff</div><div class="swatch-role color-swatch-role role">Brand &amp; Accent</div></div></div><div class="swatch color-swatch"><div class="swatch-color color-swatch-block color-swatch-preview fill chip" style="background:#3860be"></div><div class="swatch-info swatch-meta color-swatch-info info meta"><div class="swatch-name color-swatch-name name">Deep Link Blue</div><div class="swatch-hex color-swatch-hex hex">#3860be</div><div class="swatch-role color-swatch-role role">Brand &amp; Accent</div></div></div><div class="swatch color-swatch"><div class="swatch-color color-swatch-block color-swatch-preview fill chip" style="background:#3d00bf"></div><div class="swatch-info swatch-meta color-swatch-info info meta"><div class="swatch-name color-swatch-name name">Purple Rule</div><div class="swatch-hex color-swatch-hex hex">#3d00bf</div><div class="swatch-role color-swatch-role role">Brand &amp; Accent</div></div></div><div class="swatch color-swatch"><div class="swatch-color color-swatch-block color-swatch-preview fill chip" style="background:#ffffff"></div><div class="swatch-info swatch-meta color-swatch-info info meta"><div class="swatch-name color-swatch-name name">Primary Text</div><div class="swatch-hex color-swatch-hex hex">#ffffff</div><div class="swatch-role color-swatch-role role">Brand &amp; Accent</div></div></div></div></div><div class="palette-group color-group"><h3 class="subhead color-group-title color-group-label">Surface</h3><div class="palette-grid swatch-grid color-grid"><div class="swatch color-swatch"><div class="swatch-color color-swatch-block color-swatch-preview fill chip" style="background:#131313"></div><div class="swatch-info swatch-meta color-swatch-info info meta"><div class="swatch-name color-swatch-name name">Canvas</div><div class="swatch-hex color-swatch-hex hex">#131313</div><div class="swatch-role color-swatch-role role">Surface</div></div></div><div class="swatch color-swatch"><div class="swatch-color color-swatch-block color-swatch-preview fill chip" style="background:#2d2d2d"></div><div class="swatch-info swatch-meta color-swatch-info info meta"><div class="swatch-name color-swatch-name name">Surface</div><div class="swatch-hex color-swatch-hex hex">#2d2d2d</div><div class="swatch-role color-swatch-role role">Surface</div></div></div><div class="swatch color-swatch"><div class="swatch-color color-swatch-block color-swatch-preview fill chip" style="background:#131313"></div><div class="swatch-info swatch-meta color-swatch-info info meta"><div class="swatch-name color-swatch-name name">Canvas Black</div><div class="swatch-hex color-swatch-hex hex">#131313</div><div class="swatch-role color-swatch-role role">Surface</div></div></div><div class="swatch color-swatch"><div class="swatch-color color-swatch-block color-swatch-preview fill chip" style="background:#2d2d2d"></div><div class="swatch-info swatch-meta color-swatch-info info meta"><div class="swatch-name color-swatch-name name">Surface Slate</div><div class="swatch-hex color-swatch-hex hex">#2d2d2d</div><div class="swatch-role color-swatch-role role">Surface</div></div></div></div></div><div class="palette-group color-group"><h3 class="subhead color-group-title color-group-label">Text</h3><div class="palette-grid swatch-grid color-grid"><div class="swatch color-swatch"><div class="swatch-color color-swatch-block color-swatch-preview fill chip" style="background:#ffffff"></div><div class="swatch-info swatch-meta color-swatch-info info meta"><div class="swatch-name color-swatch-name name">Ink</div><div class="swatch-hex color-swatch-hex hex">#ffffff</div><div class="swatch-role color-swatch-role role">Text</div></div></div><div class="swatch color-swatch"><div class="swatch-color color-swatch-block color-swatch-preview fill chip" style="background:#e9e9e9"></div><div class="swatch-info swatch-meta color-swatch-info info meta"><div class="swatch-name color-swatch-name name">Body</div><div class="swatch-hex color-swatch-hex hex">#e9e9e9</div><div class="swatch-role color-swatch-role role">Text</div></div></div><div class="swatch color-swatch"><div class="swatch-color color-swatch-block color-swatch-preview fill chip" style="background:#949494"></div><div class="swatch-info swatch-meta color-swatch-info info meta"><div class="swatch-name color-swatch-name name">Muted</div><div class="swatch-hex color-swatch-hex hex">#949494</div><div class="swatch-role color-swatch-role role">Text</div></div></div><div class="swatch color-swatch"><div class="swatch-color color-swatch-block color-swatch-preview fill chip" style="background:#949494"></div><div class="swatch-info swatch-meta color-swatch-info info meta"><div class="swatch-name color-swatch-name name">Secondary Text</div><div class="swatch-hex color-swatch-hex hex">#949494</div><div class="swatch-role color-swatch-role role">Text</div></div></div><div class="swatch color-swatch"><div class="swatch-color color-swatch-block color-swatch-preview fill chip" style="background:#e9e9e9"></div><div class="swatch-info swatch-meta color-swatch-info info meta"><div class="swatch-name color-swatch-name name">Muted Text</div><div class="swatch-hex color-swatch-hex hex">#e9e9e9</div><div class="swatch-role color-swatch-role role">Text</div></div></div><div class="swatch color-swatch"><div class="swatch-color color-swatch-block color-swatch-preview fill chip" style="background:#131313"></div><div class="swatch-info swatch-meta color-swatch-info info meta"><div class="swatch-name color-swatch-name name">Inverted Text</div><div class="swatch-hex color-swatch-hex hex">#131313</div><div class="swatch-role color-swatch-role role">Text</div></div></div></div></div><div class="palette-group color-group"><h3 class="subhead color-group-title color-group-label">Borders &amp; Lines</h3><div class="palette-grid swatch-grid color-grid"><div class="swatch color-swatch"><div class="swatch-color color-swatch-block color-swatch-preview fill chip" style="background:#ffffff"></div><div class="swatch-info swatch-meta color-swatch-info info meta"><div class="swatch-name color-swatch-name name">Hairline</div><div class="swatch-hex color-swatch-hex hex">#ffffff</div><div class="swatch-role color-swatch-role role">Borders &amp; Lines</div></div></div><div class="swatch color-swatch"><div class="swatch-color color-swatch-block color-swatch-preview fill chip" style="background:#309875"></div><div class="swatch-info swatch-meta color-swatch-info info meta"><div class="swatch-name color-swatch-name name">Console Mint Border</div><div class="swatch-hex color-swatch-hex hex">#309875</div><div class="swatch-role color-swatch-role role">Borders &amp; Lines</div></div></div><div class="swatch color-swatch"><div class="swatch-color color-swatch-block color-swatch-preview fill chip" style="background:#0500ff"></div><div class="swatch-info swatch-meta color-swatch-info info meta"><div class="swatch-name color-swatch-name name">Focus Border</div><div class="swatch-hex color-swatch-hex hex">#0500ff</div><div class="swatch-role color-swatch-role role">Borders &amp; Lines</div></div></div></div></div><div class="palette-group color-group"><h3 class="subhead color-group-title color-group-label">Semantic</h3><div class="palette-grid swatch-grid color-grid"><div class="swatch color-swatch"><div class="swatch-color color-swatch-block color-swatch-preview fill chip" style="background:rgba(140, 140, 140, 0.87)"></div><div class="swatch-info swatch-meta color-swatch-info info meta"><div class="swatch-name color-swatch-name name">Active Gray</div><div class="swatch-hex color-swatch-hex hex">rgba(140, 140, 140, 0.87)</div><div class="swatch-role color-swatch-role role">Semantic</div></div></div></div></div><div class="palette-group color-group"><h3 class="subhead color-group-title color-group-label">Supporting</h3><div class="palette-grid swatch-grid color-grid"><div class="swatch color-swatch"><div class="swatch-color color-swatch-block color-swatch-preview fill chip" style="background:#3cffd0"></div><div class="swatch-info swatch-meta color-swatch-info info meta"><div class="swatch-name color-swatch-name name">Jelly Mint</div><div class="swatch-hex color-swatch-hex hex">#3cffd0</div><div class="swatch-role color-swatch-role role">Supporting</div></div></div><div class="swatch color-swatch"><div class="swatch-color color-swatch-block color-swatch-preview fill chip" style="background:#5200ff"></div><div class="swatch-info swatch-meta color-swatch-info info meta"><div class="swatch-name color-swatch-name name">Verge Ultraviolet</div><div class="swatch-hex color-swatch-hex hex">#5200ff</div><div class="swatch-role color-swatch-role role">Supporting</div></div></div><div class="swatch color-swatch"><div class="swatch-color color-swatch-block color-swatch-preview fill chip" style="background:#1eaedb"></div><div class="swatch-info swatch-meta color-swatch-info info meta"><div class="swatch-name color-swatch-name name">Focus Cyan</div><div class="swatch-hex color-swatch-hex hex">#1eaedb</div><div class="swatch-role color-swatch-role role">Supporting</div></div></div><div class="swatch color-swatch"><div class="swatch-color color-swatch-block color-swatch-preview fill chip" style="background:#313131"></div><div class="swatch-info swatch-meta color-swatch-info info meta"><div class="swatch-name color-swatch-name name">Image Frame</div><div class="swatch-hex color-swatch-hex hex">#313131</div><div class="swatch-role color-swatch-role role">Supporting</div></div></div><div class="swatch color-swatch"><div class="swatch-color color-swatch-block color-swatch-preview fill chip" style="background:#ffffff"></div><div class="swatch-info swatch-meta color-swatch-info info meta"><div class="swatch-name color-swatch-name name">Hazard White</div><div class="swatch-hex color-swatch-hex hex">#ffffff</div><div class="swatch-role color-swatch-role role">Supporting</div></div></div><div class="swatch color-swatch"><div class="swatch-color color-swatch-block color-swatch-preview fill chip" style="background:#000000"></div><div class="swatch-info swatch-meta color-swatch-info info meta"><div class="swatch-name color-swatch-name name">Absolute Black</div><div class="swatch-hex color-swatch-hex hex">#000000</div><div class="swatch-role color-swatch-role role">Supporting</div></div></div><div class="swatch color-swatch"><div class="swatch-color color-swatch-block color-swatch-preview fill chip" style="background:rgba(0, 0, 0, 0.33)"></div><div class="swatch-info swatch-meta color-swatch-info info meta"><div class="swatch-name color-swatch-name name">Overlay Black</div><div class="swatch-hex color-swatch-hex hex">rgba(0, 0, 0, 0.33)</div><div class="swatch-role color-swatch-role role">Supporting</div></div></div><div class="swatch color-swatch"><div class="swatch-color color-swatch-block color-swatch-preview fill chip" style="background:rgba(255, 255, 255, 0.2)"></div><div class="swatch-info swatch-meta color-swatch-info info meta"><div class="swatch-name color-swatch-name name">Hover Wash</div><div class="swatch-hex color-swatch-hex hex">rgba(255, 255, 255, 0.2)</div><div class="swatch-role color-swatch-role role">Supporting</div></div></div><div class="swatch color-swatch"><div class="swatch-color color-swatch-block color-swatch-preview fill chip" style="background:#8c8c8c"></div><div class="swatch-info swatch-meta color-swatch-info info meta"><div class="swatch-name color-swatch-name name">Dim Gray</div><div class="swatch-hex color-swatch-hex hex">#8c8c8c</div><div class="swatch-role color-swatch-role role">Supporting</div></div></div><div class="swatch color-swatch"><div class="swatch-color color-swatch-block color-swatch-preview fill chip" style="background:#c2c2c2"></div><div class="swatch-info swatch-meta color-swatch-info info meta"><div class="swatch-name color-swatch-name name">Ring Gray</div><div class="swatch-hex color-swatch-hex hex">#c2c2c2</div><div class="swatch-role color-swatch-role role">Supporting</div></div></div></div></div>
+</section>
+
+<!-- 2. TYPOGRAPHY -->
+<section class="preview-section" id="typography">
+<div class="section-label">02 / Typography</div>
+<h2 class="section-title section-heading">Typography</h2>
+<div class="type-row type-sample"><div class="type-meta type-label type-sample-label"><strong>display-hero</strong>107px / 900 / 0.8 / 1.07px</div><div class="type-sample-text type-preview" style="font-family:Manuka, Impact, Helvetica, sans-serif;font-size:107px;font-weight:900;line-height:0.8;letter-spacing:1.07px;text-transform:none">Build a clear product interface with Display Hero rhythm.</div></div><div class="type-row type-sample"><div class="type-meta type-label type-sample-label"><strong>display-secondary</strong>90px / 900 / 0.8 / 0px</div><div class="type-sample-text type-preview" style="font-family:Manuka, Impact, Helvetica, sans-serif;font-size:90px;font-weight:900;line-height:0.8;letter-spacing:0px;text-transform:none">Build a clear product interface with Display Secondary rhythm.</div></div><div class="type-row type-sample"><div class="type-meta type-label type-sample-label"><strong>display-tertiary</strong>60px / 900 / 0.8 / 0px</div><div class="type-sample-text type-preview" style="font-family:Manuka, Impact, Helvetica, sans-serif;font-size:60px;font-weight:900;line-height:0.8;letter-spacing:0px;text-transform:none">Build a clear product interface with Display Tertiary rhythm.</div></div><div class="type-row type-sample"><div class="type-meta type-label type-sample-label"><strong>heading-lg</strong>34px / 700 / 1 / 0px</div><div class="type-sample-text type-preview" style="font-family:PolySans, Helvetica, Arial, sans-serif;font-size:34px;font-weight:700;line-height:1;letter-spacing:0px;text-transform:none">Build a clear product interface with Heading Lg rhythm.</div></div><div class="type-row type-sample"><div class="type-meta type-label type-sample-label"><strong>heading-wide</strong>32px / 400 / 1.1 / 0.32px</div><div class="type-sample-text type-preview" style="font-family:PolySans, Helvetica, Arial, sans-serif;font-size:32px;font-weight:400;line-height:1.1;letter-spacing:0.32px;text-transform:none">Build a clear product interface with Heading Wide rhythm.</div></div><div class="type-row type-sample"><div class="type-meta type-label type-sample-label"><strong>heading-md</strong>24px / 700 / 1 / 0px</div><div class="type-sample-text type-preview" style="font-family:PolySans, Helvetica, Arial, sans-serif;font-size:24px;font-weight:700;line-height:1;letter-spacing:0px;text-transform:none">Build a clear product interface with Heading Md rhythm.</div></div><div class="type-row type-sample"><div class="type-meta type-label type-sample-label"><strong>heading-sm</strong>20px / 700 / 1 / 0px</div><div class="type-sample-text type-preview" style="font-family:PolySans, Helvetica, Arial, sans-serif;font-size:20px;font-weight:700;line-height:1;letter-spacing:0px;text-transform:none">Build a clear product interface with Heading Sm rhythm.</div></div><div class="type-row type-sample"><div class="type-meta type-label type-sample-label"><strong>eyebrow-light</strong>19px / 300 / 1.2 / 1.9px</div><div class="type-sample-text type-preview" style="font-family:PolySans, Helvetica, Arial, sans-serif;font-size:19px;font-weight:300;line-height:1.2;letter-spacing:1.9px;text-transform:capitalize">Build a clear product interface with Eyebrow Light rhythm.</div></div><div class="type-row type-sample"><div class="type-meta type-label type-sample-label"><strong>label-xl</strong>18px / 400 / 1.1 / 1.8px</div><div class="type-sample-text type-preview" style="font-family:PolySans, Helvetica, Arial, sans-serif;font-size:18px;font-weight:400;line-height:1.1;letter-spacing:1.8px;text-transform:uppercase">Build a clear product interface with Label Xl rhythm.</div></div><div class="type-row type-sample"><div class="type-meta type-label type-sample-label"><strong>body-bold</strong>16px / 700 / 1 / 0px</div><div class="type-sample-text type-preview" style="font-family:PolySans, Helvetica, Arial, sans-serif;font-size:16px;font-weight:700;line-height:1;letter-spacing:0px;text-transform:none">Build a clear product interface with Body Bold rhythm.</div></div><div class="type-row type-sample"><div class="type-meta type-label type-sample-label"><strong>body-md</strong>16px / 500 / 1.6 / 0px</div><div class="type-sample-text type-preview" style="font-family:PolySans, Helvetica, Arial, sans-serif;font-size:16px;font-weight:500;line-height:1.6;letter-spacing:0px;text-transform:none">Build a clear product interface with Body Md rhythm.</div></div><div class="type-row type-sample"><div class="type-meta type-label type-sample-label"><strong>inline-label</strong>15px / 400 / 1.2 / 0.15px</div><div class="type-sample-text type-preview" style="font-family:PolySans, Helvetica, Arial, sans-serif;font-size:15px;font-weight:400;line-height:1.2;letter-spacing:0.15px;text-transform:none">Build a clear product interface with Inline Label rhythm.</div></div><div class="type-row type-sample"><div class="type-meta type-label type-sample-label"><strong>button</strong>12px / 600 / 2 / 1.5px</div><div class="type-sample-text type-preview" style="font-family:PolySans Mono, Courier New, Courier, monospace;font-size:12px;font-weight:600;line-height:2;letter-spacing:1.5px;text-transform:uppercase">Build a clear product interface with Button rhythm.</div></div><div class="type-row type-sample"><div class="type-meta type-label type-sample-label"><strong>button-secondary-label</strong>16px / 400 / 1.2 / 0px</div><div class="type-sample-text type-preview" style="font-family:PolySans, Helvetica, Arial, sans-serif;font-size:16px;font-weight:400;line-height:1.2;letter-spacing:0px;text-transform:none">Build a clear product interface with Button Secondary Label rhythm.</div></div><div class="type-row type-sample"><div class="type-meta type-label type-sample-label"><strong>caption</strong>13px / 400 / 1.6 / 0px</div><div class="type-sample-text type-preview" style="font-family:PolySans, Helvetica, Arial, sans-serif;font-size:13px;font-weight:400;line-height:1.6;letter-spacing:0px;text-transform:none">Build a clear product interface with Caption rhythm.</div></div><div class="type-row type-sample"><div class="type-meta type-label type-sample-label"><strong>eyebrow</strong>12px / 400 / 1.3 / 1.8px</div><div class="type-sample-text type-preview" style="font-family:PolySans, Helvetica, Arial, sans-serif;font-size:12px;font-weight:400;line-height:1.3;letter-spacing:1.8px;text-transform:uppercase">Build a clear product interface with Eyebrow rhythm.</div></div><div class="type-row type-sample"><div class="type-meta type-label type-sample-label"><strong>tag-label</strong>12px / 400 / 1.2 / 0.72px</div><div class="type-sample-text type-preview" style="font-family:PolySans, Helvetica, Arial, sans-serif;font-size:12px;font-weight:400;line-height:1.2;letter-spacing:0.72px;text-transform:uppercase">Build a clear product interface with Tag Label rhythm.</div></div><div class="type-row type-sample"><div class="type-meta type-label type-sample-label"><strong>caption-micro</strong>11px / 400 / 1.2 / 1.1px</div><div class="type-sample-text type-preview" style="font-family:PolySans, Helvetica, Arial, sans-serif;font-size:11px;font-weight:400;line-height:1.2;letter-spacing:1.1px;text-transform:uppercase">Build a clear product interface with Caption Micro rhythm.</div></div><div class="type-row type-sample"><div class="type-meta type-label type-sample-label"><strong>meta-nano</strong>10px / 500 / 1.4 / 1.5px</div><div class="type-sample-text type-preview" style="font-family:PolySans, Helvetica, Arial, sans-serif;font-size:10px;font-weight:500;line-height:1.4;letter-spacing:1.5px;text-transform:uppercase">Build a clear product interface with Meta Nano rhythm.</div></div><div class="type-row type-sample"><div class="type-meta type-label type-sample-label"><strong>mono-timestamp</strong>11px / 600 / 1.2 / 1.8px</div><div class="type-sample-text type-preview" style="font-family:PolySans Mono, Courier New, Courier, monospace;font-size:11px;font-weight:600;line-height:1.2;letter-spacing:1.8px;text-transform:uppercase">Build a clear product interface with Mono Timestamp rhythm.</div></div><div class="type-row type-sample"><div class="type-meta type-label type-sample-label"><strong>serif-body</strong>16px / 400 / 1.3 / -0.16px</div><div class="type-sample-text type-preview" style="font-family:FK Roman Standard, Georgia, serif;font-size:16px;font-weight:400;line-height:1.3;letter-spacing:-0.16px;text-transform:none">Build a clear product interface with Serif Body rhythm.</div></div><div class="type-row type-sample"><div class="type-meta type-label type-sample-label"><strong>serif-caption</strong>20px / 400 / 1.2 / 0px</div><div class="type-sample-text type-preview" style="font-family:FK Roman Standard, Georgia, serif;font-size:20px;font-weight:400;line-height:1.2;letter-spacing:0px;text-transform:none">Build a clear product interface with Serif Caption rhythm.</div></div>
+</section>
+
+<!-- 3. BUTTONS -->
+<section class="preview-section" id="components">
+<div class="section-label">04 / Components</div>
+<h2 class="section-title section-heading">Components</h2>
+<div class="card-grid component-grid inventory-grid"><div class="card component-card sample-card" style="background:var(--surface, var(--canvas, #fff));color:var(--ink, #111);border:1px solid var(--border, rgba(0,0,0,.14));border-radius:16px;padding:16px;min-height:150px;display:grid;gap:12px;align-content:start;box-sizing:border-box;"><h3 class="card-title">Button Primary</h3><div class="component-preview" style="display:flex;align-items:center;justify-content:flex-start;gap:12px;min-height:78px;flex-wrap:wrap;"><button type="button" class="btn demo-control" style="background:#3cffd0;color:#000000;border-radius:24px;padding:10px 24px;border:1px solid transparent;min-height:44px;display:inline-flex;align-items:center;justify-content:center;gap:8px;max-width:100%;box-sizing:border-box;font:inherit;text-decoration:none;white-space:normal;">Button Primary</button></div></div><div class="card component-card sample-card" style="background:var(--surface, var(--canvas, #fff));color:var(--ink, #111);border:1px solid var(--border, rgba(0,0,0,.14));border-radius:16px;padding:16px;min-height:150px;display:grid;gap:12px;align-content:start;box-sizing:border-box;"><h3 class="card-title">Button Secondary</h3><div class="component-preview" style="display:flex;align-items:center;justify-content:flex-start;gap:12px;min-height:78px;flex-wrap:wrap;"><button type="button" class="btn demo-control" style="background:#2d2d2d;color:#e9e9e9;border-radius:24px;padding:10px 24px;border:1px solid transparent;min-height:44px;display:inline-flex;align-items:center;justify-content:center;gap:8px;max-width:100%;box-sizing:border-box;font:inherit;text-decoration:none;white-space:normal;">Button Secondary</button></div></div><div class="card component-card sample-card" style="background:var(--surface, var(--canvas, #fff));color:var(--ink, #111);border:1px solid var(--border, rgba(0,0,0,.14));border-radius:16px;padding:16px;min-height:150px;display:grid;gap:12px;align-content:start;box-sizing:border-box;"><h3 class="card-title">Button Tertiary Outlined</h3><div class="component-preview" style="display:flex;align-items:center;justify-content:flex-start;gap:12px;min-height:78px;flex-wrap:wrap;"><button type="button" class="btn demo-control" style="background:transparent;color:#3cffd0;border-radius:40px;padding:10px 20px;border:1px solid var(--border);min-height:44px;display:inline-flex;align-items:center;justify-content:center;gap:8px;max-width:100%;box-sizing:border-box;font:inherit;text-decoration:none;white-space:normal;">Button Tertiary Outlined</button></div></div><div class="card component-card sample-card" style="background:var(--surface, var(--canvas, #fff));color:var(--ink, #111);border:1px solid var(--border, rgba(0,0,0,.14));border-radius:16px;padding:16px;min-height:150px;display:grid;gap:12px;align-content:start;box-sizing:border-box;"><h3 class="card-title">Button Ultraviolet Outlined</h3><div class="component-preview" style="display:flex;align-items:center;justify-content:flex-start;gap:12px;min-height:78px;flex-wrap:wrap;"><button type="button" class="btn demo-control" style="background:transparent;color:#5200ff;border-radius:30px;padding:10px 20px;border:1px solid var(--border);min-height:44px;display:inline-flex;align-items:center;justify-content:center;gap:8px;max-width:100%;box-sizing:border-box;font:inherit;text-decoration:none;white-space:normal;">Button Ultraviolet Outlined</button></div></div><div class="card component-card sample-card" style="background:var(--surface, var(--canvas, #fff));color:var(--ink, #111);border:1px solid var(--border, rgba(0,0,0,.14));border-radius:16px;padding:16px;min-height:150px;display:grid;gap:12px;align-content:start;box-sizing:border-box;"><h3 class="card-title">Pill Tag</h3><div class="component-preview" style="display:flex;align-items:center;justify-content:flex-start;gap:12px;min-height:78px;flex-wrap:wrap;"><span class="badge chip demo-control" style="background:#3cffd0;color:#000000;border-radius:20px;padding:4px 10px;border:1px solid transparent;min-height:44px;display:inline-flex;align-items:center;justify-content:center;gap:8px;max-width:100%;box-sizing:border-box;font:inherit;text-decoration:none;white-space:normal;">Pill Tag</span></div></div><div class="card component-card sample-card" style="background:var(--surface, var(--canvas, #fff));color:var(--ink, #111);border:1px solid var(--border, rgba(0,0,0,.14));border-radius:16px;padding:16px;min-height:150px;display:grid;gap:12px;align-content:start;box-sizing:border-box;"><h3 class="card-title">Card</h3><div class="component-preview" style="display:flex;align-items:center;justify-content:flex-start;gap:12px;min-height:78px;flex-wrap:wrap;"><article class="sample-card" style="background:#131313;color:#ffffff;border-radius:20px;padding:24px;border:1px solid var(--border);min-height:44px;display:grid;gap:10px;width:100%;box-sizing:border-box;"><div style="height:56px;border-radius:inherit;background:linear-gradient(135deg, currentColor, transparent);opacity:.14;"></div><strong>Card</strong><span style="opacity:.72;">Featured item</span></article></div></div><div class="card component-card sample-card" style="background:var(--surface, var(--canvas, #fff));color:var(--ink, #111);border:1px solid var(--border, rgba(0,0,0,.14));border-radius:16px;padding:16px;min-height:150px;display:grid;gap:12px;align-content:start;box-sizing:border-box;"><h3 class="card-title">Story Stream Tile</h3><div class="component-preview" style="display:flex;align-items:center;justify-content:flex-start;gap:12px;min-height:78px;flex-wrap:wrap;"><article class="sample-card" style="background:#131313;color:#ffffff;border-radius:20px;padding:24px;border:1px solid var(--border);min-height:44px;display:grid;gap:10px;width:100%;box-sizing:border-box;"><div style="height:56px;border-radius:inherit;background:linear-gradient(135deg, currentColor, transparent);opacity:.14;"></div><strong>Story Stream Tile</strong><span style="opacity:.72;">Featured item</span></article></div></div><div class="card component-card sample-card" style="background:var(--surface, var(--canvas, #fff));color:var(--ink, #111);border:1px solid var(--border, rgba(0,0,0,.14));border-radius:16px;padding:16px;min-height:150px;display:grid;gap:12px;align-content:start;box-sizing:border-box;"><h3 class="card-title">Story Stream Accent Tile</h3><div class="component-preview" style="display:flex;align-items:center;justify-content:flex-start;gap:12px;min-height:78px;flex-wrap:wrap;"><article class="sample-card" style="background:#5200ff;color:#ffffff;border-radius:24px;padding:32px;border:1px solid transparent;min-height:44px;display:grid;gap:10px;width:100%;box-sizing:border-box;"><div style="height:56px;border-radius:inherit;background:linear-gradient(135deg, currentColor, transparent);opacity:.14;"></div><strong>Story Stream Accent Tile</strong><span style="opacity:.72;">Featured item</span></article></div></div><div class="card component-card sample-card" style="background:var(--surface, var(--canvas, #fff));color:var(--ink, #111);border:1px solid var(--border, rgba(0,0,0,.14));border-radius:16px;padding:16px;min-height:150px;display:grid;gap:12px;align-content:start;box-sizing:border-box;"><h3 class="card-title">Feature Card</h3><div class="component-preview" style="display:flex;align-items:center;justify-content:flex-start;gap:12px;min-height:78px;flex-wrap:wrap;"><article class="sample-card" style="background:#131313;color:#ffffff;border-radius:24px;padding:32px;border:1px solid var(--border);min-height:44px;display:grid;gap:10px;width:100%;box-sizing:border-box;"><div style="height:56px;border-radius:inherit;background:linear-gradient(135deg, currentColor, transparent);opacity:.14;"></div><strong>Feature Card</strong><span style="opacity:.72;">Featured item</span></article></div></div><div class="card component-card sample-card" style="background:var(--surface, var(--canvas, #fff));color:var(--ink, #111);border:1px solid var(--border, rgba(0,0,0,.14));border-radius:16px;padding:16px;min-height:150px;display:grid;gap:12px;align-content:start;box-sizing:border-box;"><h3 class="card-title">Surface Slate Card</h3><div class="component-preview" style="display:flex;align-items:center;justify-content:flex-start;gap:12px;min-height:78px;flex-wrap:wrap;"><article class="sample-card" style="background:#2d2d2d;color:#e9e9e9;border-radius:20px;padding:24px;border:1px solid transparent;min-height:44px;display:grid;gap:10px;width:100%;box-sizing:border-box;"><div style="height:56px;border-radius:inherit;background:linear-gradient(135deg, currentColor, transparent);opacity:.14;"></div><strong>Surface Slate Card</strong><span style="opacity:.72;">Featured item</span></article></div></div><div class="card component-card sample-card" style="background:var(--surface, var(--canvas, #fff));color:var(--ink, #111);border:1px solid var(--border, rgba(0,0,0,.14));border-radius:16px;padding:16px;min-height:150px;display:grid;gap:12px;align-content:start;box-sizing:border-box;"><h3 class="card-title">Input</h3><div class="component-preview" style="display:flex;align-items:center;justify-content:flex-start;gap:12px;min-height:78px;flex-wrap:wrap;"><label class="form-token" style="display:grid;gap:8px;width:100%;"><span style="font-size:12px;font-weight:700;color:var(--muted, currentColor);">Input</span><input class="form-input" value="Input" style="background:#131313;color:#ffffff;border-radius:2px;padding:10px 16px;border:1px solid var(--border);min-height:44px;width:100%;box-sizing:border-box;font:inherit;"></label></div></div><div class="card component-card sample-card" style="background:var(--surface, var(--canvas, #fff));color:var(--ink, #111);border:1px solid var(--border, rgba(0,0,0,.14));border-radius:16px;padding:16px;min-height:150px;display:grid;gap:12px;align-content:start;box-sizing:border-box;"><h3 class="card-title">Nav Bar</h3><div class="component-preview" style="display:flex;align-items:center;justify-content:flex-start;gap:12px;min-height:78px;flex-wrap:wrap;"><nav class="nav-token" aria-label="nav-bar" style="display:flex;align-items:center;gap:8px;flex-wrap:wrap;"><a style="background:#131313;color:#ffffff;border-radius:12px;padding:12px 18px;border:1px solid var(--border);min-height:44px;display:inline-flex;align-items:center;justify-content:center;gap:8px;max-width:100%;box-sizing:border-box;font:inherit;text-decoration:none;white-space:normal;">Nav Bar</a><a style="color:var(--muted, currentColor);text-decoration:none;padding:8px 10px;">Overview</a></nav></div></div><div class="card component-card sample-card" style="background:var(--surface, var(--canvas, #fff));color:var(--ink, #111);border:1px solid var(--border, rgba(0,0,0,.14));border-radius:16px;padding:16px;min-height:150px;display:grid;gap:12px;align-content:start;box-sizing:border-box;"><h3 class="card-title">Nav Link</h3><div class="component-preview" style="display:flex;align-items:center;justify-content:flex-start;gap:12px;min-height:78px;flex-wrap:wrap;"><button type="button" class="btn demo-control" style="background:transparent;color:#ffffff;border-radius:12px;padding:12px 18px;border:1px solid var(--border);min-height:44px;display:inline-flex;align-items:center;justify-content:center;gap:8px;max-width:100%;box-sizing:border-box;font:inherit;text-decoration:none;white-space:normal;">Learn more</button></div></div><div class="card component-card sample-card" style="background:var(--surface, var(--canvas, #fff));color:var(--ink, #111);border:1px solid var(--border, rgba(0,0,0,.14));border-radius:16px;padding:16px;min-height:150px;display:grid;gap:12px;align-content:start;box-sizing:border-box;"><h3 class="card-title">Nav Cta</h3><div class="component-preview" style="display:flex;align-items:center;justify-content:flex-start;gap:12px;min-height:78px;flex-wrap:wrap;"><button type="button" class="btn demo-control" style="background:#3cffd0;color:#000000;border-radius:24px;padding:10px 24px;border:1px solid transparent;min-height:44px;display:inline-flex;align-items:center;justify-content:center;gap:8px;max-width:100%;box-sizing:border-box;font:inherit;text-decoration:none;white-space:normal;">Nav Cta</button></div></div><div class="card component-card sample-card" style="background:var(--surface, var(--canvas, #fff));color:var(--ink, #111);border:1px solid var(--border, rgba(0,0,0,.14));border-radius:16px;padding:16px;min-height:150px;display:grid;gap:12px;align-content:start;box-sizing:border-box;"><h3 class="card-title">Timestamp</h3><div class="component-preview" style="display:flex;align-items:center;justify-content:flex-start;gap:12px;min-height:78px;flex-wrap:wrap;"><div class="surface-token" style="background:#131313;color:#949494;border-radius:2px;padding:4px;border:1px solid var(--border);min-height:44px;width:100%;box-sizing:border-box;"><strong>Timestamp</strong></div></div></div><div class="card component-card sample-card" style="background:var(--surface, var(--canvas, #fff));color:var(--ink, #111);border:1px solid var(--border, rgba(0,0,0,.14));border-radius:16px;padding:16px;min-height:150px;display:grid;gap:12px;align-content:start;box-sizing:border-box;"><h3 class="card-title">Link Hover</h3><div class="component-preview" style="display:flex;align-items:center;justify-content:flex-start;gap:12px;min-height:78px;flex-wrap:wrap;"><button type="button" class="btn demo-control" style="background:transparent;color:#3860be;border-radius:12px;padding:12px 18px;border:1px solid var(--border);min-height:44px;display:inline-flex;align-items:center;justify-content:center;gap:8px;max-width:100%;box-sizing:border-box;font:inherit;text-decoration:none;white-space:normal;">Learn more</button></div></div><div class="card component-card sample-card" style="background:var(--surface, var(--canvas, #fff));color:var(--ink, #111);border:1px solid var(--border, rgba(0,0,0,.14));border-radius:16px;padding:16px;min-height:150px;display:grid;gap:12px;align-content:start;box-sizing:border-box;"><h3 class="card-title">Timeline Rail</h3><div class="component-preview" style="display:flex;align-items:center;justify-content:flex-start;gap:12px;min-height:78px;flex-wrap:wrap;"><div class="surface-token" style="background:#3d00bf;color:#ffffff;border-radius:12px;padding:12px 18px;border:1px solid transparent;min-height:44px;width:100%;box-sizing:border-box;"><strong>Timeline Rail</strong></div></div></div><div class="card component-card sample-card" style="background:var(--surface, var(--canvas, #fff));color:var(--ink, #111);border:1px solid var(--border, rgba(0,0,0,.14));border-radius:16px;padding:16px;min-height:150px;display:grid;gap:12px;align-content:start;box-sizing:border-box;"><h3 class="card-title">Active Underline</h3><div class="component-preview" style="display:flex;align-items:center;justify-content:flex-start;gap:12px;min-height:78px;flex-wrap:wrap;"><div class="surface-token" style="background:#3cffd0;color:#ffffff;border-radius:12px;padding:12px 18px;border:1px solid transparent;min-height:1px;width:100%;box-sizing:border-box;"><strong>Active Underline</strong></div></div></div><div class="card component-card sample-card" style="background:var(--surface, var(--canvas, #fff));color:var(--ink, #111);border:1px solid var(--border, rgba(0,0,0,.14));border-radius:16px;padding:16px;min-height:150px;display:grid;gap:12px;align-content:start;box-sizing:border-box;"><h3 class="card-title">Image Frame</h3><div class="component-preview" style="display:flex;align-items:center;justify-content:flex-start;gap:12px;min-height:78px;flex-wrap:wrap;"><article class="sample-card" style="background:#313131;color:#ffffff;border-radius:4px;padding:12px 18px;border:1px solid transparent;min-height:44px;display:grid;gap:10px;width:100%;box-sizing:border-box;"><div style="height:56px;border-radius:inherit;background:linear-gradient(135deg, currentColor, transparent);opacity:.14;"></div><strong>Image Frame</strong><span style="opacity:.72;">Featured item</span></article></div></div><div class="card component-card sample-card" style="background:var(--surface, var(--canvas, #fff));color:var(--ink, #111);border:1px solid var(--border, rgba(0,0,0,.14));border-radius:16px;padding:16px;min-height:150px;display:grid;gap:12px;align-content:start;box-sizing:border-box;"><h3 class="card-title">Focus State</h3><div class="component-preview" style="display:flex;align-items:center;justify-content:flex-start;gap:12px;min-height:78px;flex-wrap:wrap;"><div class="metric-card" style="background:#1eaedb;color:#ffffff;border-radius:24px;padding:12px 18px;border:1px solid transparent;min-height:44px;display:grid;gap:6px;width:100%;box-sizing:border-box;"><strong style="font-size:clamp(28px, 5vw, 48px);line-height:1;">4.92</strong><span style="opacity:.72;">Focus State</span></div></div></div><div class="card component-card sample-card" style="background:var(--surface, var(--canvas, #fff));color:var(--ink, #111);border:1px solid var(--border, rgba(0,0,0,.14));border-radius:16px;padding:16px;min-height:150px;display:grid;gap:12px;align-content:start;box-sizing:border-box;"><h3 class="card-title">Divider</h3><div class="component-preview" style="display:flex;align-items:center;justify-content:flex-start;gap:12px;min-height:78px;flex-wrap:wrap;"><div class="surface-token" style="background:#ffffff;color:#ffffff;border-radius:12px;padding:12px 18px;border:1px solid transparent;min-height:1px;width:100%;box-sizing:border-box;"><strong>Divider</strong></div></div></div></div>
+</section>
+
+<!-- 4. STORYSTREAM TILES -->
+<section class="preview-section">
+  <span class="section-ribbon">Section 04 / Story Tiles</span>
+  <h2 class="section-title">Hazard-Color Tiles</h2>
+  <p class="section-subtitle">Saturated accent blocks with rounded 20–24px corners. Color is elevation.</p>
+  <div class="storystream-grid">
+    <div class="story-tile mint">
+      <span class="story-kicker">Policy · Feature</span>
+      <h3 class="story-headline">The Next Browser War Is Already Over And Nobody Noticed</h3>
+      <p class="story-deck">A long-form deck on why the market moved from standards to distribution while the press was still benchmarking rendering engines.</p>
+      <span class="story-meta">12 min read · 2h ago</span>
+    </div>
+    <div class="story-tile uv compact">
+      <span class="story-kicker">Hardware</span>
+      <h3 class="story-headline">A Mechanical Keyboard Reviewed At Rave Volume</h3>
+      <span class="story-meta">5h ago</span>
+    </div>
+  </div>
+  <div style="height: 24px;"></div>
+  <div class="storystream-grid">
+    <div class="story-tile yellow compact">
+      <span class="story-kicker">Gaming</span>
+      <h3 class="story-headline">The Indie That Ate The Big Studios Alive</h3>
+      <span class="story-meta">Yesterday</span>
+    </div>
+    <div class="story-tile dark compact">
+      <span class="story-kicker">Science</span>
+      <h3 class="story-headline">Inside The Lab Running A Synthetic Atmosphere</h3>
+      <span class="story-meta">2 days ago</span>
+    </div>
+  </div>
+</section>
+
+<!-- 5. STORYSTREAM TIMELINE -->
+<section class="preview-section">
+  <span class="section-ribbon">Section 05 / StoryStream</span>
+  <h2 class="section-title">Timeline Rail</h2>
+  <p class="section-subtitle">Every post is a pill-cornered tile, pinned to a dashed rail by a mono uppercase timestamp.</p>
+  <div class="timeline-list">
+    <div class="timeline-item">
+      <div class="timeline-time">21m ago</div>
+      <div class="timeline-body highlight">
+        <span class="story-kicker">Breaking</span>
+        <h4>A regulator has opened an investigation into the platform merger</h4>
       </div>
     </div>
-
-    <section id="colors">
-      <div class="section-label">01 - Color Palette</div>
-      <h2 class="section-heading">Core colors and semantic surfaces</h2>
-      <p class="section-intro">The palette below is extracted from the structured design tokens. Swatches show the available roles and their exact CSS values.</p>
-      <div class="palette-grid">
-        <div class="swatch"><div class="swatch-color" style="background:#131313"></div><div class="swatch-meta"><div class="swatch-name">primary</div><div class="swatch-hex">#131313</div></div></div><div class="swatch"><div class="swatch-color" style="background:#ffffff"></div><div class="swatch-meta"><div class="swatch-name">on-primary</div><div class="swatch-hex">#ffffff</div></div></div><div class="swatch"><div class="swatch-color" style="background:#ffffff"></div><div class="swatch-meta"><div class="swatch-name">canvas</div><div class="swatch-hex">#ffffff</div></div></div><div class="swatch"><div class="swatch-color" style="background:#ffffff"></div><div class="swatch-meta"><div class="swatch-name">surface</div><div class="swatch-hex">#ffffff</div></div></div><div class="swatch"><div class="swatch-color" style="background:#000000"></div><div class="swatch-meta"><div class="swatch-name">ink</div><div class="swatch-hex">#000000</div></div></div><div class="swatch"><div class="swatch-color" style="background:#4d4d4d"></div><div class="swatch-meta"><div class="swatch-name">body</div><div class="swatch-hex">#4d4d4d</div></div></div><div class="swatch"><div class="swatch-color" style="background:#666666"></div><div class="swatch-meta"><div class="swatch-name">muted</div><div class="swatch-hex">#666666</div></div></div><div class="swatch"><div class="swatch-color" style="background:#ebebeb"></div><div class="swatch-meta"><div class="swatch-name">hairline</div><div class="swatch-hex">#ebebeb</div></div></div><div class="swatch"><div class="swatch-color" style="background:#3cffd0"></div><div class="swatch-meta"><div class="swatch-name">accent</div><div class="swatch-hex">#3cffd0</div></div></div>
+    <div class="timeline-item">
+      <div class="timeline-time">1h ago</div>
+      <div class="timeline-body">
+        <span class="story-kicker">Apple</span>
+        <h4>The iOS update everyone is quietly rolling back</h4>
       </div>
-    </section>
-
-    <section id="type">
-      <div class="section-label">02 - Typography</div>
-      <h2 class="section-heading">Type scale and voice</h2>
-      <p class="section-intro">Typography samples show how major text levels render when the token values are applied to real interface copy.</p>
-      <div class="type-row"><div class="type-meta"><strong>display-hero</strong>48px / 700 / 1.15 / -1px</div><div class="type-sample" style="font-family:Inter, system-ui, -apple-system, BlinkMacSystemFont, sans-serif;font-size:48px;font-weight:700;line-height:1.15;letter-spacing:-1px">Build a clear product interface with The Verge rhythm.</div></div><div class="type-row"><div class="type-meta"><strong>heading-lg</strong>32px / 700 / 1.25 / -0.5px</div><div class="type-sample" style="font-family:Inter, system-ui, -apple-system, BlinkMacSystemFont, sans-serif;font-size:32px;font-weight:700;line-height:1.25;letter-spacing:-0.5px">Build a clear product interface with The Verge rhythm.</div></div><div class="type-row"><div class="type-meta"><strong>body-md</strong>16px / 400 / 1.5 / 0px</div><div class="type-sample" style="font-family:Inter, system-ui, -apple-system, BlinkMacSystemFont, sans-serif;font-size:16px;font-weight:400;line-height:1.5;letter-spacing:0px">Build a clear product interface with The Verge rhythm.</div></div><div class="type-row"><div class="type-meta"><strong>button</strong>14px / 600 / 1.2 / 0px</div><div class="type-sample" style="font-family:Inter, system-ui, -apple-system, BlinkMacSystemFont, sans-serif;font-size:14px;font-weight:600;line-height:1.2;letter-spacing:0px">Build a clear product interface with The Verge rhythm.</div></div><div class="type-row"><div class="type-meta"><strong>caption</strong>12px / 500 / 1.33 / 0px</div><div class="type-sample" style="font-family:Inter, system-ui, -apple-system, BlinkMacSystemFont, sans-serif;font-size:12px;font-weight:500;line-height:1.33;letter-spacing:0px">Build a clear product interface with The Verge rhythm.</div></div>
-    </section>
-
-    <section id="components">
-      <div class="section-label">03 - Components</div>
-      <h2 class="section-heading">Buttons, cards, labels, and controls</h2>
-      <p class="section-intro">Component samples apply available token references where possible, with neutral fallbacks for properties not present in the source system.</p>
-      <div class="button-grid">
-        <div class="component-cell"><div class="button-label">button-primary</div><span class="demo-button" style="background:#131313;color:#ffffff;border-radius:8px;padding:0 16px">Sample action</span><div class="button-meta">#131313 / #ffffff</div></div><div class="component-cell"><div class="button-label">button-secondary</div><span class="demo-button" style="background:#ffffff;color:#000000;border-radius:8px;padding:0 16px">Sample action</span><div class="button-meta">#ffffff / #000000</div></div><div class="component-cell"><div class="button-label">card</div><span class="demo-button" style="background:#ffffff;color:#000000;border-radius:12px;padding:0 24px">Sample action</span><div class="button-meta">#ffffff / #000000</div></div><div class="component-cell"><div class="button-label">text-body</div><span class="demo-button" style="background:#ffffff;color:#4d4d4d;border-radius:4px;padding:0 8px">Sample action</span><div class="button-meta">#ffffff / #4d4d4d</div></div><div class="component-cell"><div class="button-label">muted-label</div><span class="demo-button" style="background:#ffffff;color:#666666;border-radius:4px;padding:0 4px">Sample action</span><div class="button-meta">#ffffff / #666666</div></div><div class="component-cell"><div class="button-label">link</div><span class="demo-button" style="background:#ffffff;color:#3cffd0;border-radius:4px;padding:0 4px">Sample action</span><div class="button-meta">#ffffff / #3cffd0</div></div><div class="component-cell"><div class="button-label">divider</div><span class="demo-button" style="background:#ebebeb;color:#000000;border-radius:4px;padding:0 14px">Sample action</span><div class="button-meta">#ebebeb / #000000</div></div>
+    </div>
+    <div class="timeline-item">
+      <div class="timeline-time">3h ago</div>
+      <div class="timeline-body">
+        <span class="story-kicker">Transportation</span>
+        <h4>The EV startup that outlasted its own hype cycle</h4>
       </div>
-    </section>
-
-    <section>
-      <div class="section-label">04 - Interface Samples</div>
-      <h2 class="section-heading">Reusable product surfaces</h2>
-      <div class="card-grid">
-        <div class="feature-card"><h4>Feature card</h4><p>Use this card treatment for summaries, benefits, or product modules with concise supporting text.</p><span class="badge">New</span></div>
-        <div class="feature-card"><h4>Data card</h4><p>Pair a strong heading with a compact metric and muted explanatory copy.</p><div style="font:800 36px/1 var(--display);color:var(--primary);margin-top:14px">24%</div></div>
-        <div class="feature-card"><h4>Content card</h4><p>Keep content blocks aligned to the design system's spacing and type hierarchy.</p><span class="btn primary" style="margin-top:14px">Continue</span></div>
+    </div>
+    <div class="timeline-item">
+      <div class="timeline-time">Yesterday</div>
+      <div class="timeline-body">
+        <span class="story-kicker">Gaming</span>
+        <h4>A handheld that actually earns the price tag</h4>
       </div>
-    </section>
+    </div>
+  </div>
+</section>
 
-    <section>
-      <div class="section-label">05 - Forms</div>
-      <h2 class="section-heading">Inputs and inline feedback</h2>
-      <div class="form-grid">
-        <div class="form-cell"><label class="button-label">Email</label><input class="text-input" value="team@example.com" aria-label="Email sample"></div>
-        <div class="form-cell"><label class="button-label">Status</label><span class="badge">Active</span></div>
-        <div class="form-cell"><label class="button-label">Action group</label><div style="display:flex;gap:10px;flex-wrap:wrap"><span class="btn primary">Save</span><span class="btn">Cancel</span></div></div>
-      </div>
-    </section>
+<!-- 6. FORMS -->
+<section class="preview-section">
+  <span class="section-ribbon">Section 06 / Forms</span>
+  <h2 class="section-title">Inputs & Newsletter</h2>
+  <p class="section-subtitle">Tight 2px radius, mint focus border, ultraviolet error border — newspaper-form minimalism.</p>
+  <div class="form-stack">
+    <div class="form-field">
+      <label class="form-label">Email — Default</label>
+      <input class="form-input" type="email" placeholder="reader@example.com">
+    </div>
+    <div class="form-field">
+      <label class="form-label">Email — Focus</label>
+      <input class="form-input focus" type="email" placeholder="reader@example.com">
+    </div>
+    <div class="form-field">
+      <label class="form-label">Email — Error</label>
+      <input class="form-input error" type="email" value="not-an-email">
+      <span class="form-error">Please enter a valid address</span>
+    </div>
+    <div class="form-field">
+      <label class="form-label">Comment — Textarea</label>
+      <textarea class="form-input form-textarea" placeholder="Share your thoughts on the story..."></textarea>
+    </div>
+  </div>
+</section>
 
-    <section>
-      <div class="section-label">06 - Spacing</div>
-      <h2 class="section-heading">Spacing scale</h2>
-      <div class="spacing-row">
-        <div class="spacing-block"><div class="spacing-bar" style="height:4px"></div><div class="spacing-label">xs · 4px</div></div><div class="spacing-block"><div class="spacing-bar" style="height:8px"></div><div class="spacing-label">sm · 8px</div></div><div class="spacing-block"><div class="spacing-bar" style="height:16px"></div><div class="spacing-label">md · 16px</div></div><div class="spacing-block"><div class="spacing-bar" style="height:24px"></div><div class="spacing-label">lg · 24px</div></div><div class="spacing-block"><div class="spacing-bar" style="height:32px"></div><div class="spacing-label">xl · 32px</div></div><div class="spacing-block"><div class="spacing-bar" style="height:80px"></div><div class="spacing-label">section · 80px</div></div>
-      </div>
-    </section>
+<!-- 7. SPACING -->
+<section class="preview-section" id="layout">
+  <span class="section-ribbon">Section 07 / Spacing</span>
+  <h2 class="section-title">Spacing Scale (8px System)</h2>
+  <p class="section-subtitle">Fine micro-scale (2/4/5/6/9/10) for pills, editorial scale (12/16/20/24) for the grid.</p>
+  <div class="spacing-row">
+    <div class="spacing-item"><div class="spacing-block" style="width: 2px;"></div><span class="spacing-label">2px</span></div>
+    <div class="spacing-item"><div class="spacing-block" style="width: 4px;"></div><span class="spacing-label">4px</span></div>
+    <div class="spacing-item"><div class="spacing-block" style="width: 6px;"></div><span class="spacing-label">6px</span></div>
+    <div class="spacing-item"><div class="spacing-block" style="width: 8px;"></div><span class="spacing-label">8px · base</span></div>
+    <div class="spacing-item"><div class="spacing-block" style="width: 10px;"></div><span class="spacing-label">10px</span></div>
+    <div class="spacing-item"><div class="spacing-block" style="width: 12px;"></div><span class="spacing-label">12px</span></div>
+    <div class="spacing-item"><div class="spacing-block" style="width: 16px;"></div><span class="spacing-label">16px</span></div>
+    <div class="spacing-item"><div class="spacing-block" style="width: 20px;"></div><span class="spacing-label">20px</span></div>
+    <div class="spacing-item"><div class="spacing-block" style="width: 24px;"></div><span class="spacing-label">24px</span></div>
+    <div class="spacing-item"><div class="spacing-block" style="width: 25px;"></div><span class="spacing-label">25px</span></div>
+  </div>
+</section>
 
-    <section>
-      <div class="section-label">07 - Radius</div>
-      <h2 class="section-heading">Shape language</h2>
-      <div class="radius-row">
-        <div class="radius-block" style="border-radius:4px">sm</div><div class="radius-block" style="border-radius:8px">md</div><div class="radius-block" style="border-radius:12px">lg</div><div class="radius-block" style="border-radius:9999px">pill</div>
-      </div>
-    </section>
+<!-- 8. RADIUS -->
+<section class="preview-section">
+  <span class="section-ribbon">Section 08 / Radius</span>
+  <h2 class="section-title">Border Radius Scale</h2>
+  <p class="section-subtitle">Eight radii — from 2px typewriter tags to 40px outlined shout-pills.</p>
+  <div class="radius-row">
+    <div class="radius-item">
+      <div class="radius-block r2"></div>
+      <span class="radius-label">2px<small>Inputs, badges</small></span>
+    </div>
+    <div class="radius-item">
+      <div class="radius-block r3"></div>
+      <span class="radius-label">3px<small>Inline images</small></span>
+    </div>
+    <div class="radius-item">
+      <div class="radius-block r4"></div>
+      <span class="radius-label">4px<small>Nested imagery</small></span>
+    </div>
+    <div class="radius-item">
+      <div class="radius-block r20"></div>
+      <span class="radius-label">20px<small>Story tiles</small></span>
+    </div>
+    <div class="radius-item">
+      <div class="radius-block r24"></div>
+      <span class="radius-label">24px<small>Feature cards, primary button</small></span>
+    </div>
+    <div class="radius-item">
+      <div class="radius-block r30"></div>
+      <span class="radius-label">30px<small>Promo buttons</small></span>
+    </div>
+    <div class="radius-item">
+      <div class="radius-block r40"></div>
+      <span class="radius-label">40px<small>Outlined pill CTAs</small></span>
+    </div>
+    <div class="radius-item">
+      <div class="radius-block r50"></div>
+      <span class="radius-label">50%<small>Avatars, icon buttons</small></span>
+    </div>
+  </div>
+</section>
 
-    <section id="responsive">
-      <div class="section-label">08 - Responsive Behavior</div>
-      <h2 class="section-heading">Layout strategy</h2>
-      <table class="responsive-table">
-        <thead><tr><th>Viewport</th><th>Behavior</th></tr></thead>
-        <tbody>
-          <tr><td>Mobile</td><td>Single column layout, compact nav, tighter section padding.</td></tr>
-          <tr><td>Tablet</td><td>Two-column component grids and readable type hierarchy.</td></tr>
-          <tr><td>Desktop</td><td>Wide token catalog, multi-column cards, expanded whitespace.</td></tr>
-        </tbody>
-      </table>
-    </section>
-  </main>
+<!-- 9. ELEVATION -->
+<section class="preview-section">
+  <span class="section-ribbon">Section 09 / Elevation</span>
+  <h2 class="section-title">Depth & Elevation</h2>
+  <p class="section-subtitle">Color is elevation. 1px hazard borders do the work shadows would do elsewhere.</p>
+  <div class="elevation-grid">
+    <div class="elevation-cell lvl-0">
+      <span class="label">Level 0</span>
+      <div class="desc">Plain canvas text — no border, no shadow</div>
+    </div>
+    <div class="elevation-cell lvl-2">
+      <span class="label">Level 2</span>
+      <div class="desc">1px hairline frame — image outlines</div>
+    </div>
+    <div class="elevation-cell lvl-3">
+      <span class="label">Level 3</span>
+      <div class="desc">1px Jelly Mint outline — active tile</div>
+    </div>
+    <div class="elevation-cell lvl-4">
+      <span class="label">Level 4</span>
+      <div class="desc">1px Ultraviolet outline — promo state</div>
+    </div>
+    <div class="elevation-cell lvl-5">
+      <span class="label">Level 5</span>
+      <div class="desc">Subtle atmospheric 1px ring — stacked cards</div>
+    </div>
+    <div class="elevation-cell lvl-6">
+      <span class="label">Level 6</span>
+      <div class="desc">Inset mint underline — active tab signature</div>
+    </div>
+    <div class="elevation-cell lvl-7">
+      <span class="label">Level 7</span>
+      <div class="desc">Saturated Jelly Mint fill — loudest emphasis</div>
+    </div>
+  </div>
+</section>
 
-  <footer class="footer">Generated from DESIGN.md tokens for local preview and review.</footer>
+<footer class="footer">
+  <div class="footer-shell">
+    <p>The Verge</p>
+    <p class="token-meta">Design token preview</p>
+  </div>
+</footer>
+
 </body>
 </html>

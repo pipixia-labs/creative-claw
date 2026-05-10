@@ -1,106 +1,150 @@
 ---
 version: alpha
 name: "xAI"
-description: "xAI's website is a masterclass in dark-first, monospace-driven brutalist minimalism -- a design system that feels like it was built by engineers who understand that restraint is the ultimate form of sophistication. The entire experience is anchored to an almost-black background (#1f2228) with pure white text (#ffffff), creating a high-contrast, terminal-inspired aesthetic that signals deep technical credibility. There are no gradients, no decorative illustrations, no color accents competing for attention. This is a site that communicates through absence."
+description: >-
+  xAI's website is a dark-first, monospace-driven brutalist system anchored to
+  #1f2228, pure white foregrounds, GeistMono display/button type, universalSans
+  body text, sharp corners, and no shadows or decorative color.
 
 colors:
-  primary: "#1f2228"
-  on-primary: "#ffffff"
-  canvas: "#ffffff"
-  surface: "#ffffff"
-  ink: "#000000"
-  body: "#4d4d4d"
-  muted: "#666666"
-  hairline: "#ebebeb"
+  primary: "#ffffff"
+  on-primary: "#1f2228"
+  canvas: "#1f2228"
+  surface: "rgba(255, 255, 255, 0.03)"
+  ink: "#ffffff"
+  body: "rgba(255, 255, 255, 0.7)"
+  muted: "rgba(255, 255, 255, 0.5)"
+  hairline: "rgba(255, 255, 255, 0.1)"
   accent: "#ffffff"
+  pure-white: "#ffffff"
+  dark-background: "#1f2228"
+  white-default: "#ffffff"
+  white-muted: "rgba(255, 255, 255, 0.5)"
+  white-subtle: "rgba(255, 255, 255, 0.2)"
+  ring-blue: "rgba(59, 130, 246, 0.5)"
+  surface-elevated: "rgba(255, 255, 255, 0.05)"
+  surface-hover: "rgba(255, 255, 255, 0.08)"
+  border-default: "rgba(255, 255, 255, 0.1)"
+  border-strong: "rgba(255, 255, 255, 0.2)"
+  text-primary: "#ffffff"
+  text-secondary: "rgba(255, 255, 255, 0.7)"
+  text-tertiary: "rgba(255, 255, 255, 0.5)"
+  text-quaternary: "rgba(255, 255, 255, 0.3)"
+  primary-hover-bg: "rgba(255, 255, 255, 0.9)"
 
 typography:
   display-hero:
-    fontFamily: "Inter, system-ui, -apple-system, BlinkMacSystemFont, sans-serif"
-    fontSize: 48px
-    fontWeight: 700
-    lineHeight: 1.15
-    letterSpacing: -1px
+    fontFamily: "GeistMono, ui-monospace, SFMono-Regular, Roboto Mono, Menlo, Monaco, Liberation Mono, DejaVu Sans Mono, Courier New, monospace"
+    fontSize: 320px
+    fontWeight: 300
+    lineHeight: 1.5
+    letterSpacing: 0px
   heading-lg:
-    fontFamily: "Inter, system-ui, -apple-system, BlinkMacSystemFont, sans-serif"
-    fontSize: 32px
-    fontWeight: 700
-    lineHeight: 1.25
-    letterSpacing: -0.5px
+    fontFamily: "universalSans, universalSans Fallback, sans-serif"
+    fontSize: 30px
+    fontWeight: 400
+    lineHeight: 1.2
+    letterSpacing: 0px
   body-md:
-    fontFamily: "Inter, system-ui, -apple-system, BlinkMacSystemFont, sans-serif"
+    fontFamily: "universalSans, universalSans Fallback, sans-serif"
     fontSize: 16px
     fontWeight: 400
     lineHeight: 1.5
     letterSpacing: 0px
   button:
-    fontFamily: "Inter, system-ui, -apple-system, BlinkMacSystemFont, sans-serif"
+    fontFamily: "GeistMono, ui-monospace, SFMono-Regular, Roboto Mono, Menlo, Monaco, Liberation Mono, DejaVu Sans Mono, Courier New, monospace"
     fontSize: 14px
-    fontWeight: 600
-    lineHeight: 1.2
-    letterSpacing: 0px
+    fontWeight: 400
+    lineHeight: 1.43
+    letterSpacing: 1.4px
+    textTransform: uppercase
   caption:
-    fontFamily: "Inter, system-ui, -apple-system, BlinkMacSystemFont, sans-serif"
-    fontSize: 12px
-    fontWeight: 500
-    lineHeight: 1.33
+    fontFamily: "universalSans, universalSans Fallback, sans-serif"
+    fontSize: 14px
+    fontWeight: 400
+    lineHeight: 1.5
     letterSpacing: 0px
+  small:
+    fontFamily: "universalSans, universalSans Fallback, sans-serif"
+    fontSize: 12px
+    fontWeight: 400
+    lineHeight: 1.5
+    letterSpacing: 0px
+  mono-tag:
+    fontFamily: "GeistMono, ui-monospace, SFMono-Regular, Roboto Mono, Menlo, Monaco, Liberation Mono, DejaVu Sans Mono, Courier New, monospace"
+    fontSize: 12px
+    fontWeight: 400
+    lineHeight: 1.33
+    letterSpacing: 1px
+    textTransform: uppercase
 
 rounded:
+  none: 0px
   sm: 4px
-  md: 8px
-  lg: 12px
-  pill: 9999px
 
 spacing:
   xs: 4px
   sm: 8px
-  md: 16px
-  lg: 24px
-  xl: 32px
-  section: 80px
+  md: 24px
+  section-sm: 48px
+  section: 96px
 
 components:
   button-primary:
     backgroundColor: "{colors.primary}"
     textColor: "{colors.on-primary}"
     typography: "{typography.button}"
-    rounded: "{rounded.md}"
-    padding: 16px
+    rounded: "{rounded.none}"
+    padding: 12px 24px
   button-secondary:
-    backgroundColor: "{colors.canvas}"
-    textColor: "{colors.ink}"
+    backgroundColor: transparent
+    textColor: "{colors.pure-white}"
     typography: "{typography.button}"
-    rounded: "{rounded.md}"
-    padding: 16px
+    rounded: "{rounded.none}"
+    padding: 12px 24px
   card:
-    backgroundColor: "{colors.surface}"
-    textColor: "{colors.ink}"
+    backgroundColor: "{colors.surface-elevated}"
+    textColor: "{colors.text-primary}"
     typography: "{typography.body-md}"
-    rounded: "{rounded.lg}"
+    rounded: "{rounded.none}"
     padding: 24px
+  card-subtle:
+    backgroundColor: "{colors.surface}"
+    textColor: "{colors.text-primary}"
+    typography: "{typography.body-md}"
+    rounded: "{rounded.sm}"
+    padding: 24px
+  input:
+    backgroundColor: "{colors.surface-elevated}"
+    textColor: "{colors.text-primary}"
+    typography: "{typography.body-md}"
+    rounded: "{rounded.none}"
+    padding: 12px 24px
+  nav-bar:
+    backgroundColor: "{colors.dark-background}"
+    textColor: "{colors.text-primary}"
+    typography: "{typography.caption}"
+    padding: 24px
+  monospace-tag:
+    backgroundColor: transparent
+    textColor: "{colors.text-primary}"
+    typography: "{typography.mono-tag}"
+    rounded: "{rounded.none}"
+    padding: 4px 8px
   text-body:
     backgroundColor: "{colors.canvas}"
-    textColor: "{colors.body}"
+    textColor: "{colors.text-secondary}"
     typography: "{typography.body-md}"
-    rounded: "{rounded.sm}"
-    padding: 8px
   muted-label:
     backgroundColor: "{colors.canvas}"
-    textColor: "{colors.muted}"
+    textColor: "{colors.text-tertiary}"
     typography: "{typography.caption}"
-    rounded: "{rounded.sm}"
-    padding: 4px
   link:
-    backgroundColor: "{colors.canvas}"
-    textColor: "{colors.accent}"
-    typography: "{typography.button}"
-    rounded: "{rounded.sm}"
-    padding: 4px
+    backgroundColor: transparent
+    textColor: "{colors.white-default}"
+    typography: "{typography.body-md}"
   divider:
     backgroundColor: "{colors.hairline}"
-    textColor: "{colors.ink}"
-    rounded: "{rounded.sm}"
     height: 1px
 ---
 

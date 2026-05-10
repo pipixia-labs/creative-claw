@@ -1,106 +1,259 @@
 ---
 version: alpha
 name: "Zapier"
-description: "Zapier's website radiates warm, approachable professionalism. It rejects the cold monochrome minimalism of developer tools in favor of a cream-tinted canvas (#fffefb) that feels like unbleached paper -- the digital equivalent of a well-organized notebook. The near-black (#201515) text has a faint reddish-brown warmth, creating an atmosphere more human than mechanical. This is automation designed to feel effortless, not technical."
+description: >-
+  Zapier's website uses a warm cream canvas, reddish near-black text, Zapier
+  Orange CTAs, Degular Display hero typography, Inter UI text, GT Alpina
+  editorial accents, and sand-colored borders instead of shadows.
 
 colors:
-  primary: "#fffefb"
-  on-primary: "#000000"
-  canvas: "#ffffff"
-  surface: "#ffffff"
-  ink: "#000000"
-  body: "#4d4d4d"
-  muted: "#666666"
-  hairline: "#ebebeb"
-  accent: "#201515"
+  primary: "#ff4f00"
+  on-primary: "#fffefb"
+  canvas: "#fffefb"
+  surface: "#fffefb"
+  ink: "#201515"
+  body: "#36342e"
+  muted: "#939084"
+  hairline: "#c5c0b1"
+  accent: "#ff4f00"
+  zapier-black: "#201515"
+  cream-white: "#fffefb"
+  off-white: "#fffdf9"
+  zapier-orange: "#ff4f00"
+  dark-charcoal: "#36342e"
+  warm-gray: "#939084"
+  sand: "#c5c0b1"
+  light-sand: "#eceae3"
+  mid-warm: "#b5b2aa"
+  semi-transparent-dark: "rgba(45, 45, 46, 0.5)"
+  overlay-dark: "#2d2d2e"
+  active-underline: "rgb(255, 79, 0)"
+  hover-underline: "rgb(197, 192, 177)"
 
 typography:
   display-hero:
-    fontFamily: "Inter, system-ui, -apple-system, BlinkMacSystemFont, sans-serif"
-    fontSize: 48px
-    fontWeight: 700
-    lineHeight: 1.15
-    letterSpacing: -1px
+    fontFamily: "Degular Display, Inter, sans-serif"
+    fontSize: 80px
+    fontWeight: 500
+    lineHeight: 0.9
+    letterSpacing: 0px
+  display-md:
+    fontFamily: "Degular Display, Inter, sans-serif"
+    fontSize: 56px
+    fontWeight: 500
+    lineHeight: 0.9
+    letterSpacing: 1.12px
+  display-sm:
+    fontFamily: "Degular Display, Inter, sans-serif"
+    fontSize: 40px
+    fontWeight: 500
+    lineHeight: 0.9
+    letterSpacing: 0px
+  display-button:
+    fontFamily: "Degular Display, Inter, sans-serif"
+    fontSize: 24px
+    fontWeight: 600
+    lineHeight: 1
+    letterSpacing: 1px
   heading-lg:
-    fontFamily: "Inter, system-ui, -apple-system, BlinkMacSystemFont, sans-serif"
+    fontFamily: "Inter, Helvetica, Arial, sans-serif"
+    fontSize: 48px
+    fontWeight: 500
+    lineHeight: 1.04
+    letterSpacing: 0px
+  editorial-heading:
+    fontFamily: "GT Alpina, Georgia, serif"
+    fontSize: 48px
+    fontWeight: 250
+    lineHeight: 1
+    letterSpacing: -1.92px
+  editorial-sub:
+    fontFamily: "GT Alpina, Georgia, serif"
+    fontSize: 40px
+    fontWeight: 300
+    lineHeight: 1.08
+    letterSpacing: -1.6px
+  subheading-lg:
+    fontFamily: "Inter, Helvetica, Arial, sans-serif"
+    fontSize: 36px
+    fontWeight: 500
+    lineHeight: 1.2
+    letterSpacing: -1px
+  subheading:
+    fontFamily: "Inter, Helvetica, Arial, sans-serif"
     fontSize: 32px
-    fontWeight: 700
+    fontWeight: 400
     lineHeight: 1.25
-    letterSpacing: -0.5px
+    letterSpacing: 0px
+  card-title:
+    fontFamily: "Inter, Helvetica, Arial, sans-serif"
+    fontSize: 24px
+    fontWeight: 600
+    lineHeight: 1.2
+    letterSpacing: -0.48px
+  body-lg:
+    fontFamily: "Inter, Helvetica, Arial, sans-serif"
+    fontSize: 20px
+    fontWeight: 500
+    lineHeight: 1.2
+    letterSpacing: -0.2px
   body-md:
-    fontFamily: "Inter, system-ui, -apple-system, BlinkMacSystemFont, sans-serif"
+    fontFamily: "Inter, Helvetica, Arial, sans-serif"
     fontSize: 16px
     fontWeight: 400
-    lineHeight: 1.5
+    lineHeight: 1.25
+    letterSpacing: -0.16px
+  body-semibold:
+    fontFamily: "Inter, Helvetica, Arial, sans-serif"
+    fontSize: 16px
+    fontWeight: 600
+    lineHeight: 1.16
     letterSpacing: 0px
   button:
-    fontFamily: "Inter, system-ui, -apple-system, BlinkMacSystemFont, sans-serif"
+    fontFamily: "Inter, Helvetica, Arial, sans-serif"
+    fontSize: 16px
+    fontWeight: 600
+    lineHeight: 1.2
+    letterSpacing: 0px
+  button-sm:
+    fontFamily: "Inter, Helvetica, Arial, sans-serif"
     fontSize: 14px
     fontWeight: 600
     lineHeight: 1.2
     letterSpacing: 0px
   caption:
-    fontFamily: "Inter, system-ui, -apple-system, BlinkMacSystemFont, sans-serif"
-    fontSize: 12px
+    fontFamily: "Inter, Helvetica, Arial, sans-serif"
+    fontSize: 14px
     fontWeight: 500
+    lineHeight: 1.43
+    letterSpacing: 0px
+  caption-upper:
+    fontFamily: "Inter, Helvetica, Arial, sans-serif"
+    fontSize: 14px
+    fontWeight: 600
+    lineHeight: 1.2
+    letterSpacing: 0.5px
+    textTransform: uppercase
+  micro:
+    fontFamily: "Inter, Helvetica, Arial, sans-serif"
+    fontSize: 12px
+    fontWeight: 600
     lineHeight: 1.33
+    letterSpacing: 0.5px
+    textTransform: uppercase
+  micro-sm:
+    fontFamily: "Inter, Helvetica, Arial, sans-serif"
+    fontSize: 13px
+    fontWeight: 500
+    lineHeight: 1.54
     letterSpacing: 0px
 
 rounded:
+  tight: 3px
   sm: 4px
+  content: 5px
   md: 8px
-  lg: 12px
-  pill: 9999px
+  social: 14px
+  pill: 20px
 
 spacing:
+  hairline: 1px
   xs: 4px
+  compact: 6px
   sm: 8px
-  md: 16px
-  lg: 24px
-  xl: 32px
-  section: 80px
+  input: 10px
+  md: 12px
+  lg: 16px
+  xlg: 20px
+  xl: 24px
+  xxl: 32px
+  section-xs: 40px
+  section-sm: 48px
+  display-gap: 56px
+  section: 64px
+  section-lg: 72px
+  section-xl: 80px
 
 components:
   button-primary:
-    backgroundColor: "{colors.primary}"
+    backgroundColor: "{colors.zapier-orange}"
     textColor: "{colors.on-primary}"
     typography: "{typography.button}"
-    rounded: "{rounded.md}"
-    padding: 16px
+    rounded: "{rounded.sm}"
+    padding: 8px 16px
   button-secondary:
-    backgroundColor: "{colors.canvas}"
-    textColor: "{colors.ink}"
+    backgroundColor: "{colors.zapier-black}"
+    textColor: "{colors.cream-white}"
     typography: "{typography.button}"
     rounded: "{rounded.md}"
-    padding: 16px
+    padding: 20px 24px
+  button-light:
+    backgroundColor: "{colors.light-sand}"
+    textColor: "{colors.dark-charcoal}"
+    typography: "{typography.button}"
+    rounded: "{rounded.md}"
+    padding: 20px 24px
+  pill-button:
+    backgroundColor: "{colors.cream-white}"
+    textColor: "{colors.dark-charcoal}"
+    typography: "{typography.button}"
+    rounded: "{rounded.pill}"
+    padding: 0px 16px
+  overlay-button:
+    backgroundColor: "{colors.semi-transparent-dark}"
+    textColor: "{colors.cream-white}"
+    typography: "{typography.button}"
+    rounded: "{rounded.pill}"
+    padding: 8px 16px
+  tab-active:
+    backgroundColor: transparent
+    textColor: "{colors.zapier-black}"
+    typography: "{typography.button}"
+    padding: 12px 16px
   card:
-    backgroundColor: "{colors.surface}"
-    textColor: "{colors.ink}"
+    backgroundColor: "{colors.cream-white}"
+    textColor: "{colors.zapier-black}"
     typography: "{typography.body-md}"
-    rounded: "{rounded.lg}"
+    rounded: "{rounded.content}"
     padding: 24px
+  featured-card:
+    backgroundColor: "{colors.cream-white}"
+    textColor: "{colors.zapier-black}"
+    typography: "{typography.card-title}"
+    rounded: "{rounded.md}"
+    padding: 24px
+  input:
+    backgroundColor: "{colors.cream-white}"
+    textColor: "{colors.zapier-black}"
+    typography: "{typography.body-md}"
+    rounded: "{rounded.content}"
+    padding: 12px 16px
+  stat-counter:
+    backgroundColor: "{colors.cream-white}"
+    textColor: "{colors.zapier-black}"
+    typography: "{typography.heading-lg}"
+    rounded: "{rounded.content}"
+    padding: 24px
+  social-icon:
+    backgroundColor: "{colors.cream-white}"
+    textColor: "{colors.zapier-black}"
+    typography: "{typography.caption}"
+    rounded: "{rounded.social}"
+    padding: 8px
   text-body:
     backgroundColor: "{colors.canvas}"
-    textColor: "{colors.body}"
+    textColor: "{colors.dark-charcoal}"
     typography: "{typography.body-md}"
-    rounded: "{rounded.sm}"
-    padding: 8px
   muted-label:
     backgroundColor: "{colors.canvas}"
-    textColor: "{colors.muted}"
+    textColor: "{colors.warm-gray}"
     typography: "{typography.caption}"
-    rounded: "{rounded.sm}"
-    padding: 4px
   link:
-    backgroundColor: "{colors.canvas}"
-    textColor: "{colors.accent}"
+    backgroundColor: transparent
+    textColor: "{colors.zapier-black}"
     typography: "{typography.button}"
-    rounded: "{rounded.sm}"
-    padding: 4px
   divider:
     backgroundColor: "{colors.hairline}"
-    textColor: "{colors.ink}"
-    rounded: "{rounded.sm}"
     height: 1px
 ---
 

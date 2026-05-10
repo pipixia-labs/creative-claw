@@ -26,6 +26,11 @@ from websockets.legacy.server import WebSocketServerProtocol, serve
 
 from conf.channel import WebChannelConfig
 from src.logger import logger
+from src.productions.design.design_systems import (
+    list_design_systems,
+    read_design_system,
+    resolve_design_system_preview,
+)
 from src.runtime.cancellation import get_cancellation_manager
 from src.runtime.process_sessions import ProcessKillSummary
 from src.runtime import InboundMessage, MessageAttachment
@@ -116,6 +121,15 @@ def _html_response(body: str, *, status: HTTPStatus = HTTPStatus.OK) -> tuple[HT
         status,
         [("Content-Type", "text/html; charset=utf-8"), ("Cache-Control", "no-cache")],
         body.encode("utf-8"),
+    )
+
+
+def _json_response(data: Any, *, status: HTTPStatus = HTTPStatus.OK) -> tuple[HTTPStatus, list[tuple[str, str]], bytes]:
+    """Build one no-cache JSON response."""
+    return (
+        status,
+        [("Content-Type", "application/json; charset=utf-8"), ("Cache-Control", "no-cache")],
+        json.dumps(data, ensure_ascii=False).encode("utf-8"),
     )
 
 
@@ -1032,6 +1046,12 @@ class WebChannel(BaseChannel):
         if parsed.path == "/ws":
             return None
 
+        if parsed.path == "/api/design-systems":
+            return _json_response({"designSystems": [item.to_dict() for item in list_design_systems()]})
+
+        if parsed.path.startswith("/api/design-systems/"):
+            return self._serve_design_system_api(parsed.path.removeprefix("/api/design-systems/"))
+
         if parsed.path.startswith("/workspace-preview/"):
             return self._serve_workspace_preview(parsed.path.removeprefix("/workspace-preview/"))
 
@@ -1054,6 +1074,34 @@ class WebChannel(BaseChannel):
         if resolved_path == INDEX_FILE:
             body = body.replace(b"__CREATIVE_CLAW_TITLE__", self.config.title.encode("utf-8"))
         return HTTPStatus.OK, headers, body
+
+    def _serve_design_system_api(self, raw_path: str) -> tuple[HTTPStatus, list[tuple[str, str]], bytes]:
+        """Serve design system metadata and preview HTML."""
+        parts = [unquote(part) for part in raw_path.split("/") if part]
+        if len(parts) != 2:
+            return _json_response({"error": "not found"}, status=HTTPStatus.NOT_FOUND)
+        system_id, action = parts
+        if action == "detail":
+            body = read_design_system(system_id)
+            if body is None:
+                return _json_response({"error": "design system not found"}, status=HTTPStatus.NOT_FOUND)
+            return _json_response({"id": system_id, "body": body})
+
+        if action in {"preview", "showcase", "preview-dark"}:
+            preview_path = resolve_design_system_preview(system_id, dark=action == "preview-dark")
+            if preview_path is None:
+                return (
+                    HTTPStatus.NOT_FOUND,
+                    [("Content-Type", "text/plain; charset=utf-8")],
+                    b"Not Found",
+                )
+            return (
+                HTTPStatus.OK,
+                [("Content-Type", "text/html; charset=utf-8"), ("Cache-Control", "no-cache")],
+                preview_path.read_bytes(),
+            )
+
+        return _json_response({"error": "not found"}, status=HTTPStatus.NOT_FOUND)
 
     def _serve_workspace_asset(self, raw_relative_path: str) -> tuple[HTTPStatus, list[tuple[str, str]], bytes]:
         """Serve one file from the CreativeClaw workspace."""

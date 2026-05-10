@@ -1,106 +1,341 @@
 ---
 version: alpha
 name: "Starbucks"
-description: "Starbucks' design system is a **warm, confident retail flagship** wearing the green of their storefront apron across every surface. The canvas alternates between a neutral-warm cream (#f2f0eb) and a ceramic off-white (#edebe9) — colors that reference actual store materials: the paper napkins, the café walls, the wood finishes — while the signature **Starbucks Green** (#006241) anchors the brand moment on hero bands, CTAs, and the Rewards experience. The greens come in four calibrated shades (Starbucks, Accent, House, Uplift) each mapped to a specific surface role, and gold (#cba258) appears only around Rewards-status ceremony — not as a general accent."
+description: >-
+  Starbucks' design system is a **warm, confident retail flagship** wearing the
+  green of their storefront apron across every surface. The canvas alternates
+  between a neutral-warm cream (#f2f0eb) and a ceramic off-white (#edebe9), while
+  the signature Starbucks Green (#006241) anchors the brand moment on hero bands,
+  CTAs, and the Rewards experience.
 
 colors:
-  primary: "#f2f0eb"
-  on-primary: "#000000"
-  canvas: "#ffffff"
+  primary: "#006241"
+  on-primary: "#ffffff"
+  canvas: "#f2f0eb"
   surface: "#ffffff"
-  ink: "#000000"
-  body: "#4d4d4d"
-  muted: "#666666"
-  hairline: "#ebebeb"
-  accent: "#edebe9"
+  ink: "rgba(0, 0, 0, 0.87)"
+  body: "rgba(0, 0, 0, 0.87)"
+  muted: "rgba(0, 0, 0, 0.58)"
+  hairline: "#e7e7e7"
+  accent: "#00754A"
+  starbucks-green: "#006241"
+  green-accent: "#00754A"
+  house-green: "#1E3932"
+  green-uplift: "#2b5148"
+  green-light: "#d4e9e2"
+  gold: "#cba258"
+  gold-light: "#dfc49d"
+  gold-lightest: "#faf6ee"
+  ceramic: "#edebe9"
+  neutral-cool: "#f9f9f9"
+  black: "#000000"
+  white: "#ffffff"
+  text-black: "rgba(0, 0, 0, 0.87)"
+  text-black-soft: "rgba(0, 0, 0, 0.58)"
+  text-white: "rgba(255, 255, 255, 1)"
+  text-white-soft: "rgba(255, 255, 255, 0.70)"
+  rewards-green: "#33433d"
+  red: "#c82014"
+  yellow: "#fbbc05"
+  input-border: "#d6dbde"
+  consent-green: "rgb(0, 130, 72)"
 
 typography:
   display-hero:
-    fontFamily: "Inter, system-ui, -apple-system, BlinkMacSystemFont, sans-serif"
-    fontSize: 48px
-    fontWeight: 700
-    lineHeight: 1.15
-    letterSpacing: -1px
+    fontFamily: 'SoDoSans, "Helvetica Neue", Helvetica, Arial, sans-serif'
+    fontSize: 80px
+    fontWeight: 600
+    lineHeight: 1.2
+    letterSpacing: -0.16px
+  jumbo:
+    fontFamily: 'SoDoSans, "Helvetica Neue", Helvetica, Arial, sans-serif'
+    fontSize: 58px
+    fontWeight: 600
+    lineHeight: 1.2
+    letterSpacing: -0.16px
+  hero-large:
+    fontFamily: 'SoDoSans, "Helvetica Neue", Helvetica, Arial, sans-serif'
+    fontSize: 45px
+    fontWeight: 600
+    lineHeight: 1.2
+    letterSpacing: -0.16px
   heading-lg:
-    fontFamily: "Inter, system-ui, -apple-system, BlinkMacSystemFont, sans-serif"
-    fontSize: 32px
-    fontWeight: 700
-    lineHeight: 1.25
-    letterSpacing: -0.5px
+    fontFamily: 'SoDoSans, "Helvetica Neue", Helvetica, Arial, sans-serif'
+    fontSize: 24px
+    fontWeight: 600
+    lineHeight: 1.5
+    letterSpacing: -0.16px
+  heading-md:
+    fontFamily: 'SoDoSans, "Helvetica Neue", Helvetica, Arial, sans-serif'
+    fontSize: 24px
+    fontWeight: 400
+    lineHeight: 1.5
+    letterSpacing: -0.16px
+  body-lg:
+    fontFamily: 'SoDoSans, "Helvetica Neue", Helvetica, Arial, sans-serif'
+    fontSize: 19px
+    fontWeight: 400
+    lineHeight: 1.75
+    letterSpacing: -0.16px
   body-md:
-    fontFamily: "Inter, system-ui, -apple-system, BlinkMacSystemFont, sans-serif"
+    fontFamily: 'SoDoSans, "Helvetica Neue", Helvetica, Arial, sans-serif'
     fontSize: 16px
     fontWeight: 400
     lineHeight: 1.5
-    letterSpacing: 0px
+    letterSpacing: -0.01em
+  body-sm:
+    fontFamily: 'SoDoSans, "Helvetica Neue", Helvetica, Arial, sans-serif'
+    fontSize: 14px
+    fontWeight: 400
+    lineHeight: 1.5
+    letterSpacing: -0.01em
   button:
-    fontFamily: "Inter, system-ui, -apple-system, BlinkMacSystemFont, sans-serif"
+    fontFamily: 'SoDoSans, "Helvetica Neue", Helvetica, Arial, sans-serif'
+    fontSize: 16px
+    fontWeight: 600
+    lineHeight: 1.2
+    letterSpacing: -0.01em
+  button-sm:
+    fontFamily: 'SoDoSans, "Helvetica Neue", Helvetica, Arial, sans-serif'
     fontSize: 14px
     fontWeight: 600
     lineHeight: 1.2
-    letterSpacing: 0px
+    letterSpacing: -0.01em
+  button-light:
+    fontFamily: 'SoDoSans, "Helvetica Neue", Helvetica, Arial, sans-serif'
+    fontSize: 14px
+    fontWeight: 400
+    lineHeight: 1.2
+    letterSpacing: -0.01em
   caption:
-    fontFamily: "Inter, system-ui, -apple-system, BlinkMacSystemFont, sans-serif"
-    fontSize: 12px
-    fontWeight: 500
-    lineHeight: 1.33
+    fontFamily: 'SoDoSans, "Helvetica Neue", Helvetica, Arial, sans-serif'
+    fontSize: 13px
+    fontWeight: 400
+    lineHeight: 1.5
+    letterSpacing: -0.01em
+  rewards-serif:
+    fontFamily: '"Lander Tall", "Iowan Old Style", Georgia, serif'
+    fontSize: 45px
+    fontWeight: 400
+    lineHeight: 1.2
+    letterSpacing: -0.16px
+  rewards-pill:
+    fontFamily: "Proxima Nova, Arial, sans-serif"
+    fontSize: 13px
+    fontWeight: 700
+    lineHeight: 1.2
+    letterSpacing: 0.5px
+  nutrition-label:
+    fontFamily: "Proxima Nova, Arial, sans-serif"
+    fontSize: 14px
+    fontWeight: 400
+    lineHeight: 1.5
+    letterSpacing: 0px
+  nutrition-value:
+    fontFamily: "Proxima Nova, Arial, sans-serif"
+    fontSize: 14px
+    fontWeight: 700
+    lineHeight: 1.5
     letterSpacing: 0px
 
 rounded:
-  sm: 4px
-  md: 8px
-  lg: 12px
+  field: 4px
+  card: 12px
+  button: 50px
+  circle: 9999px
   pill: 9999px
 
 spacing:
+  hairline: 1px
   xs: 4px
   sm: 8px
   md: 16px
   lg: 24px
   xl: 32px
-  section: 80px
+  xxl: 40px
+  section-sm: 48px
+  frap: 56px
+  section: 64px
+  nav-xs: 64px
+  nav-mobile: 72px
+  nav-tablet: 83px
+  nav-desktop: 99px
+  subnav: 53px
+  internal-subnav: 48px
+  modal-top: 88px
+  modal-combined: 112px
 
 components:
   button-primary:
-    backgroundColor: "{colors.primary}"
+    backgroundColor: "{colors.green-accent}"
     textColor: "{colors.on-primary}"
     typography: "{typography.button}"
-    rounded: "{rounded.md}"
-    padding: 16px
-  button-secondary:
-    backgroundColor: "{colors.canvas}"
-    textColor: "{colors.ink}"
+    rounded: "{rounded.button}"
+    padding: 7px 16px
+  button-primary-outlined:
+    backgroundColor: transparent
+    textColor: "{colors.green-accent}"
     typography: "{typography.button}"
-    rounded: "{rounded.md}"
-    padding: 16px
+    rounded: "{rounded.button}"
+    padding: 7px 16px
+  button-black:
+    backgroundColor: "{colors.black}"
+    textColor: "{colors.white}"
+    typography: "{typography.button-sm}"
+    rounded: "{rounded.button}"
+    padding: 7px 16px
+  button-dark-outlined:
+    backgroundColor: transparent
+    textColor: "{colors.text-black}"
+    typography: "{typography.button-sm}"
+    rounded: "{rounded.button}"
+    padding: 7px 16px
+  button-green-inverted:
+    backgroundColor: "{colors.white}"
+    textColor: "{colors.green-accent}"
+    typography: "{typography.button}"
+    rounded: "{rounded.button}"
+    padding: 7px 16px
+  button-outlined-on-dark:
+    backgroundColor: transparent
+    textColor: "{colors.white}"
+    typography: "{typography.button}"
+    rounded: "{rounded.button}"
+    padding: 7px 16px
+  button-consent-agree:
+    backgroundColor: "{colors.consent-green}"
+    textColor: "{colors.white}"
+    typography: "{typography.button-light}"
+    rounded: "{rounded.button}"
+    padding: 7px 16px
+  frap-button:
+    backgroundColor: "{colors.green-accent}"
+    textColor: "{colors.white}"
+    typography: "{typography.button}"
+    rounded: "{rounded.circle}"
+    width: 56px
+    height: 56px
+  frap-button-mini:
+    backgroundColor: "{colors.green-accent}"
+    textColor: "{colors.white}"
+    typography: "{typography.button}"
+    rounded: "{rounded.circle}"
+    width: 40px
+    height: 40px
+  feedback-tab:
+    backgroundColor: "{colors.green-accent}"
+    textColor: "{colors.white}"
+    typography: "{typography.button-light}"
+    padding: 8px 16px
   card:
     backgroundColor: "{colors.surface}"
-    textColor: "{colors.ink}"
+    textColor: "{colors.text-black}"
     typography: "{typography.body-md}"
-    rounded: "{rounded.lg}"
+    rounded: "{rounded.card}"
+    padding: 16px
+  gift-card-tile:
+    backgroundColor: "{colors.white}"
+    textColor: "{colors.text-black}"
+    typography: "{typography.body-md}"
+    rounded: "{rounded.card}"
+  rewards-status-card:
+    backgroundColor: "{colors.house-green}"
+    textColor: "{colors.text-white}"
+    typography: "{typography.heading-lg}"
+    rounded: "{rounded.card}"
     padding: 24px
-  text-body:
-    backgroundColor: "{colors.canvas}"
-    textColor: "{colors.body}"
+  partnership-card:
+    backgroundColor: "{colors.gold-lightest}"
+    textColor: "{colors.text-black}"
     typography: "{typography.body-md}"
-    rounded: "{rounded.sm}"
-    padding: 8px
-  muted-label:
-    backgroundColor: "{colors.canvas}"
-    textColor: "{colors.muted}"
-    typography: "{typography.caption}"
-    rounded: "{rounded.sm}"
-    padding: 4px
-  link:
-    backgroundColor: "{colors.canvas}"
-    textColor: "{colors.accent}"
+    rounded: "{rounded.card}"
+    padding: 24px
+  dropdown-menu:
+    backgroundColor: "{colors.neutral-cool}"
+    textColor: "{colors.text-black}"
+    typography: "{typography.heading-md}"
+    padding: 24px
+  modal:
+    backgroundColor: "{colors.white}"
+    textColor: "{colors.text-black}"
+    typography: "{typography.body-md}"
+    rounded: "{rounded.card}"
+    padding: 88px 24px 24px
+  floating-label-input:
+    backgroundColor: "{colors.white}"
+    textColor: "{colors.text-black}"
+    typography: "{typography.body-md}"
+    rounded: "{rounded.field}"
+    padding: 12px
+  select-field:
+    backgroundColor: "{colors.white}"
+    textColor: "{colors.text-black}"
+    typography: "{typography.body-md}"
+    rounded: "{rounded.field}"
+    padding: 12px
+  size-option:
+    backgroundColor: transparent
+    textColor: "{colors.starbucks-green}"
+    typography: "{typography.body-md}"
+    rounded: "{rounded.card}"
+    padding: 16px 24px
+  stepper-button:
+    backgroundColor: "{colors.white}"
+    textColor: "{colors.text-black-soft}"
+    typography: "{typography.nutrition-value}"
+    rounded: "{rounded.circle}"
+    width: 32px
+    height: 32px
+  customize-button:
+    backgroundColor: "{colors.white}"
+    textColor: "{colors.green-accent}"
     typography: "{typography.button}"
-    rounded: "{rounded.sm}"
-    padding: 4px
+    rounded: "{rounded.button}"
+    padding: 14px 40px
+  add-to-order-button:
+    backgroundColor: "{colors.green-accent}"
+    textColor: "{colors.white}"
+    typography: "{typography.button}"
+    rounded: "{rounded.button}"
+    padding: 14px 32px
+  rewards-cost-pill:
+    backgroundColor: transparent
+    textColor: "{colors.gold}"
+    typography: "{typography.rewards-pill}"
+    rounded: "{rounded.button}"
+    padding: 4px 12px
+  product-description-band:
+    backgroundColor: "{colors.house-green}"
+    textColor: "{colors.text-white}"
+    typography: "{typography.body-md}"
+    padding: 32px
+  nutrition-row:
+    backgroundColor: "{colors.white}"
+    textColor: "{colors.text-black}"
+    typography: "{typography.nutrition-label}"
+  store-availability-selector:
+    backgroundColor: transparent
+    textColor: "{colors.white}"
+    typography: "{typography.nutrition-label}"
+    rounded: "{rounded.field}"
+    height: 48px
+  feature-band:
+    backgroundColor: "{colors.house-green}"
+    textColor: "{colors.text-white}"
+    typography: "{typography.heading-lg}"
+    padding: 32px
+  nav-bar:
+    backgroundColor: "{colors.white}"
+    textColor: "{colors.text-black}"
+    typography: "{typography.button-sm}"
+    height: 99px
+  subnav:
+    backgroundColor: "{colors.white}"
+    textColor: "{colors.text-black}"
+    typography: "{typography.button-sm}"
+    height: 53px
   divider:
     backgroundColor: "{colors.hairline}"
-    textColor: "{colors.ink}"
-    rounded: "{rounded.sm}"
     height: 1px
 ---
 

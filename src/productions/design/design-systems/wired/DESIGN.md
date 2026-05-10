@@ -1,106 +1,216 @@
 ---
 version: alpha
 name: "WIRED"
-description: "WIRED's homepage feels like a printed broadsheet that someone has plugged into a wall socket. The grid is dense, the rules are thin, the type is loud, and almost every surface is paper-white or pure black with no rounded corners and no decoration that doesn't earn its place. Image rectangles butt directly against headlines, hairline dividers separate stories the way pica rules separate columns in a real magazine, and the only colors that aren't grayscale come from the photography itself. There is no \"card with shadow\" anywhere — the entire layout is held together by typographic weight and the discipline of rules and whitespace, the same way a Condé Nast print page would be assembled in a paste-up room."
+description: >-
+  WIRED is a dense editorial system built from paper-white surfaces, pure black
+  rules, square image rectangles, custom serif display type, mono uppercase
+  kickers, and a single link-blue hover accent.
 
 colors:
-  primary: "#057dbc"
+  primary: "#000000"
   on-primary: "#ffffff"
   canvas: "#ffffff"
   surface: "#ffffff"
   ink: "#000000"
-  body: "#4d4d4d"
-  muted: "#999999"
-  hairline: "#ebebeb"
-  accent: "#000000"
+  body: "#1a1a1a"
+  muted: "#757575"
+  hairline: "#e2e8f0"
+  accent: "#057dbc"
+  wired-black: "#000000"
+  page-ink: "#1a1a1a"
+  paper-white: "#ffffff"
+  link-blue: "#057dbc"
+  newsprint: "#ffffff"
+  footer-ink: "#1a1a1a"
+  hairline-tint: "#e2e8f0"
+  headline-black: "#1a1a1a"
+  caption-gray: "#757575"
+  disabled-gray: "#999999"
+  rule-slate: "#4a5568"
+  error-red: "#e53e3e"
+  disabled-border: "#757575"
+  disabled-text: "#a0aec0"
 
 typography:
   display-hero:
-    fontFamily: "Inter, system-ui, -apple-system, BlinkMacSystemFont, sans-serif"
-    fontSize: 48px
-    fontWeight: 700
-    lineHeight: 1.15
-    letterSpacing: -1px
-  heading-lg:
-    fontFamily: "Inter, system-ui, -apple-system, BlinkMacSystemFont, sans-serif"
-    fontSize: 32px
-    fontWeight: 700
-    lineHeight: 1.25
+    fontFamily: "WiredDisplay, helvetica, sans-serif"
+    fontSize: 64px
+    fontWeight: 400
+    lineHeight: 0.93
     letterSpacing: -0.5px
+  display-mid:
+    fontFamily: "WiredDisplay, helvetica, sans-serif"
+    fontSize: 26px
+    fontWeight: 400
+    lineHeight: 1.08
+    letterSpacing: 0px
+  heading-lg:
+    fontFamily: "Apercu, helvetica, sans-serif"
+    fontSize: 20px
+    fontWeight: 700
+    lineHeight: 1.2
+    letterSpacing: -0.28px
+  subheading:
+    fontFamily: "Apercu, helvetica, sans-serif"
+    fontSize: 17px
+    fontWeight: 700
+    lineHeight: 1.29
+    letterSpacing: -0.144px
+  article-deck:
+    fontFamily: "BreveText, helvetica, serif"
+    fontSize: 19px
+    fontWeight: 400
+    lineHeight: 1.47
+    letterSpacing: 0.108px
   body-md:
-    fontFamily: "Inter, system-ui, -apple-system, BlinkMacSystemFont, sans-serif"
+    fontFamily: "BreveText, helvetica, serif"
     fontSize: 16px
     fontWeight: 400
     lineHeight: 1.5
-    letterSpacing: 0px
+    letterSpacing: 0.09px
+  ui-heading:
+    fontFamily: "Apercu, helvetica, sans-serif"
+    fontSize: 16px
+    fontWeight: 700
+    lineHeight: 1.25
+    letterSpacing: 0.3px
   button:
-    fontFamily: "Inter, system-ui, -apple-system, BlinkMacSystemFont, sans-serif"
+    fontFamily: "Apercu, helvetica, sans-serif"
+    fontSize: 16px
+    fontWeight: 700
+    lineHeight: 1.25
+    letterSpacing: 0.3px
+  link-ui:
+    fontFamily: "Apercu, helvetica, sans-serif"
     fontSize: 14px
-    fontWeight: 600
-    lineHeight: 1.2
+    fontWeight: 400
+    lineHeight: 1.29
+    letterSpacing: 0.4px
+  eyebrow:
+    fontFamily: "WiredMono, helvetica, monospace"
+    fontSize: 13px
+    fontWeight: 400
+    lineHeight: 1.23
+    letterSpacing: 0.92px
+    textTransform: uppercase
+  eyebrow-bold:
+    fontFamily: "WiredMono, helvetica, monospace"
+    fontSize: 13px
+    fontWeight: 700
+    lineHeight: 1.23
     letterSpacing: 0px
-  caption:
-    fontFamily: "Inter, system-ui, -apple-system, BlinkMacSystemFont, sans-serif"
+    textTransform: uppercase
+  section-ribbon:
+    fontFamily: "WiredMono, helvetica, monospace"
     fontSize: 12px
-    fontWeight: 500
+    fontWeight: 700
+    lineHeight: 1
+    letterSpacing: 1.2px
+    textTransform: uppercase
+  caption:
+    fontFamily: "BreveText, helvetica, serif"
+    fontSize: 12.73px
+    fontWeight: 700
+    lineHeight: 2.2
+    letterSpacing: 0.108px
+  timestamp:
+    fontFamily: "WiredMono, helvetica, monospace"
+    fontSize: 12px
+    fontWeight: 400
     lineHeight: 1.33
+    letterSpacing: 1.1px
+    textTransform: uppercase
+  footer-link:
+    fontFamily: "ProximaNova, helvetica, sans-serif"
+    fontSize: 11px
+    fontWeight: 400
+    lineHeight: 1.45
     letterSpacing: 0px
+  inter-ui-heading:
+    fontFamily: "Inter, system-ui, sans-serif"
+    fontSize: 16px
+    fontWeight: 600
+    lineHeight: 1.23
+    letterSpacing: 0.108px
 
 rounded:
-  sm: 4px
-  md: 8px
-  lg: 12px
-  pill: 9999px
+  none: 0px
+  text-pill: 1920px
+  circle: 9999px
 
 spacing:
+  hairline: 1px
   xs: 4px
   sm: 8px
-  md: 16px
-  lg: 24px
-  xl: 32px
-  section: 80px
+  md: 12px
+  ribbon-gap: 14.11px
+  nav: 15px
+  lg: 16px
+  xl: 24px
+  image-gap: 25.46px
+  story-gap: 29.66px
+  section-sm: 32px
+  section: 40px
+  section-lg: 48px
+  page-gutter: 64px
 
 components:
   button-primary:
-    backgroundColor: "{colors.primary}"
-    textColor: "{colors.on-primary}"
+    backgroundColor: "{colors.paper-white}"
+    textColor: "{colors.wired-black}"
     typography: "{typography.button}"
-    rounded: "{rounded.md}"
-    padding: 16px
+    rounded: "{rounded.none}"
+    padding: 12px 24px
   button-secondary:
-    backgroundColor: "{colors.canvas}"
-    textColor: "{colors.ink}"
+    backgroundColor: "{colors.wired-black}"
+    textColor: "{colors.paper-white}"
     typography: "{typography.button}"
-    rounded: "{rounded.md}"
-    padding: 16px
-  card:
-    backgroundColor: "{colors.surface}"
-    textColor: "{colors.ink}"
-    typography: "{typography.body-md}"
-    rounded: "{rounded.lg}"
-    padding: 24px
+    rounded: "{rounded.none}"
+    padding: 12px 24px
+  story-tile:
+    backgroundColor: "{colors.newsprint}"
+    textColor: "{colors.page-ink}"
+    typography: "{typography.display-mid}"
+    rounded: "{rounded.none}"
+  editorial-ribbon:
+    backgroundColor: "{colors.wired-black}"
+    textColor: "{colors.paper-white}"
+    typography: "{typography.section-ribbon}"
+    rounded: "{rounded.none}"
+    height: 40px
+  newsletter-input:
+    backgroundColor: "{colors.paper-white}"
+    textColor: "{colors.page-ink}"
+    typography: "{typography.ui-heading}"
+    rounded: "{rounded.none}"
+    padding: 12px 24px
+  icon-button:
+    backgroundColor: "{colors.paper-white}"
+    textColor: "{colors.wired-black}"
+    typography: "{typography.button}"
+    rounded: "{rounded.circle}"
+    width: 40px
+    height: 40px
+  tag-pill:
+    backgroundColor: "{colors.wired-black}"
+    textColor: "{colors.paper-white}"
+    typography: "{typography.section-ribbon}"
+    rounded: "{rounded.text-pill}"
+    padding: 4px 8px
   text-body:
     backgroundColor: "{colors.canvas}"
-    textColor: "{colors.body}"
+    textColor: "{colors.page-ink}"
     typography: "{typography.body-md}"
-    rounded: "{rounded.sm}"
-    padding: 8px
   muted-label:
     backgroundColor: "{colors.canvas}"
-    textColor: "{colors.muted}"
-    typography: "{typography.caption}"
-    rounded: "{rounded.sm}"
-    padding: 4px
+    textColor: "{colors.caption-gray}"
+    typography: "{typography.eyebrow}"
   link:
-    backgroundColor: "{colors.canvas}"
-    textColor: "{colors.accent}"
-    typography: "{typography.button}"
-    rounded: "{rounded.sm}"
-    padding: 4px
+    backgroundColor: transparent
+    textColor: "{colors.link-blue}"
+    typography: "{typography.link-ui}"
   divider:
     backgroundColor: "{colors.hairline}"
-    textColor: "{colors.ink}"
-    rounded: "{rounded.sm}"
     height: 1px
 ---
 

@@ -1,174 +1,315 @@
 <!DOCTYPE html>
-<html lang="en">
-<head>
-  <meta charset="UTF-8">
-  <meta name="viewport" content="width=device-width, initial-scale=1.0">
-  <title>Cursor Design System Preview</title>
-  <style>
-    :root {
-      --primary: #f54e00;
-      --on-primary: #ffffff;
-      --canvas: #0f1115;
-      --surface: #181b22;
-      --surface-strong: #20242d;
-      --ink: #f7f7f8;
-      --body: rgba(255,255,255,0.76);
-      --muted: rgba(255,255,255,0.52);
-      --border: #e6e5e0;
-      --display: 'CursorGothic', system-ui, 'Helvetica Neue', Helvetica, Arial, sans-serif;
-      --text: 'CursorGothic', system-ui, 'Helvetica Neue', Helvetica, Arial, sans-serif;
-      --mono: ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, monospace;
-    }
-    * { box-sizing: border-box; margin: 0; padding: 0; }
-    html, body { background: var(--canvas); color: var(--ink); font-family: var(--text); font-size: 16px; line-height: 1.5; }
-    body { min-width: 320px; }
-    .nav { position: sticky; top: 0; z-index: 20; display: grid; grid-template-columns: 1fr auto 1fr; align-items: center; gap: 20px; height: 64px; padding: 0 48px; background: color-mix(in srgb, var(--canvas) 92%, transparent); border-bottom: 1px solid var(--border); backdrop-filter: blur(14px); }
-    .brand { font-family: var(--display); font-weight: 700; letter-spacing: -0.02em; color: var(--ink); }
-    .nav-links { list-style: none; display: flex; gap: 24px; justify-content: center; }
-    .nav-links a { color: var(--body); text-decoration: none; font-size: 14px; font-weight: 600; }
-    .nav-cta { justify-self: end; border: 0; background: var(--primary); color: var(--on-primary); border-radius: 8px; padding: 11px 18px; font: 700 13px/1 var(--text); }
-    .hero { max-width: 1440px; margin: 0 auto; padding: 84px 48px 72px; display: grid; grid-template-columns: minmax(0, 1.1fr) minmax(320px, 0.9fr); gap: 48px; align-items: center; }
-    .eyebrow { color: var(--muted); font: 700 11px/1.2 var(--mono); letter-spacing: 0.12em; text-transform: uppercase; margin-bottom: 18px; }
-    h1 { font-family: var(--display); font-size: clamp(40px, 6vw, 72px); line-height: 1.04; letter-spacing: -0.045em; font-weight: 750; max-width: 980px; }
-    .hero p { margin-top: 26px; max-width: 760px; color: var(--body); font-size: 18px; line-height: 1.65; }
-    .hero-actions { margin-top: 34px; display: flex; gap: 12px; flex-wrap: wrap; }
-    .btn { display: inline-flex; align-items: center; justify-content: center; min-height: 44px; border-radius: 8px; padding: 0 20px; border: 1px solid var(--border); font: 700 14px/1 var(--text); color: var(--ink); background: var(--surface); }
-    .btn.primary { background: var(--primary); color: var(--on-primary); border-color: var(--primary); }
-    .hero-panel { background: var(--surface); border: 1px solid var(--border); border-radius: 18px; overflow: hidden; box-shadow: 0 24px 70px rgba(0,0,0,.12); }
-    .panel-top { height: 44px; display: flex; align-items: center; gap: 7px; padding: 0 16px; border-bottom: 1px solid var(--border); background: var(--surface-strong); }
-    .dot { width: 10px; height: 10px; border-radius: 999px; background: var(--primary); opacity: .85; }
-    .panel-body { padding: 22px; display: grid; gap: 14px; }
-    .metric { display: grid; grid-template-columns: 88px 1fr; gap: 14px; align-items: center; padding: 14px; border: 1px solid var(--border); border-radius: 12px; background: var(--canvas); }
-    .metric strong { color: var(--primary); font-family: var(--mono); font-size: 22px; }
-    .metric span { color: var(--body); font-size: 13px; }
-    section { max-width: 1440px; margin: 0 auto; padding: 78px 48px; border-top: 1px solid var(--border); }
-    .section-label { color: var(--muted); font: 800 11px/1.2 var(--mono); letter-spacing: .12em; text-transform: uppercase; margin-bottom: 12px; }
-    .section-heading { font-family: var(--display); font-size: clamp(26px, 3.5vw, 42px); line-height: 1.12; letter-spacing: -.025em; margin-bottom: 16px; }
-    .section-intro { color: var(--body); max-width: 760px; margin-bottom: 42px; line-height: 1.65; }
-    .palette-grid, .button-grid, .card-grid, .form-grid, .elevation-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(230px, 1fr)); gap: 18px; }
-    .swatch, .component-cell, .feature-card, .form-cell, .elevation-card { background: var(--surface); border: 1px solid var(--border); border-radius: 14px; overflow: hidden; min-width: 0; }
-    .swatch-color { height: 108px; border-bottom: 1px solid var(--border); }
-    .swatch-meta, .component-cell, .feature-card, .form-cell, .elevation-card { padding: 18px; }
-    .swatch-name, .button-label { font-weight: 800; font-size: 13px; color: var(--ink); margin-bottom: 5px; overflow-wrap: anywhere; }
-    .swatch-hex, .button-meta, .type-meta, .spacing-label { font-family: var(--mono); font-size: 12px; color: var(--muted); overflow-wrap: anywhere; }
-    .type-row { display: grid; grid-template-columns: 300px 1fr; gap: 32px; align-items: baseline; padding: 20px 0; border-bottom: 1px solid var(--border); }
-    .type-sample { color: var(--ink); overflow-wrap: anywhere; }
-    .demo-button { display: inline-flex; align-items: center; justify-content: center; min-height: 40px; border-radius: 8px; border: 1px solid var(--border); padding: 0 16px; font-weight: 700; max-width: 100%; }
-    .feature-card h4, .elevation-card h4 { font-size: 18px; margin-bottom: 8px; }
-    .feature-card p, .elevation-card p { color: var(--body); font-size: 14px; line-height: 1.55; }
-    .text-input { width: 100%; min-height: 44px; border-radius: 8px; border: 1px solid var(--border); background: var(--canvas); color: var(--ink); padding: 0 14px; font: 500 15px/1 var(--text); }
-    .badge { display: inline-flex; align-items: center; border-radius: 999px; background: var(--surface-strong); color: var(--ink); min-height: 28px; padding: 0 12px; font: 800 11px/1 var(--mono); letter-spacing: .08em; text-transform: uppercase; }
-    .spacing-row, .radius-row { display: flex; flex-wrap: wrap; gap: 18px; align-items: end; }
-    .spacing-block { display: grid; justify-items: center; gap: 8px; }
-    .spacing-bar { width: 54px; min-height: 4px; background: var(--primary); border-radius: 6px; }
-    .radius-block { width: 96px; height: 96px; display: grid; place-items: center; background: var(--surface); border: 1px solid var(--border); color: var(--muted); font: 700 12px/1 var(--mono); }
-    .responsive-table { width: 100%; border-collapse: collapse; background: var(--surface); border: 1px solid var(--border); border-radius: 14px; overflow: hidden; }
-    .responsive-table th, .responsive-table td { text-align: left; padding: 14px 16px; border-bottom: 1px solid var(--border); color: var(--body); }
-    .responsive-table th { color: var(--ink); font: 800 11px/1.2 var(--mono); letter-spacing: .1em; text-transform: uppercase; }
-    .footer { padding: 34px 48px; border-top: 1px solid var(--border); color: var(--muted); text-align: center; font-size: 13px; }
-    @media (max-width: 900px) { .nav { grid-template-columns: 1fr auto; padding: 0 20px; } .nav-links { display: none; } .nav-cta { display: none; } .hero { grid-template-columns: 1fr; padding: 56px 20px; } section { padding: 56px 20px; } .type-row { grid-template-columns: 1fr; gap: 8px; } }
-  </style>
-</head>
+<html lang="en"><head><meta charset="UTF-8"><meta name="viewport" content="width=device-width, initial-scale=1.0"><title>Cursor Design System Preview</title>
+<link rel="preconnect" href="https://fonts.googleapis.com"><link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&family=JetBrains+Mono:wght@400;500&display=swap" rel="stylesheet">
+<style>
+:root {
+--primary: #f54e00;--primary-active: #d04200;--ink: #ffffff;--body: rgba(255,255,255,0.85);--body-strong: #26251e;--muted: rgba(255,255,255,0.6);--muted-soft: #a09c92;--hairline: rgba(255,255,255,0.12);--hairline-soft: rgba(255,255,255,0.06);--hairline-strong: rgba(255,255,255,0.22);--canvas: #0c0c0e;--canvas-soft: #161618;--surface-card: #161618;--surface-strong: #1d1d20;--on-primary: #ffffff;--timeline-thinking: #dfa88f;--timeline-grep: #9fc9a2;--timeline-read: #9fbbe0;--timeline-edit: #c0a8dd;--timeline-done: #c08532;--semantic-error: #cf2d56;--semantic-success: #1f8a65;--display: 'Inter','CursorGothic',system-ui,sans-serif;--text: 'Inter','CursorGothic',sans-serif;--mono:'JetBrains Mono',monospace
+  --color-primary: #f54e00;
+  --color-primary-active: #d04200;
+  --color-ink: #f7f7f8;
+  --color-body: rgba(255,255,255,0.76);
+  --color-body-strong: #26251e;
+  --color-muted: rgba(255,255,255,0.52);
+  --color-muted-soft: #a09c92;
+  --color-hairline: #e6e5e0;
+  --color-hairline-soft: #efeee8;
+  --color-hairline-strong: #cfcdc4;
+  --color-canvas: #0f1115;
+  --color-canvas-soft: #fafaf7;
+  --color-surface-card: #ffffff;
+  --color-surface-strong: #20242d;
+  --color-on-primary: #ffffff;
+  --color-timeline-thinking: #dfa88f;
+  --color-timeline-grep: #9fc9a2;
+  --color-timeline-read: #9fbbe0;
+  --color-timeline-edit: #c0a8dd;
+  --color-timeline-done: #c08532;
+  --color-semantic-error: #cf2d56;
+  --color-semantic-success: #1f8a65;
+}
+*{box-sizing:border-box;margin:0;padding:0}
+html,body{background:var(--canvas);color:var(--ink);font-family:var(--text);font-size:16px;line-height:1.5}
+.nav{position:sticky;top:0;z-index:100;background:var(--canvas);border-bottom:1px solid var(--hairline);padding: 0 48px;height:64px}
+.nav-links{list-style:none;display:flex;gap:24px;align-items:center}
+.nav-links a{color:var(--ink);text-decoration:none;font-size:14px;font-weight:500}
+.nav-cta{background:var(--ink);color:var(--canvas);border:none;padding:12px 20px;font-weight:500;font-size:14px;cursor:pointer;font-family:inherit;border-radius:8px;height:44px}
+.hero{padding:80px 48px;background:var(--canvas);display:block;align-items:center;max-width:1440px;margin:0 auto}
+.hero-content{max-width:1200px;position:relative;z-index:1}
+.hero h1{font-family:var(--display);font-size:64px;font-weight:400;line-height:1.2;color:var(--ink);margin:0 0 40px;letter-spacing:-2.16px;text-align:left}
+.hero p{font-size:18px;color:var(--body);max-width:900px;margin:0 0 40px;text-align:left}
+.hero-actions{display:flex;gap:12px;flex-wrap:wrap;justify-content:flex-start}
+.btn-hero-primary{background:var(--ink);color:var(--canvas);border:none;padding:12px 24px;height:48px;font-weight:500;font-size:14px;cursor:pointer;font-family:inherit;border-radius:8px}
+.btn-hero-secondary{background:var(--surface-card);color:var(--ink);border:1px solid var(--hairline-strong);padding:11px 23px;height:48px;font-weight:500;font-size:14px;cursor:pointer;font-family:inherit;border-radius:8px}
+.hero-art{aspect-ratio:1;background:var(--surface-card);border-radius:12px;border:1px solid var(--hairline);padding:0;overflow:hidden;display:grid;grid-template-rows:auto 1fr}
+.ide-titlebar{padding:8px 12px;border-bottom:1px solid var(--hairline);display:flex;gap:6px;align-items:center;background:var(--canvas-soft)}
+.ide-titlebar .dot{width:10px;height:10px;border-radius:9999px;background:var(--hairline-strong)}
+.ide-titlebar .label{margin-left:12px;font-family:var(--mono);font-size:11px;color:var(--muted)}
+.ide-body{display:grid;grid-template-columns:120px 1fr;gap:0;height:100%}
+.ide-sidebar{background:var(--canvas-soft);border-right:1px solid var(--hairline);padding:12px;font-family:var(--mono);font-size:11px;color:var(--body)}
+.ide-sidebar .file{display:block;line-height:1.8;color:var(--body)}
+.ide-sidebar .file.active{color:var(--ink);font-weight:500}
+.ide-main{padding:14px;font-family:var(--mono);font-size:11px;color:var(--body);background:var(--surface-card)}
+.ide-main .ln{display:block;line-height:1.8}
+.ide-main .k{color:var(--primary)}
+.ide-main .s{color:var(--semantic-success)}
+.ide-main .c{color:var(--muted)}
+.ide-main .h{background:rgba(245,78,0,0.08);margin:0 -14px;padding:0 14px}
+section{max-width:1440px;margin:0 auto;padding:80px 48px;border-top:1px solid var(--hairline)}
+.section-label{font-size:11px;text-transform:uppercase;letter-spacing:0.88px;color:var(--muted);font-weight:600;margin-bottom:12px}
+.section-heading{font-family:var(--display);font-size:36px;font-weight:400;color:var(--ink);margin-bottom:16px;line-height:1.2;letter-spacing:-0.72px}
+.section-intro{font-size:16px;color:var(--body);max-width:720px;margin-bottom:48px;line-height:1.5}
+.palette-group{margin-bottom:48px}
+.palette-group h3{font-size:11px;font-weight:600;color:var(--ink);margin-bottom:16px;text-transform:uppercase;letter-spacing:0.88px}
+.palette-grid{display:grid;grid-template-columns:repeat(auto-fill,minmax(200px,1fr));gap:16px}
+.swatch{border:1px solid var(--hairline);background:var(--surface-card);border-radius:12px;overflow:hidden}
+.swatch-color{height:90px}
+.swatch-meta{padding:12px 14px}
+.swatch-name{font-weight:600;font-size:13px;color:var(--ink);margin-bottom:4px}
+.swatch-hex{font-family:var(--mono);font-size:12px;color:var(--muted);margin-bottom:6px}
+.swatch-role{font-size:13px;color:var(--body);line-height:1.5}
+.type-row{display:grid;grid-template-columns:320px 1fr;gap:32px;align-items:baseline;padding:20px 0;border-bottom:1px solid var(--hairline-soft)}
+.type-row:last-child{border-bottom:none}
+.type-meta{font-size:12px;color:var(--muted);line-height:1.5}
+.type-meta strong{display:block;color:var(--ink);font-weight:600;font-size:12px;margin-bottom:4px;text-transform:uppercase;letter-spacing:0.5px}
+.type-sample{color:var(--ink)}
+.button-grid{display:grid;grid-template-columns:repeat(auto-fill,minmax(280px,1fr));gap:20px}
+.button-cell{border:1px solid var(--hairline);padding:28px;background:var(--surface-card);border-radius:12px;min-width:0}
+.button-label{font-size:11px;color:var(--ink);font-weight:600;margin-bottom:14px;text-transform:uppercase;letter-spacing:0.5px}
+.button-meta{font-size:12px;color:var(--muted);margin-top:14px;line-height:1.5}
+.btn{display:inline-block;padding:10px 18px;height:40px;font-size:14px;font-weight:500;border:none;cursor:pointer;font-family:inherit;line-height:1;border-radius:8px}
+.btn-primary{background:var(--primary);color:var(--on-primary)}
+.btn-primary-active{background:var(--primary-active);color:var(--on-primary)}
+.btn-secondary{background:var(--surface-card);color:var(--ink);border:1px solid var(--hairline-strong);padding:9px 17px}
+.btn-tertiary-text{background:transparent;color:var(--ink);padding:0;height:auto}
+.btn-download{background:var(--ink);color:var(--canvas);padding:12px 20px;height:44px}
+.timeline-pill{display:inline-flex;align-items:center;border-radius:9999px;padding:4px 10px;font-size:11px;font-weight:600;letter-spacing:0.88px;text-transform:uppercase;color:var(--ink)}
+.timeline-pill.thinking{background:var(--timeline-thinking)}
+.timeline-pill.grep{background:var(--timeline-grep)}
+.timeline-pill.read{background:var(--timeline-read)}
+.timeline-pill.edit{background:var(--timeline-edit)}
+.timeline-pill.done{background:var(--timeline-done);color:#fff}
+.timeline-row{display:flex;flex-direction:column;gap:8px;padding:24px;background:var(--surface-card);border:1px solid var(--hairline);border-radius:12px;font-family:var(--mono);font-size:13px;color:var(--body)}
+.timeline-row .step{display:flex;gap:12px;align-items:center}
+.card-grid{display:grid;grid-template-columns:repeat(auto-fill,minmax(280px,1fr));gap:20px}
+.card-grid>*{min-width:0}
+.feature-card{background:var(--surface-card);border:1px solid var(--hairline);border-radius:12px;padding:24px}
+.feature-card h4{font-size:18px;font-weight:600;color:var(--ink);margin-bottom:8px}
+.feature-card p{font-size:14px;color:var(--body);line-height:1.5;margin-bottom:16px}
+.code-block{background:var(--surface-card);border:1px solid var(--hairline);border-radius:12px;padding:20px;font-family:var(--mono);font-size:13px;color:var(--ink);line-height:1.5}
+.code-block .k{color:var(--primary)}
+.code-block .s{color:var(--semantic-success)}
+.code-block .c{color:var(--muted)}
+.pricing-grid{display:grid;grid-template-columns:repeat(3,1fr);gap:20px}
+.pricing-tier-card{background:var(--surface-card);border:1px solid var(--hairline);border-radius:12px;padding:32px}
+.pricing-tier-card.featured{background:var(--ink);color:var(--canvas);border-color:var(--ink)}
+.pricing-tier-card h4{font-size:18px;font-weight:600;color:var(--ink);margin-bottom:8px}
+.pricing-tier-card.featured h4{color:var(--canvas)}
+.pricing-tier-card .price{font-family:var(--display);font-size:36px;font-weight:400;line-height:1.2;letter-spacing:-0.72px;margin-bottom:16px;color:var(--ink)}
+.pricing-tier-card.featured .price{color:var(--canvas)}
+.pricing-tier-card ul{list-style:none;margin-bottom:24px;padding:0}
+.pricing-tier-card ul li{padding:6px 0;font-size:14px;color:var(--body)}
+.pricing-tier-card.featured ul li{color:var(--muted-soft)}
+.form-grid{display:grid;grid-template-columns:repeat(auto-fill,minmax(280px,1fr));gap:20px}
+.form-cell{min-width:0}
+.form-label{font-size:13px;font-weight:600;color:var(--ink);margin-bottom:8px;display:block}
+.text-input{width:100%;background:var(--surface-card);color:var(--ink);border:1px solid var(--hairline-strong);padding:12px 16px;height:44px;font-size:16px;font-family:inherit;border-radius:8px;outline:none}
+.text-input.focused{border:2px solid var(--ink);padding:11px 15px}
+.badge-pill{display:inline-block;background:var(--surface-strong);color:var(--ink);border-radius:9999px;padding:4px 10px;font-size:11px;font-weight:600;text-transform:uppercase;letter-spacing:0.88px}
+.spacing-row{display:flex;align-items:flex-end;gap:16px;flex-wrap:wrap}
+.spacing-block{display:flex;flex-direction:column;align-items:center;gap:8px}
+.spacing-bar{background:var(--ink);height:28px}
+.spacing-label{font-size:11px;color:var(--muted);font-family:var(--mono)}
+.radius-row{display:flex;gap:16px;align-items:center;flex-wrap:wrap}
+.radius-block{width:96px;height:96px;background:var(--surface-card);border:1px solid var(--hairline);display:flex;align-items:center;justify-content:center;font-size:11px;color:var(--ink);font-weight:600;font-family:var(--mono)}
+.elevation-grid{display:grid;grid-template-columns:repeat(auto-fill,minmax(240px,1fr));gap:24px}
+.elevation-card{padding:24px;font-size:13px;color:var(--body);border:1px solid var(--hairline);background:var(--surface-card);border-radius:12px}
+.elevation-card h5{font-weight:600;color:var(--ink);margin-bottom:8px;font-size:13px}
+.responsive-table{width:100%;border-collapse:collapse;margin-bottom:32px;font-size:14px}
+.responsive-table th,.responsive-table td{text-align:left;padding:14px 16px;border-bottom:1px solid var(--hairline)}
+.responsive-table th{font-weight:600;color:var(--ink);font-size:12px;text-transform:uppercase;letter-spacing:0.96px}
+.responsive-table td{color:var(--body)}
+.device-ladder{display:flex;align-items:flex-end;gap:16px;margin-bottom:32px;flex-wrap:wrap}
+.device-bar{background:var(--surface-card);border:1px solid var(--hairline);color:var(--muted);text-align:center;padding:8px;font-size:11px;font-family:var(--mono);border-radius:8px}
+.responsive-sub{margin-top:32px}
+.responsive-sub h4{font-size:18px;font-weight:600;color:var(--ink);margin-bottom:12px}
+.responsive-sub ul{padding-left:20px;color:var(--body);font-size:14px;line-height:1.5}
+.footer{background:var(--canvas);color:var(--body);padding:32px 48px;font-size:13px;text-align:center;border-top:1px solid var(--hairline)}
+.footer a{color:var(--ink)}
+.cell,.cell>*,.demo,.button-cell,.component-cell{min-width:0}
+.cell.wide,.button-cell.wide,.component-cell.wide{grid-column:span 2}
+@media (max-width:1024px){section{padding:64px 32px}.section-heading{font-size:28px}.nav>:last-child{display:none}.hero{grid-template-columns:1fr;gap:32px;padding:64px 32px}.hero h1{font-size:48px;letter-spacing:-1.5px}.hero-art,.hero-art-photo{display:none}.type-row{grid-template-columns:1fr;gap:8px}.pricing-grid{grid-template-columns:1fr}}
+@media (max-width:720px){.cell.wide,.button-cell.wide,.component-cell.wide{grid-column:span 1}.nav{padding: 0 48px;height:auto;min-height:56px}.nav-links{display:none}.hero{padding:48px 20px}.hero h1{font-size:32px;letter-spacing:-1px}.hero p{font-size:16px}section{padding:48px 20px}.section-heading{font-size:24px}.palette-grid,.button-grid,.card-grid,.form-grid,.elevation-grid{grid-template-columns:1fr!important;gap:16px}.spacing-row,.radius-row{gap:12px}.responsive-table{font-size:12px}.responsive-table th,.responsive-table td{padding:10px 8px}.device-ladder{gap:8px}.footer{padding:24px 16px;font-size:12px}}
+.nav-left{display:flex;align-items:center;gap:20px}
+.nav-brand-link,.nav-brand-link:link,.nav-brand-link:visited,.nav-brand-link:hover,.nav-brand-link:active{text-decoration:none;color:inherit}
+.nav-brand{font-family:var(--display);font-weight:600;font-size:16px;color:var(--ink)}
+.nav-github,.nav-github:link,.nav-github:visited,.nav-github:hover,.nav-github:active{display:inline-flex;align-items:center;gap:6px;font-size:12px;font-weight:600;color:inherit;text-decoration:none;padding:5px 10px;border:1px solid rgba(128,128,128,0.3);border-radius:6px;opacity:0.75;transition:opacity 200ms ease,border-color 200ms ease;font-family:inherit;line-height:1;white-space:nowrap}
+.nav-github:hover{opacity:1;border-color:rgba(128,128,128,0.55)}
+.nav-github svg{display:block;flex-shrink:0}
+.nav{display:grid;grid-template-columns:1fr auto 1fr;align-items:center}
+.nav>.nav-left{justify-self:start}
+.nav>.nav-links{justify-self:center}
+.nav>:last-child{justify-self:end}
+
+
+  /* Shared Agent Platform footer content */
+  .footer { text-align: left; }
+  .footer-shell { max-width: 1200px; margin: 0 auto; }
+  .footer-grid { display: grid; grid-template-columns: repeat(4, minmax(0, 1fr)); gap: 32px; }
+  .footer-col h6 { margin: 0 0 14px; color: inherit; font: inherit; font-weight: 700; font-size: 14px; line-height: 1.2; }
+  .footer-col span { display: block; margin: 0 0 10px; color: inherit; opacity: 0.72; font-size: 14px; line-height: 1.35; }
+  .footer-credit { margin-top: 48px; padding-top: 24px; border-top: 1px solid currentColor; color: inherit; opacity: 0.78; font-size: 13px; line-height: 1.4; }
+  .footer-credit a { color: inherit; text-decoration: none; font-weight: 600; }
+  .footer-credit img { border-radius: 3px; vertical-align: -2px; margin-right: 3px; }
+  @media (max-width: 760px) {
+    .footer-grid { grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 24px; }
+  }
+</style></head>
 <body>
-  <nav class="nav">
-    <div class="brand">Cursor</div>
-    <ul class="nav-links"><li><a href="#colors">Colors</a></li><li><a href="#type">Typography</a></li><li><a href="#components">Components</a></li><li><a href="#responsive">Responsive</a></li></ul>
-    <button class="nav-cta">Preview</button>
-  </nav>
+<nav class="nav">
+  <div class="nav-left">
+    <a href="#" target="_blank" rel="noopener noreferrer" class="nav-brand-link"><span class="nav-brand">Cursor</span></a>
 
-  <main>
-    <div class="hero">
-      <div>
-        <div class="eyebrow">Design System Preview</div>
-        <h1>Cursor visual system</h1>
-        <p>An AI-first code editor whose marketing site reads like a quietly-confident developer-tools brand with a warm-cream editorial canvas (#f7f7f4) instead of the typical dark IDE atmosphere. Near-black warm ink (#26251e).</p>
-        <div class="hero-actions"><span class="btn primary">Primary action</span><span class="btn">Secondary action</span></div>
-      </div>
-      <div class="hero-panel" aria-label="Interface sample">
-        <div class="panel-top"><span class="dot"></span><span class="dot"></span><span class="dot"></span></div>
-        <div class="panel-body">
-          <div class="metric"><strong>01</strong><span>Token driven color, type, spacing, and component decisions.</span></div>
-          <div class="metric"><strong>AA</strong><span>Preview surfaces highlight contrast, hierarchy, and UI rhythm.</span></div>
-          <div class="metric"><strong>UI</strong><span>Reusable cards, controls, form fields, labels, and responsive states.</span></div>
-        </div>
-      </div>
+  </div>
+  <ul class="nav-links"><li><a href="#colors">Colors</a></li><li><a href="#typography">Typography</a></li><li><a href="#components">Components</a></li><li><a href="#responsive">Responsive</a></li></ul>
+  <button class="nav-cta">Download</button>
+</nav>
+<div class="hero">
+  <div class="hero-content">
+    <h1>Design System Inspiration of Cursor</h1>
+    <p>AI-first code editor with an editorial dev-tools voice. Warm cream canvas, single Cursor Orange accent, CursorGothic at weight 400 — magazine-quiet, never bold.</p>
+    <div class="hero-actions">
+      <button class="btn-hero-primary">Download for macOS</button>
+      <button class="btn-hero-secondary">All downloads</button>
     </div>
+  </div>
+  </div>
 
-    <section id="colors">
-      <div class="section-label">01 - Color Palette</div>
-      <h2 class="section-heading">Core colors and semantic surfaces</h2>
-      <p class="section-intro">The palette below is extracted from the structured design tokens. Swatches show the available roles and their exact CSS values.</p>
-      <div class="palette-grid">
-        <div class="swatch"><div class="swatch-color" style="background:#f54e00"></div><div class="swatch-meta"><div class="swatch-name">primary</div><div class="swatch-hex">#f54e00</div></div></div><div class="swatch"><div class="swatch-color" style="background:#d04200"></div><div class="swatch-meta"><div class="swatch-name">primary-active</div><div class="swatch-hex">#d04200</div></div></div><div class="swatch"><div class="swatch-color" style="background:#26251e"></div><div class="swatch-meta"><div class="swatch-name">ink</div><div class="swatch-hex">#26251e</div></div></div><div class="swatch"><div class="swatch-color" style="background:#5a5852"></div><div class="swatch-meta"><div class="swatch-name">body</div><div class="swatch-hex">#5a5852</div></div></div><div class="swatch"><div class="swatch-color" style="background:#26251e"></div><div class="swatch-meta"><div class="swatch-name">body-strong</div><div class="swatch-hex">#26251e</div></div></div><div class="swatch"><div class="swatch-color" style="background:#807d72"></div><div class="swatch-meta"><div class="swatch-name">muted</div><div class="swatch-hex">#807d72</div></div></div><div class="swatch"><div class="swatch-color" style="background:#a09c92"></div><div class="swatch-meta"><div class="swatch-name">muted-soft</div><div class="swatch-hex">#a09c92</div></div></div><div class="swatch"><div class="swatch-color" style="background:#e6e5e0"></div><div class="swatch-meta"><div class="swatch-name">hairline</div><div class="swatch-hex">#e6e5e0</div></div></div><div class="swatch"><div class="swatch-color" style="background:#efeee8"></div><div class="swatch-meta"><div class="swatch-name">hairline-soft</div><div class="swatch-hex">#efeee8</div></div></div><div class="swatch"><div class="swatch-color" style="background:#cfcdc4"></div><div class="swatch-meta"><div class="swatch-name">hairline-strong</div><div class="swatch-hex">#cfcdc4</div></div></div><div class="swatch"><div class="swatch-color" style="background:#f7f7f4"></div><div class="swatch-meta"><div class="swatch-name">canvas</div><div class="swatch-hex">#f7f7f4</div></div></div><div class="swatch"><div class="swatch-color" style="background:#fafaf7"></div><div class="swatch-meta"><div class="swatch-name">canvas-soft</div><div class="swatch-hex">#fafaf7</div></div></div><div class="swatch"><div class="swatch-color" style="background:#ffffff"></div><div class="swatch-meta"><div class="swatch-name">surface-card</div><div class="swatch-hex">#ffffff</div></div></div><div class="swatch"><div class="swatch-color" style="background:#e6e5e0"></div><div class="swatch-meta"><div class="swatch-name">surface-strong</div><div class="swatch-hex">#e6e5e0</div></div></div><div class="swatch"><div class="swatch-color" style="background:#ffffff"></div><div class="swatch-meta"><div class="swatch-name">on-primary</div><div class="swatch-hex">#ffffff</div></div></div><div class="swatch"><div class="swatch-color" style="background:#dfa88f"></div><div class="swatch-meta"><div class="swatch-name">timeline-thinking</div><div class="swatch-hex">#dfa88f</div></div></div><div class="swatch"><div class="swatch-color" style="background:#9fc9a2"></div><div class="swatch-meta"><div class="swatch-name">timeline-grep</div><div class="swatch-hex">#9fc9a2</div></div></div><div class="swatch"><div class="swatch-color" style="background:#9fbbe0"></div><div class="swatch-meta"><div class="swatch-name">timeline-read</div><div class="swatch-hex">#9fbbe0</div></div></div><div class="swatch"><div class="swatch-color" style="background:#c0a8dd"></div><div class="swatch-meta"><div class="swatch-name">timeline-edit</div><div class="swatch-hex">#c0a8dd</div></div></div><div class="swatch"><div class="swatch-color" style="background:#c08532"></div><div class="swatch-meta"><div class="swatch-name">timeline-done</div><div class="swatch-hex">#c08532</div></div></div><div class="swatch"><div class="swatch-color" style="background:#cf2d56"></div><div class="swatch-meta"><div class="swatch-name">semantic-error</div><div class="swatch-hex">#cf2d56</div></div></div><div class="swatch"><div class="swatch-color" style="background:#1f8a65"></div><div class="swatch-meta"><div class="swatch-name">semantic-success</div><div class="swatch-hex">#1f8a65</div></div></div>
-      </div>
-    </section>
+<section id="colors">
+<div class="section-label">01 / Color Palette</div>
+<h2 class="section-title section-heading">Color Palette</h2>
+<div class="palette-group color-group"><h3 class="subhead color-group-title color-group-label">Brand &amp; Accent</h3><div class="palette-grid swatch-grid color-grid"><div class="swatch color-swatch"><div class="swatch-color color-swatch-block color-swatch-preview fill chip" style="background:#f54e00"></div><div class="swatch-info swatch-meta color-swatch-info info meta"><div class="swatch-name color-swatch-name name">Primary</div><div class="swatch-hex color-swatch-hex hex">#f54e00</div><div class="swatch-role color-swatch-role role">Brand &amp; Accent</div></div></div><div class="swatch color-swatch"><div class="swatch-color color-swatch-block color-swatch-preview fill chip" style="background:#d04200"></div><div class="swatch-info swatch-meta color-swatch-info info meta"><div class="swatch-name color-swatch-name name">Primary Active</div><div class="swatch-hex color-swatch-hex hex">#d04200</div><div class="swatch-role color-swatch-role role">Brand &amp; Accent</div></div></div><div class="swatch color-swatch"><div class="swatch-color color-swatch-block color-swatch-preview fill chip" style="background:#ffffff"></div><div class="swatch-info swatch-meta color-swatch-info info meta"><div class="swatch-name color-swatch-name name">On Primary</div><div class="swatch-hex color-swatch-hex hex">#ffffff</div><div class="swatch-role color-swatch-role role">Brand &amp; Accent</div></div></div></div></div><div class="palette-group color-group"><h3 class="subhead color-group-title color-group-label">Surface</h3><div class="palette-grid swatch-grid color-grid"><div class="swatch color-swatch"><div class="swatch-color color-swatch-block color-swatch-preview fill chip" style="background:#f7f7f4"></div><div class="swatch-info swatch-meta color-swatch-info info meta"><div class="swatch-name color-swatch-name name">Canvas</div><div class="swatch-hex color-swatch-hex hex">#f7f7f4</div><div class="swatch-role color-swatch-role role">Surface</div></div></div><div class="swatch color-swatch"><div class="swatch-color color-swatch-block color-swatch-preview fill chip" style="background:#fafaf7"></div><div class="swatch-info swatch-meta color-swatch-info info meta"><div class="swatch-name color-swatch-name name">Canvas Soft</div><div class="swatch-hex color-swatch-hex hex">#fafaf7</div><div class="swatch-role color-swatch-role role">Surface</div></div></div><div class="swatch color-swatch"><div class="swatch-color color-swatch-block color-swatch-preview fill chip" style="background:#ffffff"></div><div class="swatch-info swatch-meta color-swatch-info info meta"><div class="swatch-name color-swatch-name name">Surface Card</div><div class="swatch-hex color-swatch-hex hex">#ffffff</div><div class="swatch-role color-swatch-role role">Surface</div></div></div><div class="swatch color-swatch"><div class="swatch-color color-swatch-block color-swatch-preview fill chip" style="background:#e6e5e0"></div><div class="swatch-info swatch-meta color-swatch-info info meta"><div class="swatch-name color-swatch-name name">Surface Strong</div><div class="swatch-hex color-swatch-hex hex">#e6e5e0</div><div class="swatch-role color-swatch-role role">Surface</div></div></div></div></div><div class="palette-group color-group"><h3 class="subhead color-group-title color-group-label">Text</h3><div class="palette-grid swatch-grid color-grid"><div class="swatch color-swatch"><div class="swatch-color color-swatch-block color-swatch-preview fill chip" style="background:#26251e"></div><div class="swatch-info swatch-meta color-swatch-info info meta"><div class="swatch-name color-swatch-name name">Ink</div><div class="swatch-hex color-swatch-hex hex">#26251e</div><div class="swatch-role color-swatch-role role">Text</div></div></div><div class="swatch color-swatch"><div class="swatch-color color-swatch-block color-swatch-preview fill chip" style="background:#5a5852"></div><div class="swatch-info swatch-meta color-swatch-info info meta"><div class="swatch-name color-swatch-name name">Body</div><div class="swatch-hex color-swatch-hex hex">#5a5852</div><div class="swatch-role color-swatch-role role">Text</div></div></div><div class="swatch color-swatch"><div class="swatch-color color-swatch-block color-swatch-preview fill chip" style="background:#26251e"></div><div class="swatch-info swatch-meta color-swatch-info info meta"><div class="swatch-name color-swatch-name name">Body Strong</div><div class="swatch-hex color-swatch-hex hex">#26251e</div><div class="swatch-role color-swatch-role role">Text</div></div></div><div class="swatch color-swatch"><div class="swatch-color color-swatch-block color-swatch-preview fill chip" style="background:#807d72"></div><div class="swatch-info swatch-meta color-swatch-info info meta"><div class="swatch-name color-swatch-name name">Muted</div><div class="swatch-hex color-swatch-hex hex">#807d72</div><div class="swatch-role color-swatch-role role">Text</div></div></div><div class="swatch color-swatch"><div class="swatch-color color-swatch-block color-swatch-preview fill chip" style="background:#a09c92"></div><div class="swatch-info swatch-meta color-swatch-info info meta"><div class="swatch-name color-swatch-name name">Muted Soft</div><div class="swatch-hex color-swatch-hex hex">#a09c92</div><div class="swatch-role color-swatch-role role">Text</div></div></div><div class="swatch color-swatch"><div class="swatch-color color-swatch-block color-swatch-preview fill chip" style="background:#dfa88f"></div><div class="swatch-info swatch-meta color-swatch-info info meta"><div class="swatch-name color-swatch-name name">Timeline Thinking</div><div class="swatch-hex color-swatch-hex hex">#dfa88f</div><div class="swatch-role color-swatch-role role">Text</div></div></div></div></div><div class="palette-group color-group"><h3 class="subhead color-group-title color-group-label">Borders &amp; Lines</h3><div class="palette-grid swatch-grid color-grid"><div class="swatch color-swatch"><div class="swatch-color color-swatch-block color-swatch-preview fill chip" style="background:#e6e5e0"></div><div class="swatch-info swatch-meta color-swatch-info info meta"><div class="swatch-name color-swatch-name name">Hairline</div><div class="swatch-hex color-swatch-hex hex">#e6e5e0</div><div class="swatch-role color-swatch-role role">Borders &amp; Lines</div></div></div><div class="swatch color-swatch"><div class="swatch-color color-swatch-block color-swatch-preview fill chip" style="background:#efeee8"></div><div class="swatch-info swatch-meta color-swatch-info info meta"><div class="swatch-name color-swatch-name name">Hairline Soft</div><div class="swatch-hex color-swatch-hex hex">#efeee8</div><div class="swatch-role color-swatch-role role">Borders &amp; Lines</div></div></div><div class="swatch color-swatch"><div class="swatch-color color-swatch-block color-swatch-preview fill chip" style="background:#cfcdc4"></div><div class="swatch-info swatch-meta color-swatch-info info meta"><div class="swatch-name color-swatch-name name">Hairline Strong</div><div class="swatch-hex color-swatch-hex hex">#cfcdc4</div><div class="swatch-role color-swatch-role role">Borders &amp; Lines</div></div></div><div class="swatch color-swatch"><div class="swatch-color color-swatch-block color-swatch-preview fill chip" style="background:#9fc9a2"></div><div class="swatch-info swatch-meta color-swatch-info info meta"><div class="swatch-name color-swatch-name name">Timeline Grep</div><div class="swatch-hex color-swatch-hex hex">#9fc9a2</div><div class="swatch-role color-swatch-role role">Borders &amp; Lines</div></div></div><div class="swatch color-swatch"><div class="swatch-color color-swatch-block color-swatch-preview fill chip" style="background:#9fbbe0"></div><div class="swatch-info swatch-meta color-swatch-info info meta"><div class="swatch-name color-swatch-name name">Timeline Read</div><div class="swatch-hex color-swatch-hex hex">#9fbbe0</div><div class="swatch-role color-swatch-role role">Borders &amp; Lines</div></div></div><div class="swatch color-swatch"><div class="swatch-color color-swatch-block color-swatch-preview fill chip" style="background:#c0a8dd"></div><div class="swatch-info swatch-meta color-swatch-info info meta"><div class="swatch-name color-swatch-name name">Timeline Edit</div><div class="swatch-hex color-swatch-hex hex">#c0a8dd</div><div class="swatch-role color-swatch-role role">Borders &amp; Lines</div></div></div><div class="swatch color-swatch"><div class="swatch-color color-swatch-block color-swatch-preview fill chip" style="background:#c08532"></div><div class="swatch-info swatch-meta color-swatch-info info meta"><div class="swatch-name color-swatch-name name">Timeline Done</div><div class="swatch-hex color-swatch-hex hex">#c08532</div><div class="swatch-role color-swatch-role role">Borders &amp; Lines</div></div></div></div></div><div class="palette-group color-group"><h3 class="subhead color-group-title color-group-label">Semantic</h3><div class="palette-grid swatch-grid color-grid"><div class="swatch color-swatch"><div class="swatch-color color-swatch-block color-swatch-preview fill chip" style="background:#cf2d56"></div><div class="swatch-info swatch-meta color-swatch-info info meta"><div class="swatch-name color-swatch-name name">Semantic Error</div><div class="swatch-hex color-swatch-hex hex">#cf2d56</div><div class="swatch-role color-swatch-role role">Semantic</div></div></div><div class="swatch color-swatch"><div class="swatch-color color-swatch-block color-swatch-preview fill chip" style="background:#1f8a65"></div><div class="swatch-info swatch-meta color-swatch-info info meta"><div class="swatch-name color-swatch-name name">Semantic Success</div><div class="swatch-hex color-swatch-hex hex">#1f8a65</div><div class="swatch-role color-swatch-role role">Semantic</div></div></div></div></div>
+</section>
 
-    <section id="type">
-      <div class="section-label">02 - Typography</div>
-      <h2 class="section-heading">Type scale and voice</h2>
-      <p class="section-intro">Typography samples show how major text levels render when the token values are applied to real interface copy.</p>
-      <div class="type-row"><div class="type-meta"><strong>display-mega</strong>72px / 400 / 1.1 / -2.16px</div><div class="type-sample" style="font-family:&#39;CursorGothic&#39;, system-ui, &#39;Helvetica Neue&#39;, Helvetica, Arial, sans-serif;font-size:72px;font-weight:400;line-height:1.1;letter-spacing:-2.16px">Build a clear product interface with Cursor rhythm.</div></div><div class="type-row"><div class="type-meta"><strong>display-lg</strong>36px / 400 / 1.2 / -0.72px</div><div class="type-sample" style="font-family:&#39;CursorGothic&#39;, sans-serif;font-size:36px;font-weight:400;line-height:1.2;letter-spacing:-0.72px">Build a clear product interface with Cursor rhythm.</div></div><div class="type-row"><div class="type-meta"><strong>display-md</strong>26px / 400 / 1.25 / -0.325px</div><div class="type-sample" style="font-family:&#39;CursorGothic&#39;, sans-serif;font-size:26px;font-weight:400;line-height:1.25;letter-spacing:-0.325px">Build a clear product interface with Cursor rhythm.</div></div><div class="type-row"><div class="type-meta"><strong>display-sm</strong>22px / 400 / 1.3 / -0.11px</div><div class="type-sample" style="font-family:&#39;CursorGothic&#39;, sans-serif;font-size:22px;font-weight:400;line-height:1.3;letter-spacing:-0.11px">Build a clear product interface with Cursor rhythm.</div></div><div class="type-row"><div class="type-meta"><strong>title-md</strong>18px / 600 / 1.4 / 0px</div><div class="type-sample" style="font-family:&#39;CursorGothic&#39;, sans-serif;font-size:18px;font-weight:600;line-height:1.4;letter-spacing:0px">Build a clear product interface with Cursor rhythm.</div></div><div class="type-row"><div class="type-meta"><strong>title-sm</strong>16px / 600 / 1.4 / 0px</div><div class="type-sample" style="font-family:&#39;CursorGothic&#39;, sans-serif;font-size:16px;font-weight:600;line-height:1.4;letter-spacing:0px">Build a clear product interface with Cursor rhythm.</div></div><div class="type-row"><div class="type-meta"><strong>body-md</strong>16px / 400 / 1.5 / 0px</div><div class="type-sample" style="font-family:&#39;CursorGothic&#39;, sans-serif;font-size:16px;font-weight:400;line-height:1.5;letter-spacing:0px">Build a clear product interface with Cursor rhythm.</div></div><div class="type-row"><div class="type-meta"><strong>body-tracked</strong>16px / 400 / 1.5 / 0.08px</div><div class="type-sample" style="font-family:&#39;CursorGothic&#39;, sans-serif;font-size:16px;font-weight:400;line-height:1.5;letter-spacing:0.08px">Build a clear product interface with Cursor rhythm.</div></div><div class="type-row"><div class="type-meta"><strong>body-sm</strong>14px / 400 / 1.5 / 0px</div><div class="type-sample" style="font-family:&#39;CursorGothic&#39;, sans-serif;font-size:14px;font-weight:400;line-height:1.5;letter-spacing:0px">Build a clear product interface with Cursor rhythm.</div></div><div class="type-row"><div class="type-meta"><strong>caption</strong>13px / 400 / 1.4 / 0px</div><div class="type-sample" style="font-family:&#39;CursorGothic&#39;, sans-serif;font-size:13px;font-weight:400;line-height:1.4;letter-spacing:0px">Build a clear product interface with Cursor rhythm.</div></div>
-    </section>
+<section id="typography">
+<div class="section-label">02 / Typography</div>
+<h2 class="section-title section-heading">Typography</h2>
+<div class="type-row type-sample"><div class="type-meta type-label type-sample-label"><strong>display-mega</strong>72px / 400 / 1.1 / -2.16px</div><div class="type-sample-text type-preview" style="font-family:&#39;CursorGothic&#39;, system-ui, &#39;Helvetica Neue&#39;, Helvetica, Arial, sans-serif;font-size:72px;font-weight:400;line-height:1.1;letter-spacing:-2.16px;text-transform:none">Build a clear product interface with Display Mega rhythm.</div></div><div class="type-row type-sample"><div class="type-meta type-label type-sample-label"><strong>display-lg</strong>36px / 400 / 1.2 / -0.72px</div><div class="type-sample-text type-preview" style="font-family:&#39;CursorGothic&#39;, sans-serif;font-size:36px;font-weight:400;line-height:1.2;letter-spacing:-0.72px;text-transform:none">Build a clear product interface with Display Lg rhythm.</div></div><div class="type-row type-sample"><div class="type-meta type-label type-sample-label"><strong>display-md</strong>26px / 400 / 1.25 / -0.325px</div><div class="type-sample-text type-preview" style="font-family:&#39;CursorGothic&#39;, sans-serif;font-size:26px;font-weight:400;line-height:1.25;letter-spacing:-0.325px;text-transform:none">Build a clear product interface with Display Md rhythm.</div></div><div class="type-row type-sample"><div class="type-meta type-label type-sample-label"><strong>display-sm</strong>22px / 400 / 1.3 / -0.11px</div><div class="type-sample-text type-preview" style="font-family:&#39;CursorGothic&#39;, sans-serif;font-size:22px;font-weight:400;line-height:1.3;letter-spacing:-0.11px;text-transform:none">Build a clear product interface with Display Sm rhythm.</div></div><div class="type-row type-sample"><div class="type-meta type-label type-sample-label"><strong>title-md</strong>18px / 600 / 1.4 / 0px</div><div class="type-sample-text type-preview" style="font-family:&#39;CursorGothic&#39;, sans-serif;font-size:18px;font-weight:600;line-height:1.4;letter-spacing:0px;text-transform:none">Build a clear product interface with Title Md rhythm.</div></div><div class="type-row type-sample"><div class="type-meta type-label type-sample-label"><strong>title-sm</strong>16px / 600 / 1.4 / 0px</div><div class="type-sample-text type-preview" style="font-family:&#39;CursorGothic&#39;, sans-serif;font-size:16px;font-weight:600;line-height:1.4;letter-spacing:0px;text-transform:none">Build a clear product interface with Title Sm rhythm.</div></div><div class="type-row type-sample"><div class="type-meta type-label type-sample-label"><strong>body-md</strong>16px / 400 / 1.5 / 0px</div><div class="type-sample-text type-preview" style="font-family:&#39;CursorGothic&#39;, sans-serif;font-size:16px;font-weight:400;line-height:1.5;letter-spacing:0px;text-transform:none">Build a clear product interface with Body Md rhythm.</div></div><div class="type-row type-sample"><div class="type-meta type-label type-sample-label"><strong>body-tracked</strong>16px / 400 / 1.5 / 0.08px</div><div class="type-sample-text type-preview" style="font-family:&#39;CursorGothic&#39;, sans-serif;font-size:16px;font-weight:400;line-height:1.5;letter-spacing:0.08px;text-transform:none">Build a clear product interface with Body Tracked rhythm.</div></div><div class="type-row type-sample"><div class="type-meta type-label type-sample-label"><strong>body-sm</strong>14px / 400 / 1.5 / 0px</div><div class="type-sample-text type-preview" style="font-family:&#39;CursorGothic&#39;, sans-serif;font-size:14px;font-weight:400;line-height:1.5;letter-spacing:0px;text-transform:none">Build a clear product interface with Body Sm rhythm.</div></div><div class="type-row type-sample"><div class="type-meta type-label type-sample-label"><strong>caption</strong>13px / 400 / 1.4 / 0px</div><div class="type-sample-text type-preview" style="font-family:&#39;CursorGothic&#39;, sans-serif;font-size:13px;font-weight:400;line-height:1.4;letter-spacing:0px;text-transform:none">Build a clear product interface with Caption rhythm.</div></div><div class="type-row type-sample"><div class="type-meta type-label type-sample-label"><strong>caption-uppercase</strong>11px / 600 / 1.4 / 0.88px</div><div class="type-sample-text type-preview" style="font-family:&#39;CursorGothic&#39;, sans-serif;font-size:11px;font-weight:600;line-height:1.4;letter-spacing:0.88px;text-transform:uppercase">Build a clear product interface with Caption Uppercase rhythm.</div></div><div class="type-row type-sample"><div class="type-meta type-label type-sample-label"><strong>code</strong>13px / 400 / 1.5 / 0px</div><div class="type-sample-text type-preview" style="font-family:&#39;JetBrains Mono&#39;, &#39;Fira Code&#39;, monospace;font-size:13px;font-weight:400;line-height:1.5;letter-spacing:0px;text-transform:none">Build a clear product interface with Code rhythm.</div></div><div class="type-row type-sample"><div class="type-meta type-label type-sample-label"><strong>button</strong>14px / 500 / 1.0 / 0px</div><div class="type-sample-text type-preview" style="font-family:&#39;CursorGothic&#39;, sans-serif;font-size:14px;font-weight:500;line-height:1.0;letter-spacing:0px;text-transform:none">Build a clear product interface with Button rhythm.</div></div><div class="type-row type-sample"><div class="type-meta type-label type-sample-label"><strong>nav-link</strong>14px / 500 / 1.4 / 0px</div><div class="type-sample-text type-preview" style="font-family:&#39;CursorGothic&#39;, sans-serif;font-size:14px;font-weight:500;line-height:1.4;letter-spacing:0px;text-transform:none">Build a clear product interface with Nav Link rhythm.</div></div>
+</section>
 
-    <section id="components">
-      <div class="section-label">03 - Components</div>
-      <h2 class="section-heading">Buttons, cards, labels, and controls</h2>
-      <p class="section-intro">Component samples apply available token references where possible, with neutral fallbacks for properties not present in the source system.</p>
-      <div class="button-grid">
-        <div class="component-cell"><div class="button-label">top-nav</div><span class="demo-button" style="background:#f7f7f4;color:#26251e;border-radius:8px;padding:0 14px">Sample action</span><div class="button-meta">#f7f7f4 / #26251e</div></div><div class="component-cell"><div class="button-label">button-primary</div><span class="demo-button" style="background:#f54e00;color:#ffffff;border-radius:8px;padding:0 14px">Sample action</span><div class="button-meta">#f54e00 / #ffffff</div></div><div class="component-cell"><div class="button-label">button-primary-active</div><span class="demo-button" style="background:#d04200;color:#ffffff;border-radius:8px;padding:0 14px">Sample action</span><div class="button-meta">#d04200 / #ffffff</div></div><div class="component-cell"><div class="button-label">button-secondary</div><span class="demo-button" style="background:#ffffff;color:#26251e;border-radius:8px;padding:0 14px">Sample action</span><div class="button-meta">#ffffff / #26251e</div></div><div class="component-cell"><div class="button-label">button-tertiary-text</div><span class="demo-button" style="background:transparent;color:#26251e;border-radius:8px;padding:0 14px">Sample action</span><div class="button-meta">transparent / #26251e</div></div><div class="component-cell"><div class="button-label">button-download</div><span class="demo-button" style="background:#26251e;color:#f7f7f4;border-radius:8px;padding:0 14px">Sample action</span><div class="button-meta">#26251e / #f7f7f4</div></div><div class="component-cell"><div class="button-label">hero-band</div><span class="demo-button" style="background:#f7f7f4;color:#26251e;border-radius:8px;padding:0 80px">Sample action</span><div class="button-meta">#f7f7f4 / #26251e</div></div><div class="component-cell"><div class="button-label">ide-mockup-card</div><span class="demo-button" style="background:#ffffff;color:#26251e;border-radius:12px;padding:0 14px">Sample action</span><div class="button-meta">#ffffff / #26251e</div></div><div class="component-cell"><div class="button-label">ide-pane</div><span class="demo-button" style="background:#fafaf7;color:#5a5852;border-radius:8px;padding:0 16px">Sample action</span><div class="button-meta">#fafaf7 / #5a5852</div></div><div class="component-cell"><div class="button-label">feature-card</div><span class="demo-button" style="background:#ffffff;color:#26251e;border-radius:12px;padding:0 24px">Sample action</span><div class="button-meta">#ffffff / #26251e</div></div><div class="component-cell"><div class="button-label">comparison-card</div><span class="demo-button" style="background:#ffffff;color:#26251e;border-radius:12px;padding:0 24px">Sample action</span><div class="button-meta">#ffffff / #26251e</div></div><div class="component-cell"><div class="button-label">timeline-pill-thinking</div><span class="demo-button" style="background:#dfa88f;color:#26251e;border-radius:9999px;padding:0 14px">Sample action</span><div class="button-meta">#dfa88f / #26251e</div></div>
-      </div>
-    </section>
+<section id="components">
+<div class="section-label">04 / Components</div>
+<h2 class="section-title section-heading">Components</h2>
+<div class="card-grid component-grid inventory-grid"><div class="card component-card sample-card" style="background:var(--surface, var(--canvas, #fff));color:var(--ink, #111);border:1px solid var(--border, rgba(0,0,0,.14));border-radius:16px;padding:16px;min-height:150px;display:grid;gap:12px;align-content:start;box-sizing:border-box;"><h3 class="card-title">Top Nav</h3><div class="component-preview" style="display:flex;align-items:center;justify-content:flex-start;gap:12px;min-height:78px;flex-wrap:wrap;"><nav class="nav-token" aria-label="top-nav" style="display:flex;align-items:center;gap:8px;flex-wrap:wrap;"><a style="background:#f7f7f4;color:#26251e;border-radius:12px;padding:12px 18px;border:1px solid transparent;min-height:64px;display:inline-flex;align-items:center;justify-content:center;gap:8px;max-width:100%;box-sizing:border-box;font:inherit;text-decoration:none;white-space:normal;">Top Nav</a><a style="color:var(--muted, currentColor);text-decoration:none;padding:8px 10px;">Overview</a></nav></div></div><div class="card component-card sample-card" style="background:var(--surface, var(--canvas, #fff));color:var(--ink, #111);border:1px solid var(--border, rgba(0,0,0,.14));border-radius:16px;padding:16px;min-height:150px;display:grid;gap:12px;align-content:start;box-sizing:border-box;"><h3 class="card-title">Button Primary</h3><div class="component-preview" style="display:flex;align-items:center;justify-content:flex-start;gap:12px;min-height:78px;flex-wrap:wrap;"><button type="button" class="btn demo-control" style="background:#f54e00;color:#ffffff;border-radius:8px;padding:10px 18px;border:1px solid transparent;min-height:40px;display:inline-flex;align-items:center;justify-content:center;gap:8px;max-width:100%;box-sizing:border-box;font:inherit;text-decoration:none;white-space:normal;">Button Primary</button></div></div><div class="card component-card sample-card" style="background:var(--surface, var(--canvas, #fff));color:var(--ink, #111);border:1px solid var(--border, rgba(0,0,0,.14));border-radius:16px;padding:16px;min-height:150px;display:grid;gap:12px;align-content:start;box-sizing:border-box;"><h3 class="card-title">Button Primary Active</h3><div class="component-preview" style="display:flex;align-items:center;justify-content:flex-start;gap:12px;min-height:78px;flex-wrap:wrap;"><button type="button" class="btn demo-control" style="background:#d04200;color:#ffffff;border-radius:8px;padding:12px 18px;border:1px solid transparent;min-height:44px;display:inline-flex;align-items:center;justify-content:center;gap:8px;max-width:100%;box-sizing:border-box;font:inherit;text-decoration:none;white-space:normal;">Button Primary Active</button></div></div><div class="card component-card sample-card" style="background:var(--surface, var(--canvas, #fff));color:var(--ink, #111);border:1px solid var(--border, rgba(0,0,0,.14));border-radius:16px;padding:16px;min-height:150px;display:grid;gap:12px;align-content:start;box-sizing:border-box;"><h3 class="card-title">Button Secondary</h3><div class="component-preview" style="display:flex;align-items:center;justify-content:flex-start;gap:12px;min-height:78px;flex-wrap:wrap;"><button type="button" class="btn demo-control" style="background:#ffffff;color:#26251e;border-radius:8px;padding:9px 17px;border:1px solid transparent;min-height:40px;display:inline-flex;align-items:center;justify-content:center;gap:8px;max-width:100%;box-sizing:border-box;font:inherit;text-decoration:none;white-space:normal;">Button Secondary</button></div></div><div class="card component-card sample-card" style="background:var(--surface, var(--canvas, #fff));color:var(--ink, #111);border:1px solid var(--border, rgba(0,0,0,.14));border-radius:16px;padding:16px;min-height:150px;display:grid;gap:12px;align-content:start;box-sizing:border-box;"><h3 class="card-title">Button Tertiary Text</h3><div class="component-preview" style="display:flex;align-items:center;justify-content:flex-start;gap:12px;min-height:78px;flex-wrap:wrap;"><button type="button" class="btn demo-control" style="background:transparent;color:#26251e;border-radius:12px;padding:12px 18px;border:1px solid var(--border);min-height:44px;display:inline-flex;align-items:center;justify-content:center;gap:8px;max-width:100%;box-sizing:border-box;font:inherit;text-decoration:none;white-space:normal;">Button Tertiary Text</button></div></div><div class="card component-card sample-card" style="background:var(--surface, var(--canvas, #fff));color:var(--ink, #111);border:1px solid var(--border, rgba(0,0,0,.14));border-radius:16px;padding:16px;min-height:150px;display:grid;gap:12px;align-content:start;box-sizing:border-box;"><h3 class="card-title">Button Download</h3><div class="component-preview" style="display:flex;align-items:center;justify-content:flex-start;gap:12px;min-height:78px;flex-wrap:wrap;"><button type="button" class="btn demo-control" style="background:#26251e;color:#f7f7f4;border-radius:8px;padding:12px 20px;border:1px solid transparent;min-height:44px;display:inline-flex;align-items:center;justify-content:center;gap:8px;max-width:100%;box-sizing:border-box;font:inherit;text-decoration:none;white-space:normal;">Button Download</button></div></div><div class="card component-card sample-card" style="background:var(--surface, var(--canvas, #fff));color:var(--ink, #111);border:1px solid var(--border, rgba(0,0,0,.14));border-radius:16px;padding:16px;min-height:150px;display:grid;gap:12px;align-content:start;box-sizing:border-box;"><h3 class="card-title">Hero Band</h3><div class="component-preview" style="display:flex;align-items:center;justify-content:flex-start;gap:12px;min-height:78px;flex-wrap:wrap;"><article class="sample-card" style="background:#f7f7f4;color:#26251e;border-radius:12px;padding:80px;border:1px solid transparent;min-height:44px;display:grid;gap:10px;width:100%;box-sizing:border-box;"><div style="height:56px;border-radius:inherit;background:linear-gradient(135deg, currentColor, transparent);opacity:.14;"></div><strong>Hero Band</strong><span style="opacity:.72;">Featured item</span></article></div></div><div class="card component-card sample-card" style="background:var(--surface, var(--canvas, #fff));color:var(--ink, #111);border:1px solid var(--border, rgba(0,0,0,.14));border-radius:16px;padding:16px;min-height:150px;display:grid;gap:12px;align-content:start;box-sizing:border-box;"><h3 class="card-title">Ide Mockup Card</h3><div class="component-preview" style="display:flex;align-items:center;justify-content:flex-start;gap:12px;min-height:78px;flex-wrap:wrap;"><article class="sample-card" style="background:#ffffff;color:#26251e;border-radius:12px;padding:12px 18px;border:1px solid transparent;min-height:44px;display:grid;gap:10px;width:100%;box-sizing:border-box;"><div style="height:56px;border-radius:inherit;background:linear-gradient(135deg, currentColor, transparent);opacity:.14;"></div><strong>Ide Mockup Card</strong><span style="opacity:.72;">Featured item</span></article></div></div><div class="card component-card sample-card" style="background:var(--surface, var(--canvas, #fff));color:var(--ink, #111);border:1px solid var(--border, rgba(0,0,0,.14));border-radius:16px;padding:16px;min-height:150px;display:grid;gap:12px;align-content:start;box-sizing:border-box;"><h3 class="card-title">Ide Pane</h3><div class="component-preview" style="display:flex;align-items:center;justify-content:flex-start;gap:12px;min-height:78px;flex-wrap:wrap;"><div class="surface-token" style="background:#fafaf7;color:#5a5852;border-radius:8px;padding:16px;border:1px solid transparent;min-height:44px;width:100%;box-sizing:border-box;"><strong>Ide Pane</strong></div></div></div><div class="card component-card sample-card" style="background:var(--surface, var(--canvas, #fff));color:var(--ink, #111);border:1px solid var(--border, rgba(0,0,0,.14));border-radius:16px;padding:16px;min-height:150px;display:grid;gap:12px;align-content:start;box-sizing:border-box;"><h3 class="card-title">Feature Card</h3><div class="component-preview" style="display:flex;align-items:center;justify-content:flex-start;gap:12px;min-height:78px;flex-wrap:wrap;"><article class="sample-card" style="background:#ffffff;color:#26251e;border-radius:12px;padding:24px;border:1px solid transparent;min-height:44px;display:grid;gap:10px;width:100%;box-sizing:border-box;"><div style="height:56px;border-radius:inherit;background:linear-gradient(135deg, currentColor, transparent);opacity:.14;"></div><strong>Feature Card</strong><span style="opacity:.72;">Featured item</span></article></div></div><div class="card component-card sample-card" style="background:var(--surface, var(--canvas, #fff));color:var(--ink, #111);border:1px solid var(--border, rgba(0,0,0,.14));border-radius:16px;padding:16px;min-height:150px;display:grid;gap:12px;align-content:start;box-sizing:border-box;"><h3 class="card-title">Comparison Card</h3><div class="component-preview" style="display:flex;align-items:center;justify-content:flex-start;gap:12px;min-height:78px;flex-wrap:wrap;"><article class="sample-card" style="background:#ffffff;color:#26251e;border-radius:12px;padding:24px;border:1px solid transparent;min-height:44px;display:grid;gap:10px;width:100%;box-sizing:border-box;"><div style="height:56px;border-radius:inherit;background:linear-gradient(135deg, currentColor, transparent);opacity:.14;"></div><strong>Comparison Card</strong><span style="opacity:.72;">Featured item</span></article></div></div><div class="card component-card sample-card" style="background:var(--surface, var(--canvas, #fff));color:var(--ink, #111);border:1px solid var(--border, rgba(0,0,0,.14));border-radius:16px;padding:16px;min-height:150px;display:grid;gap:12px;align-content:start;box-sizing:border-box;"><h3 class="card-title">Timeline Pill Thinking</h3><div class="component-preview" style="display:flex;align-items:center;justify-content:flex-start;gap:12px;min-height:78px;flex-wrap:wrap;"><button type="button" class="btn demo-control" style="background:#dfa88f;color:#26251e;border-radius:9999px;padding:4px 10px;border:1px solid transparent;min-height:44px;display:inline-flex;align-items:center;justify-content:center;gap:8px;max-width:100%;box-sizing:border-box;font:inherit;text-decoration:none;white-space:normal;">Timeline Pill Thinking</button></div></div><div class="card component-card sample-card" style="background:var(--surface, var(--canvas, #fff));color:var(--ink, #111);border:1px solid var(--border, rgba(0,0,0,.14));border-radius:16px;padding:16px;min-height:150px;display:grid;gap:12px;align-content:start;box-sizing:border-box;"><h3 class="card-title">Timeline Pill Grep</h3><div class="component-preview" style="display:flex;align-items:center;justify-content:flex-start;gap:12px;min-height:78px;flex-wrap:wrap;"><button type="button" class="btn demo-control" style="background:#9fc9a2;color:#26251e;border-radius:9999px;padding:4px 10px;border:1px solid transparent;min-height:44px;display:inline-flex;align-items:center;justify-content:center;gap:8px;max-width:100%;box-sizing:border-box;font:inherit;text-decoration:none;white-space:normal;">Timeline Pill Grep</button></div></div><div class="card component-card sample-card" style="background:var(--surface, var(--canvas, #fff));color:var(--ink, #111);border:1px solid var(--border, rgba(0,0,0,.14));border-radius:16px;padding:16px;min-height:150px;display:grid;gap:12px;align-content:start;box-sizing:border-box;"><h3 class="card-title">Timeline Pill Read</h3><div class="component-preview" style="display:flex;align-items:center;justify-content:flex-start;gap:12px;min-height:78px;flex-wrap:wrap;"><button type="button" class="btn demo-control" style="background:#9fbbe0;color:#26251e;border-radius:9999px;padding:4px 10px;border:1px solid transparent;min-height:44px;display:inline-flex;align-items:center;justify-content:center;gap:8px;max-width:100%;box-sizing:border-box;font:inherit;text-decoration:none;white-space:normal;">Timeline Pill Read</button></div></div><div class="card component-card sample-card" style="background:var(--surface, var(--canvas, #fff));color:var(--ink, #111);border:1px solid var(--border, rgba(0,0,0,.14));border-radius:16px;padding:16px;min-height:150px;display:grid;gap:12px;align-content:start;box-sizing:border-box;"><h3 class="card-title">Timeline Pill Edit</h3><div class="component-preview" style="display:flex;align-items:center;justify-content:flex-start;gap:12px;min-height:78px;flex-wrap:wrap;"><button type="button" class="btn demo-control" style="background:#c0a8dd;color:#26251e;border-radius:9999px;padding:4px 10px;border:1px solid transparent;min-height:44px;display:inline-flex;align-items:center;justify-content:center;gap:8px;max-width:100%;box-sizing:border-box;font:inherit;text-decoration:none;white-space:normal;">Timeline Pill Edit</button></div></div><div class="card component-card sample-card" style="background:var(--surface, var(--canvas, #fff));color:var(--ink, #111);border:1px solid var(--border, rgba(0,0,0,.14));border-radius:16px;padding:16px;min-height:150px;display:grid;gap:12px;align-content:start;box-sizing:border-box;"><h3 class="card-title">Timeline Pill Done</h3><div class="component-preview" style="display:flex;align-items:center;justify-content:flex-start;gap:12px;min-height:78px;flex-wrap:wrap;"><button type="button" class="btn demo-control" style="background:#c08532;color:#ffffff;border-radius:9999px;padding:4px 10px;border:1px solid transparent;min-height:44px;display:inline-flex;align-items:center;justify-content:center;gap:8px;max-width:100%;box-sizing:border-box;font:inherit;text-decoration:none;white-space:normal;">Timeline Pill Done</button></div></div><div class="card component-card sample-card" style="background:var(--surface, var(--canvas, #fff));color:var(--ink, #111);border:1px solid var(--border, rgba(0,0,0,.14));border-radius:16px;padding:16px;min-height:150px;display:grid;gap:12px;align-content:start;box-sizing:border-box;"><h3 class="card-title">Code Block</h3><div class="component-preview" style="display:flex;align-items:center;justify-content:flex-start;gap:12px;min-height:78px;flex-wrap:wrap;"><div class="surface-token" style="background:#ffffff;color:#26251e;border-radius:12px;padding:20px;border:1px solid transparent;min-height:44px;width:100%;box-sizing:border-box;"><strong>Code Block</strong></div></div></div><div class="card component-card sample-card" style="background:var(--surface, var(--canvas, #fff));color:var(--ink, #111);border:1px solid var(--border, rgba(0,0,0,.14));border-radius:16px;padding:16px;min-height:150px;display:grid;gap:12px;align-content:start;box-sizing:border-box;"><h3 class="card-title">Pricing Tier Card</h3><div class="component-preview" style="display:flex;align-items:center;justify-content:flex-start;gap:12px;min-height:78px;flex-wrap:wrap;"><article class="sample-card" style="background:#ffffff;color:#26251e;border-radius:12px;padding:32px;border:1px solid transparent;min-height:44px;display:grid;gap:10px;width:100%;box-sizing:border-box;"><div style="height:56px;border-radius:inherit;background:linear-gradient(135deg, currentColor, transparent);opacity:.14;"></div><strong>Pricing Tier Card</strong><span style="opacity:.72;">Featured item</span></article></div></div><div class="card component-card sample-card" style="background:var(--surface, var(--canvas, #fff));color:var(--ink, #111);border:1px solid var(--border, rgba(0,0,0,.14));border-radius:16px;padding:16px;min-height:150px;display:grid;gap:12px;align-content:start;box-sizing:border-box;"><h3 class="card-title">Pricing Tier Featured</h3><div class="component-preview" style="display:flex;align-items:center;justify-content:flex-start;gap:12px;min-height:78px;flex-wrap:wrap;"><article class="sample-card" style="background:#26251e;color:#f7f7f4;border-radius:12px;padding:32px;border:1px solid transparent;min-height:44px;display:grid;gap:10px;width:100%;box-sizing:border-box;"><strong>Pricing Tier Featured</strong><span style="opacity:.72;">$182 night</span><button type="button" style="justify-self:start;border:0;border-radius:9999px;background:currentColor;color:var(--surface, #fff);padding:8px 14px;font:inherit;">Reserve</button></article></div></div><div class="card component-card sample-card" style="background:var(--surface, var(--canvas, #fff));color:var(--ink, #111);border:1px solid var(--border, rgba(0,0,0,.14));border-radius:16px;padding:16px;min-height:150px;display:grid;gap:12px;align-content:start;box-sizing:border-box;"><h3 class="card-title">Text Input</h3><div class="component-preview" style="display:flex;align-items:center;justify-content:flex-start;gap:12px;min-height:78px;flex-wrap:wrap;"><label class="form-token" style="display:grid;gap:8px;width:100%;"><span style="font-size:12px;font-weight:700;color:var(--muted, currentColor);">Text Input</span><input class="form-input" value="Text Input" style="background:#ffffff;color:#26251e;border-radius:8px;padding:12px 16px;border:1px solid transparent;min-height:44px;width:100%;box-sizing:border-box;font:inherit;"></label></div></div><div class="card component-card sample-card" style="background:var(--surface, var(--canvas, #fff));color:var(--ink, #111);border:1px solid var(--border, rgba(0,0,0,.14));border-radius:16px;padding:16px;min-height:150px;display:grid;gap:12px;align-content:start;box-sizing:border-box;"><h3 class="card-title">Badge Pill</h3><div class="component-preview" style="display:flex;align-items:center;justify-content:flex-start;gap:12px;min-height:78px;flex-wrap:wrap;"><span class="badge chip demo-control" style="background:#e6e5e0;color:#26251e;border-radius:9999px;padding:4px 10px;border:1px solid transparent;min-height:44px;display:inline-flex;align-items:center;justify-content:center;gap:8px;max-width:100%;box-sizing:border-box;font:inherit;text-decoration:none;white-space:normal;">Badge Pill</span></div></div><div class="card component-card sample-card" style="background:var(--surface, var(--canvas, #fff));color:var(--ink, #111);border:1px solid var(--border, rgba(0,0,0,.14));border-radius:16px;padding:16px;min-height:150px;display:grid;gap:12px;align-content:start;box-sizing:border-box;"><h3 class="card-title">Cta Band</h3><div class="component-preview" style="display:flex;align-items:center;justify-content:flex-start;gap:12px;min-height:78px;flex-wrap:wrap;"><button type="button" class="btn demo-control" style="background:#f7f7f4;color:#26251e;border-radius:12px;padding:96px;border:1px solid transparent;min-height:44px;display:inline-flex;align-items:center;justify-content:center;gap:8px;max-width:100%;box-sizing:border-box;font:inherit;text-decoration:none;white-space:normal;">Cta Band</button></div></div><div class="card component-card sample-card" style="background:var(--surface, var(--canvas, #fff));color:var(--ink, #111);border:1px solid var(--border, rgba(0,0,0,.14));border-radius:16px;padding:16px;min-height:150px;display:grid;gap:12px;align-content:start;box-sizing:border-box;"><h3 class="card-title">Testimonial Card</h3><div class="component-preview" style="display:flex;align-items:center;justify-content:flex-start;gap:12px;min-height:78px;flex-wrap:wrap;"><article class="sample-card" style="background:#ffffff;color:#5a5852;border-radius:12px;padding:24px;border:1px solid transparent;min-height:44px;display:grid;gap:10px;width:100%;box-sizing:border-box;"><div style="height:56px;border-radius:inherit;background:linear-gradient(135deg, currentColor, transparent);opacity:.14;"></div><strong>Testimonial Card</strong><span style="opacity:.72;">Featured item</span></article></div></div><div class="card component-card sample-card" style="background:var(--surface, var(--canvas, #fff));color:var(--ink, #111);border:1px solid var(--border, rgba(0,0,0,.14));border-radius:16px;padding:16px;min-height:150px;display:grid;gap:12px;align-content:start;box-sizing:border-box;"><h3 class="card-title">Footer</h3><div class="component-preview" style="display:flex;align-items:center;justify-content:flex-start;gap:12px;min-height:78px;flex-wrap:wrap;"><div role="contentinfo" class="footer-token" style="background:#f7f7f4;color:#5a5852;border-radius:12px;padding:64px 48px;border:1px solid transparent;min-height:44px;display:flex;align-items:center;justify-content:space-between;gap:12px;width:100%;box-sizing:border-box;flex-wrap:wrap;"><strong>Footer</strong><a style="color:inherit;text-decoration:underline;">Terms</a></div></div></div><div class="card component-card sample-card" style="background:var(--surface, var(--canvas, #fff));color:var(--ink, #111);border:1px solid var(--border, rgba(0,0,0,.14));border-radius:16px;padding:16px;min-height:150px;display:grid;gap:12px;align-content:start;box-sizing:border-box;"><h3 class="card-title">Footer Link</h3><div class="component-preview" style="display:flex;align-items:center;justify-content:flex-start;gap:12px;min-height:78px;flex-wrap:wrap;"><button type="button" class="btn demo-control" style="background:transparent;color:#5a5852;border-radius:12px;padding:12px 18px;border:1px solid var(--border);min-height:44px;display:inline-flex;align-items:center;justify-content:center;gap:8px;max-width:100%;box-sizing:border-box;font:inherit;text-decoration:none;white-space:normal;">Learn more</button></div></div></div>
+</section>
 
-    <section>
-      <div class="section-label">04 - Interface Samples</div>
-      <h2 class="section-heading">Reusable product surfaces</h2>
-      <div class="card-grid">
-        <div class="feature-card"><h4>Feature card</h4><p>Use this card treatment for summaries, benefits, or product modules with concise supporting text.</p><span class="badge">New</span></div>
-        <div class="feature-card"><h4>Data card</h4><p>Pair a strong heading with a compact metric and muted explanatory copy.</p><div style="font:800 36px/1 var(--display);color:var(--primary);margin-top:14px">24%</div></div>
-        <div class="feature-card"><h4>Content card</h4><p>Keep content blocks aligned to the design system's spacing and type hierarchy.</p><span class="btn primary" style="margin-top:14px">Continue</span></div>
-      </div>
-    </section>
+<section>
+  <div class="section-label">04 — AI Timeline (signature)</div>
+  <h2 class="section-heading">Five pastel pills mark agent stages</h2>
+  <p class="section-intro">The brand's distinctive product-UI signature: pastel pills label AI-action stages inside in-product agent timelines. Scoped to the timeline only — never as system action colors.</p>
+  <div class="timeline-row">
+    <div class="step"><span class="timeline-pill thinking">Thinking</span><span style="color:var(--muted);font-family:var(--mono);font-size:12px">analyzing repository structure...</span></div>
+    <div class="step"><span class="timeline-pill grep">Grep</span><span style="color:var(--muted);font-family:var(--mono);font-size:12px">searched 142 files for handler signatures</span></div>
+    <div class="step"><span class="timeline-pill read">Read</span><span style="color:var(--muted);font-family:var(--mono);font-size:12px">opened src/api/router.ts (98 lines)</span></div>
+    <div class="step"><span class="timeline-pill edit">Edit</span><span style="color:var(--muted);font-family:var(--mono);font-size:12px">applied 3 changes to runner.ts</span></div>
+    <div class="step"><span class="timeline-pill done">Done</span><span style="color:var(--muted);font-family:var(--mono);font-size:12px">all checks passing · ready to commit</span></div>
+  </div>
+</section>
 
-    <section>
-      <div class="section-label">05 - Forms</div>
-      <h2 class="section-heading">Inputs and inline feedback</h2>
-      <div class="form-grid">
-        <div class="form-cell"><label class="button-label">Email</label><input class="text-input" value="team@example.com" aria-label="Email sample"></div>
-        <div class="form-cell"><label class="button-label">Status</label><span class="badge">Active</span></div>
-        <div class="form-cell"><label class="button-label">Action group</label><div style="display:flex;gap:10px;flex-wrap:wrap"><span class="btn primary">Save</span><span class="btn">Cancel</span></div></div>
-      </div>
-    </section>
+<section>
+  <div class="section-label">05 — Cards</div>
+  <h2 class="section-heading">Hairline-only depth</h2>
+  <div class="card-grid">
+    <div class="feature-card"><h4>Tab autocomplete</h4><p>Multi-cursor suggestions across the whole file — Tab to accept.</p><button class="btn btn-tertiary-text">Learn more →</button></div>
+    <div class="feature-card"><h4>Codebase awareness</h4><p>Ask questions about your full codebase. Get cited answers.</p><button class="btn btn-tertiary-text">Learn more →</button></div>
+    <div class="feature-card"><h4>Bring your own keys</h4><p>Use your own API keys for OpenAI, Anthropic, or Azure.</p><button class="btn btn-tertiary-text">Learn more →</button></div>
+  </div>
+</section>
 
-    <section>
-      <div class="section-label">06 - Spacing</div>
-      <h2 class="section-heading">Spacing scale</h2>
-      <div class="spacing-row">
-        <div class="spacing-block"><div class="spacing-bar" style="height:4px"></div><div class="spacing-label">xxs · 4px</div></div><div class="spacing-block"><div class="spacing-bar" style="height:8px"></div><div class="spacing-label">xs · 8px</div></div><div class="spacing-block"><div class="spacing-bar" style="height:12px"></div><div class="spacing-label">sm · 12px</div></div><div class="spacing-block"><div class="spacing-bar" style="height:16px"></div><div class="spacing-label">base · 16px</div></div><div class="spacing-block"><div class="spacing-bar" style="height:20px"></div><div class="spacing-label">md · 20px</div></div><div class="spacing-block"><div class="spacing-bar" style="height:24px"></div><div class="spacing-label">lg · 24px</div></div><div class="spacing-block"><div class="spacing-bar" style="height:32px"></div><div class="spacing-label">xl · 32px</div></div><div class="spacing-block"><div class="spacing-bar" style="height:48px"></div><div class="spacing-label">xxl · 48px</div></div>
-      </div>
-    </section>
+<section>
+  <div class="section-label">06 — Code Block</div>
+  <h2 class="section-heading">JetBrains Mono on white</h2>
+  <div class="code-block"><span class="c">// Quickstart</span><br><span class="k">import</span> { Cursor } <span class="k">from</span> <span class="s">'cursor'</span><br><br><span class="k">const</span> agent = <span class="k">new</span> Cursor()<br><span class="k">await</span> agent.run({ task: <span class="s">'refactor router.ts'</span> })</div>
+</section>
 
-    <section>
-      <div class="section-label">07 - Radius</div>
-      <h2 class="section-heading">Shape language</h2>
-      <div class="radius-row">
-        <div class="radius-block" style="border-radius:0px">none</div><div class="radius-block" style="border-radius:4px">xs</div><div class="radius-block" style="border-radius:6px">sm</div><div class="radius-block" style="border-radius:8px">md</div><div class="radius-block" style="border-radius:12px">lg</div><div class="radius-block" style="border-radius:16px">xl</div><div class="radius-block" style="border-radius:9999px">pill</div><div class="radius-block" style="border-radius:9999px">full</div>
-      </div>
-    </section>
+<section>
+  <div class="section-label">07 — Pricing Tiers</div>
+  <h2 class="section-heading">Featured tier inverts to ink</h2>
+  <p class="section-intro">Visual inversion signals "highlighted choice" without colored ribbons.</p>
+  <div class="pricing-grid">
+    <div class="pricing-tier-card"><h4>Hobby</h4><div class="price">$0</div><ul><li>Free trial</li><li>2,000 completions</li><li>50 slow requests</li></ul><button class="btn btn-secondary" style="width:100%">Get started</button></div>
+    <div class="pricing-tier-card featured"><h4>Pro</h4><div class="price">$20<span style="font-size:18px;color:var(--muted-soft)">/mo</span></div><ul><li>Unlimited completions</li><li>500 fast requests</li><li>Unlimited slow</li></ul><button class="btn btn-primary" style="width:100%">Choose plan</button></div>
+    <div class="pricing-tier-card"><h4>Business</h4><div class="price">$40</div><ul><li>Everything in Pro</li><li>Privacy mode</li><li>Centralized billing</li></ul><button class="btn btn-secondary" style="width:100%">Contact sales</button></div>
+  </div>
+</section>
 
-    <section id="responsive">
-      <div class="section-label">08 - Responsive Behavior</div>
-      <h2 class="section-heading">Layout strategy</h2>
-      <table class="responsive-table">
-        <thead><tr><th>Viewport</th><th>Behavior</th></tr></thead>
-        <tbody>
-          <tr><td>Mobile</td><td>Single column layout, compact nav, tighter section padding.</td></tr>
-          <tr><td>Tablet</td><td>Two-column component grids and readable type hierarchy.</td></tr>
-          <tr><td>Desktop</td><td>Wide token catalog, multi-column cards, expanded whitespace.</td></tr>
-        </tbody>
-      </table>
-    </section>
-  </main>
+<section>
+  <div class="section-label">08 — Forms</div>
+  <h2 class="section-heading">Inputs</h2>
+  <div class="form-grid">
+    <div class="form-cell"><label class="form-label">Email</label><input class="text-input" type="email" placeholder="you@example.com"></div>
+    <div class="form-cell"><label class="form-label">Workspace</label><input class="text-input focused" type="text" value="Acme Inc"></div>
+    <div class="form-cell"><label class="form-label">License key</label><input class="text-input" type="text" placeholder="cursor_••••••••"></div>
+  </div>
+</section>
 
-  <footer class="footer">Generated from DESIGN.md tokens for local preview and review.</footer>
-</body>
-</html>
+<section>
+  <div class="section-label">09 — Badges</div>
+  <p class="section-intro">Small uppercase pills.</p>
+  <div style="display:flex;gap:12px;flex-wrap:wrap"><span class="badge-pill">New</span><span class="badge-pill">Beta</span><span class="badge-pill">Pro</span><span class="badge-pill">Enterprise</span></div>
+</section>
+
+<section>
+  <div class="section-label">10 — Spacing Scale</div>
+  <p class="section-intro">4px base, 80px section rhythm.</p>
+  <div class="spacing-row">
+    <div class="spacing-block"><div class="spacing-bar" style="width:4px"></div><div class="spacing-label">xxs · 4</div></div>
+    <div class="spacing-block"><div class="spacing-bar" style="width:8px"></div><div class="spacing-label">xs · 8</div></div>
+    <div class="spacing-block"><div class="spacing-bar" style="width:12px"></div><div class="spacing-label">sm · 12</div></div>
+    <div class="spacing-block"><div class="spacing-bar" style="width:16px"></div><div class="spacing-label">base · 16</div></div>
+    <div class="spacing-block"><div class="spacing-bar" style="width:20px"></div><div class="spacing-label">md · 20</div></div>
+    <div class="spacing-block"><div class="spacing-bar" style="width:24px"></div><div class="spacing-label">lg · 24</div></div>
+    <div class="spacing-block"><div class="spacing-bar" style="width:32px"></div><div class="spacing-label">xl · 32</div></div>
+    <div class="spacing-block"><div class="spacing-bar" style="width:48px"></div><div class="spacing-label">xxl · 48</div></div>
+    <div class="spacing-block"><div class="spacing-bar" style="width:80px"></div><div class="spacing-label">section · 80</div></div>
+  </div>
+</section>
+
+<section>
+  <div class="section-label">11 — Border Radius</div>
+  <p class="section-intro">Compact developer-ergonomic radii. Pill only for timeline labels and badges.</p>
+  <div class="radius-row">
+    <div class="radius-block" style="border-radius:0">0 · none</div>
+    <div class="radius-block" style="border-radius:4px">4 · xs</div>
+    <div class="radius-block" style="border-radius:6px">6 · sm</div>
+    <div class="radius-block" style="border-radius:8px">8 · md</div>
+    <div class="radius-block" style="border-radius:12px">12 · lg</div>
+    <div class="radius-block" style="border-radius:16px">16 · xl</div>
+    <div class="radius-block" style="border-radius:9999px">pill</div>
+  </div>
+</section>
+
+<section>
+  <div class="section-label">12 — Elevation & Depth</div>
+  <p class="section-intro">Hairline-only depth. No drop shadows. White-on-cream contrast carries the layering.</p>
+  <div class="elevation-grid">
+    <div class="elevation-card"><h5>Flat / Canvas</h5><p>Body bands, footer.</p></div>
+    <div class="elevation-card" style="background:#fafaf7"><h5>IDE pane</h5><p>Inside IDE mockup cards.</p></div>
+    <div class="elevation-card"><h5>Card</h5><p>White card on cream — 1px hairline border.</p></div>
+    <div class="elevation-card" style="background:#26251e;color:#f7f7f4"><h5 style="color:#f7f7f4">Inverted card</h5><p style="color:rgba(247,247,244,0.7)">Featured pricing tier.</p></div>
+  </div>
+</section>
+
+<section id="responsive">
+<div class="section-label">10 / Responsive Behavior</div>
+<h2 class="section-title section-heading">Responsive Behavior</h2>
+<table class="responsive-table breakpoint-table"><tbody><tr><th>Viewport</th><th>Behavior</th></tr><tr><td>Mobile</td><td>Single column layout and compact token grids.</td></tr><tr><td>Desktop</td><td>Multi-column layout with expanded token grids.</td></tr></tbody></table>
+</section>
+
+<footer class="footer">
+  <div class="footer-shell">
+    <p>Cursor</p>
+    <p class="token-meta">Design token preview</p>
+  </div>
+</footer>
+</body></html>

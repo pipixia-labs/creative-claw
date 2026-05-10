@@ -56,6 +56,8 @@ const mediaCanvasState = {
   positions: new Map(),
 };
 let tldrawCanvasUnmount = null;
+let designSystemsCache = null;
+let designSystemsPromise = null;
 
 connect();
 restoreHistory();
@@ -715,11 +717,12 @@ function parseQuestionForm(rawJson) {
       submitLabel: String(form.submitLabel || "确认并继续"),
       questions: form.questions
         .filter((question) => question && typeof question === "object")
-        .slice(0, 7)
         .map((question) => ({
           id: String(question.id || ""),
           label: String(question.label || ""),
           type: String(question.type || ""),
+          presentation: String(question.presentation || ""),
+          resource: String(question.resource || ""),
           required: Boolean(question.required),
           placeholder: String(question.placeholder || ""),
           maxSelections: Number.isFinite(Number(question.maxSelections)) ? Number(question.maxSelections) : null,
@@ -732,6 +735,10 @@ function parseQuestionForm(rawJson) {
                 value: String(option?.value || ""),
                 label: String(option?.label || ""),
                 description: String(option?.description || ""),
+                previewUrl: String(option?.previewUrl || ""),
+                darkPreviewUrl: String(option?.darkPreviewUrl || ""),
+                showcaseUrl: String(option?.showcaseUrl || ""),
+                swatches: Array.isArray(option?.swatches) ? option.swatches.map((color) => String(color || "")) : [],
               }))
             : [],
         }))
@@ -810,6 +817,11 @@ function renderQuestionField(form, question) {
   legend.className = "cc-question-label";
   legend.textContent = question.required ? `${question.label} *` : question.label;
   field.appendChild(legend);
+
+  if (isDesignSystemQuestion(question)) {
+    renderDesignSystemPicker(field, form, question);
+    return field;
+  }
 
   if (question.type === "single_choice" || question.type === "multi_choice") {
     const options = document.createElement("div");
@@ -908,10 +920,232 @@ function renderQuestionField(form, question) {
   return field;
 }
 
+function isDesignSystemQuestion(question) {
+  return question.presentation === "design_system_picker" || question.resource === "design_systems";
+}
+
+function renderDesignSystemPicker(field, form, question) {
+  field.classList.add("cc-design-system-field");
+  const recommendations = getDesignSystemRecommendations(question);
+
+  const picker = document.createElement("div");
+  picker.className = "cc-design-system-picker";
+
+  const hidden = document.createElement("input");
+  hidden.type = "hidden";
+  hidden.name = `${form.id}-${question.id}`;
+  hidden.dataset.designSystemValue = "true";
+  picker.appendChild(hidden);
+
+  const controlRow = document.createElement("div");
+  controlRow.className = "cc-design-system-controls";
+
+  const decide = document.createElement("button");
+  decide.type = "button";
+  decide.className = "cc-design-system-quick";
+  decide.textContent = "为我决定";
+  decide.addEventListener("click", () => selectDesignSystem(picker, hidden, "decide_for_me"));
+  controlRow.appendChild(decide);
+
+  const search = document.createElement("input");
+  search.className = "cc-design-system-search";
+  search.type = "search";
+  search.placeholder = "搜索 Claude、Stripe、Apple...";
+  controlRow.appendChild(search);
+  picker.appendChild(controlRow);
+
+  const other = document.createElement("input");
+  other.className = "cc-question-other cc-design-system-other";
+  other.type = "text";
+  other.name = `${form.id}-${question.id}-other`;
+  other.placeholder = question.placeholder || "Other...";
+  other.addEventListener("input", () => {
+    if (other.value.trim()) selectDesignSystem(picker, hidden, "other");
+  });
+  picker.appendChild(other);
+
+  const status = document.createElement("div");
+  status.className = "cc-design-system-status";
+  status.textContent = "正在加载设计系统...";
+  picker.appendChild(status);
+
+  const grid = document.createElement("div");
+  grid.className = "cc-design-system-grid";
+  picker.appendChild(grid);
+
+  const render = (systems) => {
+    const visibleSystems = getVisibleDesignSystems(systems, recommendations);
+    const query = search.value.trim().toLowerCase();
+    const filtered = visibleSystems.filter((system) => {
+      if (!query) return true;
+      return [system.id, system.title, system.summary, system.recommendationReason]
+        .map((value) => String(value || "").toLowerCase())
+        .some((value) => value.includes(query));
+    });
+    status.textContent = filtered.length ? "" : "没有匹配的设计系统。";
+    grid.replaceChildren(...filtered.map((system) => renderDesignSystemCard(picker, hidden, system)));
+  };
+
+  loadDesignSystems()
+    .then((systems) => render(systems))
+    .catch(() => {
+      status.textContent = "设计系统加载失败，可以使用为我决定或 Other。";
+    });
+  search.addEventListener("input", () => {
+    if (designSystemsCache) render(designSystemsCache);
+  });
+
+  field.appendChild(picker);
+}
+
+function getDesignSystemRecommendations(question) {
+  return (question.options || [])
+    .filter((option) => option.value && option.value !== "decide_for_me" && option.value !== "other")
+    .slice(0, 6)
+    .map((option) => ({
+      id: option.value,
+      label: option.label || option.value,
+      reason: option.description || "",
+    }));
+}
+
+function getVisibleDesignSystems(systems, recommendations) {
+  if (!recommendations.length) {
+    return systems.slice(0, 18);
+  }
+  const systemById = new Map(systems.map((system) => [system.id, system]));
+  return recommendations
+    .map((recommendation) => {
+      const system = systemById.get(recommendation.id);
+      if (!system) return null;
+      return {
+        ...system,
+        title: system.title || recommendation.label,
+        recommendationReason: recommendation.reason,
+      };
+    })
+    .filter(Boolean);
+}
+
+function renderDesignSystemCard(picker, hidden, system) {
+  const card = document.createElement("button");
+  card.type = "button";
+  card.className = "cc-design-system-card";
+  card.dataset.designSystemId = system.id;
+  card.addEventListener("click", () => selectDesignSystem(picker, hidden, system.id));
+
+  const swatches = document.createElement("span");
+  swatches.className = "cc-design-system-swatches";
+  for (const color of system.swatches || []) {
+    const swatch = document.createElement("span");
+    swatch.style.background = color;
+    swatches.appendChild(swatch);
+  }
+  card.appendChild(swatches);
+
+  const copy = document.createElement("span");
+  copy.className = "cc-design-system-copy";
+  const title = document.createElement("span");
+  title.className = "cc-design-system-title";
+  title.textContent = system.title || system.id;
+  const summary = document.createElement("span");
+  summary.className = "cc-design-system-summary";
+  summary.textContent = system.recommendationReason || system.summary || system.id;
+  copy.appendChild(title);
+  copy.appendChild(summary);
+  card.appendChild(copy);
+
+  const preview = document.createElement("span");
+  preview.className = "cc-design-system-preview-link";
+  preview.textContent = "预览";
+  preview.addEventListener("click", (event) => {
+    event.preventDefault();
+    event.stopPropagation();
+    openDesignSystemPreview(system);
+  });
+  card.appendChild(preview);
+
+  return card;
+}
+
+function selectDesignSystem(picker, hidden, value) {
+  hidden.value = value;
+  for (const item of picker.querySelectorAll(".cc-design-system-card, .cc-design-system-quick")) {
+    item.classList.toggle("selected", item.dataset.designSystemId === value || (value === "decide_for_me" && item.classList.contains("cc-design-system-quick")));
+  }
+  if (value !== "other") {
+    const other = picker.querySelector(".cc-design-system-other");
+    if (other) other.value = "";
+  }
+}
+
+async function loadDesignSystems() {
+  if (designSystemsCache) return designSystemsCache;
+  if (!designSystemsPromise) {
+    designSystemsPromise = fetch("/api/design-systems")
+      .then((response) => {
+        if (!response.ok) throw new Error("design systems unavailable");
+        return response.json();
+      })
+      .then((payload) => {
+        designSystemsCache = Array.isArray(payload.designSystems) ? payload.designSystems : [];
+        return designSystemsCache;
+      });
+  }
+  return designSystemsPromise;
+}
+
+function openDesignSystemPreview(system) {
+  const existing = document.querySelector(".cc-design-system-modal");
+  if (existing) existing.remove();
+
+  const modal = document.createElement("div");
+  modal.className = "cc-design-system-modal";
+  modal.addEventListener("click", (event) => {
+    if (event.target === modal) modal.remove();
+  });
+
+  const panel = document.createElement("div");
+  panel.className = "cc-design-system-modal-panel";
+  const head = document.createElement("div");
+  head.className = "cc-design-system-modal-head";
+  const title = document.createElement("div");
+  title.className = "cc-design-system-modal-title";
+  title.textContent = system.title || system.id;
+  const close = document.createElement("button");
+  close.type = "button";
+  close.className = "cc-design-system-modal-close";
+  close.textContent = "关闭";
+  close.addEventListener("click", () => modal.remove());
+  head.appendChild(title);
+  head.appendChild(close);
+
+  const frame = document.createElement("iframe");
+  frame.className = "cc-design-system-modal-frame";
+  frame.title = `${system.title || system.id} preview`;
+  frame.src = system.showcaseUrl || system.previewUrl;
+  frame.setAttribute("sandbox", "allow-scripts allow-same-origin");
+
+  panel.appendChild(head);
+  panel.appendChild(frame);
+  modal.appendChild(panel);
+  document.body.appendChild(modal);
+}
+
 function collectQuestionFormAnswers(root, form) {
   const answers = {};
   for (const question of form.questions) {
-    if (question.type === "single_choice") {
+    if (isDesignSystemQuestion(question)) {
+      const selected = root.querySelector(`input[data-design-system-value][name="${cssEscape(`${form.id}-${question.id}`)}"]`);
+      const selectedValue = String(selected?.value || "").trim();
+      const other = root.querySelector(`input[name="${cssEscape(`${form.id}-${question.id}-other`)}"]`);
+      const otherValue = String(other?.value || "").trim();
+      if (selectedValue) answers[question.id] = selectedValue;
+      if (otherValue) {
+        answers[question.id] = "other";
+        answers[`${question.id}_other`] = otherValue;
+      }
+    } else if (question.type === "single_choice") {
       const selected = root.querySelector(`input[name="${cssEscape(`${form.id}-${question.id}`)}"]:checked`);
       if (selected) answers[question.id] = selected.value;
       const other = root.querySelector(`input[name="${cssEscape(`${form.id}-${question.id}-other`)}"]`);

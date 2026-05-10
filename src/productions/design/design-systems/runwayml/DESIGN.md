@@ -4,103 +4,191 @@ name: "Runway"
 description: "Runway's interface is a cinematic reel brought to life as a website — a dark, editorial, film-production-grade design where full-bleed photography and video ARE the primary UI elements. This is not a typical tech product page; it's a visual manifesto for AI-powered creativity. Every section feels like a frame from a film: dramatic lighting, sweeping landscapes, and intimate human moments captured in high-quality imagery that dominates the viewport."
 
 colors:
-  primary: "#767d88"
+  primary: "#000000"
   on-primary: "#ffffff"
-  canvas: "#ffffff"
-  surface: "#ffffff"
-  ink: "#000000"
-  body: "#6b7280"
-  muted: "#999999"
-  hairline: "#ebebeb"
-  accent: "#7d848e"
+  canvas: "#000000"
+  surface: "#1a1a1a"
+  surface-deep: "#030303"
+  surface-light: "#fefefe"
+  surface-cloud: "#e9ecf2"
+  ink: "#ffffff"
+  charcoal: "#404040"
+  near-charcoal: "#3f3f3f"
+  body: "#767d88"
+  mid-slate: "#7d848e"
+  muted: "#a7a7a7"
+  tailwind-gray: "#6b7280"
+  border-dark: "#27272a"
+  border-light: "#c9ccd1"
+  border-light-strong: "#d0d4d4"
+  link-dark: "#0c0c0c"
+  footer-gray: "#999999"
 
 typography:
   display-hero:
-    fontFamily: "Inter, system-ui, -apple-system, BlinkMacSystemFont, sans-serif"
+    fontFamily: "abcNormal, abcNormal Fallback"
     fontSize: 48px
-    fontWeight: 700
-    lineHeight: 1.15
-    letterSpacing: -1px
+    fontWeight: 400
+    lineHeight: 1
+    letterSpacing: -1.2px
   heading-lg:
-    fontFamily: "Inter, system-ui, -apple-system, BlinkMacSystemFont, sans-serif"
-    fontSize: 32px
-    fontWeight: 700
-    lineHeight: 1.25
-    letterSpacing: -0.5px
+    fontFamily: "abcNormal, abcNormal Fallback"
+    fontSize: 40px
+    fontWeight: 400
+    lineHeight: 1
+    letterSpacing: -1px
+  heading-md:
+    fontFamily: "abcNormal, abcNormal Fallback"
+    fontSize: 36px
+    fontWeight: 400
+    lineHeight: 1
+    letterSpacing: -0.9px
+  card-title:
+    fontFamily: "abcNormal, abcNormal Fallback"
+    fontSize: 24px
+    fontWeight: 400
+    lineHeight: 1
+    letterSpacing: 0px
+  feature-title:
+    fontFamily: "abcNormal, abcNormal Fallback"
+    fontSize: 20px
+    fontWeight: 400
+    lineHeight: 1
+    letterSpacing: 0px
   body-md:
-    fontFamily: "Inter, system-ui, -apple-system, BlinkMacSystemFont, sans-serif"
+    fontFamily: "abcNormal, abcNormal Fallback"
     fontSize: 16px
     fontWeight: 400
     lineHeight: 1.5
-    letterSpacing: 0px
+    letterSpacing: -0.16px
+  nav-link:
+    fontFamily: "abcNormal, abcNormal Fallback"
+    fontSize: 16px
+    fontWeight: 400
+    lineHeight: 1.3
+    letterSpacing: -0.16px
   button:
-    fontFamily: "Inter, system-ui, -apple-system, BlinkMacSystemFont, sans-serif"
+    fontFamily: "abcNormal, abcNormal Fallback"
     fontSize: 14px
     fontWeight: 600
-    lineHeight: 1.2
+    lineHeight: 1.3
     letterSpacing: 0px
-  caption:
-    fontFamily: "Inter, system-ui, -apple-system, BlinkMacSystemFont, sans-serif"
-    fontSize: 12px
+  label:
+    fontFamily: "abcNormal, abcNormal Fallback"
+    fontSize: 14px
     fontWeight: 500
-    lineHeight: 1.33
+    lineHeight: 1.25
+    letterSpacing: 0.35px
+    textTransform: uppercase
+  caption:
+    fontFamily: "abcNormal, abcNormal Fallback"
+    fontSize: 14px
+    fontWeight: 500
+    lineHeight: 1.43
+    letterSpacing: 0.35px
+  small:
+    fontFamily: "abcNormal, abcNormal Fallback"
+    fontSize: 13px
+    fontWeight: 400
+    lineHeight: 1.3
+    letterSpacing: -0.16px
+  micro:
+    fontFamily: "abcNormal, abcNormal Fallback"
+    fontSize: 11px
+    fontWeight: 450
+    lineHeight: 1.3
     letterSpacing: 0px
+    textTransform: uppercase
 
 rounded:
-  sm: 4px
-  md: 8px
-  lg: 12px
-  pill: 9999px
+  sharp: 4px
+  subtle: 6px
+  comfortable: 8px
+  generous: 16px
 
 spacing:
   xs: 4px
-  sm: 8px
-  md: 16px
-  lg: 24px
-  xl: 32px
-  section: 80px
+  sm: 6px
+  base: 8px
+  md: 12px
+  lg: 16px
+  xl: 20px
+  xxl: 24px
+  image-gap: 28px
+  card-gap: 32px
+  section-sm: 48px
+  section-md: 64px
+  section: 78px
 
 components:
   button-primary:
     backgroundColor: "{colors.primary}"
     textColor: "{colors.on-primary}"
     typography: "{typography.button}"
-    rounded: "{rounded.md}"
-    padding: 16px
+    rounded: "{rounded.sharp}"
   button-secondary:
-    backgroundColor: "{colors.canvas}"
+    backgroundColor: transparent
     textColor: "{colors.ink}"
     typography: "{typography.button}"
-    rounded: "{rounded.md}"
-    padding: 16px
+    rounded: "{rounded.sharp}"
+  cinematic-hero:
+    backgroundColor: "{colors.primary}"
+    textColor: "{colors.on-primary}"
+    typography: "{typography.display-hero}"
+  mission-statement:
+    backgroundColor: "{colors.primary}"
+    textColor: "{colors.on-primary}"
+    typography: "{typography.heading-md}"
+  research-card:
+    backgroundColor: "{colors.surface}"
+    textColor: "{colors.ink}"
+    typography: "{typography.card-title}"
+    rounded: "{rounded.comfortable}"
+  product-screenshot:
+    backgroundColor: "{colors.surface}"
+    textColor: "{colors.ink}"
+    rounded: "{rounded.comfortable}"
+  alert-container:
+    backgroundColor: "{colors.surface}"
+    textColor: "{colors.ink}"
+    typography: "{typography.body-md}"
+    rounded: "{rounded.generous}"
+  section-label:
+    backgroundColor: transparent
+    textColor: "{colors.body}"
+    typography: "{typography.label}"
+  trust-bar:
+    backgroundColor: "{colors.primary}"
+    textColor: "{colors.muted}"
+    typography: "{typography.caption}"
   card:
     backgroundColor: "{colors.surface}"
     textColor: "{colors.ink}"
     typography: "{typography.body-md}"
-    rounded: "{rounded.lg}"
-    padding: 24px
+    rounded: "{rounded.comfortable}"
   text-body:
-    backgroundColor: "{colors.canvas}"
+    backgroundColor: "{colors.primary}"
     textColor: "{colors.body}"
     typography: "{typography.body-md}"
-    rounded: "{rounded.sm}"
-    padding: 8px
-  muted-label:
-    backgroundColor: "{colors.canvas}"
-    textColor: "{colors.muted}"
-    typography: "{typography.caption}"
-    rounded: "{rounded.sm}"
-    padding: 4px
-  link:
-    backgroundColor: "{colors.canvas}"
-    textColor: "{colors.accent}"
-    typography: "{typography.button}"
-    rounded: "{rounded.sm}"
-    padding: 4px
-  divider:
-    backgroundColor: "{colors.hairline}"
+  text-body-light:
+    backgroundColor: "{colors.surface-light}"
+    textColor: "{colors.charcoal}"
+    typography: "{typography.body-md}"
+  feature-title:
+    backgroundColor: "{colors.primary}"
     textColor: "{colors.ink}"
-    rounded: "{rounded.sm}"
+    typography: "{typography.feature-title}"
+  muted-label:
+    backgroundColor: transparent
+    textColor: "{colors.mid-slate}"
+    typography: "{typography.caption}"
+  link:
+    backgroundColor: "{colors.surface-light}"
+    textColor: "{colors.link-dark}"
+    typography: "{typography.nav-link}"
+  divider:
+    backgroundColor: "{colors.border-dark}"
+    textColor: "{colors.body}"
     height: 1px
 ---
 

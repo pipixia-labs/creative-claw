@@ -1,174 +1,424 @@
-<!DOCTYPE html>
+<!doctype html>
 <html lang="en">
 <head>
-  <meta charset="UTF-8">
-  <meta name="viewport" content="width=device-width, initial-scale=1.0">
-  <title>Slacc Design System Preview</title>
-  <style>
-    :root {
-      --primary: #4a154b;
-      --on-primary: #ffffff;
-      --canvas: #0f1115;
-      --surface: #181b22;
-      --surface-strong: #20242d;
-      --ink: #f7f7f8;
-      --body: rgba(255,255,255,0.76);
-      --muted: rgba(255,255,255,0.52);
-      --border: #e6e6e6;
-      --display: Salesforce-Avant-Garde, system-ui, -apple-system, BlinkMacSystemFont, sans-serif;
-      --text: Salesforce-Avant-Garde, system-ui, -apple-system, BlinkMacSystemFont, sans-serif;
-      --mono: ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, monospace;
-    }
-    * { box-sizing: border-box; margin: 0; padding: 0; }
-    html, body { background: var(--canvas); color: var(--ink); font-family: var(--text); font-size: 16px; line-height: 1.5; }
-    body { min-width: 320px; }
-    .nav { position: sticky; top: 0; z-index: 20; display: grid; grid-template-columns: 1fr auto 1fr; align-items: center; gap: 20px; height: 64px; padding: 0 48px; background: color-mix(in srgb, var(--canvas) 92%, transparent); border-bottom: 1px solid var(--border); backdrop-filter: blur(14px); }
-    .brand { font-family: var(--display); font-weight: 700; letter-spacing: -0.02em; color: var(--ink); }
-    .nav-links { list-style: none; display: flex; gap: 24px; justify-content: center; }
-    .nav-links a { color: var(--body); text-decoration: none; font-size: 14px; font-weight: 600; }
-    .nav-cta { justify-self: end; border: 0; background: var(--primary); color: var(--on-primary); border-radius: 8px; padding: 11px 18px; font: 700 13px/1 var(--text); }
-    .hero { max-width: 1440px; margin: 0 auto; padding: 84px 48px 72px; display: grid; grid-template-columns: minmax(0, 1.1fr) minmax(320px, 0.9fr); gap: 48px; align-items: center; }
-    .eyebrow { color: var(--muted); font: 700 11px/1.2 var(--mono); letter-spacing: 0.12em; text-transform: uppercase; margin-bottom: 18px; }
-    h1 { font-family: var(--display); font-size: clamp(40px, 6vw, 72px); line-height: 1.04; letter-spacing: -0.045em; font-weight: 750; max-width: 980px; }
-    .hero p { margin-top: 26px; max-width: 760px; color: var(--body); font-size: 18px; line-height: 1.65; }
-    .hero-actions { margin-top: 34px; display: flex; gap: 12px; flex-wrap: wrap; }
-    .btn { display: inline-flex; align-items: center; justify-content: center; min-height: 44px; border-radius: 8px; padding: 0 20px; border: 1px solid var(--border); font: 700 14px/1 var(--text); color: var(--ink); background: var(--surface); }
-    .btn.primary { background: var(--primary); color: var(--on-primary); border-color: var(--primary); }
-    .hero-panel { background: var(--surface); border: 1px solid var(--border); border-radius: 18px; overflow: hidden; box-shadow: 0 24px 70px rgba(0,0,0,.12); }
-    .panel-top { height: 44px; display: flex; align-items: center; gap: 7px; padding: 0 16px; border-bottom: 1px solid var(--border); background: var(--surface-strong); }
-    .dot { width: 10px; height: 10px; border-radius: 999px; background: var(--primary); opacity: .85; }
-    .panel-body { padding: 22px; display: grid; gap: 14px; }
-    .metric { display: grid; grid-template-columns: 88px 1fr; gap: 14px; align-items: center; padding: 14px; border: 1px solid var(--border); border-radius: 12px; background: var(--canvas); }
-    .metric strong { color: var(--primary); font-family: var(--mono); font-size: 22px; }
-    .metric span { color: var(--body); font-size: 13px; }
-    section { max-width: 1440px; margin: 0 auto; padding: 78px 48px; border-top: 1px solid var(--border); }
-    .section-label { color: var(--muted); font: 800 11px/1.2 var(--mono); letter-spacing: .12em; text-transform: uppercase; margin-bottom: 12px; }
-    .section-heading { font-family: var(--display); font-size: clamp(26px, 3.5vw, 42px); line-height: 1.12; letter-spacing: -.025em; margin-bottom: 16px; }
-    .section-intro { color: var(--body); max-width: 760px; margin-bottom: 42px; line-height: 1.65; }
-    .palette-grid, .button-grid, .card-grid, .form-grid, .elevation-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(230px, 1fr)); gap: 18px; }
-    .swatch, .component-cell, .feature-card, .form-cell, .elevation-card { background: var(--surface); border: 1px solid var(--border); border-radius: 14px; overflow: hidden; min-width: 0; }
-    .swatch-color { height: 108px; border-bottom: 1px solid var(--border); }
-    .swatch-meta, .component-cell, .feature-card, .form-cell, .elevation-card { padding: 18px; }
-    .swatch-name, .button-label { font-weight: 800; font-size: 13px; color: var(--ink); margin-bottom: 5px; overflow-wrap: anywhere; }
-    .swatch-hex, .button-meta, .type-meta, .spacing-label { font-family: var(--mono); font-size: 12px; color: var(--muted); overflow-wrap: anywhere; }
-    .type-row { display: grid; grid-template-columns: 300px 1fr; gap: 32px; align-items: baseline; padding: 20px 0; border-bottom: 1px solid var(--border); }
-    .type-sample { color: var(--ink); overflow-wrap: anywhere; }
-    .demo-button { display: inline-flex; align-items: center; justify-content: center; min-height: 40px; border-radius: 8px; border: 1px solid var(--border); padding: 0 16px; font-weight: 700; max-width: 100%; }
-    .feature-card h4, .elevation-card h4 { font-size: 18px; margin-bottom: 8px; }
-    .feature-card p, .elevation-card p { color: var(--body); font-size: 14px; line-height: 1.55; }
-    .text-input { width: 100%; min-height: 44px; border-radius: 8px; border: 1px solid var(--border); background: var(--canvas); color: var(--ink); padding: 0 14px; font: 500 15px/1 var(--text); }
-    .badge { display: inline-flex; align-items: center; border-radius: 999px; background: var(--surface-strong); color: var(--ink); min-height: 28px; padding: 0 12px; font: 800 11px/1 var(--mono); letter-spacing: .08em; text-transform: uppercase; }
-    .spacing-row, .radius-row { display: flex; flex-wrap: wrap; gap: 18px; align-items: end; }
-    .spacing-block { display: grid; justify-items: center; gap: 8px; }
-    .spacing-bar { width: 54px; min-height: 4px; background: var(--primary); border-radius: 6px; }
-    .radius-block { width: 96px; height: 96px; display: grid; place-items: center; background: var(--surface); border: 1px solid var(--border); color: var(--muted); font: 700 12px/1 var(--mono); }
-    .responsive-table { width: 100%; border-collapse: collapse; background: var(--surface); border: 1px solid var(--border); border-radius: 14px; overflow: hidden; }
-    .responsive-table th, .responsive-table td { text-align: left; padding: 14px 16px; border-bottom: 1px solid var(--border); color: var(--body); }
-    .responsive-table th { color: var(--ink); font: 800 11px/1.2 var(--mono); letter-spacing: .1em; text-transform: uppercase; }
-    .footer { padding: 34px 48px; border-top: 1px solid var(--border); color: var(--muted); text-align: center; font-size: 13px; }
-    @media (max-width: 900px) { .nav { grid-template-columns: 1fr auto; padding: 0 20px; } .nav-links { display: none; } .nav-cta { display: none; } .hero { grid-template-columns: 1fr; padding: 56px 20px; } section { padding: 56px 20px; } .type-row { grid-template-columns: 1fr; gap: 8px; } }
-  </style>
+<meta charset="utf-8" />
+<meta name="viewport" content="width=device-width,initial-scale=1" />
+<title>Slacc Design System Preview</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&display=swap" rel="stylesheet">
+<style>
+:root {
+--primary: #4a154b;
+  --ink: #ffffff;
+  --on-primary: #ffffff;
+  --canvas: #2a0a2c;
+  --canvas-alt: #3a1a3d;
+  --hairline: #5a3a5d;
+  --muted: #c9a8cc;
+  --accent-2: #5b9fd5;
+  --featured-bg: #4a154b;
+  --featured-fg: #ffffff;
+  --rad-button: 90px;
+  --rad-card: 16px;
+  --rad-input: 4px;
+  --font-display: 'Inter', system-ui, -apple-system, sans-serif;
+  --font-body: 'Inter', system-ui, -apple-system, sans-serif;
+  --font-mono: ui-monospace, Menlo, Monaco, monospace;
+  --color-primary: #4a154b;
+  --primary-deep: #481a54;
+  --color-primary-deep: #481a54;
+  --primary-press: #611f69;
+  --color-primary-press: #611f69;
+  --primary-tint: #592466;
+  --color-primary-tint: #592466;
+  --color-on-primary: #ffffff;
+  --color-ink: #f7f7f8;
+  --ink-mute: #696969;
+  --color-ink-mute: #696969;
+  --link-blue: #1264a3;
+  --color-link-blue: #1264a3;
+  --link-hover: #3860be;
+  --color-link-hover: #3860be;
+  --color-canvas: #0f1115;
+  --canvas-cream: #f4ede4;
+  --color-canvas-cream: #f4ede4;
+  --canvas-lavender: #f9f0ff;
+  --color-canvas-lavender: #f9f0ff;
+  --surface-elev: #ffffff;
+  --color-surface-elev: #ffffff;
+  --surface-aubergine: #4a154b;
+  --color-surface-aubergine: #4a154b;
+  --color-hairline: #e6e6e6;
+  --hairline-strong: #000000;
+  --color-hairline-strong: #000000;
+  --semantic-error: #cc4117;
+  --color-semantic-error: #cc4117;
+  --semantic-success: #007a5a;
+  --color-semantic-success: #007a5a;
+  --on-aubergine-mute: #d9bdde;
+  --color-on-aubergine-mute: #d9bdde;
+}
+* { box-sizing: border-box; }
+html, body { margin: 0; padding: 0; }
+body { font-family: var(--font-body); color: var(--ink); background: var(--canvas); -webkit-font-smoothing: antialiased; }
+
+.nav { display: grid; grid-template-columns: 1fr auto 1fr; align-items: center; position: sticky; top: 0; z-index: 50; background: var(--canvas); border-bottom: 1px solid var(--hairline); padding: 0 48px; height: 64px; }
+.nav > .nav-left { justify-self: start; }
+.nav > .nav-links { justify-self: center; }
+.nav > :last-child { justify-self: end; }
+.nav-links { list-style: none; display: flex; gap: 24px; padding: 0; margin: 0; font-size: 14px; font-weight: 500; }
+.nav-links a { color: var(--ink); text-decoration: none; }
+.nav-cta { background: var(--primary); color: var(--on-primary); font-weight: 700; font-size: 14px; border: 0; border-radius: var(--rad-button); padding: 0 20px; height: 40px; display: inline-flex; align-items: center; justify-content: center; cursor: pointer; }
+
+.hero { padding: 96px 48px; background: var(--canvas); display: block; max-width: 1440px; margin: 0 auto;  }
+.hero-content { max-width: 1200px; }
+.hero h1 { font-family: var(--font-display); font-size: 64px; font-weight: 700; line-height: 1.12; color: var(--ink); margin: 0 0 32px; letter-spacing: -0.768px; }
+.hero p { font-size: 18px; color: var(--ink); max-width: 720px; margin: 0 0 40px; line-height: 1.55; }
+.hero-actions { display: flex; gap: 12px; flex-wrap: wrap; }
+.btn { font-family: var(--font-body); font-weight: 700; font-size: 16px; border-radius: var(--rad-button); padding: 0 28px; height: 48px; display: inline-flex; align-items: center; justify-content: center; border: 0; cursor: pointer; line-height: 1; }
+.btn-primary { background: var(--primary); color: var(--on-primary); }
+.btn-secondary { background: var(--canvas-alt); color: var(--ink); }
+.btn-outline { background: var(--canvas); color: var(--primary); border: 2px solid var(--primary); }
+
+section { padding: 96px 48px; max-width: 1440px; margin: 0 auto; border-top: 1px solid var(--hairline); }
+.section-eyebrow { font-size: 12px; font-weight: 700; letter-spacing: 0.96px; text-transform: uppercase; color: var(--muted); margin: 0 0 12px; }
+.section-heading { font-family: var(--font-display); font-size: 50px; font-weight: 700; letter-spacing: -0.6px; line-height: 1.12; color: var(--ink); margin: 0 0 16px; }
+.section-sub { font-size: 18px; color: var(--ink); max-width: 720px; margin: 0 0 48px; line-height: 1.55; }
+.subhead { font-family: var(--font-display); font-weight: 700; font-size: 22px; margin: 32px 0 16px; color: var(--ink); }
+
+.palette-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(180px, 1fr)); gap: 16px; }
+.swatch { border: 1px solid var(--hairline); border-radius: var(--rad-card); overflow: hidden; background: var(--canvas); }
+.swatch .chip { height: 96px; }
+.swatch .meta { padding: 12px; }
+.swatch .name { font-size: 13px; font-weight: 700; color: var(--ink); }
+.swatch .hex { font-family: var(--font-mono); font-size: 12px; color: var(--muted); margin-top: 2px; }
+.swatch .role { font-size: 12px; color: var(--muted); margin-top: 6px; line-height: 1.4; }
+
+.type-row { display: grid; grid-template-columns: 240px 1fr; gap: 24px; padding: 16px 0; border-bottom: 1px solid var(--hairline); align-items: baseline; min-width: 0; }
+.type-row > * { min-width: 0; }
+.type-meta { font-family: var(--font-mono); font-size: 12px; color: var(--muted); line-height: 1.5; }
+.type-meta strong { display: block; font-family: var(--font-body); font-size: 13px; font-weight: 700; color: var(--ink); margin-bottom: 4px; }
+
+.button-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(280px, 1fr)); gap: 16px; }
+.button-cell { padding: 24px; border: 1px solid var(--hairline); border-radius: var(--rad-card); background: var(--canvas); display: flex; flex-direction: column; align-items: flex-start; gap: 12px; min-width: 0; }
+.button-cell .label { font-family: var(--font-mono); font-size: 11px; color: var(--muted); }
+
+.card-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(280px, 1fr)); gap: 24px; }
+.card { padding: 32px; border-radius: var(--rad-card); min-width: 0; }
+.card.pricing-light { background: var(--canvas); border: 1px solid var(--hairline); color: var(--ink); }
+.card.pricing-featured { background: var(--featured-bg); color: var(--featured-fg); }
+.card.feature-alt { background: var(--canvas-alt); color: var(--ink); }
+.card h3 { font-family: var(--font-display); font-size: 24px; font-weight: 700; margin: 0 0 8px; letter-spacing: -0.1px; }
+.card .price { font-family: var(--font-display); font-size: 50px; font-weight: 700; line-height: 1.12; margin: 8px 0 16px; letter-spacing: -0.6px; }
+.card p { font-size: 16px; line-height: 1.55; margin: 0 0 16px; }
+.card ul { list-style: none; padding: 0; margin: 16px 0; font-size: 14px; line-height: 1.8; }
+.card ul li::before { content: "✓ "; color: var(--primary); font-weight: 700; }
+.card.pricing-featured ul li::before { color: var(--featured-fg); }
+
+.form-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(280px, 1fr)); gap: 24px; }
+.field label { display: block; font-size: 13px; font-weight: 700; color: var(--ink); margin: 0 0 6px; }
+.input { width: 100%; box-sizing: border-box; background: var(--canvas); color: var(--ink); border: 1px solid var(--hairline); border-radius: var(--rad-input); padding: 10px 12px; font-family: var(--font-body); font-size: 16px; line-height: 1.5; }
+.input:focus { outline: 0; border-color: var(--primary); }
+
+.spacing-row, .radius-row { display: flex; gap: 24px; flex-wrap: wrap; align-items: flex-end; }
+.spacing-row .stack, .radius-row .stack { display: flex; flex-direction: column; gap: 6px; align-items: flex-start; }
+.spacing-row .bar { background: var(--primary); height: 32px; border-radius: 4px; }
+.radius-row .box { width: 88px; height: 88px; background: var(--primary); }
+.spacing-row .lbl, .radius-row .lbl { font-family: var(--font-mono); font-size: 11px; color: var(--muted); }
+
+.elevation-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(220px, 1fr)); gap: 24px; padding: 32px; background: #0a0a0a; border-radius: var(--rad-card); }
+.elev-cell { padding: 24px; background: var(--canvas); border-radius: var(--rad-card); min-height: 120px; display: flex; flex-direction: column; justify-content: flex-end; }
+.elev-cell .lbl { font-family: var(--font-mono); font-size: 11px; color: var(--muted); }
+.elev-0 { border: 1px solid var(--hairline); }
+.elev-1 { box-shadow: rgba(0,0,0,0.1) 0 5px 20px 0; }
+.elev-2 { box-shadow: rgba(0,0,0,0.1) 0 0 32px 0; }
+.elev-3 { box-shadow: rgba(0,0,0,0.2) 0 1px 10px 0; }
+
+.responsive-table { width: 100%; border-collapse: collapse; font-size: 14px; }
+.responsive-table th, .responsive-table td { text-align: left; padding: 14px 16px; border-bottom: 1px solid var(--hairline); }
+.responsive-table th { font-family: var(--font-mono); font-weight: 700; font-size: 11px; letter-spacing: 0.2px; text-transform: uppercase; color: var(--ink); }
+.device-ladder { display: flex; gap: 16px; align-items: flex-end; flex-wrap: wrap; margin-top: 32px; }
+.device-ladder .device { background: var(--ink); border-radius: 8px; min-width: 60px; }
+.device-ladder .lbl { font-family: var(--font-mono); font-size: 11px; color: var(--muted); margin-top: 8px; }
+.device-ladder .stack { display: flex; flex-direction: column; align-items: center; }
+
+.signature-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(280px, 1fr)); gap: 24px; }
+.sig-card { padding: 24px; border: 1px solid var(--hairline); border-radius: var(--rad-card); background: var(--canvas); }
+.sig-card h4 { font-family: var(--font-display); font-size: 18px; margin: 0 0 8px; color: var(--ink); font-weight: 700; }
+.sig-card p { font-size: 14px; color: var(--muted); margin: 0; line-height: 1.6; }
+
+.footer { padding: 32px 48px; border-top: 1px solid var(--hairline); text-align: center; font-size: 14px; color: var(--muted); }
+.footer a { color: var(--ink); }
+
+.nav-left { display: flex; align-items: center; gap: 20px; }
+.nav-brand-link, .nav-brand-link:link, .nav-brand-link:visited, .nav-brand-link:hover, .nav-brand-link:active { text-decoration: none; color: inherit; }
+.nav-brand { font-family: var(--font-display); font-weight: 700; font-size: 18px; color: var(--ink); }
+.nav-github, .nav-github:link, .nav-github:visited, .nav-github:hover, .nav-github:active { display: inline-flex; align-items: center; gap: 6px; font-size: 12px; font-weight: 600; color: inherit; text-decoration: none; padding: 5px 10px; border: 1px solid rgba(128,128,128,0.3); border-radius: 6px; opacity: 0.75; transition: opacity 200ms ease, border-color 200ms ease; font-family: inherit; line-height: 1; white-space: nowrap; }
+.nav-github:hover { opacity: 1; border-color: rgba(255,255,255,0.5); }
+.nav-github svg { display: block; flex-shrink: 0; }
+.nav .nav-github { color: #ffffff; border-color: rgba(255,255,255,0.25); }
+
+.cell, .cell > *, .demo, .button-cell, .component-cell { min-width: 0; }
+
+@media (max-width: 1024px) {
+  section { padding: 64px 32px; }
+  .section-heading { font-size: 36px; }
+  .nav > :last-child { display: none; }
+  .nav { padding: 0 32px; }
+  .hero { padding: 64px 32px; }
+  .hero h1 { font-size: 44px; }
+  .type-row { grid-template-columns: 1fr; gap: 8px; }
+}
+@media (max-width: 720px) {
+  .nav { padding: 12px 20px; height: auto; min-height: 56px; }
+  .nav-links { display: none; }
+  .hero { padding: 48px 20px; }
+  .hero h1 { font-size: 32px; letter-spacing: -0.3px; }
+  .hero p { font-size: 16px; }
+  section { padding: 48px 20px; }
+  .section-heading { font-size: 28px; }
+  .palette-grid, .button-grid, .card-grid, .form-grid, .signature-grid, .elevation-grid { grid-template-columns: 1fr !important; gap: 16px; }
+  .footer { padding: 24px 16px; font-size: 12px; }
+}
+
+
+/* ============ KIT-MIRROR ALIAS BRIDGE (dark) — slack ============ */
+:root {
+  --color-primary: var(--primary);
+  --color-primary-foreground: var(--on-primary);
+  --color-foreground: var(--ink);
+  --color-foreground-muted: var(--muted);
+  --color-foreground-tertiary: var(--muted);
+  --color-foreground-disabled: var(--hairline);
+  --color-foreground-on-primary: #2a0a2c;
+  --color-canvas: var(--canvas);
+  --color-canvas-soft: var(--canvas-alt);
+  --color-surface-elevated: var(--canvas-alt);
+  --color-border: var(--hairline);
+  --color-border-soft: var(--hairline);
+  --color-accent: var(--accent-2);
+  --color-accent-soft: rgba(18,100,163,0.10);
+  --color-success: #34d399;
+  --color-warning: #f59e0b;
+  --color-danger: #f87171;
+  --color-silver: rgba(255,255,255,0.45);
+  --color-avatar-fill: rgba(255,255,255,0.08);
+  --color-chip-bg: rgba(255,255,255,0.08);
+  --font-display: var(--font-display);
+  --font-sans: var(--font-body);
+  --font-mono: var(--font-mono);
+  --shadow-md: 0 1px 2px rgba(0,0,0,0.4);
+  --shadow-lg: 0 8px 24px rgba(0,0,0,0.5);
+}
+
+/* ============================== EXAMPLES (kit-mirror) ==============================
+ *
+ * Shared CSS for the 9 product-UI patterns (Pricing, Product Selector, Shopping Cart,
+ * App Shell, Data Table, Auth Forms, Modal, Empty State, Toast Stack) emitted at the
+ * end of every preview.html / preview-dark.html.
+ *
+ * This file is BRAND-AGNOSTIC. It uses only the kit's `--color-*` / `--font-*` /
+ * `--shadow-*` token names. Each brand's preview.html must include a `:root { ... }`
+ * alias block that maps these names to the brand's local tokens (see preview-design.md
+ * Step "Emit kit-mirror Examples block" for the alias spec).
+ *
+ * Hardcoded radii (4px / 6px / 9999px) intentionally inherited from the kit's
+ * /generate-kit base template defaults. Do not tokenize without a parallel update to
+ * the base template's `index.tsx`.
+ * ============================================================================ */
+
+.ex-section { padding: clamp(48px, 8vw, 96px) 0; border-top: 1px solid var(--color-border); background: var(--color-canvas); }
+.ex-section .container { max-width: 1200px; margin: 0 auto; padding: 0 32px; }
+.ex-h2 { font-family: var(--font-display); font-size: clamp(32px, 5vw, 50px); font-weight: 700; line-height: 1.0; letter-spacing: -0.5px; color: var(--color-foreground); margin: 0 0 12px; }
+.ex-intro { font-size: 16px; color: var(--color-foreground-muted); max-width: 720px; margin: 0 0 48px; line-height: 1.43; }
+.ex-mono { font-family: var(--font-mono); font-size: 11px; letter-spacing: 0.5px; text-transform: uppercase; color: var(--color-foreground-muted); }
+/* Buttons use inline-flex centring + line-height:1 so brand-shape overrides that copy
+   `line-height: 1.75` (or any leading > 1) from `typography.button-md` cannot push
+   descenders past the fixed `height` boundary. height is the single source of truth
+   for vertical box; horizontal padding controls width-padding only. */
+.ex-primary { background: var(--color-primary); color: var(--color-primary-foreground); border: 1px solid var(--color-primary); border-radius: 4px; padding: 0 22px; height: 48px; font-family: var(--font-sans); font-size: 16px; font-weight: 600; letter-spacing: 0.162px; line-height: 1; display: inline-flex; align-items: center; justify-content: center; cursor: pointer; }
+.ex-outlined { background: var(--color-canvas); color: var(--color-foreground); border: 1px solid var(--color-border-soft); border-radius: 4px; padding: 0 20px; height: 44px; font-family: var(--font-sans); font-size: 14px; font-weight: 500; line-height: 1; display: inline-flex; align-items: center; justify-content: center; cursor: pointer; }
+.ex-textlink { background: transparent; color: var(--color-foreground); border: none; padding: 6px; font-family: var(--font-sans); font-size: 14px; font-weight: 500; cursor: pointer; text-decoration: underline; }
+.ex-input { background: var(--color-canvas); border: 1px solid var(--color-border-soft); border-radius: 4px; padding: 0 16px; height: 48px; font-family: var(--font-sans); font-size: 16px; color: var(--color-foreground); width: 100%; box-sizing: border-box; }
+.ex-field { display: flex; flex-direction: column; gap: 8px; }
+.ex-field-label { font-size: 12px; font-weight: 400; letter-spacing: 0.5px; text-transform: uppercase; color: var(--color-foreground); font-family: var(--font-mono); }
+.ex-td { padding: 14px 16px; text-align: left; border-bottom: 1px solid var(--color-border); font-size: 14px; color: var(--color-foreground); line-height: 1.5; vertical-align: middle; }
+.ex-th { padding: 14px 16px; text-align: left; border-bottom: 1px solid var(--color-border); font-size: 11px; font-weight: 500; letter-spacing: 0.5px; text-transform: uppercase; color: var(--color-foreground-muted); background: var(--color-canvas-soft); font-family: var(--font-mono); }
+.ex-pager { height: 32px; min-width: 32px; padding: 0 10px; font-family: var(--font-mono); font-size: 12px; background: var(--color-canvas); border: 1px solid var(--color-border-soft); color: var(--color-foreground); border-radius: 4px; line-height: 1; display: inline-flex; align-items: center; justify-content: center; cursor: pointer; }
+.ex-pager.active { background: var(--color-foreground); color: var(--color-foreground-on-primary); border-color: var(--color-foreground); }
+.ex-grid-pricing { display: grid; grid-template-columns: repeat(auto-fit, minmax(260px, 1fr)); gap: 12px; }
+.ex-grid-product { display: grid; grid-template-columns: 1fr; gap: 32px; }
+@media (min-width: 1024px) { .ex-grid-product { grid-template-columns: 1.1fr 1fr; } }
+.ex-grid-gallery { display: grid; grid-template-columns: 1fr 1fr; grid-template-rows: auto auto; gap: 8px; }
+.ex-tile { background: var(--color-canvas-soft); border: 1px solid var(--color-border); border-radius: 4px; aspect-ratio: 1; padding: 12px; display: flex; align-items: flex-end; background-image: linear-gradient(135deg, var(--color-canvas-soft) 0%, var(--color-canvas) 50%, var(--color-canvas-soft) 100%); }
+.ex-tile.tall { grid-row: span 2; aspect-ratio: 1 / 2; }
+.ex-grid-sizes { display: grid; grid-template-columns: repeat(4, minmax(0, 1fr)); gap: 8px; }
+.ex-size-btn { height: 44px; border-radius: 4px; font-family: var(--font-sans); font-size: 13px; font-weight: 500; line-height: 1; display: inline-flex; align-items: center; justify-content: center; cursor: pointer; border: 1px solid var(--color-border-soft); background: var(--color-canvas); color: var(--color-foreground); }
+.ex-size-btn.selected { border-color: var(--color-foreground); background: var(--color-foreground); color: var(--color-foreground-on-primary); }
+.ex-size-btn:disabled { color: var(--color-foreground-disabled); text-decoration: line-through; cursor: not-allowed; }
+.ex-grid-appshell { display: grid; grid-template-columns: 1fr; border: 1px solid var(--color-border); border-radius: 6px; overflow: hidden; background: var(--color-canvas); }
+@media (min-width: 768px) { .ex-grid-appshell { grid-template-columns: 200px 1fr; } }
+.ex-grid-kpi { display: grid; grid-template-columns: repeat(auto-fit, minmax(180px, 1fr)); gap: 12px; }
+.ex-grid-auth { display: grid; grid-template-columns: repeat(auto-fit, minmax(320px, 1fr)); gap: 24px; }
+.ex-grid-toasts { display: grid; grid-template-columns: repeat(auto-fit, minmax(260px, 1fr)); gap: 12px; }
+.ex-table-wrap { overflow-x: auto; }
+.ex-table-wrap table { width: 100%; min-width: 720px; border-collapse: collapse; font-size: 14px; }
+.ex-features { list-style: none; padding: 0; margin: 0; border-top: 1px solid var(--color-border); }
+.ex-features li { padding: 12px 0; font-size: 14px; border-bottom: 1px solid var(--color-border); display: flex; align-items: flex-start; gap: 10px; }
+.ex-features.dark { border-top-color: rgba(255,255,255,0.18); }
+.ex-features.dark li { border-bottom-color: rgba(255,255,255,0.10); }
+.ex-bullet { margin-top: 7px; width: 6px; height: 6px; background: var(--color-accent); border-radius: 9999px; flex-shrink: 0; }
+.ex-tier-card { border: 1px solid var(--color-border); border-radius: 6px; padding: 28px; background: var(--color-canvas); color: var(--color-foreground); display: flex; flex-direction: column; gap: 20px; }
+.ex-tier-card.dark { background: var(--color-foreground); color: var(--color-foreground-on-primary); border-color: var(--color-foreground); }
+.ex-tier-price { font-family: var(--font-display); font-size: clamp(40px, 5vw, 50px); font-weight: 700; line-height: 1; letter-spacing: -1.5px; }
+.ex-tier-cta { margin-top: auto; height: 44px; border-radius: 4px; font-family: var(--font-sans); font-size: 14px; font-weight: 600; letter-spacing: 0.162px; line-height: 1; display: inline-flex; align-items: center; justify-content: center; cursor: pointer; }
+.ex-tier-cta.ink { border: 1px solid var(--color-foreground); background: var(--color-foreground); color: var(--color-foreground-on-primary); }
+.ex-tier-cta.invert { border: 1px solid var(--color-canvas); background: var(--color-canvas); color: var(--color-foreground); }
+.ex-status { display: inline-block; padding: 4px 10px; border-radius: 4px; font-family: var(--font-mono); font-size: 11px; letter-spacing: 0.5px; text-transform: uppercase; }
+.ex-status.ok { color: var(--color-success); background: var(--color-accent-soft); }
+.ex-status.pending { color: var(--color-foreground-muted); background: var(--color-chip-bg); }
+.ex-status.fail { color: var(--color-danger); background: var(--color-accent-soft); }
+.ex-frame { position: relative; border-radius: 6px; border: 1px solid var(--color-border); overflow: hidden; background: var(--color-canvas-soft); }
+.ex-frame.short { height: 420px; }
+.ex-frame.tall { height: clamp(480px, 70vh, 560px); }
+.ex-scrim { position: absolute; inset: 0; background: rgba(26, 24, 22, 0.5); }
+.ex-cart-drawer { position: absolute; top: 0; right: 0; bottom: 0; width: min(420px, 100%); background: var(--color-surface-elevated); border-left: 1px solid var(--color-border); box-shadow: var(--shadow-lg); display: flex; flex-direction: column; }
+.ex-modal-card { width: 100%; max-width: 480px; background: var(--color-surface-elevated); border-radius: 6px; box-shadow: var(--shadow-lg); border: 1px solid var(--color-border); }
+.ex-emptystate { border: 1px solid var(--color-border); border-radius: 6px; padding: 72px 24px; display: flex; flex-direction: column; align-items: center; text-align: center; background: var(--color-canvas); }
+.ex-toast { display: grid; grid-template-columns: 3px 1fr auto; background: var(--color-surface-elevated); border: 1px solid var(--color-border); border-radius: 4px; box-shadow: var(--shadow-md); overflow: hidden; }
+
+
+/* DESIGN.md SOURCE RECEIPTS — what I read to write this block:
+ *   components.button-primary-pill   → rounded {rounded.pill}=90px (Slack signature) · padding 14px 28px · typography button-md
+ *   components.text-input            → rounded {rounded.sm}=4px · padding 10px 12px
+ *   components.card-pricing          → rounded {rounded.xl}=16px · padding 32px
+ *   typography.button-md             → Salesforce-Sans · 16px · 700 · letter-spacing 0.2px
+ *   typography.display-xl            → Salesforce-Avant-Garde · 58px · 600 · letter-spacing -0.464px
+ *   typography.display-md            → Salesforce-Avant-Garde · 32px · 700 · letter-spacing -0.256px
+ *   typography.body-md               → Salesforce-Sans · 16px · 400
+ *   typography.micro-cap             → Salesforce-Sans · 12px · 700 · letter-spacing 0.96px (wide-tracked uppercase)
+ *   colors.success/warning/danger    → NOT defined in DESIGN.md → fallback Tailwind hex via alias bridge
+ */
+/* Brand-shape overrides — align kit-mirror block with slack DESIGN.md spec */
+.ex-primary { border-radius: var(--rad-button); height: 48px; padding: 0 28px; font-family: var(--font-body); font-size: 16px; font-weight: 700; letter-spacing: 0.2px; line-height: 1; }
+.ex-outlined { border-radius: var(--rad-button); height: 48px; padding: 0 28px; font-family: var(--font-body); font-size: 16px; font-weight: 700; letter-spacing: 0.2px; line-height: 1; }
+.ex-textlink { font-family: var(--font-body); font-size: 16px; font-weight: 700; letter-spacing: 0.2px; }
+.ex-input { border-radius: var(--rad-input); height: 44px; padding: 0 12px; font-family: var(--font-body); font-size: 16px; font-weight: 400; }
+.ex-field-label { font-family: var(--font-body); font-size: 12px; font-weight: 700; letter-spacing: 0.96px; text-transform: uppercase; }
+.ex-tier-card { border-radius: var(--rad-card); padding: 32px; }
+.ex-tier-card.dark { border-radius: var(--rad-card); padding: 32px; }
+.ex-tier-price { font-family: var(--font-display); font-weight: 600; letter-spacing: -0.464px; }
+.ex-tier-cta { border-radius: var(--rad-button); height: 48px; font-family: var(--font-body); font-size: 16px; font-weight: 700; letter-spacing: 0.2px; line-height: 1; }
+.ex-h2 { font-family: var(--font-display); font-weight: 700; letter-spacing: -0.256px; }
+.ex-mono, .ex-th { font-family: var(--font-body); font-size: 12px; font-weight: 700; letter-spacing: 0.96px; text-transform: uppercase; }
+.ex-pager { border-radius: var(--rad-button); font-family: var(--font-body); }
+.ex-pager.active { border-radius: var(--rad-button); }
+.ex-status { border-radius: var(--rad-button); font-family: var(--font-body); font-weight: 700; }
+.ex-frame, .ex-emptystate, .ex-toast, .ex-tile { border-radius: var(--rad-card); }
+.ex-modal-card { border-radius: var(--rad-card); }
+.ex-size-btn, .ex-size-btn.selected { border-radius: var(--rad-button); font-family: var(--font-body); }
+
+/* DARK polarity-flip overrides — Pro tier card flips to white background */
+.ex-tier-card.dark, .ex-tier-card.dark * { color: #2a0a2c !important; }
+.ex-tier-card.dark .ex-mono { color: #2a0a2caa !important; }
+.ex-tier-card.dark .ex-features li { border-bottom-color: #2a0a2c22 !important; }
+.ex-tier-card.dark .ex-tier-cta.invert { background: #2a0a2c !important; color: #ffffff !important; border-color: #2a0a2c !important; }
+
+</style>
 </head>
 <body>
-  <nav class="nav">
-    <div class="brand">Slacc</div>
-    <ul class="nav-links"><li><a href="#colors">Colors</a></li><li><a href="#type">Typography</a></li><li><a href="#components">Components</a></li><li><a href="#responsive">Responsive</a></li></ul>
-    <button class="nav-cta">Preview</button>
-  </nav>
+<nav class="nav">
+  <div class="nav-left">
+    <a href="#" target="_blank" rel="noopener noreferrer" class="nav-brand-link"><span class="nav-brand">Slacc</span></a>
 
-  <main>
-    <div class="hero">
-      <div>
-        <div class="eyebrow">Design System Preview</div>
-        <h1>Slacc visual system</h1>
-        <p>An inspired interpretation of Slacc&#39;s design language — a workplace messaging brand built on a deep aubergine primary, with cream-lavender hero gradients, blue inline links, and pill CTAs. The system.</p>
-        <div class="hero-actions"><span class="btn primary">Primary action</span><span class="btn">Secondary action</span></div>
-      </div>
-      <div class="hero-panel" aria-label="Interface sample">
-        <div class="panel-top"><span class="dot"></span><span class="dot"></span><span class="dot"></span></div>
-        <div class="panel-body">
-          <div class="metric"><strong>01</strong><span>Token driven color, type, spacing, and component decisions.</span></div>
-          <div class="metric"><strong>AA</strong><span>Preview surfaces highlight contrast, hierarchy, and UI rhythm.</span></div>
-          <div class="metric"><strong>UI</strong><span>Reusable cards, controls, form fields, labels, and responsive states.</span></div>
-        </div>
-      </div>
+  </div>
+  <ul class="nav-links">
+    <li><a href="#palette">Colors</a></li>
+    <li><a href="#typography">Typography</a></li>
+    <li><a href="#buttons">Buttons</a></li>
+    <li><a href="#cards">Cards</a></li>
+    <li><a href="#responsive">Responsive</a></li>
+  </ul>
+  <button class="nav-cta">Get Started</button>
+</nav>
+<header class="hero">
+  <div class="hero-content">
+    <h1>Design System Inspiration of Slacc</h1>
+    <p>An inspired interpretation of Slacc's design language — a workplace messaging brand built on a deep aubergine primary, cream-lavender hero gradients with floating product UI mockups, blue inline links, and over-padded pill CTAs at 90px radius.</p>
+    <div class="hero-actions">
+      <button class="btn btn-primary">Get started</button>
+      <button class="btn btn-secondary">Talk to sales</button>
     </div>
+  </div>
+</header>
 
-    <section id="colors">
-      <div class="section-label">01 - Color Palette</div>
-      <h2 class="section-heading">Core colors and semantic surfaces</h2>
-      <p class="section-intro">The palette below is extracted from the structured design tokens. Swatches show the available roles and their exact CSS values.</p>
-      <div class="palette-grid">
-        <div class="swatch"><div class="swatch-color" style="background:#4a154b"></div><div class="swatch-meta"><div class="swatch-name">primary</div><div class="swatch-hex">#4a154b</div></div></div><div class="swatch"><div class="swatch-color" style="background:#481a54"></div><div class="swatch-meta"><div class="swatch-name">primary-deep</div><div class="swatch-hex">#481a54</div></div></div><div class="swatch"><div class="swatch-color" style="background:#611f69"></div><div class="swatch-meta"><div class="swatch-name">primary-press</div><div class="swatch-hex">#611f69</div></div></div><div class="swatch"><div class="swatch-color" style="background:#592466"></div><div class="swatch-meta"><div class="swatch-name">primary-tint</div><div class="swatch-hex">#592466</div></div></div><div class="swatch"><div class="swatch-color" style="background:#ffffff"></div><div class="swatch-meta"><div class="swatch-name">on-primary</div><div class="swatch-hex">#ffffff</div></div></div><div class="swatch"><div class="swatch-color" style="background:#1d1d1d"></div><div class="swatch-meta"><div class="swatch-name">ink</div><div class="swatch-hex">#1d1d1d</div></div></div><div class="swatch"><div class="swatch-color" style="background:#696969"></div><div class="swatch-meta"><div class="swatch-name">ink-mute</div><div class="swatch-hex">#696969</div></div></div><div class="swatch"><div class="swatch-color" style="background:#1264a3"></div><div class="swatch-meta"><div class="swatch-name">link-blue</div><div class="swatch-hex">#1264a3</div></div></div><div class="swatch"><div class="swatch-color" style="background:#3860be"></div><div class="swatch-meta"><div class="swatch-name">link-hover</div><div class="swatch-hex">#3860be</div></div></div><div class="swatch"><div class="swatch-color" style="background:#ffffff"></div><div class="swatch-meta"><div class="swatch-name">canvas</div><div class="swatch-hex">#ffffff</div></div></div><div class="swatch"><div class="swatch-color" style="background:#f4ede4"></div><div class="swatch-meta"><div class="swatch-name">canvas-cream</div><div class="swatch-hex">#f4ede4</div></div></div><div class="swatch"><div class="swatch-color" style="background:#f9f0ff"></div><div class="swatch-meta"><div class="swatch-name">canvas-lavender</div><div class="swatch-hex">#f9f0ff</div></div></div><div class="swatch"><div class="swatch-color" style="background:#ffffff"></div><div class="swatch-meta"><div class="swatch-name">surface-elev</div><div class="swatch-hex">#ffffff</div></div></div><div class="swatch"><div class="swatch-color" style="background:#4a154b"></div><div class="swatch-meta"><div class="swatch-name">surface-aubergine</div><div class="swatch-hex">#4a154b</div></div></div><div class="swatch"><div class="swatch-color" style="background:#e6e6e6"></div><div class="swatch-meta"><div class="swatch-name">hairline</div><div class="swatch-hex">#e6e6e6</div></div></div><div class="swatch"><div class="swatch-color" style="background:#000000"></div><div class="swatch-meta"><div class="swatch-name">hairline-strong</div><div class="swatch-hex">#000000</div></div></div><div class="swatch"><div class="swatch-color" style="background:#cc4117"></div><div class="swatch-meta"><div class="swatch-name">semantic-error</div><div class="swatch-hex">#cc4117</div></div></div><div class="swatch"><div class="swatch-color" style="background:#007a5a"></div><div class="swatch-meta"><div class="swatch-name">semantic-success</div><div class="swatch-hex">#007a5a</div></div></div><div class="swatch"><div class="swatch-color" style="background:#d9bdde"></div><div class="swatch-meta"><div class="swatch-name">on-aubergine-mute</div><div class="swatch-hex">#d9bdde</div></div></div>
-      </div>
-    </section>
+<section id="palette">
+<div class="section-label">01 / Color Palette</div>
+<h2 class="section-title section-heading">Color Palette</h2>
+<div class="palette-group color-group"><h3 class="subhead color-group-title color-group-label">Brand &amp; Accent</h3><div class="palette-grid swatch-grid color-grid"><div class="swatch color-swatch"><div class="swatch-color color-swatch-block color-swatch-preview fill chip" style="background:#4a154b"></div><div class="swatch-info swatch-meta color-swatch-info info meta"><div class="swatch-name color-swatch-name name">Primary</div><div class="swatch-hex color-swatch-hex hex">#4a154b</div><div class="swatch-role color-swatch-role role">Brand &amp; Accent</div></div></div><div class="swatch color-swatch"><div class="swatch-color color-swatch-block color-swatch-preview fill chip" style="background:#481a54"></div><div class="swatch-info swatch-meta color-swatch-info info meta"><div class="swatch-name color-swatch-name name">Primary Deep</div><div class="swatch-hex color-swatch-hex hex">#481a54</div><div class="swatch-role color-swatch-role role">Brand &amp; Accent</div></div></div><div class="swatch color-swatch"><div class="swatch-color color-swatch-block color-swatch-preview fill chip" style="background:#611f69"></div><div class="swatch-info swatch-meta color-swatch-info info meta"><div class="swatch-name color-swatch-name name">Primary Press</div><div class="swatch-hex color-swatch-hex hex">#611f69</div><div class="swatch-role color-swatch-role role">Brand &amp; Accent</div></div></div><div class="swatch color-swatch"><div class="swatch-color color-swatch-block color-swatch-preview fill chip" style="background:#592466"></div><div class="swatch-info swatch-meta color-swatch-info info meta"><div class="swatch-name color-swatch-name name">Primary Tint</div><div class="swatch-hex color-swatch-hex hex">#592466</div><div class="swatch-role color-swatch-role role">Brand &amp; Accent</div></div></div><div class="swatch color-swatch"><div class="swatch-color color-swatch-block color-swatch-preview fill chip" style="background:#ffffff"></div><div class="swatch-info swatch-meta color-swatch-info info meta"><div class="swatch-name color-swatch-name name">On Primary</div><div class="swatch-hex color-swatch-hex hex">#ffffff</div><div class="swatch-role color-swatch-role role">Brand &amp; Accent</div></div></div><div class="swatch color-swatch"><div class="swatch-color color-swatch-block color-swatch-preview fill chip" style="background:#1264a3"></div><div class="swatch-info swatch-meta color-swatch-info info meta"><div class="swatch-name color-swatch-name name">Link Blue</div><div class="swatch-hex color-swatch-hex hex">#1264a3</div><div class="swatch-role color-swatch-role role">Brand &amp; Accent</div></div></div></div></div><div class="palette-group color-group"><h3 class="subhead color-group-title color-group-label">Surface</h3><div class="palette-grid swatch-grid color-grid"><div class="swatch color-swatch"><div class="swatch-color color-swatch-block color-swatch-preview fill chip" style="background:#ffffff"></div><div class="swatch-info swatch-meta color-swatch-info info meta"><div class="swatch-name color-swatch-name name">Canvas</div><div class="swatch-hex color-swatch-hex hex">#ffffff</div><div class="swatch-role color-swatch-role role">Surface</div></div></div><div class="swatch color-swatch"><div class="swatch-color color-swatch-block color-swatch-preview fill chip" style="background:#f4ede4"></div><div class="swatch-info swatch-meta color-swatch-info info meta"><div class="swatch-name color-swatch-name name">Canvas Cream</div><div class="swatch-hex color-swatch-hex hex">#f4ede4</div><div class="swatch-role color-swatch-role role">Surface</div></div></div><div class="swatch color-swatch"><div class="swatch-color color-swatch-block color-swatch-preview fill chip" style="background:#f9f0ff"></div><div class="swatch-info swatch-meta color-swatch-info info meta"><div class="swatch-name color-swatch-name name">Canvas Lavender</div><div class="swatch-hex color-swatch-hex hex">#f9f0ff</div><div class="swatch-role color-swatch-role role">Surface</div></div></div><div class="swatch color-swatch"><div class="swatch-color color-swatch-block color-swatch-preview fill chip" style="background:#ffffff"></div><div class="swatch-info swatch-meta color-swatch-info info meta"><div class="swatch-name color-swatch-name name">Surface Elev</div><div class="swatch-hex color-swatch-hex hex">#ffffff</div><div class="swatch-role color-swatch-role role">Surface</div></div></div><div class="swatch color-swatch"><div class="swatch-color color-swatch-block color-swatch-preview fill chip" style="background:#4a154b"></div><div class="swatch-info swatch-meta color-swatch-info info meta"><div class="swatch-name color-swatch-name name">Surface Aubergine</div><div class="swatch-hex color-swatch-hex hex">#4a154b</div><div class="swatch-role color-swatch-role role">Surface</div></div></div></div></div><div class="palette-group color-group"><h3 class="subhead color-group-title color-group-label">Text</h3><div class="palette-grid swatch-grid color-grid"><div class="swatch color-swatch"><div class="swatch-color color-swatch-block color-swatch-preview fill chip" style="background:#1d1d1d"></div><div class="swatch-info swatch-meta color-swatch-info info meta"><div class="swatch-name color-swatch-name name">Ink</div><div class="swatch-hex color-swatch-hex hex">#1d1d1d</div><div class="swatch-role color-swatch-role role">Text</div></div></div><div class="swatch color-swatch"><div class="swatch-color color-swatch-block color-swatch-preview fill chip" style="background:#696969"></div><div class="swatch-info swatch-meta color-swatch-info info meta"><div class="swatch-name color-swatch-name name">Ink Mute</div><div class="swatch-hex color-swatch-hex hex">#696969</div><div class="swatch-role color-swatch-role role">Text</div></div></div><div class="swatch color-swatch"><div class="swatch-color color-swatch-block color-swatch-preview fill chip" style="background:#3860be"></div><div class="swatch-info swatch-meta color-swatch-info info meta"><div class="swatch-name color-swatch-name name">Link Hover</div><div class="swatch-hex color-swatch-hex hex">#3860be</div><div class="swatch-role color-swatch-role role">Text</div></div></div><div class="swatch color-swatch"><div class="swatch-color color-swatch-block color-swatch-preview fill chip" style="background:#d9bdde"></div><div class="swatch-info swatch-meta color-swatch-info info meta"><div class="swatch-name color-swatch-name name">On Aubergine Mute</div><div class="swatch-hex color-swatch-hex hex">#d9bdde</div><div class="swatch-role color-swatch-role role">Text</div></div></div></div></div><div class="palette-group color-group"><h3 class="subhead color-group-title color-group-label">Borders &amp; Lines</h3><div class="palette-grid swatch-grid color-grid"><div class="swatch color-swatch"><div class="swatch-color color-swatch-block color-swatch-preview fill chip" style="background:#e6e6e6"></div><div class="swatch-info swatch-meta color-swatch-info info meta"><div class="swatch-name color-swatch-name name">Hairline</div><div class="swatch-hex color-swatch-hex hex">#e6e6e6</div><div class="swatch-role color-swatch-role role">Borders &amp; Lines</div></div></div><div class="swatch color-swatch"><div class="swatch-color color-swatch-block color-swatch-preview fill chip" style="background:#000000"></div><div class="swatch-info swatch-meta color-swatch-info info meta"><div class="swatch-name color-swatch-name name">Hairline Strong</div><div class="swatch-hex color-swatch-hex hex">#000000</div><div class="swatch-role color-swatch-role role">Borders &amp; Lines</div></div></div></div></div><div class="palette-group color-group"><h3 class="subhead color-group-title color-group-label">Semantic</h3><div class="palette-grid swatch-grid color-grid"><div class="swatch color-swatch"><div class="swatch-color color-swatch-block color-swatch-preview fill chip" style="background:#cc4117"></div><div class="swatch-info swatch-meta color-swatch-info info meta"><div class="swatch-name color-swatch-name name">Semantic Error</div><div class="swatch-hex color-swatch-hex hex">#cc4117</div><div class="swatch-role color-swatch-role role">Semantic</div></div></div><div class="swatch color-swatch"><div class="swatch-color color-swatch-block color-swatch-preview fill chip" style="background:#007a5a"></div><div class="swatch-info swatch-meta color-swatch-info info meta"><div class="swatch-name color-swatch-name name">Semantic Success</div><div class="swatch-hex color-swatch-hex hex">#007a5a</div><div class="swatch-role color-swatch-role role">Semantic</div></div></div></div></div>
+</section>
 
-    <section id="type">
-      <div class="section-label">02 - Typography</div>
-      <h2 class="section-heading">Type scale and voice</h2>
-      <p class="section-intro">Typography samples show how major text levels render when the token values are applied to real interface copy.</p>
-      <div class="type-row"><div class="type-meta"><strong>display-xxl</strong>64px / 700 / 1.12 / -0.768px</div><div class="type-sample" style="font-family:Salesforce-Avant-Garde, system-ui, -apple-system, BlinkMacSystemFont, sans-serif;font-size:64px;font-weight:700;line-height:1.12;letter-spacing:-0.768px">Build a clear product interface with Slacc rhythm.</div></div><div class="type-row"><div class="type-meta"><strong>display-xl</strong>58px / 600 / 1.25 / -0.464px</div><div class="type-sample" style="font-family:Salesforce-Avant-Garde, system-ui, -apple-system, BlinkMacSystemFont, sans-serif;font-size:58px;font-weight:600;line-height:1.25;letter-spacing:-0.464px">Build a clear product interface with Slacc rhythm.</div></div><div class="type-row"><div class="type-meta"><strong>display-lg</strong>50px / 700 / 1.12 / -0.6px</div><div class="type-sample" style="font-family:Salesforce-Avant-Garde, system-ui, -apple-system, BlinkMacSystemFont, sans-serif;font-size:50px;font-weight:700;line-height:1.12;letter-spacing:-0.6px">Build a clear product interface with Slacc rhythm.</div></div><div class="type-row"><div class="type-meta"><strong>display-md</strong>32px / 700 / 1.25 / -0.256px</div><div class="type-sample" style="font-family:Salesforce-Avant-Garde, system-ui, -apple-system, BlinkMacSystemFont, sans-serif;font-size:32px;font-weight:700;line-height:1.25;letter-spacing:-0.256px">Build a clear product interface with Slacc rhythm.</div></div><div class="type-row"><div class="type-meta"><strong>heading-lg</strong>24px / 700 / 1.33 / -0.096px</div><div class="type-sample" style="font-family:Salesforce-Avant-Garde, system-ui, -apple-system, BlinkMacSystemFont, sans-serif;font-size:24px;font-weight:700;line-height:1.33;letter-spacing:-0.096px">Build a clear product interface with Slacc rhythm.</div></div><div class="type-row"><div class="type-meta"><strong>heading-md</strong>22px / 600 / 1.4 / 0px</div><div class="type-sample" style="font-family:Salesforce-Avant-Garde, system-ui, -apple-system, BlinkMacSystemFont, sans-serif;font-size:22px;font-weight:600;line-height:1.4;letter-spacing:0px">Build a clear product interface with Slacc rhythm.</div></div><div class="type-row"><div class="type-meta"><strong>heading-sm</strong>18px / 600 / 1.56 / -0.0216px</div><div class="type-sample" style="font-family:Salesforce-Avant-Garde, system-ui, -apple-system, BlinkMacSystemFont, sans-serif;font-size:18px;font-weight:600;line-height:1.56;letter-spacing:-0.0216px">Build a clear product interface with Slacc rhythm.</div></div><div class="type-row"><div class="type-meta"><strong>body-lg</strong>18px / 400 / 1.55 / -0.0216px</div><div class="type-sample" style="font-family:Salesforce-Sans, system-ui, -apple-system, sans-serif;font-size:18px;font-weight:400;line-height:1.55;letter-spacing:-0.0216px">Build a clear product interface with Slacc rhythm.</div></div><div class="type-row"><div class="type-meta"><strong>body-md</strong>16px / 400 / 1.55 / 0px</div><div class="type-sample" style="font-family:Salesforce-Sans, system-ui, -apple-system, sans-serif;font-size:16px;font-weight:400;line-height:1.55;letter-spacing:0px">Build a clear product interface with Slacc rhythm.</div></div><div class="type-row"><div class="type-meta"><strong>body-strong</strong>16px / 700 / 1.5 / 0.16px</div><div class="type-sample" style="font-family:Salesforce-Sans, system-ui, -apple-system, sans-serif;font-size:16px;font-weight:700;line-height:1.5;letter-spacing:0.16px">Build a clear product interface with Slacc rhythm.</div></div>
-    </section>
+<section id="typography">
+<div class="section-label">02 / Typography</div>
+<h2 class="section-title section-heading">Typography</h2>
+<div class="type-row type-sample"><div class="type-meta type-label type-sample-label"><strong>display-xxl</strong>64px / 700 / 1.12 / -0.768px</div><div class="type-sample-text type-preview" style="font-family:Salesforce-Avant-Garde, system-ui, -apple-system, BlinkMacSystemFont, sans-serif;font-size:64px;font-weight:700;line-height:1.12;letter-spacing:-0.768px;text-transform:none">Build a clear product interface with Display Xxl rhythm.</div></div><div class="type-row type-sample"><div class="type-meta type-label type-sample-label"><strong>display-xl</strong>58px / 600 / 1.25 / -0.464px</div><div class="type-sample-text type-preview" style="font-family:Salesforce-Avant-Garde, system-ui, -apple-system, BlinkMacSystemFont, sans-serif;font-size:58px;font-weight:600;line-height:1.25;letter-spacing:-0.464px;text-transform:none">Build a clear product interface with Display Xl rhythm.</div></div><div class="type-row type-sample"><div class="type-meta type-label type-sample-label"><strong>display-lg</strong>50px / 700 / 1.12 / -0.6px</div><div class="type-sample-text type-preview" style="font-family:Salesforce-Avant-Garde, system-ui, -apple-system, BlinkMacSystemFont, sans-serif;font-size:50px;font-weight:700;line-height:1.12;letter-spacing:-0.6px;text-transform:none">Build a clear product interface with Display Lg rhythm.</div></div><div class="type-row type-sample"><div class="type-meta type-label type-sample-label"><strong>display-md</strong>32px / 700 / 1.25 / -0.256px</div><div class="type-sample-text type-preview" style="font-family:Salesforce-Avant-Garde, system-ui, -apple-system, BlinkMacSystemFont, sans-serif;font-size:32px;font-weight:700;line-height:1.25;letter-spacing:-0.256px;text-transform:none">Build a clear product interface with Display Md rhythm.</div></div><div class="type-row type-sample"><div class="type-meta type-label type-sample-label"><strong>heading-lg</strong>24px / 700 / 1.33 / -0.096px</div><div class="type-sample-text type-preview" style="font-family:Salesforce-Avant-Garde, system-ui, -apple-system, BlinkMacSystemFont, sans-serif;font-size:24px;font-weight:700;line-height:1.33;letter-spacing:-0.096px;text-transform:none">Build a clear product interface with Heading Lg rhythm.</div></div><div class="type-row type-sample"><div class="type-meta type-label type-sample-label"><strong>heading-md</strong>22px / 600 / 1.4 / 0px</div><div class="type-sample-text type-preview" style="font-family:Salesforce-Avant-Garde, system-ui, -apple-system, BlinkMacSystemFont, sans-serif;font-size:22px;font-weight:600;line-height:1.4;letter-spacing:0px;text-transform:none">Build a clear product interface with Heading Md rhythm.</div></div><div class="type-row type-sample"><div class="type-meta type-label type-sample-label"><strong>heading-sm</strong>18px / 600 / 1.56 / -0.0216px</div><div class="type-sample-text type-preview" style="font-family:Salesforce-Avant-Garde, system-ui, -apple-system, BlinkMacSystemFont, sans-serif;font-size:18px;font-weight:600;line-height:1.56;letter-spacing:-0.0216px;text-transform:none">Build a clear product interface with Heading Sm rhythm.</div></div><div class="type-row type-sample"><div class="type-meta type-label type-sample-label"><strong>body-lg</strong>18px / 400 / 1.55 / -0.0216px</div><div class="type-sample-text type-preview" style="font-family:Salesforce-Sans, system-ui, -apple-system, sans-serif;font-size:18px;font-weight:400;line-height:1.55;letter-spacing:-0.0216px;text-transform:none">Build a clear product interface with Body Lg rhythm.</div></div><div class="type-row type-sample"><div class="type-meta type-label type-sample-label"><strong>body-md</strong>16px / 400 / 1.55 / 0px</div><div class="type-sample-text type-preview" style="font-family:Salesforce-Sans, system-ui, -apple-system, sans-serif;font-size:16px;font-weight:400;line-height:1.55;letter-spacing:0px;text-transform:none">Build a clear product interface with Body Md rhythm.</div></div><div class="type-row type-sample"><div class="type-meta type-label type-sample-label"><strong>body-strong</strong>16px / 700 / 1.5 / 0.16px</div><div class="type-sample-text type-preview" style="font-family:Salesforce-Sans, system-ui, -apple-system, sans-serif;font-size:16px;font-weight:700;line-height:1.5;letter-spacing:0.16px;text-transform:none">Build a clear product interface with Body Strong rhythm.</div></div><div class="type-row type-sample"><div class="type-meta type-label type-sample-label"><strong>button-lg</strong>18px / 700 / 1.0 / 0px</div><div class="type-sample-text type-preview" style="font-family:Salesforce-Sans, system-ui, -apple-system, sans-serif;font-size:18px;font-weight:700;line-height:1.0;letter-spacing:0px;text-transform:none">Build a clear product interface with Button Lg rhythm.</div></div><div class="type-row type-sample"><div class="type-meta type-label type-sample-label"><strong>button-md</strong>16px / 700 / 1.38 / 0.2px</div><div class="type-sample-text type-preview" style="font-family:Salesforce-Sans, system-ui, -apple-system, sans-serif;font-size:16px;font-weight:700;line-height:1.38;letter-spacing:0.2px;text-transform:none">Build a clear product interface with Button Md rhythm.</div></div><div class="type-row type-sample"><div class="type-meta type-label type-sample-label"><strong>button-cap</strong>14.4px / 700 / 1.0 / 0.144px</div><div class="type-sample-text type-preview" style="font-family:Salesforce-Sans, system-ui, -apple-system, sans-serif;font-size:14.4px;font-weight:700;line-height:1.0;letter-spacing:0.144px;text-transform:none">Build a clear product interface with Button Cap rhythm.</div></div><div class="type-row type-sample"><div class="type-meta type-label type-sample-label"><strong>caption</strong>14px / 400 / 1.43 / 0.1px</div><div class="type-sample-text type-preview" style="font-family:Salesforce-Sans, system-ui, -apple-system, sans-serif;font-size:14px;font-weight:400;line-height:1.43;letter-spacing:0.1px;text-transform:none">Build a clear product interface with Caption rhythm.</div></div><div class="type-row type-sample"><div class="type-meta type-label type-sample-label"><strong>micro-cap</strong>12px / 700 / 1.0 / 0.96px</div><div class="type-sample-text type-preview" style="font-family:Salesforce-Sans, system-ui, -apple-system, sans-serif;font-size:12px;font-weight:700;line-height:1.0;letter-spacing:0.96px;text-transform:none">Build a clear product interface with Micro Cap rhythm.</div></div>
+</section>
 
-    <section id="components">
-      <div class="section-label">03 - Components</div>
-      <h2 class="section-heading">Buttons, cards, labels, and controls</h2>
-      <p class="section-intro">Component samples apply available token references where possible, with neutral fallbacks for properties not present in the source system.</p>
-      <div class="button-grid">
-        <div class="component-cell"><div class="button-label">button-primary-pill</div><span class="demo-button" style="background:#4a154b;color:#ffffff;border-radius:90px;padding:0 14px">Sample action</span><div class="button-meta">#4a154b / #ffffff</div></div><div class="component-cell"><div class="button-label">button-primary-pill-pressed</div><span class="demo-button" style="background:#611f69;color:#ffffff;border-radius:90px;padding:0 14px">Sample action</span><div class="button-meta">#611f69 / #ffffff</div></div><div class="component-cell"><div class="button-label">button-secondary-pill</div><span class="demo-button" style="background:#f9f0ff;color:#1d1d1d;border-radius:90px;padding:0 14px">Sample action</span><div class="button-meta">#f9f0ff / #1d1d1d</div></div><div class="component-cell"><div class="button-label">button-outline-aubergine</div><span class="demo-button" style="background:#ffffff;color:#4a154b;border-radius:90px;padding:0 14px">Sample action</span><div class="button-meta">#ffffff / #4a154b</div></div><div class="component-cell"><div class="button-label">button-outline-on-aubergine</div><span class="demo-button" style="background:#4a154b;color:#ffffff;border-radius:90px;padding:0 14px">Sample action</span><div class="button-meta">#4a154b / #ffffff</div></div><div class="component-cell"><div class="button-label">text-input</div><span class="demo-button" style="background:#ffffff;color:#1d1d1d;border-radius:4px;padding:0 14px">Sample action</span><div class="button-meta">#ffffff / #1d1d1d</div></div><div class="component-cell"><div class="button-label">pill-cap-shade</div><span class="demo-button" style="background:#f4ede4;color:#1d1d1d;border-radius:90px;padding:0 14px">Sample action</span><div class="button-meta">#f4ede4 / #1d1d1d</div></div><div class="component-cell"><div class="button-label">card-pricing</div><span class="demo-button" style="background:#ffffff;color:#1d1d1d;border-radius:16px;padding:0 32px">Sample action</span><div class="button-meta">#ffffff / #1d1d1d</div></div><div class="component-cell"><div class="button-label">card-pricing-featured</div><span class="demo-button" style="background:#4a154b;color:#ffffff;border-radius:16px;padding:0 32px">Sample action</span><div class="button-meta">#4a154b / #ffffff</div></div><div class="component-cell"><div class="button-label">card-feature-cream</div><span class="demo-button" style="background:#f4ede4;color:#1d1d1d;border-radius:16px;padding:0 32px">Sample action</span><div class="button-meta">#f4ede4 / #1d1d1d</div></div><div class="component-cell"><div class="button-label">card-aubergine-band</div><span class="demo-button" style="background:#4a154b;color:#ffffff;border-radius:16px;padding:0 48px">Sample action</span><div class="button-meta">#4a154b / #ffffff</div></div><div class="component-cell"><div class="button-label">card-stat</div><span class="demo-button" style="background:#ffffff;color:#4a154b;border-radius:16px;padding:0 32px">Sample action</span><div class="button-meta">#ffffff / #4a154b</div></div>
-      </div>
-    </section>
+<section id="buttons">
+<div class="section-label">03 / Interface Samples</div>
+<h2 class="section-title section-heading">Interface Samples</h2>
+<div class="button-row button-showcase button-grid demo-grid"><div class="button-item btn-item"><button class="btn btn-primary btn-green btn-tag demo-control" style="background:#4a154b;color:#ffffff;border-radius:90px;padding:14px 28px;border:1px solid transparent;min-height:44px;">Button Primary Pill</button><div class="button-label btn-label caption">button-primary-pill</div></div><div class="button-item btn-item"><button class="btn btn-primary btn-green btn-tag demo-control" style="background:#611f69;color:#ffffff;border-radius:90px;padding:14px 28px;border:1px solid transparent;min-height:44px;">Button Primary Pill Pressed</button><div class="button-label btn-label caption">button-primary-pill-pressed</div></div><div class="button-item btn-item"><button class="btn btn-primary btn-green btn-tag demo-control" style="background:#f9f0ff;color:#1d1d1d;border-radius:90px;padding:10px 30px;border:1px solid transparent;min-height:44px;">Button Secondary Pill</button><div class="button-label btn-label caption">button-secondary-pill</div></div><div class="button-item btn-item"><button class="btn btn-primary btn-green btn-tag demo-control" style="background:#ffffff;color:#4a154b;border-radius:90px;padding:14px 28px;border:1px solid transparent;min-height:44px;">Button Outline Aubergine</button><div class="button-label btn-label caption">button-outline-aubergine</div></div><div class="button-item btn-item"><button class="btn btn-primary btn-green btn-tag demo-control" style="background:#4a154b;color:#ffffff;border-radius:90px;padding:14px 28px;border:1px solid transparent;min-height:44px;">Button Outline On Aubergine</button><div class="button-label btn-label caption">button-outline-on-aubergine</div></div><div class="button-item btn-item"><button class="btn btn-primary btn-green btn-tag demo-control" style="background:#f4ede4;color:#1d1d1d;border-radius:90px;padding:4px 12px;border:1px solid transparent;min-height:44px;">Pill Cap Shade</button><div class="button-label btn-label caption">pill-cap-shade</div></div><div class="button-item btn-item"><button class="btn btn-primary btn-green btn-tag demo-control" style="background:#ffffff;color:#1264a3;border-radius:2px;padding:0px;border:1px solid transparent;min-height:44px;">Link On Light</button><div class="button-label btn-label caption">link-on-light</div></div><div class="button-item btn-item"><button class="btn btn-primary btn-green btn-tag demo-control" style="background:#4a154b;color:#ffffff;border-radius:2px;padding:0px;border:1px solid transparent;min-height:44px;">Link On Aubergine</button><div class="button-label btn-label caption">link-on-aubergine</div></div></div>
+</section>
 
-    <section>
-      <div class="section-label">04 - Interface Samples</div>
-      <h2 class="section-heading">Reusable product surfaces</h2>
-      <div class="card-grid">
-        <div class="feature-card"><h4>Feature card</h4><p>Use this card treatment for summaries, benefits, or product modules with concise supporting text.</p><span class="badge">New</span></div>
-        <div class="feature-card"><h4>Data card</h4><p>Pair a strong heading with a compact metric and muted explanatory copy.</p><div style="font:800 36px/1 var(--display);color:var(--primary);margin-top:14px">24%</div></div>
-        <div class="feature-card"><h4>Content card</h4><p>Keep content blocks aligned to the design system's spacing and type hierarchy.</p><span class="btn primary" style="margin-top:14px">Continue</span></div>
-      </div>
-    </section>
+<section id="cards">
+<div class="section-label">05 / Cards</div>
+<h2 class="section-title section-heading">Cards</h2>
+<div class="card-grid"><div class="card component-card sample-card" style="background:var(--surface, var(--canvas, #fff));color:var(--ink, #111);border:1px solid var(--border, rgba(0,0,0,.14));border-radius:16px;padding:16px;min-height:150px;display:grid;gap:12px;align-content:start;box-sizing:border-box;"><h3 class="card-title">Card Pricing</h3><div class="component-preview" style="display:flex;align-items:center;justify-content:flex-start;gap:12px;min-height:78px;flex-wrap:wrap;"><article class="sample-card" style="background:#ffffff;color:#1d1d1d;border-radius:16px;padding:32px;border:1px solid transparent;min-height:44px;display:grid;gap:10px;width:100%;box-sizing:border-box;"><div style="height:56px;border-radius:inherit;background:linear-gradient(135deg, currentColor, transparent);opacity:.14;"></div><strong>Card Pricing</strong><span style="opacity:.72;">Featured item</span></article></div></div><div class="card component-card sample-card" style="background:var(--surface, var(--canvas, #fff));color:var(--ink, #111);border:1px solid var(--border, rgba(0,0,0,.14));border-radius:16px;padding:16px;min-height:150px;display:grid;gap:12px;align-content:start;box-sizing:border-box;"><h3 class="card-title">Card Pricing Featured</h3><div class="component-preview" style="display:flex;align-items:center;justify-content:flex-start;gap:12px;min-height:78px;flex-wrap:wrap;"><article class="sample-card" style="background:#4a154b;color:#ffffff;border-radius:16px;padding:32px;border:1px solid transparent;min-height:44px;display:grid;gap:10px;width:100%;box-sizing:border-box;"><div style="height:56px;border-radius:inherit;background:linear-gradient(135deg, currentColor, transparent);opacity:.14;"></div><strong>Card Pricing Featured</strong><span style="opacity:.72;">Featured item</span></article></div></div><div class="card component-card sample-card" style="background:var(--surface, var(--canvas, #fff));color:var(--ink, #111);border:1px solid var(--border, rgba(0,0,0,.14));border-radius:16px;padding:16px;min-height:150px;display:grid;gap:12px;align-content:start;box-sizing:border-box;"><h3 class="card-title">Card Feature Cream</h3><div class="component-preview" style="display:flex;align-items:center;justify-content:flex-start;gap:12px;min-height:78px;flex-wrap:wrap;"><article class="sample-card" style="background:#f4ede4;color:#1d1d1d;border-radius:16px;padding:32px;border:1px solid transparent;min-height:44px;display:grid;gap:10px;width:100%;box-sizing:border-box;"><div style="height:56px;border-radius:inherit;background:linear-gradient(135deg, currentColor, transparent);opacity:.14;"></div><strong>Card Feature Cream</strong><span style="opacity:.72;">Featured item</span></article></div></div><div class="card component-card sample-card" style="background:var(--surface, var(--canvas, #fff));color:var(--ink, #111);border:1px solid var(--border, rgba(0,0,0,.14));border-radius:16px;padding:16px;min-height:150px;display:grid;gap:12px;align-content:start;box-sizing:border-box;"><h3 class="card-title">Card Aubergine Band</h3><div class="component-preview" style="display:flex;align-items:center;justify-content:flex-start;gap:12px;min-height:78px;flex-wrap:wrap;"><article class="sample-card" style="background:#4a154b;color:#ffffff;border-radius:16px;padding:48px;border:1px solid transparent;min-height:44px;display:grid;gap:10px;width:100%;box-sizing:border-box;"><div style="height:56px;border-radius:inherit;background:linear-gradient(135deg, currentColor, transparent);opacity:.14;"></div><strong>Card Aubergine Band</strong><span style="opacity:.72;">Featured item</span></article></div></div><div class="card component-card sample-card" style="background:var(--surface, var(--canvas, #fff));color:var(--ink, #111);border:1px solid var(--border, rgba(0,0,0,.14));border-radius:16px;padding:16px;min-height:150px;display:grid;gap:12px;align-content:start;box-sizing:border-box;"><h3 class="card-title">Card Stat</h3><div class="component-preview" style="display:flex;align-items:center;justify-content:flex-start;gap:12px;min-height:78px;flex-wrap:wrap;"><article class="sample-card" style="background:#ffffff;color:#4a154b;border-radius:16px;padding:32px;border:1px solid transparent;min-height:44px;display:grid;gap:10px;width:100%;box-sizing:border-box;"><div style="height:56px;border-radius:inherit;background:linear-gradient(135deg, currentColor, transparent);opacity:.14;"></div><strong>Card Stat</strong><span style="opacity:.72;">Featured item</span></article></div></div></div>
+</section>
 
-    <section>
-      <div class="section-label">05 - Forms</div>
-      <h2 class="section-heading">Inputs and inline feedback</h2>
-      <div class="form-grid">
-        <div class="form-cell"><label class="button-label">Email</label><input class="text-input" value="team@example.com" aria-label="Email sample"></div>
-        <div class="form-cell"><label class="button-label">Status</label><span class="badge">Active</span></div>
-        <div class="form-cell"><label class="button-label">Action group</label><div style="display:flex;gap:10px;flex-wrap:wrap"><span class="btn primary">Save</span><span class="btn">Cancel</span></div></div>
-      </div>
-    </section>
+<section id="forms">
+<div class="section-label">06 / Forms</div>
+<h2 class="section-title section-heading">Forms</h2>
+<div class="form-group form-token"><label class="form-label">Text Input</label><input class="form-input" style="background:#ffffff;color:#1d1d1d;border-radius:4px;padding:10px 12px;border:1px solid transparent;min-height:44px;" value="Text Input" aria-label="text-input"></div>
+</section>
 
-    <section>
-      <div class="section-label">06 - Spacing</div>
-      <h2 class="section-heading">Spacing scale</h2>
-      <div class="spacing-row">
-        <div class="spacing-block"><div class="spacing-bar" style="height:4px"></div><div class="spacing-label">xs · 4px</div></div><div class="spacing-block"><div class="spacing-bar" style="height:8px"></div><div class="spacing-label">sm · 8px</div></div><div class="spacing-block"><div class="spacing-bar" style="height:12px"></div><div class="spacing-label">md · 12px</div></div><div class="spacing-block"><div class="spacing-bar" style="height:16px"></div><div class="spacing-label">lg · 16px</div></div><div class="spacing-block"><div class="spacing-bar" style="height:20px"></div><div class="spacing-label">xl · 20px</div></div><div class="spacing-block"><div class="spacing-bar" style="height:24px"></div><div class="spacing-label">xxl · 24px</div></div><div class="spacing-block"><div class="spacing-bar" style="height:28px"></div><div class="spacing-label">huge · 28px</div></div>
-      </div>
-    </section>
+<section id="spacing">
+<div class="section-label">07 / Spacing</div>
+<h2 class="section-title section-heading">Spacing</h2>
+<div class="spacing-row"><div class="spacing-item spacing-block"><div class="spacing-bar spacing-box spacing-block" style="width:4px;height:24px"></div><div class="spacing-label spacing-value">xs · 4px</div></div><div class="spacing-item spacing-block"><div class="spacing-bar spacing-box spacing-block" style="width:8px;height:24px"></div><div class="spacing-label spacing-value">sm · 8px</div></div><div class="spacing-item spacing-block"><div class="spacing-bar spacing-box spacing-block" style="width:12px;height:24px"></div><div class="spacing-label spacing-value">md · 12px</div></div><div class="spacing-item spacing-block"><div class="spacing-bar spacing-box spacing-block" style="width:16px;height:24px"></div><div class="spacing-label spacing-value">lg · 16px</div></div><div class="spacing-item spacing-block"><div class="spacing-bar spacing-box spacing-block" style="width:20px;height:24px"></div><div class="spacing-label spacing-value">xl · 20px</div></div><div class="spacing-item spacing-block"><div class="spacing-bar spacing-box spacing-block" style="width:24px;height:24px"></div><div class="spacing-label spacing-value">xxl · 24px</div></div><div class="spacing-item spacing-block"><div class="spacing-bar spacing-box spacing-block" style="width:28px;height:24px"></div><div class="spacing-label spacing-value">huge · 28px</div></div></div>
+</section>
 
-    <section>
-      <div class="section-label">07 - Radius</div>
-      <h2 class="section-heading">Shape language</h2>
-      <div class="radius-row">
-        <div class="radius-block" style="border-radius:2px">xs</div><div class="radius-block" style="border-radius:4px">sm</div><div class="radius-block" style="border-radius:8px">md</div><div class="radius-block" style="border-radius:12px">lg</div><div class="radius-block" style="border-radius:16px">xl</div><div class="radius-block" style="border-radius:48px">xxl</div><div class="radius-block" style="border-radius:90px">pill</div>
-      </div>
-    </section>
+<section id="radius">
+<div class="section-label">08 / Radius</div>
+<h2 class="section-title section-heading">Radius</h2>
+<div class="radius-row"><div class="radius-item"><div class="radius-box" style="border-radius:2px"></div><div class="radius-label radius-value">xs · 2px</div></div><div class="radius-item"><div class="radius-box" style="border-radius:4px"></div><div class="radius-label radius-value">sm · 4px</div></div><div class="radius-item"><div class="radius-box" style="border-radius:8px"></div><div class="radius-label radius-value">md · 8px</div></div><div class="radius-item"><div class="radius-box" style="border-radius:12px"></div><div class="radius-label radius-value">lg · 12px</div></div><div class="radius-item"><div class="radius-box" style="border-radius:16px"></div><div class="radius-label radius-value">xl · 16px</div></div><div class="radius-item"><div class="radius-box" style="border-radius:48px"></div><div class="radius-label radius-value">xxl · 48px</div></div><div class="radius-item"><div class="radius-box" style="border-radius:90px"></div><div class="radius-label radius-value">pill · 90px</div></div></div>
+</section>
 
-    <section id="responsive">
-      <div class="section-label">08 - Responsive Behavior</div>
-      <h2 class="section-heading">Layout strategy</h2>
-      <table class="responsive-table">
-        <thead><tr><th>Viewport</th><th>Behavior</th></tr></thead>
-        <tbody>
-          <tr><td>Mobile</td><td>Single column layout, compact nav, tighter section padding.</td></tr>
-          <tr><td>Tablet</td><td>Two-column component grids and readable type hierarchy.</td></tr>
-          <tr><td>Desktop</td><td>Wide token catalog, multi-column cards, expanded whitespace.</td></tr>
-        </tbody>
-      </table>
-    </section>
-  </main>
+<section id="elevation">
+<div class="section-label">09 / Elevation</div>
+<h2 class="section-title section-heading">Elevation</h2>
+<div class="elevation-grid"><div class="elevation-card card"><div class="elevation-label">Canvas</div><div class="elevation-desc token-meta">#0f1115</div></div><div class="elevation-card card"><div class="elevation-label">Surface</div><div class="elevation-desc token-meta">#181b22</div></div><div class="elevation-card card"><div class="elevation-label">Strong Surface</div><div class="elevation-desc token-meta">#20242d</div></div><div class="elevation-card card"><div class="elevation-label">Border</div><div class="elevation-desc token-meta">rgba(255,255,255,0.14)</div></div></div>
+</section>
 
-  <footer class="footer">Generated from DESIGN.md tokens for local preview and review.</footer>
+<section id="responsive">
+<div class="section-label">10 / Responsive Behavior</div>
+<h2 class="section-title section-heading">Responsive Behavior</h2>
+<table class="responsive-table breakpoint-table"><tbody><tr><th>Viewport</th><th>Behavior</th></tr><tr><td>Mobile</td><td>Single column layout and compact token grids.</td></tr><tr><td>Desktop</td><td>Multi-column layout with expanded token grids.</td></tr></tbody></table>
+</section>
+
+<!-- ============================== EXAMPLES (kit-mirror) ==============================
+ *
+ * 9 product-UI patterns themed with the brand's tokens via the alias bridge in
+ * preview-examples-block.css.
+ *
+ * Paste this verbatim into preview.html and preview-dark.html, immediately before
+ * the closing <footer class="footer">
+  <div class="footer-shell">
+    <p>Slacc</p>
+    <p class="token-meta">Design token preview</p>
+  </div>
+</footer>
+
 </body>
 </html>

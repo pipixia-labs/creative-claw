@@ -1,7 +1,10 @@
 ---
 version: alpha
-name: Vercel
-description: A restrained developer infrastructure design system built on a pure white canvas, near-black Geist typography, shadow-as-border surfaces, and functional workflow accents for Develop, Preview, and Ship.
+name: "Vercel"
+description: >-
+  A restrained developer infrastructure design system built on a pure white
+  canvas, near-black Geist typography, shadow-as-border surfaces, and functional
+  workflow accents for Develop, Preview, and Ship.
 
 colors:
   primary: "#171717"
@@ -16,14 +19,26 @@ colors:
   hairline: "#ebebeb"
   link: "#0072f5"
   focus: "#0070f5"
+  ring-blue: "rgba(147, 197, 253, 0.5)"
   ship: "#ff5b4f"
   preview: "#de1d8d"
   develop: "#0a72ef"
   console-blue: "#0070f3"
   console-purple: "#7928ca"
   console-pink: "#eb367f"
+  true-black: "#000000"
+  gray-900: "#171717"
+  gray-600: "#4d4d4d"
+  gray-500: "#666666"
+  gray-400: "#808080"
+  gray-100: "#ebebeb"
+  gray-50: "#fafafa"
+  overlay-backdrop: "hsla(0, 0%, 98%, 1)"
+  selection-text: "hsla(0, 0%, 95%, 1)"
   badge-blue-bg: "#ebf5ff"
   badge-blue-text: "#0068d6"
+  border-shadow: "rgba(0, 0, 0, 0.08)"
+  subtle-elevation: "rgba(0, 0, 0, 0.04)"
 
 typography:
   display-hero:
@@ -40,10 +55,31 @@ typography:
     lineHeight: 1.2
     letterSpacing: -2.4px
     fontFeature: "liga"
+  subheading-lg:
+    fontFamily: "Geist, Arial, sans-serif"
+    fontSize: 32px
+    fontWeight: 600
+    lineHeight: 1.25
+    letterSpacing: -1.28px
+    fontFeature: "liga"
+  subheading:
+    fontFamily: "Geist, Arial, sans-serif"
+    fontSize: 32px
+    fontWeight: 400
+    lineHeight: 1.5
+    letterSpacing: -1.28px
+    fontFeature: "liga"
   card-title:
     fontFamily: "Geist, Arial, sans-serif"
     fontSize: 24px
     fontWeight: 600
+    lineHeight: 1.33
+    letterSpacing: -0.96px
+    fontFeature: "liga"
+  card-title-light:
+    fontFamily: "Geist, Arial, sans-serif"
+    fontSize: 24px
+    fontWeight: 500
     lineHeight: 1.33
     letterSpacing: -0.96px
     fontFeature: "liga"
@@ -56,10 +92,31 @@ typography:
     fontFeature: "liga"
   body-md:
     fontFamily: "Geist, Arial, sans-serif"
+    fontSize: 18px
+    fontWeight: 400
+    lineHeight: 1.56
+    letterSpacing: 0px
+    fontFeature: "liga"
+  body-sm:
+    fontFamily: "Geist, Arial, sans-serif"
     fontSize: 16px
     fontWeight: 400
     lineHeight: 1.5
     letterSpacing: 0px
+    fontFeature: "liga"
+  body-medium:
+    fontFamily: "Geist, Arial, sans-serif"
+    fontSize: 16px
+    fontWeight: 500
+    lineHeight: 1.5
+    letterSpacing: 0px
+    fontFeature: "liga"
+  body-semibold:
+    fontFamily: "Geist, Arial, sans-serif"
+    fontSize: 16px
+    fontWeight: 600
+    lineHeight: 1.5
+    letterSpacing: -0.32px
     fontFeature: "liga"
   button:
     fontFamily: "Geist, Arial, sans-serif"
@@ -75,6 +132,27 @@ typography:
     lineHeight: 1.33
     letterSpacing: 0px
     fontFeature: "liga"
+  button-small:
+    fontFamily: "Geist, Arial, sans-serif"
+    fontSize: 14px
+    fontWeight: 400
+    lineHeight: 1
+    letterSpacing: 0px
+    fontFeature: "liga"
+  mono-body:
+    fontFamily: "Geist Mono, ui-monospace, SFMono-Regular, Roboto Mono, Menlo, Monaco, Liberation Mono, DejaVu Sans Mono, Courier New, monospace"
+    fontSize: 16px
+    fontWeight: 400
+    lineHeight: 1.5
+    letterSpacing: 0px
+    fontFeature: "liga"
+  mono-caption:
+    fontFamily: "Geist Mono, ui-monospace, SFMono-Regular, Roboto Mono, Menlo, Monaco, Liberation Mono, DejaVu Sans Mono, Courier New, monospace"
+    fontSize: 13px
+    fontWeight: 500
+    lineHeight: 1.54
+    letterSpacing: 0px
+    fontFeature: "liga"
   mono-label:
     fontFamily: "Geist Mono, ui-monospace, SFMono-Regular, Roboto Mono, Menlo, Monaco, Liberation Mono, DejaVu Sans Mono, Courier New, monospace"
     fontSize: 12px
@@ -82,6 +160,14 @@ typography:
     lineHeight: 1
     letterSpacing: 0px
     fontFeature: "liga"
+    textTransform: uppercase
+  micro-badge:
+    fontFamily: "Geist, Arial, sans-serif"
+    fontSize: 7px
+    fontWeight: 700
+    lineHeight: 1
+    letterSpacing: 0px
+    textTransform: uppercase
 
 rounded:
   micro: 2px
@@ -89,16 +175,26 @@ rounded:
   md: 6px
   lg: 8px
   image: 12px
+  large: 64px
+  xl: 100px
   pill: 9999px
+  circle: 9999px
 
 spacing:
   hairline: 1px
   xxs: 2px
+  xxxs: 3px
   xs: 4px
+  xsm: 5px
+  button-min: 6px
   sm: 8px
+  badge: 10px
   md: 12px
+  nav: 14px
   lg: 16px
   xl: 32px
+  xxl: 36px
+  section-sm: 40px
   section: 80px
   hero: 120px
 
@@ -108,25 +204,67 @@ components:
     textColor: "{colors.on-primary}"
     typography: "{typography.button}"
     rounded: "{rounded.md}"
-    padding: 8px
+    padding: 8px 16px
   button-secondary:
     backgroundColor: "{colors.canvas}"
     textColor: "{colors.ink}"
     typography: "{typography.button}"
     rounded: "{rounded.md}"
-    padding: 8px
+    padding: 0px 6px
   badge-blue:
     backgroundColor: "{colors.badge-blue-bg}"
     textColor: "{colors.badge-blue-text}"
     typography: "{typography.caption}"
     rounded: "{rounded.pill}"
-    padding: 10px
+    padding: 0px 10px
+  large-pill:
+    backgroundColor: transparent
+    textColor: "{colors.ink}"
+    typography: "{typography.button}"
+    rounded: "{rounded.large}"
+    padding: 8px 16px
   card:
     backgroundColor: "{colors.surface}"
     textColor: "{colors.ink}"
-    typography: "{typography.body-md}"
+    typography: "{typography.body-sm}"
     rounded: "{rounded.lg}"
     padding: 32px
+  image-card:
+    backgroundColor: "{colors.surface}"
+    textColor: "{colors.ink}"
+    typography: "{typography.card-title}"
+    rounded: "{rounded.image}"
+    padding: 32px
+  metric-card:
+    backgroundColor: "{colors.surface}"
+    textColor: "{colors.ink}"
+    typography: "{typography.display-hero}"
+    rounded: "{rounded.lg}"
+    padding: 32px
+  workflow-develop:
+    backgroundColor: "{colors.surface}"
+    textColor: "{colors.develop}"
+    typography: "{typography.mono-label}"
+    rounded: "{rounded.md}"
+    padding: 8px
+  workflow-preview:
+    backgroundColor: "{colors.surface}"
+    textColor: "{colors.preview}"
+    typography: "{typography.mono-label}"
+    rounded: "{rounded.md}"
+    padding: 8px
+  workflow-ship:
+    backgroundColor: "{colors.surface}"
+    textColor: "{colors.ship}"
+    typography: "{typography.mono-label}"
+    rounded: "{rounded.md}"
+    padding: 8px
+  code-label:
+    backgroundColor: "{colors.surface-soft}"
+    textColor: "{colors.ink}"
+    typography: "{typography.mono-caption}"
+    rounded: "{rounded.micro}"
+    padding: 4px 6px
   nav-link:
     backgroundColor: "{colors.canvas}"
     textColor: "{colors.ink}"

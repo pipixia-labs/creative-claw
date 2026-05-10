@@ -20,8 +20,21 @@ from src.productions.design.design_product_manager import (
     parse_form_answers,
     validate_question_form_schema,
 )
+from src.productions.design.design_systems import list_design_systems
 from src.runtime.workspace import resolve_workspace_path
 from src.skills.registry import SkillRegistry
+
+
+def _design_system_option_ids(question: dict) -> list[str]:
+    available_ids = {summary.id for summary in list_design_systems()}
+    option_ids = [
+        option["value"]
+        for option in question["options"]
+        if option["value"] != "decide_for_me"
+    ]
+    assert len(option_ids) == len(set(option_ids))
+    assert set(option_ids).issubset(available_ids)
+    return option_ids
 
 
 class DesignProductManagerTests(unittest.TestCase):
@@ -119,6 +132,11 @@ class DesignProductManagerTests(unittest.TestCase):
         self.assertIn("cross-task common question framework", expert.instruction)
         self.assertIn("default coverage framework", expert.instruction)
         self.assertIn("up to 5 task-specific questions", expert.instruction)
+        self.assertIn("design_system_picker", expert.instruction)
+        self.assertIn("design_system_reference", expert.instruction)
+        self.assertIn("exactly 6 recommended design systems", expert.instruction)
+        self.assertIn("content, mode, workflow, platform", expert.instruction)
+        self.assertIn("visual style, color, design system", expert.instruction)
         self.assertNotIn("Never exceed 7 questions", expert.instruction)
 
         form = validate_question_form_schema(
@@ -148,6 +166,18 @@ class DesignProductManagerTests(unittest.TestCase):
                         "max": 12,
                         "default": 6,
                     },
+                    {
+                        "id": "design_system_reference",
+                        "label": "设计系统参考？",
+                        "type": "single_choice",
+                        "presentation": "design_system_picker",
+                        "resource": "design_systems",
+                        "required": False,
+                        "allowOther": True,
+                        "options": [
+                            {"value": "decide_for_me", "label": "为我决定"},
+                        ],
+                    },
                 ],
             }
         )
@@ -162,11 +192,17 @@ class DesignProductManagerTests(unittest.TestCase):
             '{"tone":["minimal"]}\n'
             "[/cc-form-answers]"
         )
+        question_by_id = {question["id"]: question for question in form["questions"]}
 
         self.assertEqual(form["version"], DESIGN_BRIEF_FORM_SCHEMA_VERSION)
-        self.assertTrue(form["questions"][0]["allowOther"])
-        self.assertEqual(form["questions"][1]["type"], "range")
-        self.assertEqual(form["questions"][1]["default"], 6)
+        self.assertTrue(question_by_id["tone"]["allowOther"])
+        self.assertEqual(question_by_id["screen_count"]["type"], "range")
+        self.assertEqual(question_by_id["screen_count"]["default"], 6)
+        self.assertEqual(question_by_id["design_system_reference"]["presentation"], "design_system_picker")
+        self.assertEqual(question_by_id["design_system_reference"]["resource"], "design_systems")
+        self.assertEqual(len(question_by_id["design_system_reference"]["options"]), 7)
+        self.assertEqual(question_by_id["design_system_reference"]["options"][0]["value"], "decide_for_me")
+        self.assertEqual(len(_design_system_option_ids(question_by_id["design_system_reference"])), 6)
         self.assertIn("<cc-question-form>", block)
         self.assertIn("<cc-question-form>", fenced_block)
         self.assertEqual(answers["id"], "design-brief")
@@ -195,7 +231,142 @@ class DesignProductManagerTests(unittest.TestCase):
             }
         )
 
-        self.assertEqual(len(form["questions"]), 9)
+        self.assertEqual(len(form["questions"]), 10)
+        self.assertEqual(form["questions"][-1]["id"], "design_system_reference")
+        self.assertEqual(form["questions"][-1]["presentation"], "design_system_picker")
+        self.assertEqual(form["questions"][-1]["resource"], "design_systems")
+        self.assertEqual(len(_design_system_option_ids(form["questions"][-1])), 6)
+
+    def test_design_brief_question_form_orders_content_before_style_questions(self) -> None:
+        form = validate_question_form_schema(
+            {
+                "id": "ordered-design-brief",
+                "title": "确认设计需求",
+                "questions": [
+                    {
+                        "id": "visual_style",
+                        "label": "视觉风格偏好？",
+                        "type": "single_choice",
+                        "required": False,
+                        "options": [
+                            {"value": "decide_for_me", "label": "为我决定"},
+                            {"value": "minimal", "label": "现代极简"},
+                        ],
+                    },
+                    {
+                        "id": "color_direction",
+                        "label": "色彩方向？",
+                        "type": "single_choice",
+                        "required": False,
+                        "options": [
+                            {"value": "decide_for_me", "label": "为我决定"},
+                            {"value": "warm", "label": "暖色"},
+                        ],
+                    },
+                    {
+                        "id": "scope_modules",
+                        "label": "希望包含哪些核心页面？",
+                        "type": "multi_choice",
+                        "required": False,
+                        "options": [
+                            {"value": "decide_for_me", "label": "为我决定"},
+                            {"value": "home", "label": "首页"},
+                        ],
+                    },
+                    {
+                        "id": "brand_notes",
+                        "label": "品牌名、参考 App 或其他要求",
+                        "type": "long_text",
+                        "required": False,
+                    },
+                    {
+                        "id": "primary_workflow",
+                        "label": "主要使用场景？",
+                        "type": "single_choice",
+                        "required": False,
+                        "options": [
+                            {"value": "decide_for_me", "label": "为我决定"},
+                            {"value": "browse_order", "label": "浏览并下单"},
+                        ],
+                    },
+                    {
+                        "id": "design_system_reference",
+                        "label": "设计系统参考？",
+                        "type": "single_choice",
+                        "presentation": "design_system_picker",
+                        "resource": "design_systems",
+                        "required": False,
+                        "allowOther": True,
+                        "options": [
+                            {"value": "decide_for_me", "label": "为我决定"},
+                            {"value": "claude", "label": "Claude", "description": "适合克制温和的产品界面。"},
+                        ],
+                    },
+                ],
+            }
+        )
+
+        question_ids = [question["id"] for question in form["questions"]]
+
+        self.assertEqual(question_ids[:2], ["scope_modules", "primary_workflow"])
+        self.assertEqual(question_ids[-1], "brand_notes")
+        self.assertLess(question_ids.index("primary_workflow"), question_ids.index("visual_style"))
+        self.assertLess(question_ids.index("color_direction"), question_ids.index("design_system_reference"))
+        self.assertLess(question_ids.index("design_system_reference"), question_ids.index("brand_notes"))
+
+    def test_design_brief_question_form_normalizes_design_system_question(self) -> None:
+        form = validate_question_form_schema(
+            {
+                "id": "design-brief",
+                "title": "确认设计需求",
+                "questions": [
+                    {
+                        "id": "visual_style",
+                        "label": "视觉风格？",
+                        "type": "single_choice",
+                        "required": False,
+                        "options": [
+                            {"value": "decide_for_me", "label": "为我决定"},
+                            {"value": "minimal", "label": "极简"},
+                        ],
+                    },
+                    {
+                        "id": "style_library",
+                        "label": "设计系统参考？",
+                        "type": "single_choice",
+                        "presentation": "design_system_picker",
+                        "required": True,
+                        "options": [
+                            {"value": "claude", "label": "Claude", "description": "适合温和、克制的产品体验。"},
+                            {"value": "not-real", "label": "Invalid"},
+                        ],
+                    },
+                ],
+            }
+        )
+
+        design_system_question = form["questions"][1]
+        self.assertEqual(design_system_question["id"], "design_system_reference")
+        self.assertEqual(design_system_question["type"], "single_choice")
+        self.assertEqual(design_system_question["presentation"], "design_system_picker")
+        self.assertEqual(design_system_question["resource"], "design_systems")
+        self.assertFalse(design_system_question["required"])
+        self.assertTrue(design_system_question["allowOther"])
+        self.assertIn(
+            {"value": "decide_for_me", "label": "为我决定"},
+            design_system_question["options"],
+        )
+        option_ids = _design_system_option_ids(design_system_question)
+        self.assertEqual(len(option_ids), 6)
+        self.assertEqual(option_ids[0], "claude")
+        self.assertNotIn("not-real", option_ids)
+        self.assertTrue(
+            all(
+                option.get("description")
+                for option in design_system_question["options"]
+                if option["value"] != "decide_for_me"
+            )
+        )
 
     def test_private_design_expert_tools_list_allowlist_and_reject_other_experts(self) -> None:
         manager = DesignProductManager()

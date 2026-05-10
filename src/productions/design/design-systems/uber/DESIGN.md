@@ -1,7 +1,10 @@
 ---
 version: alpha
 name: "Uber"
-description: "Uber's design language is a masterclass in confident minimalism -- a black-and-white universe where every pixel serves a purpose and nothing decorates without earning its place. The entire experience is built on a stark duality: jet black (#000000) and pure white (#ffffff), with virtually no mid-tone grays diluting the message. This isn't the sterile minimalism of a startup that hasn't finished designing -- it's the deliberate restraint of a brand so established it can afford to whisper."
+description: >-
+  Uber's design language is a black-and-white system built on true black,
+  pure white, UberMove typography, 999px pill controls, compact 8px-grid
+  spacing, and whisper-soft card shadows.
 
 colors:
   primary: "#000000"
@@ -9,98 +12,191 @@ colors:
   canvas: "#ffffff"
   surface: "#ffffff"
   ink: "#000000"
-  body: "#4d4d4d"
-  muted: "#666666"
-  hairline: "#ebebeb"
-  accent: "#ffffff"
+  body: "#4b4b4b"
+  muted: "#afafaf"
+  hairline: "#000000"
+  accent: "#efefef"
+  uber-black: "#000000"
+  pure-white: "#ffffff"
+  hover-gray: "#e2e2e2"
+  hover-light: "#f3f3f3"
+  chip-gray: "#efefef"
+  body-gray: "#4b4b4b"
+  muted-gray: "#afafaf"
+  border-black: "#000000"
+  link-blue: "#0000ee"
+  link-white: "#ffffff"
+  link-black: "#000000"
+  shadow-light: "rgba(0, 0, 0, 0.12)"
+  shadow-medium: "rgba(0, 0, 0, 0.16)"
+  button-press: "rgba(0, 0, 0, 0.08)"
 
 typography:
   display-hero:
-    fontFamily: "Inter, system-ui, -apple-system, BlinkMacSystemFont, sans-serif"
-    fontSize: 48px
+    fontFamily: "UberMove, UberMoveText, system-ui, Helvetica Neue, Helvetica, Arial, sans-serif"
+    fontSize: 52px
     fontWeight: 700
-    lineHeight: 1.15
-    letterSpacing: -1px
+    lineHeight: 1.23
+    letterSpacing: 0px
   heading-lg:
-    fontFamily: "Inter, system-ui, -apple-system, BlinkMacSystemFont, sans-serif"
+    fontFamily: "UberMove, UberMoveText, system-ui, Helvetica Neue, Helvetica, Arial, sans-serif"
+    fontSize: 36px
+    fontWeight: 700
+    lineHeight: 1.22
+    letterSpacing: 0px
+  card-title:
+    fontFamily: "UberMove, UberMoveText, system-ui, Helvetica Neue, Helvetica, Arial, sans-serif"
     fontSize: 32px
     fontWeight: 700
     lineHeight: 1.25
-    letterSpacing: -0.5px
+    letterSpacing: 0px
+  heading-md:
+    fontFamily: "UberMove, UberMoveText, system-ui, Helvetica Neue, Helvetica, Arial, sans-serif"
+    fontSize: 24px
+    fontWeight: 700
+    lineHeight: 1.33
+    letterSpacing: 0px
+  heading-sm:
+    fontFamily: "UberMove, UberMoveText, system-ui, Helvetica Neue, Helvetica, Arial, sans-serif"
+    fontSize: 20px
+    fontWeight: 700
+    lineHeight: 1.4
+    letterSpacing: 0px
+  nav-lg:
+    fontFamily: "UberMoveText, system-ui, Helvetica Neue, Helvetica, Arial, sans-serif"
+    fontSize: 18px
+    fontWeight: 500
+    lineHeight: 1.33
+    letterSpacing: 0px
   body-md:
-    fontFamily: "Inter, system-ui, -apple-system, BlinkMacSystemFont, sans-serif"
+    fontFamily: "UberMoveText, system-ui, Helvetica Neue, Helvetica, Arial, sans-serif"
     fontSize: 16px
     fontWeight: 400
     lineHeight: 1.5
     letterSpacing: 0px
   button:
-    fontFamily: "Inter, system-ui, -apple-system, BlinkMacSystemFont, sans-serif"
-    fontSize: 14px
-    fontWeight: 600
-    lineHeight: 1.2
+    fontFamily: "UberMoveText, system-ui, Helvetica Neue, Helvetica, Arial, sans-serif"
+    fontSize: 16px
+    fontWeight: 500
+    lineHeight: 1.25
     letterSpacing: 0px
   caption:
-    fontFamily: "Inter, system-ui, -apple-system, BlinkMacSystemFont, sans-serif"
-    fontSize: 12px
+    fontFamily: "UberMoveText, system-ui, Helvetica Neue, Helvetica, Arial, sans-serif"
+    fontSize: 14px
     fontWeight: 500
-    lineHeight: 1.33
+    lineHeight: 1.43
+    letterSpacing: 0px
+  micro:
+    fontFamily: "UberMoveText, system-ui, Helvetica Neue, Helvetica, Arial, sans-serif"
+    fontSize: 12px
+    fontWeight: 400
+    lineHeight: 1.67
     letterSpacing: 0px
 
 rounded:
-  sm: 4px
-  md: 8px
-  lg: 12px
-  pill: 9999px
+  sharp: 0px
+  standard: 8px
+  comfortable: 12px
+  pill: 999px
+  circle: 9999px
 
 spacing:
   xs: 4px
+  tight: 6px
   sm: 8px
+  button-y: 10px
+  button-x: 12px
+  chip-y: 14px
   md: 16px
-  lg: 24px
-  xl: 32px
-  section: 80px
+  nav: 18px
+  lg: 20px
+  xl: 24px
+  xxl: 32px
+  section-sm: 64px
+  section: 96px
 
 components:
   button-primary:
-    backgroundColor: "{colors.primary}"
+    backgroundColor: "{colors.uber-black}"
     textColor: "{colors.on-primary}"
     typography: "{typography.button}"
-    rounded: "{rounded.md}"
-    padding: 16px
+    rounded: "{rounded.pill}"
+    padding: 10px 12px
   button-secondary:
-    backgroundColor: "{colors.canvas}"
-    textColor: "{colors.ink}"
+    backgroundColor: "{colors.pure-white}"
+    textColor: "{colors.uber-black}"
     typography: "{typography.button}"
-    rounded: "{rounded.md}"
-    padding: 16px
+    rounded: "{rounded.pill}"
+    padding: 10px 12px
+  chip:
+    backgroundColor: "{colors.chip-gray}"
+    textColor: "{colors.uber-black}"
+    typography: "{typography.caption}"
+    rounded: "{rounded.pill}"
+    padding: 14px 16px
+  chip-active:
+    backgroundColor: "{colors.uber-black}"
+    textColor: "{colors.pure-white}"
+    typography: "{typography.caption}"
+    rounded: "{rounded.pill}"
+    padding: 14px 16px
+  floating-action:
+    backgroundColor: "{colors.pure-white}"
+    textColor: "{colors.uber-black}"
+    typography: "{typography.button}"
+    rounded: "{rounded.pill}"
+    padding: 14px
   card:
     backgroundColor: "{colors.surface}"
     textColor: "{colors.ink}"
     typography: "{typography.body-md}"
-    rounded: "{rounded.lg}"
+    rounded: "{rounded.standard}"
     padding: 24px
+  feature-card:
+    backgroundColor: "{colors.pure-white}"
+    textColor: "{colors.uber-black}"
+    typography: "{typography.heading-md}"
+    rounded: "{rounded.comfortable}"
+    padding: 32px
+  input:
+    backgroundColor: "{colors.pure-white}"
+    textColor: "{colors.uber-black}"
+    typography: "{typography.body-md}"
+    rounded: "{rounded.standard}"
+    padding: 10px 12px
+  nav-link:
+    backgroundColor: transparent
+    textColor: "{colors.uber-black}"
+    typography: "{typography.caption}"
+  category-nav:
+    backgroundColor: "{colors.chip-gray}"
+    textColor: "{colors.uber-black}"
+    typography: "{typography.caption}"
+    rounded: "{rounded.pill}"
+    padding: 14px 16px
+  footer:
+    backgroundColor: "{colors.uber-black}"
+    textColor: "{colors.pure-white}"
+    typography: "{typography.heading-sm}"
+    padding: 32px
+  footer-link:
+    backgroundColor: "{colors.uber-black}"
+    textColor: "{colors.muted-gray}"
+    typography: "{typography.caption}"
   text-body:
     backgroundColor: "{colors.canvas}"
-    textColor: "{colors.body}"
+    textColor: "{colors.body-gray}"
     typography: "{typography.body-md}"
-    rounded: "{rounded.sm}"
-    padding: 8px
   muted-label:
     backgroundColor: "{colors.canvas}"
-    textColor: "{colors.muted}"
+    textColor: "{colors.muted-gray}"
     typography: "{typography.caption}"
-    rounded: "{rounded.sm}"
-    padding: 4px
   link:
-    backgroundColor: "{colors.canvas}"
-    textColor: "{colors.accent}"
-    typography: "{typography.button}"
-    rounded: "{rounded.sm}"
-    padding: 4px
+    backgroundColor: transparent
+    textColor: "{colors.link-blue}"
+    typography: "{typography.body-md}"
   divider:
     backgroundColor: "{colors.hairline}"
-    textColor: "{colors.ink}"
-    rounded: "{rounded.sm}"
     height: 1px
 ---
 

@@ -4,103 +4,261 @@ name: "Mastercard"
 description: "Mastercard's experience reads like a warm, editorial magazine built from soft stone and signal orange. The canvas is a muted putty-cream (#F3F0EE) — not white, not gray, but a color that feels like the paper of a premium annual report. On top of that canvas, everything that matters is shaped like a stadium, a pill, or a perfect circle. The dominant visual gesture is the **oversized radius**: heroes carry 40-point corners, cards go fully pill-shaped, service images are cropped into circular orbits, and buttons either complete the pill or fit snugly at 20 points. There are almost no sharp corners anywhere on the page."
 
 colors:
-  primary: "#f3f0ee"
-  on-primary: "#000000"
-  canvas: "#ffffff"
-  surface: "#ffffff"
-  ink: "#000000"
-  body: "#4d4d4d"
-  muted: "#666666"
-  hairline: "#ebebeb"
-  accent: "#141413"
+  primary: "#141413"
+  on-primary: "#f3f0ee"
+  canvas: "#f3f0ee"
+  surface: "#fcfbfa"
+  white: "#ffffff"
+  soft-bone: "#f4f4f4"
+  ink: "#141413"
+  charcoal: "#262627"
+  muted: "#696969"
+  granite: "#555555"
+  graphite: "#565656"
+  dust-taupe: "#d1cdc7"
+  brand-red: "#eb001b"
+  brand-yellow: "#f79e1b"
+  signal-orange: "#cf4500"
+  signal-orange-light: "#f37338"
+  clay-brown: "#9a3a0a"
+  link-blue: "#3860be"
+  video-black: "#000000"
+  video-charcoal: "#2b2b2b"
+  watermark: "#e8e2da"
+  footer-divider: "rgba(255,255,255,0.3)"
+  footer-border: "rgba(255,255,255,0.4)"
+  input-border: "rgba(20,20,19,0.5)"
 
 typography:
   display-hero:
-    fontFamily: "Inter, system-ui, -apple-system, BlinkMacSystemFont, sans-serif"
-    fontSize: 48px
-    fontWeight: 700
-    lineHeight: 1.15
-    letterSpacing: -1px
+    fontFamily: "MarkForMC, SofiaSans, Arial, sans-serif"
+    fontSize: 64px
+    fontWeight: 500
+    lineHeight: 1
+    letterSpacing: -1.28px
   heading-lg:
-    fontFamily: "Inter, system-ui, -apple-system, BlinkMacSystemFont, sans-serif"
-    fontSize: 32px
+    fontFamily: "MarkForMC, SofiaSans, Arial, sans-serif"
+    fontSize: 36px
+    fontWeight: 500
+    lineHeight: 1.22
+    letterSpacing: -0.72px
+  card-title:
+    fontFamily: "MarkForMC, SofiaSans, Arial, sans-serif"
+    fontSize: 24px
+    fontWeight: 500
+    lineHeight: 1.2
+    letterSpacing: -0.48px
+  subhead:
+    fontFamily: "MarkForMC, SofiaSans, Arial, sans-serif"
+    fontSize: 14px
     fontWeight: 700
-    lineHeight: 1.25
-    letterSpacing: -0.5px
+    lineHeight: 1.3
+    letterSpacing: 0px
+  eyebrow:
+    fontFamily: "MarkForMC, SofiaSans, Arial, sans-serif"
+    fontSize: 14px
+    fontWeight: 700
+    lineHeight: 1
+    letterSpacing: 0.56px
   body-md:
-    fontFamily: "Inter, system-ui, -apple-system, BlinkMacSystemFont, sans-serif"
+    fontFamily: "MarkForMC, SofiaSans, Arial, sans-serif"
     fontSize: 16px
-    fontWeight: 400
-    lineHeight: 1.5
+    fontWeight: 450
+    lineHeight: 1.4
     letterSpacing: 0px
   button:
-    fontFamily: "Inter, system-ui, -apple-system, BlinkMacSystemFont, sans-serif"
+    fontFamily: "MarkForMC, SofiaSans, Arial, sans-serif"
+    fontSize: 16px
+    fontWeight: 500
+    lineHeight: 1
+    letterSpacing: -0.32px
+  button-secondary:
+    fontFamily: "MarkForMC, SofiaSans, Arial, sans-serif"
+    fontSize: 16px
+    fontWeight: 450
+    lineHeight: 1.3
+    letterSpacing: 0px
+  button-consent:
+    fontFamily: "MarkForMC, SofiaSans, Arial, sans-serif"
+    fontSize: 13px
+    fontWeight: 400
+    lineHeight: 1.3
+    letterSpacing: 0.13px
+  nav-link:
+    fontFamily: "MarkForMC, SofiaSans, Arial, sans-serif"
+    fontSize: 16px
+    fontWeight: 500
+    lineHeight: 1
+    letterSpacing: -0.48px
+  footer-link:
+    fontFamily: "MarkForMC, SofiaSans, Arial, sans-serif"
     fontSize: 14px
-    fontWeight: 600
-    lineHeight: 1.2
+    fontWeight: 450
+    lineHeight: 1.43
+    letterSpacing: 0px
+  footer-header:
+    fontFamily: "MarkForMC, SofiaSans, Arial, sans-serif"
+    fontSize: 14px
+    fontWeight: 700
+    lineHeight: 1
+    letterSpacing: 0.56px
+  icon-lg:
+    fontFamily: "MarkForMC, SofiaSans, Arial, sans-serif"
+    fontSize: 20px
+    fontWeight: 500
+    lineHeight: 1
     letterSpacing: 0px
   caption:
-    fontFamily: "Inter, system-ui, -apple-system, BlinkMacSystemFont, sans-serif"
+    fontFamily: "MarkForMC, SofiaSans, Arial, sans-serif"
     fontSize: 12px
-    fontWeight: 500
-    lineHeight: 1.33
-    letterSpacing: 0px
+    fontWeight: 700
+    lineHeight: 1
+    letterSpacing: 0.56px
 
 rounded:
-  sm: 4px
-  md: 8px
-  lg: 12px
-  pill: 9999px
+  xxs: 3px
+  xs: 6px
+  button: 20px
+  consent: 24px
+  stadium: 40px
+  nav-pill: 999px
+  pill: 1000px
+  circle: 999px
 
 spacing:
-  xs: 4px
-  sm: 8px
-  md: 16px
-  lg: 24px
-  xl: 32px
-  section: 80px
+  xs: 8px
+  sm: 16px
+  md: 24px
+  lg: 32px
+  card-lg: 40px
+  xl: 48px
+  xxl: 64px
+  section: 96px
+  section-lg: 128px
+  nav-gap: 48px
+  nav-gap-lg: 56px
+  gutter: 100px
+  footer-bottom: 148px
 
 components:
   button-primary:
     backgroundColor: "{colors.primary}"
     textColor: "{colors.on-primary}"
     typography: "{typography.button}"
-    rounded: "{rounded.md}"
-    padding: 16px
+    rounded: "{rounded.button}"
+    padding: 6px 24px
   button-secondary:
-    backgroundColor: "{colors.canvas}"
-    textColor: "{colors.ink}"
-    typography: "{typography.button}"
-    rounded: "{rounded.md}"
-    padding: 16px
+    backgroundColor: "{colors.white}"
+    textColor: "{colors.primary}"
+    typography: "{typography.button-secondary}"
+    rounded: "{rounded.button}"
+    padding: 6px 24px
+  button-consent:
+    backgroundColor: "{colors.signal-orange}"
+    textColor: "{colors.white}"
+    typography: "{typography.button-consent}"
+    rounded: "{rounded.consent}"
+    padding: 1px 30px
+  button-satellite:
+    backgroundColor: "{colors.white}"
+    textColor: "{colors.primary}"
+    typography: "{typography.icon-lg}"
+    rounded: "{rounded.circle}"
+    width: 56px
+    height: 56px
+  button-icon-circle:
+    backgroundColor: transparent
+    textColor: "{colors.primary}"
+    typography: "{typography.icon-lg}"
+    rounded: "{rounded.circle}"
+    width: 40px
+    height: 40px
+  hero-video-play:
+    backgroundColor: "{colors.white}"
+    textColor: "{colors.primary}"
+    typography: "{typography.icon-lg}"
+    rounded: "{rounded.circle}"
+    width: 80px
+    height: 80px
+  nav-pill:
+    backgroundColor: "{colors.white}"
+    textColor: "{colors.primary}"
+    typography: "{typography.nav-link}"
+    rounded: "{rounded.nav-pill}"
+    padding: 16px 40px
+  hero-media-frame:
+    backgroundColor: "{colors.video-black}"
+    textColor: "{colors.white}"
+    rounded: "{rounded.stadium}"
+  service-portrait-card:
+    textColor: "{colors.primary}"
+    typography: "{typography.card-title}"
+    rounded: "{rounded.circle}"
+    width: 300px
+    height: 300px
+  pill-carousel-card:
+    backgroundColor: "{colors.surface}"
+    textColor: "{colors.primary}"
+    typography: "{typography.card-title}"
+    rounded: "{rounded.pill}"
+  chip:
+    backgroundColor: "{colors.white}"
+    textColor: "{colors.primary}"
+    typography: "{typography.footer-link}"
+    rounded: "{rounded.nav-pill}"
+    padding: 8px 20px
+  search-input:
+    backgroundColor: "{colors.white}"
+    textColor: "{colors.primary}"
+    typography: "{typography.body-md}"
+    rounded: "{rounded.nav-pill}"
+    padding: 12px 24px
+  country-selector:
+    backgroundColor: "{colors.primary}"
+    textColor: "{colors.white}"
+    typography: "{typography.footer-link}"
+    rounded: "{rounded.nav-pill}"
+    padding: 12px 24px
+  footer:
+    backgroundColor: "{colors.primary}"
+    textColor: "{colors.white}"
+    typography: "{typography.footer-link}"
+    padding: 48px 100px 148px
+  footer-header:
+    backgroundColor: "{colors.primary}"
+    textColor: "{colors.muted}"
+    typography: "{typography.footer-header}"
+  eyebrow:
+    backgroundColor: transparent
+    textColor: "{colors.primary}"
+    typography: "{typography.eyebrow}"
+  orbit-line:
+    backgroundColor: "{colors.signal-orange-light}"
+    textColor: "{colors.primary}"
+    rounded: "{rounded.xxs}"
+    height: 1px
   card:
     backgroundColor: "{colors.surface}"
-    textColor: "{colors.ink}"
+    textColor: "{colors.primary}"
     typography: "{typography.body-md}"
-    rounded: "{rounded.lg}"
-    padding: 24px
+    rounded: "{rounded.stadium}"
+    padding: 32px 40px
   text-body:
     backgroundColor: "{colors.canvas}"
-    textColor: "{colors.body}"
+    textColor: "{colors.primary}"
     typography: "{typography.body-md}"
-    rounded: "{rounded.sm}"
-    padding: 8px
   muted-label:
     backgroundColor: "{colors.canvas}"
     textColor: "{colors.muted}"
     typography: "{typography.caption}"
-    rounded: "{rounded.sm}"
-    padding: 4px
   link:
-    backgroundColor: "{colors.canvas}"
-    textColor: "{colors.accent}"
-    typography: "{typography.button}"
-    rounded: "{rounded.sm}"
-    padding: 4px
+    backgroundColor: transparent
+    textColor: "{colors.link-blue}"
+    typography: "{typography.body-md}"
   divider:
-    backgroundColor: "{colors.hairline}"
-    textColor: "{colors.ink}"
-    rounded: "{rounded.sm}"
+    backgroundColor: "{colors.footer-divider}"
+    textColor: "{colors.white}"
+    rounded: "{rounded.xxs}"
     height: 1px
 ---
 

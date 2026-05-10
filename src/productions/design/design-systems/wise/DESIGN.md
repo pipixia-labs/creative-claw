@@ -1,106 +1,208 @@
 ---
 version: alpha
 name: "Wise"
-description: "Wise's website is a bold, confident fintech platform that communicates \"money without borders\" through massive typography and a distinctive lime-green accent. The design operates on a warm off-white canvas with near-black text (#0e0f0c) and a signature Wise Green (#9fe870) — a fresh, lime-bright color that feels alive and optimistic, unlike the corporate blues of traditional banking."
+description: >-
+  Wise's website pairs massive Wise Sans Black display typography with near-black
+  text, Wise Green pill CTAs, dark-green button text, Inter body copy, and large
+  rounded fintech cards.
 
 colors:
-  primary: "#0e0f0c"
-  on-primary: "#ffffff"
+  primary: "#9fe870"
+  on-primary: "#163300"
   canvas: "#ffffff"
   surface: "#ffffff"
-  ink: "#171717"
-  body: "#4d4d4d"
-  muted: "#666666"
-  hairline: "#ebebeb"
+  ink: "#0e0f0c"
+  body: "#0e0f0c"
+  muted: "#868685"
+  hairline: "rgba(14, 15, 12, 0.12)"
   accent: "#9fe870"
+  near-black: "#0e0f0c"
+  wise-green: "#9fe870"
+  dark-green: "#163300"
+  light-mint: "#e2f6d5"
+  pastel-green: "#cdffad"
+  positive-green: "#054d28"
+  danger-red: "#d03238"
+  warning-yellow: "#ffd11a"
+  background-cyan: "rgba(56, 200, 255, 0.10)"
+  bright-orange: "#ffc091"
+  warm-dark: "#454745"
+  gray: "#868685"
+  light-surface: "#e8ebe6"
+  dark-green-8: "rgba(22, 51, 0, 0.08)"
+  ring-shadow: "rgba(14, 15, 12, 0.12)"
 
 typography:
   display-hero:
-    fontFamily: "Inter, system-ui, -apple-system, BlinkMacSystemFont, sans-serif"
-    fontSize: 48px
-    fontWeight: 700
-    lineHeight: 1.15
-    letterSpacing: -1px
-  heading-lg:
-    fontFamily: "Inter, system-ui, -apple-system, BlinkMacSystemFont, sans-serif"
-    fontSize: 32px
-    fontWeight: 700
-    lineHeight: 1.25
-    letterSpacing: -0.5px
-  body-md:
-    fontFamily: "Inter, system-ui, -apple-system, BlinkMacSystemFont, sans-serif"
-    fontSize: 16px
-    fontWeight: 400
-    lineHeight: 1.5
+    fontFamily: "Wise Sans, Inter, sans-serif"
+    fontSize: 126px
+    fontWeight: 900
+    lineHeight: 0.85
     letterSpacing: 0px
+    fontFeature: "\"calt\""
+  display-lg:
+    fontFamily: "Wise Sans, Inter, sans-serif"
+    fontSize: 96px
+    fontWeight: 900
+    lineHeight: 0.85
+    letterSpacing: 0px
+    fontFeature: "\"calt\""
+  heading-lg:
+    fontFamily: "Wise Sans, Inter, sans-serif"
+    fontSize: 64px
+    fontWeight: 900
+    lineHeight: 0.85
+    letterSpacing: 0px
+    fontFeature: "\"calt\""
+  heading-md:
+    fontFamily: "Wise Sans, Inter, sans-serif"
+    fontSize: 40px
+    fontWeight: 900
+    lineHeight: 0.85
+    letterSpacing: 0px
+    fontFeature: "\"calt\""
+  alt-heading:
+    fontFamily: "Inter, Helvetica, Arial, sans-serif"
+    fontSize: 78px
+    fontWeight: 600
+    lineHeight: 1.1
+    letterSpacing: -2.34px
+    fontFeature: "\"calt\""
+  card-title:
+    fontFamily: "Inter, Helvetica, Arial, sans-serif"
+    fontSize: 26px
+    fontWeight: 600
+    lineHeight: 1.23
+    letterSpacing: -0.39px
+    fontFeature: "\"calt\""
+  feature-title:
+    fontFamily: "Inter, Helvetica, Arial, sans-serif"
+    fontSize: 22px
+    fontWeight: 600
+    lineHeight: 1.25
+    letterSpacing: -0.396px
+    fontFeature: "\"calt\""
+  body-md:
+    fontFamily: "Inter, Helvetica, Arial, sans-serif"
+    fontSize: 18px
+    fontWeight: 400
+    lineHeight: 1.44
+    letterSpacing: 0.18px
+    fontFeature: "\"calt\""
+  body-semibold:
+    fontFamily: "Inter, Helvetica, Arial, sans-serif"
+    fontSize: 18px
+    fontWeight: 600
+    lineHeight: 1.44
+    letterSpacing: -0.108px
+    fontFeature: "\"calt\""
   button:
-    fontFamily: "Inter, system-ui, -apple-system, BlinkMacSystemFont, sans-serif"
+    fontFamily: "Inter, Helvetica, Arial, sans-serif"
+    fontSize: 18px
+    fontWeight: 600
+    lineHeight: 1.44
+    letterSpacing: -0.108px
+    fontFeature: "\"calt\""
+  caption:
+    fontFamily: "Inter, Helvetica, Arial, sans-serif"
     fontSize: 14px
     fontWeight: 600
-    lineHeight: 1.2
-    letterSpacing: 0px
-  caption:
-    fontFamily: "Inter, system-ui, -apple-system, BlinkMacSystemFont, sans-serif"
+    lineHeight: 1.5
+    letterSpacing: -0.108px
+    fontFeature: "\"calt\""
+  small:
+    fontFamily: "Inter, Helvetica, Arial, sans-serif"
     fontSize: 12px
-    fontWeight: 500
-    lineHeight: 1.33
-    letterSpacing: 0px
+    fontWeight: 600
+    lineHeight: 1
+    letterSpacing: -0.108px
+    fontFeature: "\"calt\""
 
 rounded:
-  sm: 4px
-  md: 8px
-  lg: 12px
+  minimal: 2px
+  input: 10px
+  card: 16px
+  medium: 20px
+  large: 30px
+  section: 40px
+  mega: 1000px
   pill: 9999px
+  circle: 9999px
 
 spacing:
+  hairline: 1px
+  xxs: 2px
+  xxxs: 3px
   xs: 4px
+  button-y: 5px
   sm: 8px
-  md: 16px
-  lg: 24px
-  xl: 32px
-  section: 80px
+  input: 10px
+  compact: 11px
+  md: 12px
+  lg: 16px
+  xlg: 18px
+  gap: 19px
+  xl: 20px
+  button-lg: 22px
+  xxl: 24px
 
 components:
   button-primary:
-    backgroundColor: "{colors.primary}"
+    backgroundColor: "{colors.wise-green}"
     textColor: "{colors.on-primary}"
     typography: "{typography.button}"
-    rounded: "{rounded.md}"
-    padding: 16px
+    rounded: "{rounded.pill}"
+    padding: 5px 16px
   button-secondary:
-    backgroundColor: "{colors.canvas}"
-    textColor: "{colors.ink}"
+    backgroundColor: "{colors.dark-green-8}"
+    textColor: "{colors.near-black}"
     typography: "{typography.button}"
-    rounded: "{rounded.md}"
-    padding: 16px
+    rounded: "{rounded.pill}"
+    padding: 8px 12px 8px 16px
   card:
     backgroundColor: "{colors.surface}"
-    textColor: "{colors.ink}"
+    textColor: "{colors.near-black}"
     typography: "{typography.body-md}"
-    rounded: "{rounded.lg}"
+    rounded: "{rounded.large}"
     padding: 24px
+  card-small:
+    backgroundColor: "{colors.surface}"
+    textColor: "{colors.near-black}"
+    typography: "{typography.body-md}"
+    rounded: "{rounded.card}"
+    padding: 16px
+  table-card:
+    backgroundColor: "{colors.surface}"
+    textColor: "{colors.near-black}"
+    typography: "{typography.body-md}"
+    rounded: "{rounded.section}"
+    padding: 24px
+  badge:
+    backgroundColor: "{colors.light-mint}"
+    textColor: "{colors.dark-green}"
+    typography: "{typography.caption}"
+    rounded: "{rounded.pill}"
+    padding: 5px 16px
+  nav-hover:
+    backgroundColor: "rgba(211, 242, 192, 0.4)"
+    textColor: "{colors.near-black}"
+    typography: "{typography.button}"
+    rounded: "{rounded.pill}"
+    padding: 8px 12px
   text-body:
     backgroundColor: "{colors.canvas}"
-    textColor: "{colors.body}"
+    textColor: "{colors.near-black}"
     typography: "{typography.body-md}"
-    rounded: "{rounded.sm}"
-    padding: 8px
   muted-label:
     backgroundColor: "{colors.canvas}"
-    textColor: "{colors.muted}"
+    textColor: "{colors.gray}"
     typography: "{typography.caption}"
-    rounded: "{rounded.sm}"
-    padding: 4px
   link:
-    backgroundColor: "{colors.canvas}"
-    textColor: "{colors.accent}"
+    backgroundColor: transparent
+    textColor: "{colors.dark-green}"
     typography: "{typography.button}"
-    rounded: "{rounded.sm}"
-    padding: 4px
   divider:
     backgroundColor: "{colors.hairline}"
-    textColor: "{colors.ink}"
-    rounded: "{rounded.sm}"
     height: 1px
 ---
 

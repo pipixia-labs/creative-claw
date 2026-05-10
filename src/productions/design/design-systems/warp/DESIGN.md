@@ -1,106 +1,233 @@
 ---
 version: alpha
 name: "Warp"
-description: "Warp's website feels like sitting at a campfire in a deep forest — warm, dark, and alive with quiet confidence. Unlike the cold, blue-tinted blacks favored by most developer tools, Warp wraps everything in a warm near-black that feels like charred wood or dark earth. The text isn't pure white either — it's Warm Parchment (#faf9f6), a barely-perceptible cream that softens every headline and makes the dark canvas feel inviting rather than austere."
+description: >-
+  Warp's website is a warm, dark, Matter-driven developer-tool system with Warm
+  Parchment text, muted earth-gray pill buttons, nature photography, terminal
+  screenshots, and a deliberately monochromatic palette.
 
 colors:
   primary: "#faf9f6"
   on-primary: "#000000"
-  canvas: "#ffffff"
-  surface: "#ffffff"
-  ink: "#171717"
-  body: "#4d4d4d"
-  muted: "#666666"
-  hairline: "#ebebeb"
+  canvas: "#0e0e0d"
+  surface: "rgba(255, 255, 255, 0.04)"
+  ink: "#faf9f6"
+  body: "#afaeac"
+  muted: "#868584"
+  hairline: "rgba(226, 226, 226, 0.35)"
   accent: "#353534"
+  warm-parchment: "#faf9f6"
+  earth-gray: "#353534"
+  deep-void: "#0e0e0d"
+  stone-gray: "#868584"
+  ash-gray: "#afaeac"
+  purple-tint-gray: "#666469"
+  frosted-veil: "rgba(255, 255, 255, 0.04)"
+  mist-border: "rgba(226, 226, 226, 0.35)"
+  mist-border-alt: "rgba(227, 227, 227, 0.337)"
+  translucent-parchment: "rgba(250, 249, 246, 0.9)"
+  dark-charcoal: "#454545"
+  black: "rgb(0, 0, 0)"
+  frosted-tag-bg: "rgba(255, 255, 255, 0.16)"
+  ambient-shadow: "rgba(0, 0, 0, 0.2)"
 
 typography:
   display-hero:
-    fontFamily: "Inter, system-ui, -apple-system, BlinkMacSystemFont, sans-serif"
-    fontSize: 48px
-    fontWeight: 700
-    lineHeight: 1.15
-    letterSpacing: -1px
+    fontFamily: "Matter Regular, Matter Regular Placeholder, system-ui, sans-serif"
+    fontSize: 80px
+    fontWeight: 400
+    lineHeight: 1
+    letterSpacing: -2.4px
   heading-lg:
-    fontFamily: "Inter, system-ui, -apple-system, BlinkMacSystemFont, sans-serif"
+    fontFamily: "Matter Regular, Matter Regular Placeholder, system-ui, sans-serif"
+    fontSize: 56px
+    fontWeight: 400
+    lineHeight: 1.2
+    letterSpacing: -0.56px
+  heading-md:
+    fontFamily: "Matter Regular, Matter Regular Placeholder, system-ui, sans-serif"
+    fontSize: 48px
+    fontWeight: 400
+    lineHeight: 1.2
+    letterSpacing: -0.96px
+  feature-heading:
+    fontFamily: "Matter Regular, Matter Regular Placeholder, system-ui, sans-serif"
+    fontSize: 40px
+    fontWeight: 400
+    lineHeight: 1.1
+    letterSpacing: -0.4px
+  subheading-lg:
+    fontFamily: "Matter Regular, Matter Regular Placeholder, system-ui, sans-serif"
+    fontSize: 36px
+    fontWeight: 400
+    lineHeight: 1.15
+    letterSpacing: -0.72px
+  card-display:
+    fontFamily: "Matter SQ Regular, Matter SQ Regular Placeholder, system-ui, sans-serif"
+    fontSize: 42px
+    fontWeight: 400
+    lineHeight: 1
+    letterSpacing: 0px
+  subheading:
+    fontFamily: "Matter Regular, Matter Regular Placeholder, system-ui, sans-serif"
     fontSize: 32px
-    fontWeight: 700
-    lineHeight: 1.25
-    letterSpacing: -0.5px
+    fontWeight: 400
+    lineHeight: 1.19
+    letterSpacing: 0px
+  body-heading:
+    fontFamily: "Matter Regular, Matter Regular Placeholder, system-ui, sans-serif"
+    fontSize: 24px
+    fontWeight: 400
+    lineHeight: 1.2
+    letterSpacing: -0.72px
+  card-title:
+    fontFamily: "Matter Medium, Matter Medium Placeholder, system-ui, sans-serif"
+    fontSize: 22px
+    fontWeight: 500
+    lineHeight: 1.14
+    letterSpacing: 0px
+  body-lg:
+    fontFamily: "Matter Regular, Matter Regular Placeholder, system-ui, sans-serif"
+    fontSize: 20px
+    fontWeight: 400
+    lineHeight: 1.4
+    letterSpacing: -0.2px
   body-md:
-    fontFamily: "Inter, system-ui, -apple-system, BlinkMacSystemFont, sans-serif"
+    fontFamily: "Matter Regular, Matter Regular Placeholder, system-ui, sans-serif"
+    fontSize: 18px
+    fontWeight: 400
+    lineHeight: 1.3
+    letterSpacing: -0.18px
+  nav-ui:
+    fontFamily: "Matter Regular, Matter Regular Placeholder, system-ui, sans-serif"
     fontSize: 16px
     fontWeight: 400
-    lineHeight: 1.5
+    lineHeight: 1.2
     letterSpacing: 0px
   button:
-    fontFamily: "Inter, system-ui, -apple-system, BlinkMacSystemFont, sans-serif"
-    fontSize: 14px
-    fontWeight: 600
+    fontFamily: "Matter Medium, Matter Medium Placeholder, system-ui, sans-serif"
+    fontSize: 16px
+    fontWeight: 500
     lineHeight: 1.2
     letterSpacing: 0px
   caption:
-    fontFamily: "Inter, system-ui, -apple-system, BlinkMacSystemFont, sans-serif"
+    fontFamily: "Matter Regular, Matter Regular Placeholder, system-ui, sans-serif"
+    fontSize: 14px
+    fontWeight: 400
+    lineHeight: 1
+    letterSpacing: 1.4px
+    textTransform: uppercase
+  small-label:
+    fontFamily: "Matter Regular, Matter Regular Placeholder, system-ui, sans-serif"
     fontSize: 12px
-    fontWeight: 500
-    lineHeight: 1.33
+    fontWeight: 400
+    lineHeight: 1.35
+    letterSpacing: 2.4px
+    textTransform: uppercase
+  micro:
+    fontFamily: "Matter Regular, Matter Regular Placeholder, system-ui, sans-serif"
+    fontSize: 11px
+    fontWeight: 400
+    lineHeight: 1.2
     letterSpacing: 0px
+  code-ui:
+    fontFamily: "Geist Mono, ui-monospace, monospace"
+    fontSize: 16px
+    fontWeight: 400
+    lineHeight: 1
+    letterSpacing: 0px
+  code-body:
+    fontFamily: "Matter Mono Regular, Matter Mono Regular Placeholder, ui-monospace, monospace"
+    fontSize: 16px
+    fontWeight: 400
+    lineHeight: 1
+    letterSpacing: -0.2px
+  ui-supplement:
+    fontFamily: "Inter, Inter Placeholder, system-ui, sans-serif"
+    fontSize: 16px
+    fontWeight: 500
+    lineHeight: 1
+    letterSpacing: -0.2px
 
 rounded:
   sm: 4px
+  xsm: 5px
+  compact: 6px
   md: 8px
+  video: 10px
   lg: 12px
-  pill: 9999px
+  xl: 14px
+  section: 40px
+  pill: 50px
+  progress: 200px
 
 spacing:
+  hairline: 1px
   xs: 4px
+  xsm: 5px
   sm: 8px
-  md: 16px
-  lg: 24px
-  xl: 32px
+  md: 10px
+  lg: 12px
+  xlg: 14px
+  nav: 15px
+  xl: 16px
+  label: 18px
+  xxl: 24px
+  image-gap: 26px
+  wide: 30px
+  card: 32px
+  section-tight: 36px
   section: 80px
+  hero: 120px
 
 components:
   button-primary:
-    backgroundColor: "{colors.primary}"
-    textColor: "{colors.on-primary}"
+    backgroundColor: "{colors.earth-gray}"
+    textColor: "{colors.ash-gray}"
     typography: "{typography.button}"
-    rounded: "{rounded.md}"
-    padding: 16px
-  button-secondary:
-    backgroundColor: "{colors.canvas}"
-    textColor: "{colors.ink}"
-    typography: "{typography.button}"
-    rounded: "{rounded.md}"
-    padding: 16px
+    rounded: "{rounded.pill}"
+    padding: 10px
+  frosted-tag:
+    backgroundColor: "{colors.frosted-tag-bg}"
+    textColor: "{colors.black}"
+    typography: "{typography.small-label}"
+    rounded: "{rounded.compact}"
+    padding: 1px 6px
   card:
     backgroundColor: "{colors.surface}"
-    textColor: "{colors.ink}"
+    textColor: "{colors.warm-parchment}"
     typography: "{typography.body-md}"
     rounded: "{rounded.lg}"
     padding: 24px
+  photography-card:
+    backgroundColor: "{colors.frosted-veil}"
+    textColor: "{colors.warm-parchment}"
+    typography: "{typography.body-heading}"
+    rounded: "{rounded.lg}"
+    padding: 24px
+  terminal-card:
+    backgroundColor: "{colors.frosted-veil}"
+    textColor: "{colors.warm-parchment}"
+    typography: "{typography.code-body}"
+    rounded: "{rounded.lg}"
+    padding: 16px
   text-body:
-    backgroundColor: "{colors.canvas}"
-    textColor: "{colors.body}"
+    textColor: "{colors.ash-gray}"
     typography: "{typography.body-md}"
-    rounded: "{rounded.sm}"
-    padding: 8px
   muted-label:
-    backgroundColor: "{colors.canvas}"
-    textColor: "{colors.muted}"
+    textColor: "{colors.stone-gray}"
     typography: "{typography.caption}"
-    rounded: "{rounded.sm}"
-    padding: 4px
+  nav-link:
+    textColor: "{colors.stone-gray}"
+    typography: "{typography.nav-ui}"
+  testimonial:
+    textColor: "{colors.warm-parchment}"
+    typography: "{typography.body-heading}"
   link:
-    backgroundColor: "{colors.canvas}"
-    textColor: "{colors.accent}"
-    typography: "{typography.button}"
-    rounded: "{rounded.sm}"
-    padding: 4px
+    textColor: "{colors.purple-tint-gray}"
+    typography: "{typography.body-md}"
   divider:
     backgroundColor: "{colors.hairline}"
-    textColor: "{colors.ink}"
-    rounded: "{rounded.sm}"
     height: 1px
 ---
 
@@ -128,7 +255,7 @@ The overall design philosophy is restraint through warmth. Minimal color (almost
 ### Primary
 - **Warm Parchment** (`#faf9f6`): Primary text color — a barely-cream off-white that softens every surface
 - **Earth Gray** (`#353534`): Button backgrounds, dark interactive surfaces — warm, not cold
-- **Deep Void** (near-black, page background): The warm dark canvas derived from the body background
+- **Deep Void** (`#0e0e0d`): The warm near-black page background derived from the body canvas
 
 ### Secondary & Accent
 - **Stone Gray** (`#868584`): Secondary text, muted descriptions — warm mid-gray
@@ -341,7 +468,7 @@ Warp's elevation system is remarkably flat — almost zero shadow usage on the m
 - Tertiary Text: Stone Gray (`#868584`)
 - Button Background: Earth Gray (`#353534`)
 - Border: Mist Border (`rgba(226, 226, 226, 0.35)`)
-- Background: Deep warm near-black (page background)
+- Background: Deep Void (`#0e0e0d`)
 
 ### Example Component Prompts
 - "Create a hero section on warm dark background with 80px Matter Regular heading in warm parchment (#faf9f6), line-height 1.0, letter-spacing -2.4px, and a dark pill button (#353534, 50px radius, #afaeac text)"

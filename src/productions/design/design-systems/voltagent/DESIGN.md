@@ -1,106 +1,271 @@
 ---
 version: alpha
 name: "VoltAgent"
-description: "VoltAgent's interface is a deep-space command terminal for the AI age — a developer-facing darkness built on near-pure-black surfaces (#050507) where the only interruption is the electric pulse of emerald green energy. The entire experience evokes the feeling of staring into a high-powered IDE at 2am: dark, focused, and alive with purpose. This is not a friendly SaaS landing page — it's an engineering platform that announces itself through code snippets, architectural diagrams, and raw technical confidence."
+description: >-
+  VoltAgent's interface is a deep-space command terminal for the AI age: Abyss
+  Black canvas, Carbon Surface cards, warm charcoal borders, Emerald Signal
+  Green accents, and code snippets as primary content.
 
 colors:
-  primary: "#050507"
-  on-primary: "#ffffff"
-  canvas: "#ffffff"
-  surface: "#ffffff"
-  ink: "#171717"
-  body: "#4d4d4d"
-  muted: "#666666"
-  hairline: "#ebebeb"
-  accent: "#00d992"
+  primary: "#00d992"
+  on-primary: "#050507"
+  canvas: "#050507"
+  surface: "#101010"
+  ink: "#f2f2f2"
+  body: "#b8b3b0"
+  muted: "#8b949e"
+  hairline: "#3d3a39"
+  accent: "#2fd6a1"
+  emerald-signal: "#00d992"
+  voltagent-mint: "#2fd6a1"
+  tailwind-emerald: "#10b981"
+  soft-purple: "#818cf8"
+  cobalt-primary: "#306cce"
+  deep-cobalt: "#2554a0"
+  ring-blue: "#3b82f6"
+  abyss-black: "#050507"
+  carbon-surface: "#101010"
+  warm-charcoal-border: "#3d3a39"
+  snow-white: "#f2f2f2"
+  pure-white: "#ffffff"
+  warm-parchment: "#b8b3b0"
+  steel-slate: "#8b949e"
+  fog-gray: "#bdbdbd"
+  mist-gray: "#dcdcdc"
+  near-white: "#eeeeee"
+  success-emerald: "#008b00"
+  success-light: "#80d280"
+  warning-amber: "#ffba00"
+  warning-pale: "#ffdd80"
+  danger-coral: "#fb565b"
+  danger-rose: "#fd9c9f"
+  info-teal: "#4cb3d4"
+  dashed-border-slate: "rgba(79, 93, 117, 0.4)"
+  hover-dark: "rgba(0, 0, 0, 0.2)"
+  warm-ambient-haze: "rgba(92, 88, 85, 0.2)"
+  dramatic-shadow: "rgba(0, 0, 0, 0.7)"
+  slate-inset: "rgba(148, 163, 184, 0.1)"
 
 typography:
   display-hero:
-    fontFamily: "Inter, system-ui, -apple-system, BlinkMacSystemFont, sans-serif"
-    fontSize: 48px
-    fontWeight: 700
-    lineHeight: 1.15
-    letterSpacing: -1px
+    fontFamily: "system-ui, -apple-system, Segoe UI, Roboto, Ubuntu, Cantarell, Noto Sans, Helvetica, Arial, Apple Color Emoji, Segoe UI Emoji, Segoe UI Symbol"
+    fontSize: 60px
+    fontWeight: 400
+    lineHeight: 1
+    letterSpacing: -0.65px
+    fontFeature: "\"calt\", \"rlig\""
   heading-lg:
-    fontFamily: "Inter, system-ui, -apple-system, BlinkMacSystemFont, sans-serif"
-    fontSize: 32px
+    fontFamily: "system-ui, -apple-system, Segoe UI, Roboto, Ubuntu, Cantarell, Noto Sans, Helvetica, Arial, Apple Color Emoji, Segoe UI Emoji, Segoe UI Symbol"
+    fontSize: 36px
+    fontWeight: 400
+    lineHeight: 1.11
+    letterSpacing: -0.9px
+    fontFeature: "\"calt\", \"rlig\""
+  heading-md:
+    fontFamily: "system-ui, -apple-system, Segoe UI, Roboto, Ubuntu, Cantarell, Noto Sans, Helvetica, Arial, Apple Color Emoji, Segoe UI Emoji, Segoe UI Symbol"
+    fontSize: 24px
     fontWeight: 700
-    lineHeight: 1.25
-    letterSpacing: -0.5px
+    lineHeight: 1.33
+    letterSpacing: -0.6px
+    fontFeature: "\"calt\", \"rlig\""
+  heading-md-light:
+    fontFamily: "system-ui, Inter, -apple-system, Segoe UI, sans-serif"
+    fontSize: 24px
+    fontWeight: 400
+    lineHeight: 1.33
+    letterSpacing: -0.6px
+    fontFeature: "\"calt\", \"rlig\""
+  overline:
+    fontFamily: "system-ui, -apple-system, Segoe UI, Roboto, Ubuntu, Cantarell, Noto Sans, Helvetica, Arial, sans-serif"
+    fontSize: 20px
+    fontWeight: 600
+    lineHeight: 1.4
+    letterSpacing: 0.5px
+    textTransform: uppercase
+    fontFeature: "\"calt\", \"rlig\""
+  feature-title:
+    fontFamily: "Inter, system-ui, -apple-system, Segoe UI, sans-serif"
+    fontSize: 20px
+    fontWeight: 600
+    lineHeight: 1.4
+    letterSpacing: 0px
+    fontFeature: "\"calt\", \"rlig\""
+  overline-small:
+    fontFamily: "Inter, system-ui, -apple-system, Segoe UI, sans-serif"
+    fontSize: 18px
+    fontWeight: 600
+    lineHeight: 1.56
+    letterSpacing: 0.45px
+    textTransform: uppercase
+    fontFeature: "\"calt\", \"rlig\""
   body-md:
-    fontFamily: "Inter, system-ui, -apple-system, BlinkMacSystemFont, sans-serif"
+    fontFamily: "Inter, system-ui, -apple-system, Segoe UI, sans-serif"
     fontSize: 16px
     fontWeight: 400
+    lineHeight: 1.65
+    letterSpacing: 0px
+    fontFeature: "\"calt\", \"rlig\""
+  nav-link:
+    fontFamily: "Inter, system-ui, -apple-system, Segoe UI, sans-serif"
+    fontSize: 14.45px
+    fontWeight: 500
+    lineHeight: 1.65
+    letterSpacing: 0px
+    fontFeature: "\"calt\", \"rlig\""
+  button:
+    fontFamily: "Inter, system-ui, -apple-system, Segoe UI, sans-serif"
+    fontSize: 16px
+    fontWeight: 600
     lineHeight: 1.5
     letterSpacing: 0px
-  button:
-    fontFamily: "Inter, system-ui, -apple-system, BlinkMacSystemFont, sans-serif"
+    fontFeature: "\"calt\", \"rlig\""
+  caption:
+    fontFamily: "Inter, system-ui, -apple-system, Segoe UI, sans-serif"
+    fontSize: 14px
+    fontWeight: 500
+    lineHeight: 1.43
+    letterSpacing: 0px
+    fontFeature: "\"calt\", \"rlig\""
+  tag:
+    fontFamily: "system-ui, -apple-system, Segoe UI, sans-serif"
     fontSize: 14px
     fontWeight: 600
-    lineHeight: 1.2
-    letterSpacing: 0px
-  caption:
-    fontFamily: "Inter, system-ui, -apple-system, BlinkMacSystemFont, sans-serif"
+    lineHeight: 1.43
+    letterSpacing: 2.52px
+    textTransform: uppercase
+  micro:
+    fontFamily: "Inter, system-ui, -apple-system, Segoe UI, sans-serif"
     fontSize: 12px
     fontWeight: 500
     lineHeight: 1.33
     letterSpacing: 0px
+  code-body:
+    fontFamily: "SFMono-Regular, Menlo, Monaco, Consolas, Liberation Mono, Courier New, monospace"
+    fontSize: 14px
+    fontWeight: 400
+    lineHeight: 1.43
+    letterSpacing: 0px
+  code-small:
+    fontFamily: "SFMono-Regular, Menlo, Monaco, Consolas, Liberation Mono, Courier New, monospace"
+    fontSize: 12px
+    fontWeight: 400
+    lineHeight: 1.45
+    letterSpacing: 0px
+  code-button:
+    fontFamily: "SFMono-Regular, Menlo, Monaco, Consolas, Liberation Mono, Courier New, monospace"
+    fontSize: 13px
+    fontWeight: 700
+    lineHeight: 1.65
+    letterSpacing: 0px
 
 rounded:
-  sm: 4px
-  md: 8px
-  lg: 12px
+  inline: 4px
+  button: 6px
+  code: 6.4px
+  card: 8px
   pill: 9999px
 
 spacing:
+  xxs: 2px
   xs: 4px
+  xsm: 5px
+  button-radius: 6px
+  code-radius: 6.4px
   sm: 8px
-  md: 16px
-  lg: 24px
-  xl: 32px
-  section: 80px
+  md: 12px
+  lg: 16px
+  xl: 20px
+  xxl: 24px
+  gap-lg: 28px
+  card: 32px
+  section-sm: 40px
+  section-md: 48px
+  section: 64px
 
 components:
   button-primary:
-    backgroundColor: "{colors.primary}"
-    textColor: "{colors.on-primary}"
+    backgroundColor: "{colors.carbon-surface}"
+    textColor: "{colors.voltagent-mint}"
     typography: "{typography.button}"
-    rounded: "{rounded.md}"
-    padding: 16px
+    rounded: "{rounded.button}"
+    padding: 12px 16px
   button-secondary:
-    backgroundColor: "{colors.canvas}"
-    textColor: "{colors.ink}"
+    backgroundColor: transparent
+    textColor: "{colors.pure-white}"
     typography: "{typography.button}"
-    rounded: "{rounded.md}"
-    padding: 16px
+    rounded: "{rounded.button}"
+    padding: 12px 16px
+  container-button:
+    backgroundColor: "{colors.carbon-surface}"
+    textColor: "{colors.snow-white}"
+    typography: "{typography.button}"
+    rounded: "{rounded.card}"
+    padding: 20px
   card:
-    backgroundColor: "{colors.surface}"
-    textColor: "{colors.ink}"
+    backgroundColor: "{colors.carbon-surface}"
+    textColor: "{colors.snow-white}"
     typography: "{typography.body-md}"
-    rounded: "{rounded.lg}"
+    rounded: "{rounded.card}"
+    padding: 24px
+  highlighted-card:
+    backgroundColor: "{colors.carbon-surface}"
+    textColor: "{colors.snow-white}"
+    typography: "{typography.heading-md}"
+    rounded: "{rounded.card}"
+    padding: 32px
+  code-block:
+    backgroundColor: "{colors.carbon-surface}"
+    textColor: "{colors.snow-white}"
+    typography: "{typography.code-body}"
+    rounded: "{rounded.code}"
+    padding: 16px
+  npm-install-command:
+    backgroundColor: "{colors.carbon-surface}"
+    textColor: "{colors.voltagent-mint}"
+    typography: "{typography.code-body}"
+    rounded: "{rounded.code}"
+    padding: 12px 16px
+  nav-bar:
+    backgroundColor: "{colors.abyss-black}"
+    textColor: "{colors.snow-white}"
+    typography: "{typography.nav-link}"
+    padding: 16px
+  nav-link:
+    backgroundColor: transparent
+    textColor: "{colors.snow-white}"
+    typography: "{typography.nav-link}"
+  badge:
+    backgroundColor: "{colors.carbon-surface}"
+    textColor: "{colors.voltagent-mint}"
+    typography: "{typography.tag}"
+    rounded: "{rounded.pill}"
+    padding: 4px 12px
+  agent-flow-node:
+    backgroundColor: "{colors.carbon-surface}"
+    textColor: "{colors.snow-white}"
+    typography: "{typography.caption}"
+    rounded: "{rounded.card}"
+    padding: 16px
+  dashed-workflow-container:
+    backgroundColor: "{colors.carbon-surface}"
+    textColor: "{colors.steel-slate}"
+    typography: "{typography.caption}"
+    rounded: "{rounded.card}"
     padding: 24px
   text-body:
     backgroundColor: "{colors.canvas}"
-    textColor: "{colors.body}"
+    textColor: "{colors.warm-parchment}"
     typography: "{typography.body-md}"
-    rounded: "{rounded.sm}"
-    padding: 8px
   muted-label:
     backgroundColor: "{colors.canvas}"
-    textColor: "{colors.muted}"
+    textColor: "{colors.steel-slate}"
     typography: "{typography.caption}"
-    rounded: "{rounded.sm}"
-    padding: 4px
   link:
-    backgroundColor: "{colors.canvas}"
-    textColor: "{colors.accent}"
-    typography: "{typography.button}"
-    rounded: "{rounded.sm}"
-    padding: 4px
+    backgroundColor: transparent
+    textColor: "{colors.tailwind-emerald}"
+    typography: "{typography.body-md}"
   divider:
     backgroundColor: "{colors.hairline}"
-    textColor: "{colors.ink}"
-    rounded: "{rounded.sm}"
     height: 1px
 ---
 
