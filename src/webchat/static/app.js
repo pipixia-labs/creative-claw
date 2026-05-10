@@ -940,13 +940,6 @@ function renderDesignSystemPicker(field, form, question) {
   const controlRow = document.createElement("div");
   controlRow.className = "cc-design-system-controls";
 
-  const decide = document.createElement("button");
-  decide.type = "button";
-  decide.className = "cc-design-system-quick";
-  decide.textContent = "为我决定";
-  decide.addEventListener("click", () => selectDesignSystem(picker, hidden, "decide_for_me"));
-  controlRow.appendChild(decide);
-
   const search = document.createElement("input");
   search.className = "cc-design-system-search";
   search.type = "search";
@@ -972,6 +965,13 @@ function renderDesignSystemPicker(field, form, question) {
   const grid = document.createElement("div");
   grid.className = "cc-design-system-grid";
   picker.appendChild(grid);
+
+  const decide = document.createElement("button");
+  decide.type = "button";
+  decide.className = "cc-design-system-quick";
+  decide.textContent = "为我决定";
+  decide.addEventListener("click", () => selectDesignSystem(picker, hidden, "decide_for_me"));
+  picker.appendChild(decide);
 
   const render = (systems) => {
     const visibleSystems = getVisibleDesignSystems(systems, recommendations);

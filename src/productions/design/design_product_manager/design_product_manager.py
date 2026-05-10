@@ -64,6 +64,11 @@ DESIGN_PRODUCT_LAST_CODE_GENERATION_RESULT_STATE_KEY = "design_product_last_code
 DESIGN_PRODUCT_SELECTED_DESIGN_SYSTEM_STATE_KEY = "design_product_selected_design_system"
 
 
+def _clear_state_value(state: Any, key: str) -> None:
+    """Clear one session state value through the public ADK State API."""
+    state[key] = None
+
+
 class DesignProductManager(LlmAgent):
     """ADK LlmAgent that owns design product-line tasks."""
 
@@ -239,14 +244,14 @@ Always call `register_design_delivery` before finishing. It must contain a user-
                 original_task=original_task or clean_task,
                 answer_payload=answer_payload,
             )
-            tool_context.state.pop(DESIGN_BRIEF_FORM_PENDING_TASK_STATE_KEY, None)
-            tool_context.state.pop(DESIGN_BRIEF_FORM_STATE_KEY, None)
+            _clear_state_value(tool_context.state, DESIGN_BRIEF_FORM_PENDING_TASK_STATE_KEY)
+            _clear_state_value(tool_context.state, DESIGN_BRIEF_FORM_STATE_KEY)
             selected_design_system = _resolve_selected_design_system_context(answer_payload)
             if selected_design_system:
                 tool_context.state[DESIGN_PRODUCT_SELECTED_DESIGN_SYSTEM_STATE_KEY] = selected_design_system
                 clean_task = _append_selected_design_system_summary(clean_task, selected_design_system)
             else:
-                tool_context.state.pop(DESIGN_PRODUCT_SELECTED_DESIGN_SYSTEM_STATE_KEY, None)
+                _clear_state_value(tool_context.state, DESIGN_PRODUCT_SELECTED_DESIGN_SYSTEM_STATE_KEY)
         elif _should_request_web_brief_form(tool_context.state):
             invocation_context = tool_context._invocation_context
             try:

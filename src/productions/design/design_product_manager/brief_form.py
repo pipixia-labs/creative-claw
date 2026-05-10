@@ -110,14 +110,14 @@ class DesignBriefFormExpert(LlmAgent):
             "- Treat visual directions as design posture packages, not generic adjectives: each selected direction should imply palette, type personality, density, border/radius style, image strategy, and restraint level.\n"
             "- Include one design system reference question for Web design tasks. Use id \"design_system_reference\", type \"single_choice\", presentation \"design_system_picker\", resource \"design_systems\", required false, and allowOther true.\n"
             "- Place the design system reference question after visual style and color questions, and before the final long_text notes question.\n"
-            "- For design_system_reference.options, include exactly 6 recommended design systems from the provided catalog, plus {\"value\":\"decide_for_me\",\"label\":\"为我决定\"}. Use the catalog id as value, the catalog title as label, and a short Simplified Chinese recommendation reason as description.\n"
+            "- For design_system_reference.options, include exactly 6 recommended design systems from the provided catalog, followed by {\"value\":\"decide_for_me\",\"label\":\"为我决定\"} as the last option. Use the catalog id as value, the catalog title as label, and a short Simplified Chinese recommendation reason as description.\n"
             "- Add up to 5 task-specific questions when useful. These should be invented from the brief, such as industry positioning, domain objects, content treatment, business-specific functions, or domain-specific visual semantics.\n"
             "- Do not hard-code restaurant, ecommerce, SaaS, dashboard, or landing-page questions. Infer the domain from the current task.\n"
             "- Keep task-specific details broad enough to help design direction, not implementation details.\n"
             "- Use single_choice or multi_choice when options are clear; use text fields for user-specific details.\n"
             "- Use range only for bounded numeric preferences such as screen count or variant count.\n"
             "- For multi_choice, include maxSelections only when there is a real limit.\n"
-            "- Include an option with value \"decide_for_me\" and label \"为我决定\" in every key choice question.\n"
+            "- Include an option with value \"decide_for_me\" and label \"为我决定\" as the last option in every key choice question.\n"
             "- Use allowOther true on choice questions when custom answers are likely useful.\n"
             "- Keep specific brand names, copywriting, constraints, or extra notes in one optional long_text question when needed.\n"
             "- Make most questions optional when \"为我决定\" is available, so users can submit quickly.\n"
@@ -326,7 +326,7 @@ def _validate_question(value: Any) -> dict[str, Any]:
             options = [{"value": "decide_for_me", "label": "为我决定"}]
         if not isinstance(options, list) or not options:
             raise ValueError(f"Question {question['id']} must include options.")
-        question["options"] = [_validate_option(option) for option in options]
+        question["options"] = _move_decide_options_last([_validate_option(option) for option in options])
         question["allowOther"] = bool(question.get("allowOther", False))
     elif question_type == "range":
         question.pop("options", None)
@@ -481,8 +481,8 @@ def _normalize_design_system_question(question: dict[str, Any]) -> dict[str, Any
         )
 
     normalized["options"] = [
-        {"value": "decide_for_me", "label": "为我决定"},
         *recommended_options[:DESIGN_SYSTEM_RECOMMENDATION_COUNT],
+        {"value": "decide_for_me", "label": "为我决定"},
     ]
     return normalized
 
@@ -536,6 +536,13 @@ def _validate_option(value: Any) -> dict[str, str]:
     if description:
         option["description"] = description
     return option
+
+
+def _move_decide_options_last(options: list[dict[str, str]]) -> list[dict[str, str]]:
+    """Return options with decide-for-me choices moved to the end."""
+    decide_options = [option for option in options if option["value"] == "decide_for_me"]
+    regular_options = [option for option in options if option["value"] != "decide_for_me"]
+    return [*regular_options, *decide_options]
 
 
 def _required_text(data: dict[str, Any], key: str) -> str:

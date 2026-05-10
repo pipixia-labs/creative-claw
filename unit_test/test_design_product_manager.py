@@ -6,6 +6,7 @@ from unittest.mock import AsyncMock, patch
 
 from google.adk.agents import LlmAgent
 from google.adk.events import Event, EventActions
+from google.adk.sessions import State
 
 from src.productions.design.design_product_manager import (
     DESIGN_BRIEF_FORM_SCHEMA_VERSION,
@@ -196,9 +197,9 @@ class DesignProductManagerTests(unittest.TestCase):
                         "maxSelections": 2,
                         "allowOther": True,
                         "options": [
+                            {"value": "decide_for_me", "label": "为我决定"},
                             {"value": "minimal", "label": "极简"},
                             {"value": "editorial", "label": "杂志风"},
-                            {"value": "decide_for_me", "label": "为我决定"},
                         ],
                     },
                     {
@@ -240,12 +241,13 @@ class DesignProductManagerTests(unittest.TestCase):
 
         self.assertEqual(form["version"], DESIGN_BRIEF_FORM_SCHEMA_VERSION)
         self.assertTrue(question_by_id["tone"]["allowOther"])
+        self.assertEqual(question_by_id["tone"]["options"][-1]["value"], "decide_for_me")
         self.assertEqual(question_by_id["screen_count"]["type"], "range")
         self.assertEqual(question_by_id["screen_count"]["default"], 6)
         self.assertEqual(question_by_id["design_system_reference"]["presentation"], "design_system_picker")
         self.assertEqual(question_by_id["design_system_reference"]["resource"], "design_systems")
         self.assertEqual(len(question_by_id["design_system_reference"]["options"]), 7)
-        self.assertEqual(question_by_id["design_system_reference"]["options"][0]["value"], "decide_for_me")
+        self.assertEqual(question_by_id["design_system_reference"]["options"][-1]["value"], "decide_for_me")
         self.assertEqual(len(_design_system_option_ids(question_by_id["design_system_reference"])), 6)
         self.assertIn("<cc-question-form>", block)
         self.assertIn("<cc-question-form>", fenced_block)
@@ -279,6 +281,9 @@ class DesignProductManagerTests(unittest.TestCase):
         self.assertEqual(form["questions"][-1]["id"], "design_system_reference")
         self.assertEqual(form["questions"][-1]["presentation"], "design_system_picker")
         self.assertEqual(form["questions"][-1]["resource"], "design_systems")
+        for question in form["questions"]:
+            if question["type"] in {"single_choice", "multi_choice"}:
+                self.assertEqual(question["options"][-1]["value"], "decide_for_me")
         self.assertEqual(len(_design_system_option_ids(form["questions"][-1])), 6)
 
     def test_design_brief_question_form_orders_content_before_style_questions(self) -> None:
@@ -403,6 +408,7 @@ class DesignProductManagerTests(unittest.TestCase):
         option_ids = _design_system_option_ids(design_system_question)
         self.assertEqual(len(option_ids), 6)
         self.assertEqual(option_ids[0], "claude")
+        self.assertEqual(design_system_question["options"][-1]["value"], "decide_for_me")
         self.assertNotIn("not-real", option_ids)
         self.assertTrue(
             all(
@@ -692,8 +698,8 @@ class DesignProductManagerTests(unittest.TestCase):
             "validation": [],
             "output_files": [],
         }
-        tool_context = SimpleNamespace(
-            state={
+        state = State(
+            {
                 "channel": "web",
                 DESIGN_BRIEF_FORM_PENDING_TASK_STATE_KEY: "设计一个股票新闻 App。",
                 DESIGN_BRIEF_FORM_STATE_KEY: {
@@ -701,6 +707,10 @@ class DesignProductManagerTests(unittest.TestCase):
                     "message": "<cc-question-form>{}</cc-question-form>",
                 },
             },
+            {},
+        )
+        tool_context = SimpleNamespace(
+            state=state,
             _invocation_context=SimpleNamespace(user_id="user-1"),
         )
 
@@ -754,8 +764,8 @@ class DesignProductManagerTests(unittest.TestCase):
 
         self.assertEqual(result["status"], "success")
         self.assertEqual(tool_context.state["design_product_brief_form_answers"]["id"], "design-brief")
-        self.assertNotIn(DESIGN_BRIEF_FORM_PENDING_TASK_STATE_KEY, tool_context.state)
-        self.assertNotIn(DESIGN_BRIEF_FORM_STATE_KEY, tool_context.state)
+        self.assertIsNone(tool_context.state.get(DESIGN_BRIEF_FORM_PENDING_TASK_STATE_KEY))
+        self.assertIsNone(tool_context.state.get(DESIGN_BRIEF_FORM_STATE_KEY))
 
 
 if __name__ == "__main__":
