@@ -18,6 +18,7 @@ No more jumping back and forth between different tools.
 With CreativeClaw, you can keep iterating around a single idea and move from inspiration to final output in one flow.
 
 ## 📰 News
+ - 2026-05-10: Added compact Web design brief forms with tag-style choices, one-round requirement collection, six recommended design-system options with reasons, and refreshed light/dark design-system previews.
  - 2026-05-09: Upgraded the Design and Web Chat workflow with a tldraw-powered Visual Board, canvas-style Design previews, and path-based visual attachments.
  - 2026-05-05: Added interactive PPT generation and HTML-to-PPTX workflows, plus improved Web Chat previews for artifacts, media, PDF, and PPT outputs.
  - 2026-05-02: Released v0.3.0 with DeepSeek V4, Seedance 2.0, Seed TTS 2.0 multi-voice support, DashScope media models, and expanded 3D providers.
@@ -35,6 +36,7 @@ With CreativeClaw, you can keep iterating around a single idea and move from ins
 - **Supports multiple models and providers**: image and video flows can use different providers so you can balance quality, speed, and cost.
 - **Iterative through conversation**: send a reference image for analysis, then keep asking follow-up questions, editing, and refining prompts.
 - **Web Chat visual workspace**: inspect generated outputs in the Design preview, annotate image artifacts on the Visual Board, and send selected canvas regions back into the conversation as workspace file attachments.
+- **Design brief and design systems**: Web design tasks can start with a compact requirement form, recommend relevant design systems from the bundled catalog, preview them in light/dark modes, and carry the selected system into generation.
 - **Extensible by design**: skills let you add specialized workflows such as MiniMax CLI.
 - **Coding-based asset processing**: besides generating content directly, it can also help process assets in batches through OpenCV / Python scripts.
 - **Deterministic media operations**: supports local image, video, and audio inspection and transformation through `ImageBasicOperations`, `VideoBasicOperations`, and `AudioBasicOperations`.
@@ -263,7 +265,7 @@ The main LLM orchestrator can call these tool groups directly:
 
 CreativeClaw currently supports:
 
-- **Local Web Chat (recommended)**: browser-based chat with optimized realtime progress, Markdown rendering, Design preview, Visual Board annotation, and media / PDF / PPT previews
+- **Local Web Chat (recommended)**: browser-based chat with optimized realtime progress, Markdown rendering, compact design brief forms, design-system previews, Design preview, Visual Board annotation, and media / PDF / PPT previews
 - **CLI Chat**: lightweight command-line chat for quick calls and automation
 - **Telegram**: chat in Telegram
 - **Feishu**: chat in Feishu
