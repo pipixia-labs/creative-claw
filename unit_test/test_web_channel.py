@@ -96,8 +96,16 @@ class WebChannelTests(unittest.IsolatedAsyncioTestCase):
                 generated_file.unlink()
 
     async def test_web_channel_serves_3d_artifact_metadata_and_asset(self) -> None:
-        generated_file = generated_root() / f"web_channel_{uuid.uuid4().hex[:8]}.glb"
-        generated_file.write_bytes(b"fake-glb")
+        cases = [
+            (".glb", "model/gltf-binary", b"fake-glb"),
+            (".obj", "model/obj", b"o cube\nv 0 0 0\n"),
+            (".stl", "model/stl", b"solid cube\nendsolid cube\n"),
+        ]
+        generated_files = []
+        for extension, _mime_type, body in cases:
+            generated_file = generated_root() / f"web_channel_{uuid.uuid4().hex[:8]}{extension}"
+            generated_file.write_bytes(body)
+            generated_files.append(generated_file)
 
         try:
             async with websockets.connect(f"ws://127.0.0.1:{self.channel._port}/ws?session_id=model-session") as websocket:
@@ -109,29 +117,33 @@ class WebChannelTests(unittest.IsolatedAsyncioTestCase):
                         channel="web",
                         chat_id="model-session",
                         text="model ready",
-                        artifact_paths=[str(generated_file)],
+                        artifact_paths=[str(path) for path in generated_files],
                         metadata={"display_style": "final"},
                     )
                 )
                 final_message = await self._recv_until(websocket, "assistant_message")
-                self.assertEqual(len(final_message["artifacts"]), 1)
-                artifact = final_message["artifacts"][0]
-                self.assertEqual(artifact["name"], generated_file.name)
-                self.assertFalse(artifact["isImage"])
-                self.assertTrue(artifact["is3D"])
-                self.assertEqual(artifact["mimeType"], "model/gltf-binary")
+                self.assertEqual(len(final_message["artifacts"]), len(cases))
+                artifacts_by_name = {artifact["name"]: artifact for artifact in final_message["artifacts"]}
 
-                def fetch_artifact():
-                    with urlopen(f"{self.channel.url}{artifact['url']}") as response:  # noqa: S310 - local test server
-                        return response.status, response.headers.get("Content-Type", ""), response.read()
+                for generated_file, (_extension, expected_mime_type, expected_body) in zip(generated_files, cases):
+                    artifact = artifacts_by_name[generated_file.name]
+                    self.assertEqual(artifact["name"], generated_file.name)
+                    self.assertFalse(artifact["isImage"])
+                    self.assertTrue(artifact["is3D"])
+                    self.assertEqual(artifact["mimeType"], expected_mime_type)
 
-                status, content_type, body = await asyncio.to_thread(fetch_artifact)
-                self.assertEqual(status, 200)
-                self.assertIn("model/gltf-binary", content_type)
-                self.assertEqual(body, b"fake-glb")
+                    def fetch_artifact():
+                        with urlopen(f"{self.channel.url}{artifact['url']}") as response:  # noqa: S310 - local test server
+                            return response.status, response.headers.get("Content-Type", ""), response.read()
+
+                    status, content_type, body = await asyncio.to_thread(fetch_artifact)
+                    self.assertEqual(status, 200)
+                    self.assertIn(expected_mime_type, content_type)
+                    self.assertEqual(body, expected_body)
         finally:
-            with contextlib.suppress(FileNotFoundError):
-                generated_file.unlink()
+            for generated_file in generated_files:
+                with contextlib.suppress(FileNotFoundError):
+                    generated_file.unlink()
 
     async def test_web_channel_serves_design_system_catalog_and_preview(self) -> None:
         def fetch_json(path: str):

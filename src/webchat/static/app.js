@@ -26,7 +26,7 @@ const SESSION_INDEX_KEY = "creative_claw_webchat_sessions";
 const HIDDEN_PROGRESS_TITLES = new Set(["Starting", "Finalize Result"]);
 const PREVIEW_TABS = ["tldraw", "html", "ppt", "model3d"];
 const AUTO_PREVIEW_PRIORITY = ["model3d", "ppt", "html", "tldraw"];
-const INLINE_3D_EXTENSIONS = new Set([".glb", ".gltf"]);
+const INLINE_3D_EXTENSIONS = new Set([".glb", ".gltf", ".obj", ".stl"]);
 const MODEL_3D_EXTENSIONS = new Set([".glb", ".gltf", ".obj", ".stl", ".fbx", ".usdz", ".usd"]);
 const UPLOAD_CHUNK_SIZE = 512 * 1024;
 const QUESTION_FORM_STREAM_MARKER = "<cc-question-form";
@@ -2632,7 +2632,13 @@ function is3DArtifact(artifact) {
 function inline3DArtifactSupported(artifact) {
   const extension = artifactExtension(artifact);
   const mimeType = artifactMimeType(artifact);
-  return INLINE_3D_EXTENSIONS.has(extension) || mimeType === "model/gltf-binary" || mimeType === "model/gltf+json";
+  return (
+    INLINE_3D_EXTENSIONS.has(extension) ||
+    mimeType === "model/gltf-binary" ||
+    mimeType === "model/gltf+json" ||
+    mimeType === "model/obj" ||
+    mimeType === "model/stl"
+  );
 }
 
 function isLikely3DZipArtifact(artifact) {
