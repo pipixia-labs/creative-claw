@@ -197,9 +197,12 @@ class WebChannelTests(unittest.IsolatedAsyncioTestCase):
                         metadata={"display_style": "final"},
                     )
                 )
+                delta = await self._recv_until(websocket, "assistant_delta")
+                self.assertEqual(delta["delta"], "final answer")
                 final_message = await self._recv_until(websocket, "assistant_message")
                 self.assertEqual(final_message["type"], "assistant_message")
                 self.assertEqual(final_message["content"], "final answer")
+                self.assertTrue(final_message["streamComplete"])
                 self.assertEqual(len(final_message["artifacts"]), 1)
                 artifact = final_message["artifacts"][0]
                 self.assertTrue(artifact["isImage"])
@@ -214,6 +217,31 @@ class WebChannelTests(unittest.IsolatedAsyncioTestCase):
         finally:
             with contextlib.suppress(FileNotFoundError):
                 generated_file.unlink()
+
+    async def test_web_channel_streams_question_form_messages(self) -> None:
+        form_message = (
+            '<cc-question-form id="design-brief" version="design-brief-form-v1">\n'
+            '{"questions":[{"id":"style","label":"Style","type":"single_choice","options":[]}]}'
+            "\n</cc-question-form>"
+        )
+
+        async with websockets.connect(f"ws://127.0.0.1:{self.channel._port}/ws?session_id=form-session") as websocket:
+            ready = json.loads(await asyncio.wait_for(websocket.recv(), timeout=2))
+            self.assertEqual(ready["type"], "ready")
+
+            await self.channel.send(
+                OutboundMessage(
+                    channel="web",
+                    chat_id="form-session",
+                    text=form_message,
+                    metadata={"display_style": "final"},
+                )
+            )
+            delta = await self._recv_until(websocket, "assistant_delta")
+            self.assertIn("<cc-question-form", delta["delta"])
+            final_message = await self._recv_until(websocket, "assistant_message")
+            self.assertEqual(final_message["content"], form_message)
+            self.assertTrue(final_message["streamComplete"])
 
     async def test_web_channel_accepts_chunked_file_uploads(self) -> None:
         upload_id = f"upload-{uuid.uuid4().hex[:8]}"

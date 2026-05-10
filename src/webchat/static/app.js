@@ -29,6 +29,7 @@ const AUTO_PREVIEW_PRIORITY = ["model3d", "ppt", "html", "tldraw"];
 const INLINE_3D_EXTENSIONS = new Set([".glb", ".gltf"]);
 const MODEL_3D_EXTENSIONS = new Set([".glb", ".gltf", ".obj", ".stl", ".fbx", ".usdz", ".usd"]);
 const UPLOAD_CHUNK_SIZE = 512 * 1024;
+const QUESTION_FORM_STREAM_MARKER = "<cc-question-form";
 const MEDIA_CANVAS_MIN_ZOOM = 0.45;
 const MEDIA_CANVAS_MAX_ZOOM = 2.4;
 const HTML_PREVIEW_MIN_ZOOM = 0.1;
@@ -39,6 +40,7 @@ const HTML_PREVIEW_MAX_STAGE_SIZE = 40000;
 let sessionId = ensureSessionId();
 let socket = null;
 let activeProgressCard = null;
+let activeAssistantStream = null;
 let progressBodyCounter = 0;
 let currentRunId = null;
 let runState = "idle";
@@ -159,21 +161,27 @@ function sessionSummaries() {
 }
 
 function compareSessionSummaries(left, right) {
-  if (left.id === sessionId && right.id !== sessionId) return -1;
-  if (right.id === sessionId && left.id !== sessionId) return 1;
-  const leftTime = Date.parse(left.updatedAt || "") || 0;
-  const rightTime = Date.parse(right.updatedAt || "") || 0;
-  return rightTime - leftTime;
+  const leftCreatedTime = Date.parse(left.createdAt || left.updatedAt || "") || 0;
+  const rightCreatedTime = Date.parse(right.createdAt || right.updatedAt || "") || 0;
+  if (leftCreatedTime !== rightCreatedTime) {
+    return rightCreatedTime - leftCreatedTime;
+  }
+  const leftUpdatedTime = Date.parse(left.updatedAt || "") || 0;
+  const rightUpdatedTime = Date.parse(right.updatedAt || "") || 0;
+  return rightUpdatedTime - leftUpdatedTime;
 }
 
 function buildSessionSummary(foundSessionId, items = loadHistory(foundSessionId), indexed = {}) {
   const firstUser = items.find((item) => item.type === "user" && item.content);
+  const firstItem = items.find((item) => item.createdAt);
   const lastItem = [...items].reverse().find((item) => item.createdAt);
   const latestArtifacts = latestSessionArtifacts(items);
+  const createdAt = firstItem?.createdAt || indexed.createdAt || indexed.updatedAt || "";
   return {
     id: foundSessionId,
     title: compactText(sessionTitleText(firstUser?.content) || indexed.title || "New session", 42),
-    updatedAt: lastItem?.createdAt || indexed.updatedAt || "",
+    createdAt,
+    updatedAt: lastItem?.createdAt || indexed.updatedAt || createdAt,
     count: items.length,
     artifactTypes: sessionArtifactTypes(latestArtifacts),
   };
@@ -246,7 +254,7 @@ function renderSessionHistory() {
     main.textContent = summary.title;
     const meta = document.createElement("span");
     meta.className = "session-item-meta";
-    meta.textContent = `${formatSessionTime(summary.updatedAt)} · ${summary.count || 0} messages`;
+    meta.textContent = `${formatSessionTime(summary.createdAt || summary.updatedAt)} · ${summary.count || 0} messages`;
     button.appendChild(main);
     button.appendChild(meta);
 
@@ -361,6 +369,7 @@ function disconnect() {
     socket = null;
   }
   activeProgressCard = null;
+  activeAssistantStream = null;
 }
 
 function setStatus(status) {
@@ -416,10 +425,22 @@ function handleEvent(payload) {
     return;
   }
 
+  if (payload.type === "assistant_delta") {
+    if (shouldIgnoreStaleRunEvent(payload)) {
+      return;
+    }
+    activeProgressCard = null;
+    appendAssistantDelta(payload);
+    return;
+  }
+
   activeProgressCard = null;
 
   if (payload.type === "assistant_message") {
     if (shouldIgnoreStaleRunEvent(payload)) {
+      return;
+    }
+    if (finalizeAssistantStream(payload)) {
       return;
     }
     addMessageCard("assistant", "CreativeClaw", payload.content || "", payload.artifacts || []);
@@ -442,6 +463,7 @@ function handleEvent(payload) {
     if (shouldIgnoreStaleRunEvent(payload)) {
       return;
     }
+    activeAssistantStream = null;
     addMessageCard("error", "CreativeClaw", payload.content || payload.message || "Unknown error.");
     appendHistory({
       type: "error",
@@ -489,6 +511,7 @@ function handleTaskFinished(payload) {
   }
   if (payload.reason === "cancelled") {
     addMessageCard("system", "CreativeClaw", "Task stopped.");
+    activeAssistantStream = null;
   }
   setRunState("idle");
 }
@@ -498,21 +521,17 @@ function shouldIgnoreStaleRunEvent(payload) {
 }
 
 function renderEmptyStateIfNeeded() {
-  if (timeline.children.length === 0) {
-    renderEmptyState();
-  }
+  renderEmptyState();
 }
 
 function renderEmptyState() {
-  const block = document.createElement("article");
-  block.className = "empty-state";
-  block.textContent = "Start with a prompt such as: “Create a cinematic travel poster”, “Describe this image idea”, or “Rewrite this prompt for cleaner composition.”";
-  timeline.appendChild(block);
+  removeEmptyState();
 }
 
 function clearTimeline() {
   timeline.innerHTML = "";
   activeProgressCard = null;
+  activeAssistantStream = null;
 }
 
 function restoreHistory() {
@@ -651,6 +670,71 @@ function addMessageCard(type, role, content, artifacts = [], scroll = true) {
   if (scroll) {
     scrollToBottom();
   }
+  return root;
+}
+
+function appendAssistantDelta(payload) {
+  const streamKey = assistantStreamKey(payload);
+  const delta = String(payload.delta || payload.content || "");
+  if (!delta) {
+    return;
+  }
+  if (!activeAssistantStream || activeAssistantStream.key !== streamKey) {
+    activeAssistantStream = {
+      key: streamKey,
+      content: "",
+      isStructuredForm: false,
+      card: addMessageCard("assistant", "CreativeClaw", "", [], true),
+    };
+  }
+  activeAssistantStream.content += delta;
+  activeAssistantStream.isStructuredForm =
+    activeAssistantStream.isStructuredForm || isQuestionFormStreamContent(activeAssistantStream.content);
+  const displayContent = activeAssistantStream.isStructuredForm
+    ? pendingQuestionFormStreamText(activeAssistantStream.content)
+    : activeAssistantStream.content;
+  updateMessageCard(activeAssistantStream.card, displayContent, []);
+  scrollToBottom();
+}
+
+function finalizeAssistantStream(payload) {
+  if (!activeAssistantStream || activeAssistantStream.key !== assistantStreamKey(payload)) {
+    return false;
+  }
+  const content = String(payload.content || activeAssistantStream.content || "");
+  const artifacts = payload.artifacts || [];
+  updateMessageCard(activeAssistantStream.card, content, artifacts);
+  previewArtifactSet(artifacts);
+  appendHistory({
+    type: "assistant",
+    role: "CreativeClaw",
+    content,
+    artifacts,
+  });
+  activeAssistantStream = null;
+  scrollToBottom();
+  return true;
+}
+
+function updateMessageCard(card, content, artifacts = []) {
+  if (!card) {
+    return;
+  }
+  renderMessageContent(card.querySelector(".message-body"), content || "");
+  renderArtifacts(card.querySelector(".artifact-grid"), artifacts);
+}
+
+function assistantStreamKey(payload) {
+  return String(payload?.runId || payload?.metadata?.session_id || "default");
+}
+
+function isQuestionFormStreamContent(content) {
+  return String(content || "").toLowerCase().includes(QUESTION_FORM_STREAM_MARKER);
+}
+
+function pendingQuestionFormStreamText(content) {
+  const step = Math.floor(String(content || "").length / 96) % 3;
+  return `正在准备需求确认表单${".".repeat(step + 1)}`;
 }
 
 function renderMessageContent(container, content) {
@@ -1249,6 +1333,7 @@ function submitQuestionForm(root, form, answers) {
   const status = root.querySelector(".cc-question-form-status");
   if (status) status.textContent = "已提交，正在继续处理。";
   activeProgressCard = null;
+  activeAssistantStream = null;
 }
 
 function upsertProgressCard(content, metadata) {
@@ -3179,6 +3264,7 @@ async function sendPrompt() {
   promptInput.style.height = "";
   clearAttachments();
   activeProgressCard = null;
+  activeAssistantStream = null;
 }
 
 function stopCurrentTask() {
