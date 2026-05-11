@@ -231,6 +231,13 @@ Always call `register_design_delivery` before finishing. It must contain a user-
         if not hasattr(tool_context, "_invocation_context"):
             return _error_result("DesignProductManager requires an ADK invocation context.")
 
+        append_orchestration_step_event(
+            tool_context.state,
+            title="Design Product",
+            detail="Status: in_progress\nDesignProductManager is working on the design request.",
+            stage="design_product",
+        )
+
         try:
             answer_payload = parse_form_answers(clean_task)
         except ValueError as exc:

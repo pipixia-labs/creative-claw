@@ -140,17 +140,32 @@ class DesignProductManagerTests(unittest.TestCase):
         skills = registry.list_skills()
         skill_names = {skill.name for skill in skills}
 
-        self.assertIn("aaa-skill", skill_names)
-        self.assertIn("bbb-skill", skill_names)
-        self.assertIn("AAA Skill", registry.read_skill("aaa-skill"))
+        self.assertIn("design-canvas-artifact", skill_names)
+        self.assertIn("poster-page-designer", skill_names)
+        self.assertIn("Design Canvas Artifact", registry.read_skill("design-canvas-artifact"))
+
+    def test_poster_page_designer_skill_documents_expected_workflow(self) -> None:
+        registry = ProductDesignSkillRegistry()
+
+        content = registry.read_skill("poster-page-designer")
+
+        self.assertIn("Markdown draft", content)
+        self.assertIn("Asset Manifest", content)
+        self.assertIn("SearchAgent", content)
+        self.assertIn("ImageGenerationAgent", content)
+        self.assertIn('provider="nano_banana"', content)
+        self.assertIn("ImageUnderstandingAgent", content)
+        self.assertIn("AnythingToMD", content)
+        self.assertIn("invoke_design_code_generation", content)
+        self.assertIn("save_design_artifact", content)
+        self.assertIn("No local absolute paths", content)
 
     def test_global_skill_registry_does_not_expose_private_product_design_skills(self) -> None:
         global_registry = SkillRegistry()
 
         skill_names = {skill.name for skill in global_registry.list_skills()}
 
-        self.assertNotIn("aaa-skill", skill_names)
-        self.assertNotIn("bbb-skill", skill_names)
+        self.assertNotIn("poster-page-designer", skill_names)
         self.assertNotIn("product-design-skills", skill_names)
 
     def test_private_skill_tools_list_and_read_skills(self) -> None:
@@ -158,14 +173,14 @@ class DesignProductManagerTests(unittest.TestCase):
         tool_context = SimpleNamespace(state={})
 
         listed = manager.list_product_design_skills(tool_context)
-        read = manager.read_product_design_skill("bbb-skill", tool_context)
+        read = manager.read_product_design_skill("poster-page-designer", tool_context)
 
         self.assertEqual(listed["status"], "success")
         self.assertGreaterEqual(listed["count"], 2)
         self.assertEqual(read["status"], "success")
-        self.assertEqual(read["name"], "bbb-skill")
-        self.assertIn("BBB Skill", read["content"])
-        self.assertEqual(tool_context.state["active_product_design_skill"]["name"], "bbb-skill")
+        self.assertEqual(read["name"], "poster-page-designer")
+        self.assertIn("Poster Page Designer", read["content"])
+        self.assertEqual(tool_context.state["active_product_design_skill"]["name"], "poster-page-designer")
 
     def test_design_brief_question_form_schema_helpers(self) -> None:
         expert = DesignBriefFormExpert()
@@ -643,6 +658,36 @@ class DesignProductManagerTests(unittest.TestCase):
 
         self.assertEqual(result["status"], "error")
         self.assertIn("ADK invocation context", result["message"])
+
+    def test_run_product_request_emits_start_progress_for_valid_design_request(self) -> None:
+        manager = DesignProductManager()
+        tool_context = SimpleNamespace(
+            state={"channel": "web", "sid": "design-progress-test", "turn_index": 1},
+            _invocation_context=SimpleNamespace(user_id="user-1"),
+        )
+        form_message = (
+            "<cc-question-form>\n"
+            '{"id":"design-brief","version":"design-brief-form-v1","title":"确认需求","questions":['
+            '{"id":"goal","label":"目标","type":"short_text","required":true}'
+            "]}\n"
+            "</cc-question-form>"
+        )
+
+        with patch.object(DesignBriefFormExpert, "generate_form", new=AsyncMock(return_value=form_message)):
+            result = asyncio.run(
+                manager.run_product_request(
+                    task="设计一个活动海报 HTML。",
+                    tool_context=tool_context,
+                )
+            )
+
+        self.assertEqual(result["status"], "needs_input")
+        self.assertEqual(tool_context.state["orchestration_events"][0]["title"], "Design Product")
+        self.assertEqual(tool_context.state["orchestration_events"][0]["stage"], "design_product")
+        self.assertIn(
+            "DesignProductManager is working on the design request.",
+            tool_context.state["orchestration_events"][0]["detail"],
+        )
 
     def test_web_design_product_request_returns_generated_brief_form_first(self) -> None:
         manager = DesignProductManager()
