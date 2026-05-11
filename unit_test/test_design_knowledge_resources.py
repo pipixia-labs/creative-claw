@@ -2,159 +2,76 @@ import json
 import unittest
 from pathlib import Path
 
+from src.productions.design.design_systems import (
+    list_design_systems,
+    read_design_system,
+    resolve_design_system_preview,
+)
+
 
 class DesignKnowledgeResourceTests(unittest.TestCase):
-    def _resource_root(self) -> Path:
-        return Path(__file__).resolve().parents[1] / "skills" / "design-knowledge-and-skills"
+    def _project_root(self) -> Path:
+        return Path(__file__).resolve().parents[1]
 
-    def test_design_knowledge_skill_is_discovered(self) -> None:
-        try:
-            from src.skills.registry import SkillRegistry
-        except ModuleNotFoundError as exc:
-            self.skipTest(f"Skill registry dependencies are not installed: {exc}")
+    def _design_root(self) -> Path:
+        return self._project_root() / "src" / "productions" / "design"
 
-        registry = SkillRegistry(workspace=Path("/tmp/nonexistent-creative-claw-workspace"))
-        skills = {item.name: item for item in registry.list_skills()}
+    def _design_system_root(self) -> Path:
+        return self._design_root() / "design-systems"
 
-        self.assertIn("design-knowledge-and-skills", skills)
-        self.assertIn("Index and retrieval guide", skills["design-knowledge-and-skills"].description)
+    def _frame_root(self) -> Path:
+        return self._design_root() / "frames"
 
-    def test_resource_manifest_indexes_core_design_resources(self) -> None:
-        manifest = json.loads((self._resource_root() / "resource-manifest.json").read_text(encoding="utf-8"))
-        resources = manifest["resources"]
-        resource_ids = {resource["id"] for resource in resources}
+    def _schema_root(self) -> Path:
+        return self._design_root() / "design_product_manager" / "schemas"
 
-        self.assertEqual(manifest["selectionPolicy"]["briefElementsFirst"], True)
-        self.assertIn("schema.design_brief_v1", resource_ids)
-        self.assertIn("schema.design_product_result_v1", resource_ids)
-        self.assertIn("brief_elements.dashboard", resource_ids)
-        self.assertIn("brief_elements.landing_page", resource_ids)
-        self.assertIn("brief_elements.mobile_app", resource_ids)
-        self.assertIn("brief_elements.deck", resource_ids)
-        self.assertIn("brief_elements.operation_data_ui", resource_ids)
-        self.assertIn("brief_elements.admin_console", resource_ids)
-        self.assertIn("brief_elements.marketing_campaign_page", resource_ids)
-        self.assertIn("brief_elements.social_carousel", resource_ids)
-        self.assertIn("brief_elements.html_deck", resource_ids)
-        self.assertIn("brief_elements.pricing_page", resource_ids)
-        self.assertIn("brief_elements.docs_page", resource_ids)
-        self.assertIn("brief_elements.kanban_board", resource_ids)
-        self.assertIn("brief_elements.magazine_poster", resource_ids)
-        self.assertIn("brief_elements.wireframe_sketch", resource_ids)
-        self.assertIn("brief_elements.blog_post", resource_ids)
-        self.assertIn("brief_elements.critique", resource_ids)
-        self.assertIn("brief_elements.dating_web", resource_ids)
-        self.assertIn("brief_elements.digital_eguide", resource_ids)
-        self.assertIn("brief_elements.email_marketing", resource_ids)
-        self.assertIn("brief_elements.eng_runbook", resource_ids)
-        self.assertIn("brief_elements.finance_report", resource_ids)
-        self.assertIn("brief_elements.gamified_app", resource_ids)
-        self.assertIn("brief_elements.guizang_ppt", resource_ids)
-        self.assertIn("brief_elements.hr_onboarding", resource_ids)
-        self.assertIn("brief_elements.hyperframes", resource_ids)
-        self.assertIn("brief_elements.image_poster", resource_ids)
-        self.assertIn("brief_elements.invoice", resource_ids)
-        self.assertIn("brief_elements.meeting_notes", resource_ids)
-        self.assertIn("brief_elements.mobile_onboarding", resource_ids)
-        self.assertIn("brief_elements.motion_frames", resource_ids)
-        self.assertIn("brief_elements.pm_spec", resource_ids)
-        self.assertIn("brief_elements.replit_deck", resource_ids)
-        self.assertIn("brief_elements.sprite_animation", resource_ids)
-        self.assertIn("brief_elements.team_okrs", resource_ids)
-        self.assertIn("brief_elements.tweaks", resource_ids)
-        self.assertIn("brief_elements.video_shortform", resource_ids)
-        self.assertIn("brief_elements.weekly_update", resource_ids)
-        self.assertIn("task_skill.dashboard", resource_ids)
-        self.assertIn("task_skill.saas-landing", resource_ids)
-        self.assertIn("task_skill.social-carousel", resource_ids)
-        self.assertIn("design_system.linear-app", resource_ids)
-        self.assertIn("device_frame.iphone-15-pro", resource_ids)
-        self.assertEqual(
-            sum(1 for resource in resources if resource["type"] == "contract_schema"),
-            2,
-        )
-        self.assertEqual(
-            sum(1 for resource in resources if resource["type"] == "brief_element_schema"),
-            37,
-        )
+    def test_design_systems_are_packaged_with_production_design_resources(self) -> None:
+        design_systems = list_design_systems()
+        ids = {item.id for item in design_systems}
 
-    def test_manifest_resource_paths_exist(self) -> None:
-        manifest = json.loads((self._resource_root() / "resource-manifest.json").read_text(encoding="utf-8"))
-        missing_paths: list[str] = []
-        for resource in manifest["resources"]:
-            for key in ("path", "questionTemplatePath"):
-                raw_path = str(resource.get(key, "") or "").strip()
-                if raw_path and not (self._resource_root() / raw_path).exists():
-                    missing_paths.append(f"{resource.get('id', '<missing id>')} {key} -> {raw_path}")
+        self.assertGreaterEqual(len(ids), 60)
+        self.assertIn("claude", ids)
+        self.assertIn("stripe", ids)
+        self.assertIn("vercel", ids)
+        self.assertIn("apple", ids)
+        for item in design_systems:
+            design_path = self._design_system_root() / item.id / "DESIGN.md"
+            self.assertTrue(design_path.is_file(), item.id)
 
-        self.assertEqual(missing_paths, [])
+    def test_core_design_systems_are_readable(self) -> None:
+        for design_system_id in ("claude", "stripe", "vercel", "apple"):
+            body = read_design_system(design_system_id)
 
-    def test_brief_manifest_entries_match_source_files(self) -> None:
-        manifest = json.loads((self._resource_root() / "resource-manifest.json").read_text(encoding="utf-8"))
-        mismatches: list[str] = []
-        for resource in manifest["resources"]:
-            if resource["type"] != "brief_element_schema":
-                continue
-            source_path = self._resource_root() / resource["path"]
-            brief_element = json.loads(source_path.read_text(encoding="utf-8"))
-            field_pairs = (
-                ("id", "id"),
-                ("type", "type"),
-                ("surface", "surface"),
-                ("scenario", "scenarios"),
-                ("requiredFields", "required_fields"),
-                ("optionalFields", "optional_fields"),
-                ("defaults", "defaults"),
-            )
-            for manifest_key, source_key in field_pairs:
-                if resource.get(manifest_key) != brief_element.get(source_key):
-                    mismatches.append(f"{resource['id']}: {manifest_key} != {source_key}")
-            if resource.get("questionTemplatePath") != resource.get("path"):
-                mismatches.append(f"{resource['id']}: questionTemplatePath must point to the brief element JSON")
+            self.assertIsNotNone(body, design_system_id)
+            self.assertTrue((body or "").strip(), design_system_id)
+            self.assertIn("#", body or "", design_system_id)
 
-        self.assertEqual(mismatches, [])
+    def test_design_system_preview_paths_exist(self) -> None:
+        for item in list_design_systems():
+            preview = resolve_design_system_preview(item.id, dark=False)
+            dark_preview = resolve_design_system_preview(item.id, dark=True)
 
-    def test_brief_element_triggers_are_unique(self) -> None:
-        manifest = json.loads((self._resource_root() / "resource-manifest.json").read_text(encoding="utf-8"))
-        trigger_owners: dict[str, list[str]] = {}
-        for resource in manifest["resources"]:
-            if resource["type"] != "brief_element_schema":
-                continue
-            for trigger in resource.get("triggers", []) or []:
-                normalized = str(trigger).strip().lower()
-                if normalized:
-                    trigger_owners.setdefault(normalized, []).append(resource["id"])
+            self.assertIsNotNone(preview, item.id)
+            self.assertTrue(preview.is_file(), item.id)
+            self.assertIsNotNone(dark_preview, item.id)
+            self.assertTrue(dark_preview.is_file(), item.id)
 
-        duplicate_triggers = {
-            trigger: owners
-            for trigger, owners in trigger_owners.items()
-            if len(owners) > 1
+    def test_device_frame_resources_are_packaged(self) -> None:
+        expected = {
+            "README.md",
+            "android-pixel.html",
+            "browser-chrome.html",
+            "ipad-pro.html",
+            "iphone-15-pro.html",
+            "macbook.html",
         }
-        self.assertEqual(duplicate_triggers, {})
+        existing = {path.name for path in self._frame_root().iterdir() if path.is_file()}
 
-    def test_brief_elements_cover_all_current_task_skills(self) -> None:
-        manifest = json.loads((self._resource_root() / "resource-manifest.json").read_text(encoding="utf-8"))
-        task_skill_slugs = {
-            resource["id"].split(".", 1)[1]
-            for resource in manifest["resources"]
-            if resource["type"] == "task_skill"
-        }
-        covered_skill_slugs = set()
-        for resource in manifest["resources"]:
-            if resource["type"] != "brief_element_schema":
-                continue
-            defaults = resource.get("defaults") or {}
-            for key in ("recommended_skill", "fallback_skill"):
-                value = str(defaults.get(key) or "").strip()
-                if value:
-                    covered_skill_slugs.add(value)
-
-        self.assertEqual(task_skill_slugs - covered_skill_slugs, set())
+        self.assertEqual(expected - existing, set())
 
     def test_contract_schemas_define_stable_versions(self) -> None:
-        schema_dir = self._resource_root() / "schemas"
-        design_brief_schema = json.loads((schema_dir / "design-brief-v1.schema.json").read_text(encoding="utf-8"))
-        result_schema = json.loads((schema_dir / "design-product-result-v1.schema.json").read_text(encoding="utf-8"))
+        design_brief_schema = json.loads((self._schema_root() / "design-brief-v1.schema.json").read_text(encoding="utf-8"))
+        result_schema = json.loads((self._schema_root() / "design-product-result-v1.schema.json").read_text(encoding="utf-8"))
 
         self.assertEqual(design_brief_schema["properties"]["schema_version"]["const"], "design-brief-v1")
         self.assertIn("design_system", design_brief_schema["required"])
@@ -165,64 +82,16 @@ class DesignKnowledgeResourceTests(unittest.TestCase):
         )
         self.assertIn("design_validation", result_schema["required"])
 
-    def test_brief_elements_provide_question_templates(self) -> None:
-        brief_elements = [
-            json.loads(path.read_text(encoding="utf-8"))
-            for path in sorted((self._resource_root() / "brief-elements").glob("*.json"))
+    def test_packaged_design_resource_files_do_not_embed_local_absolute_paths(self) -> None:
+        resource_paths = [
+            *sorted(self._design_system_root().glob("*/DESIGN.md")),
+            *sorted(self._design_system_root().glob("*/preview*.html")),
+            *sorted(path for path in self._frame_root().glob("*") if path.is_file()),
+            *sorted(self._schema_root().glob("*.json")),
         ]
 
-        self.assertTrue(brief_elements)
-        for brief_element in brief_elements:
-            self.assertEqual(brief_element["type"], "brief_element_schema")
-            self.assertTrue(brief_element["required_fields"], brief_element["id"])
-            self.assertTrue(brief_element["question_templates"], brief_element["id"])
-            self.assertIn("recommended_skill", brief_element["defaults"])
-
-    def test_brief_elements_provide_stable_contract_defaults(self) -> None:
-        required_default_fields = {
-            "primary_user",
-            "business_domain",
-            "decision_goal",
-            "visual_direction",
-            "interactions",
-        }
-        brief_elements = [
-            json.loads(path.read_text(encoding="utf-8"))
-            for path in sorted((self._resource_root() / "brief-elements").glob("*.json"))
-        ]
-
-        self.assertTrue(brief_elements)
-        for brief_element in brief_elements:
-            defaults = brief_element["defaults"]
-            self.assertEqual(required_default_fields - set(defaults), set(), brief_element["id"])
-            for field in required_default_fields - {"interactions"}:
-                self.assertTrue(defaults[field], f"{brief_element['id']} {field}")
-            self.assertIsInstance(defaults["interactions"], list, brief_element["id"])
-            self.assertTrue(defaults["interactions"], brief_element["id"])
-
-    def test_brief_design_system_candidates_exist(self) -> None:
-        design_system_root = self._resource_root() / "design-systems"
-        brief_elements = [
-            json.loads(path.read_text(encoding="utf-8"))
-            for path in sorted((self._resource_root() / "brief-elements").glob("*.json"))
-        ]
-        missing_candidates: list[str] = []
-
-        for brief_element in brief_elements:
-            for candidate in brief_element["defaults"].get("recommended_design_system_candidates", []) or []:
-                if not (design_system_root / candidate / "DESIGN.md").exists():
-                    missing_candidates.append(f"{brief_element['id']} -> {candidate}")
-
-        self.assertEqual(missing_candidates, [])
-
-    def test_design_resource_files_do_not_embed_local_absolute_paths(self) -> None:
-        for path in [
-            self._resource_root() / "SKILL.md",
-            self._resource_root() / "resource-manifest.json",
-            self._resource_root() / "resource-index.md",
-            *sorted((self._resource_root() / "schemas").glob("*.json")),
-            *sorted((self._resource_root() / "brief-elements").glob("*.json")),
-        ]:
+        self.assertTrue(resource_paths)
+        for path in resource_paths:
             content = path.read_text(encoding="utf-8")
             self.assertNotIn("/" + "Users/", content, path.as_posix())
 

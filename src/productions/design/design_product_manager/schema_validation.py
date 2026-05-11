@@ -12,7 +12,7 @@ from jsonschema.exceptions import ValidationError
 
 from conf.path import PROJECT_PATH
 
-_SCHEMA_ROOT = Path("skills/design-knowledge-and-skills/schemas")
+_SCHEMA_ROOT = Path("src/productions/design/design_product_manager/schemas")
 _DESIGN_BRIEF_SCHEMA = "design-brief-v1.schema.json"
 _DESIGN_RESULT_SCHEMA = "design-product-result-v1.schema.json"
 

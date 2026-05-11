@@ -9,7 +9,14 @@ packages = [
     { include = "src" },
     { include = "conf" },
 ]
-include = ["conf/jsons/*.json", "skills/**/*", "src/webchat/static/**/*", "src/productions/design/design-systems/**/*"]
+include = [
+    "conf/jsons/*.json",
+    "skills/**/*",
+    "src/webchat/static/**/*",
+    "src/productions/design/design-systems/**/*",
+    "src/productions/design/frames/**/*",
+    "src/productions/design/design_product_manager/schemas/*.json",
+]
 
 [tool.poetry.dependencies]
 python = ">=3.12,<4.0"

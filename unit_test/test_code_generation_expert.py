@@ -78,7 +78,7 @@ class CodeGenerationExpertTests(unittest.IsolatedAsyncioTestCase):
                     prompt="Create an operations dashboard.",
                     language="html",
                     output_path=relative_output_path,
-                    context_files=["skills/design-knowledge-and-skills/brief-elements/dashboard.json"],
+                    context_files=["src/productions/design/design-systems/claude/DESIGN.md"],
                     constraints=["single self-contained HTML"],
                 )
             generated_content = output_path.read_text(encoding="utf-8").strip()
@@ -89,7 +89,7 @@ class CodeGenerationExpertTests(unittest.IsolatedAsyncioTestCase):
         self.assertFalse(result["retryable"])
         self.assertEqual(generated_content, "<!doctype html><html><body>Dashboard</body></html>")
         self.assertIn("single self-contained HTML", captured_request["text"])
-        self.assertIn("brief-elements/dashboard.json", captured_request["text"])
+        self.assertIn("design-systems/claude/DESIGN.md", captured_request["text"])
         self.assertIn("operations dashboard", captured_request["text"])
 
     async def test_code_generation_tool_reports_empty_model_response(self) -> None:

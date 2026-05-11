@@ -21,7 +21,7 @@ Use this expert to generate exactly one code or text file from a structured brie
 - Pass a complete `prompt` that includes the user goal, selected resources, output contract, and constraints.
 - Use `language` to select the intended file type. Supported common values include `html`, `javascript`, `typescript`, `python`, `markdown`, `json`, `yaml`, and `text`.
 - Use `output_path` when the caller needs a stable workspace path. If omitted, the expert writes a generated session file.
-- Use `context_files` for selected resource files, such as `skills/design-knowledge-and-skills/skills/dashboard/SKILL.md` or a selected `DESIGN.md`.
+- Use `context_files` for selected resource files, such as `src/productions/design/design-systems/claude/DESIGN.md` or a selected task skill.
 - Keep context files selected and small. Do not pass the entire design resource library.
 
 ## Provider Boundaries
