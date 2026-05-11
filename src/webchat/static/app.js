@@ -28,6 +28,7 @@ const PREVIEW_TABS = ["tldraw", "html", "ppt", "model3d"];
 const AUTO_PREVIEW_PRIORITY = ["model3d", "ppt", "html", "tldraw"];
 const INLINE_3D_EXTENSIONS = new Set([".glb", ".gltf", ".obj", ".stl"]);
 const MODEL_3D_EXTENSIONS = new Set([".glb", ".gltf", ".obj", ".stl", ".fbx", ".usdz", ".usd"]);
+const MODEL3D_AUTO_PREVIEW_LIMIT_BYTES = 150 * 1024 * 1024;
 const UPLOAD_CHUNK_SIZE = 512 * 1024;
 const QUESTION_FORM_STREAM_MARKER = "<cc-question-form";
 const MEDIA_CANVAS_MIN_ZOOM = 0.45;
@@ -63,6 +64,7 @@ const mediaCanvasState = {
 };
 let tldrawCanvasUnmount = null;
 let model3dViewerController = null;
+const largeModelPreviewApprovals = new Set();
 let designSystemsCache = null;
 let designSystemsPromise = null;
 
@@ -1508,7 +1510,7 @@ function renderArtifacts(container, artifacts) {
     } else if (hasModel) {
       const badge = document.createElement("div");
       badge.className = "artifact-file-icon";
-      badge.textContent = inline3DArtifactSupported(artifact) ? "3D" : artifactExtension(artifact).replace(".", "").toUpperCase();
+      badge.textContent = model3DArtifactPreviewable(artifact) ? "3D" : artifactExtension(artifact).replace(".", "").toUpperCase();
       anchor.appendChild(badge);
     }
 
@@ -1519,7 +1521,7 @@ function renderArtifacts(container, artifacts) {
 
     const meta = document.createElement("div");
     meta.className = "artifact-meta";
-    meta.textContent = artifact.path || artifact.mimeType || "";
+    meta.textContent = artifactMetaText(artifact);
     anchor.appendChild(meta);
 
     container.appendChild(anchor);
@@ -2476,7 +2478,12 @@ function renderModel3dPreview() {
     return;
   }
 
-  const canPreviewInline = inline3DArtifactSupported(artifact);
+  const canPreviewInline = model3DArtifactPreviewable(artifact);
+  const artifactPreviewKey = artifactKey(artifact);
+  const requiresManualPreview =
+    canPreviewInline &&
+    model3DRequiresManualPreview(artifact) &&
+    !largeModelPreviewApprovals.has(artifactPreviewKey);
   const resetButton = document.createElement("button");
   resetButton.className = "preview-action";
   resetButton.type = "button";
@@ -2484,10 +2491,15 @@ function renderModel3dPreview() {
   resetButton.addEventListener("click", () => {
     model3dViewerController?.resetCamera?.();
   });
-  model3dPreview.appendChild(buildPreviewToolbar(artifact, canPreviewInline ? [resetButton] : []));
+  model3dPreview.appendChild(buildPreviewToolbar(artifact, canPreviewInline && !requiresManualPreview ? [resetButton] : []));
 
   if (!canPreviewInline) {
     model3dPreview.appendChild(buildUnsupportedModelCard(artifact));
+    return;
+  }
+
+  if (requiresManualPreview) {
+    model3dPreview.appendChild(buildLargeModelPreviewCard(artifact));
     return;
   }
 
@@ -2502,6 +2514,7 @@ function renderModel3dPreview() {
 
   model3dViewerController = window.CreativeClaw3D.mount(host, {
     src: artifact.url,
+    packageManifestUrl: modelPackageManifestUrlForArtifact(artifact),
     name: artifact.name || "3D model",
   });
 }
@@ -2528,9 +2541,42 @@ function buildUnsupportedModelCard(artifact) {
   title.textContent = "Inline 3D preview is not available for this format.";
   const meta = document.createElement("div");
   meta.className = "document-preview-meta";
-  meta.textContent = artifact.path || artifact.mimeType || artifact.name || "";
+  meta.textContent = artifactMetaText(artifact) || artifact.name || "";
   copy.appendChild(title);
   copy.appendChild(meta);
+
+  card.appendChild(icon);
+  card.appendChild(copy);
+  return card;
+}
+
+function buildLargeModelPreviewCard(artifact) {
+  const card = document.createElement("div");
+  card.className = "document-preview-card model3d-unsupported-card";
+
+  const icon = document.createElement("div");
+  icon.className = "document-preview-icon model3d-document-icon";
+  icon.textContent = "3D";
+
+  const copy = document.createElement("div");
+  copy.className = "document-preview-copy";
+  const title = document.createElement("div");
+  title.className = "document-preview-title";
+  title.textContent = "This model is large, so preview is paused.";
+  const meta = document.createElement("div");
+  meta.className = "document-preview-meta";
+  meta.textContent = `${formatFileSize(artifact.sizeBytes)} · Previewing large local models can make the browser slow.`;
+  const action = document.createElement("button");
+  action.className = "preview-action";
+  action.type = "button";
+  action.textContent = "Preview anyway";
+  action.addEventListener("click", () => {
+    largeModelPreviewApprovals.add(artifactKey(artifact));
+    renderModel3dPreview();
+  });
+  copy.appendChild(title);
+  copy.appendChild(meta);
+  copy.appendChild(action);
 
   card.appendChild(icon);
   card.appendChild(copy);
@@ -2568,7 +2614,7 @@ function buildPreviewToolbar(artifact, actions = [], options = {}) {
     name.textContent = artifact.name || "artifact";
     const path = document.createElement("div");
     path.className = "preview-file-path";
-    path.textContent = artifact.path || artifact.mimeType || "";
+    path.textContent = artifactMetaText(artifact);
     meta.appendChild(name);
     meta.appendChild(path);
   }
@@ -2672,6 +2718,15 @@ function is3DArtifact(artifact) {
   return Boolean(artifact?.is3D) || MODEL_3D_EXTENSIONS.has(extension) || mimeType.startsWith("model/") || isLikely3DZipArtifact(artifact);
 }
 
+function model3DArtifactPreviewable(artifact) {
+  return inline3DArtifactSupported(artifact) || isLikely3DZipArtifact(artifact);
+}
+
+function model3DRequiresManualPreview(artifact) {
+  const sizeBytes = Number(artifact?.sizeBytes || 0);
+  return Number.isFinite(sizeBytes) && sizeBytes > MODEL3D_AUTO_PREVIEW_LIMIT_BYTES;
+}
+
 function inline3DArtifactSupported(artifact) {
   const extension = artifactExtension(artifact);
   const mimeType = artifactMimeType(artifact);
@@ -2682,6 +2737,21 @@ function inline3DArtifactSupported(artifact) {
     mimeType === "model/obj" ||
     mimeType === "model/stl"
   );
+}
+
+function modelPackageManifestUrlForArtifact(artifact) {
+  if (!isLikely3DZipArtifact(artifact)) {
+    return "";
+  }
+  const path = String(artifact?.path || "").trim();
+  if (path) {
+    return `/workspace-3d-package/manifest/${encodeWorkspacePath(path)}`;
+  }
+  const url = String(artifact?.url || "");
+  if (url.startsWith("/workspace/")) {
+    return url.replace("/workspace/", "/workspace-3d-package/manifest/");
+  }
+  return "";
 }
 
 function isLikely3DZipArtifact(artifact) {
@@ -2703,6 +2773,35 @@ function artifactExtension(artifact) {
 
 function artifactSourceText(artifact) {
   return String(artifact?.name || artifact?.path || artifact?.url || "");
+}
+
+function artifactMetaText(artifact) {
+  const source = artifact?.path || artifact?.mimeType || "";
+  const size = formatFileSize(artifact?.sizeBytes);
+  return [source, size].filter(Boolean).join(" · ");
+}
+
+function formatFileSize(value) {
+  const bytes = Number(value || 0);
+  if (!Number.isFinite(bytes) || bytes <= 0) {
+    return "";
+  }
+  const units = ["B", "KB", "MB", "GB"];
+  let size = bytes;
+  let unitIndex = 0;
+  while (size >= 1024 && unitIndex < units.length - 1) {
+    size /= 1024;
+    unitIndex += 1;
+  }
+  const precision = unitIndex === 0 || size >= 10 ? 0 : 1;
+  return `${size.toFixed(precision)} ${units[unitIndex]}`;
+}
+
+function encodeWorkspacePath(path) {
+  return String(path || "")
+    .split("/")
+    .map((segment) => encodeURIComponent(segment))
+    .join("/");
 }
 
 function mimeTypeForExtension(extension) {

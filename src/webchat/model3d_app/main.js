@@ -1,6 +1,7 @@
 import * as THREE from "three";
 import { OrbitControls } from "three/examples/jsm/controls/OrbitControls.js";
 import { GLTFLoader } from "three/examples/jsm/loaders/GLTFLoader.js";
+import { MTLLoader } from "three/examples/jsm/loaders/MTLLoader.js";
 import { OBJLoader } from "three/examples/jsm/loaders/OBJLoader.js";
 import { STLLoader } from "three/examples/jsm/loaders/STLLoader.js";
 
@@ -8,7 +9,7 @@ const SUPPORTED_EXTENSIONS = [".glb", ".gltf", ".obj", ".stl"];
 
 function mount(element, options = {}) {
   const viewer = new CreativeClawModelViewer(element, options);
-  viewer.load(options.src || "");
+  viewer.load(options.src || "", options.packageManifestUrl || "");
   return {
     resetCamera: () => viewer.resetCamera(),
     unmount: () => viewer.dispose(),
@@ -23,6 +24,7 @@ class CreativeClawModelViewer {
     this.model = null;
     this.disposed = false;
     this.initialCameraState = null;
+    this.objectUrls = [];
 
     this.scene = new THREE.Scene();
     this.scene.background = new THREE.Color(0xf3f5ef);
@@ -43,9 +45,6 @@ class CreativeClawModelViewer {
     this.controls.dampingFactor = 0.08;
     this.controls.screenSpacePanning = true;
 
-    this.gltfLoader = new GLTFLoader();
-    this.objLoader = new OBJLoader();
-    this.stlLoader = new STLLoader();
     this.status = document.createElement("div");
     this.status.className = "model3d-status";
     this.status.textContent = "Loading model...";
@@ -83,12 +82,69 @@ class CreativeClawModelViewer {
     this.scene.add(grid);
   }
 
-  load(src) {
+  load(src, packageManifestUrl = "") {
+    if (packageManifestUrl) {
+      this.loadPackage(packageManifestUrl);
+      return;
+    }
     if (!src) {
       this.showError("No model source was provided.");
       return;
     }
     const extension = extensionFromSource(src) || extensionFromSource(this.name);
+    this.loadByExtension(src, extension);
+  }
+
+  async loadPackage(manifestUrl) {
+    this.showStatus("Inspecting model package...");
+    try {
+      const response = await fetch(manifestUrl, { cache: "no-store" });
+      if (!response.ok) {
+        throw new Error(`Package manifest request failed with status ${response.status}.`);
+      }
+      const manifest = await response.json();
+      if (this.disposed) {
+        return;
+      }
+      const modelUrl = String(manifest.modelUrl || "");
+      const modelEntry = String(manifest.modelEntry || "");
+      const fileUrl = String(manifest.fileUrl || "");
+      if (!modelUrl || !modelEntry || !fileUrl) {
+        throw new Error("Package manifest did not include a previewable model.");
+      }
+      const extension = extensionFromSource(modelEntry);
+      const packageContext = {
+        fileUrl,
+        modelDirectory: String(manifest.modelDirectory || ""),
+      };
+      if (extension === ".gltf") {
+        await this.loadPackagedGltf(modelUrl, packageContext);
+        return;
+      }
+      const manager = createPackageLoadingManager(packageContext);
+      this.loadByExtension(modelUrl, extension, manager, packageContext);
+    } catch (error) {
+      console.warn(error);
+      this.showError("Could not inspect this 3D model package.");
+    }
+  }
+
+  async loadPackagedGltf(modelUrl, packageContext) {
+    this.showStatus("Loading model package...");
+    const response = await fetch(modelUrl, { cache: "no-store" });
+    if (!response.ok) {
+      throw new Error(`Packaged glTF request failed with status ${response.status}.`);
+    }
+    const gltf = await response.json();
+    rewritePackagedGltfUris(gltf, packageContext);
+    const objectUrl = URL.createObjectURL(
+      new Blob([JSON.stringify(gltf)], { type: "model/gltf+json" })
+    );
+    this.objectUrls.push(objectUrl);
+    this.loadByExtension(objectUrl, ".gltf");
+  }
+
+  loadByExtension(src, extension, manager = null, packageContext = null) {
     if (!SUPPORTED_EXTENSIONS.includes(extension)) {
       this.showError("Inline preview is not available for this 3D format.");
       return;
@@ -96,18 +152,19 @@ class CreativeClawModelViewer {
     this.showStatus("Loading model...");
 
     if (extension === ".obj") {
-      this.loadObj(src);
+      this.loadObj(src, manager, packageContext);
       return;
     }
     if (extension === ".stl") {
-      this.loadStl(src);
+      this.loadStl(src, manager);
       return;
     }
-    this.loadGltf(src);
+    this.loadGltf(src, manager);
   }
 
-  loadGltf(src) {
-    this.gltfLoader.load(
+  loadGltf(src, manager = null) {
+    const loader = new GLTFLoader(manager || undefined);
+    loader.load(
       src,
       (gltf) => {
         if (this.disposed) {
@@ -125,28 +182,64 @@ class CreativeClawModelViewer {
     );
   }
 
-  loadObj(src) {
-    this.objLoader.load(
-      src,
-      (object) => {
-        if (this.disposed) {
-          disposeObject(object);
-          return;
-        }
-        applyFallbackMaterial(object);
-        this.setModel(object);
-        this.showStatus("");
-      },
-      (event) => this.updateLoadingProgress(event),
-      (error) => {
-        console.warn(error);
-        this.showError("Could not load this OBJ model.");
+  async loadObj(src, manager = null, packageContext = null) {
+    try {
+      const response = await fetch(src, { cache: "no-store" });
+      if (!response.ok) {
+        throw new Error(`OBJ request failed with status ${response.status}.`);
       }
-    );
+      const objText = await response.text();
+      if (this.disposed) {
+        return;
+      }
+
+      const loader = new OBJLoader(manager || undefined);
+      const materialCreator = await this.loadObjMaterials(objText, src, manager, packageContext);
+      if (materialCreator) {
+        loader.setMaterials(materialCreator);
+      }
+      const object = loader.parse(objText);
+      if (this.disposed) {
+        disposeObject(object);
+        return;
+      }
+      applyFallbackMaterial(object);
+      this.setModel(object);
+      this.showStatus("");
+    } catch (error) {
+      console.warn(error);
+      this.showError("Could not load this OBJ model.");
+    }
   }
 
-  loadStl(src) {
-    this.stlLoader.load(
+  async loadObjMaterials(objText, objSrc, manager = null, packageContext = null) {
+    const materialName = firstObjMaterialLibrary(objText);
+    if (!materialName) {
+      return null;
+    }
+    try {
+      const materialUrl = packageContext
+        ? packageEntryUrl(packageContext, materialName)
+        : new URL(materialName, objSrc).href;
+      const response = await fetch(materialUrl, { cache: "no-store" });
+      if (!response.ok) {
+        return null;
+      }
+      const mtlText = await response.text();
+      const loader = new MTLLoader(manager || undefined);
+      const basePath = packageContext ? "" : directoryUrlForSource(materialUrl);
+      const materialCreator = loader.parse(mtlText, basePath);
+      materialCreator.preload();
+      return materialCreator;
+    } catch (error) {
+      console.warn(error);
+      return null;
+    }
+  }
+
+  loadStl(src, manager = null) {
+    const loader = new STLLoader(manager || undefined);
+    loader.load(
       src,
       (geometry) => {
         if (this.disposed) {
@@ -266,6 +359,10 @@ class CreativeClawModelViewer {
       disposeObject(this.model);
     }
     this.renderer.dispose();
+    for (const objectUrl of this.objectUrls) {
+      URL.revokeObjectURL(objectUrl);
+    }
+    this.objectUrls = [];
     this.element.replaceChildren();
     this.element.classList.remove("model3d-viewer-mounted");
   }
@@ -312,6 +409,85 @@ function extensionFromSource(source) {
   const cleaned = String(source || "").split("?")[0].split("#")[0].toLowerCase();
   const dotIndex = cleaned.lastIndexOf(".");
   return dotIndex >= 0 ? cleaned.slice(dotIndex) : "";
+}
+
+function createPackageLoadingManager({ fileUrl, modelDirectory }) {
+  const manager = new THREE.LoadingManager();
+  manager.setURLModifier((url) => {
+    if (isExternalResourceUrl(url)) {
+      return url;
+    }
+    const entry = joinPackageEntry(modelDirectory, url);
+    return absoluteResourceUrl(`${fileUrl}?entry=${encodeURIComponent(entry)}`);
+  });
+  return manager;
+}
+
+function rewritePackagedGltfUris(gltf, packageContext) {
+  for (const buffer of gltf.buffers || []) {
+    if (buffer?.uri && !isExternalResourceUrl(buffer.uri)) {
+      buffer.uri = packageEntryUrl(packageContext, buffer.uri);
+    }
+  }
+  for (const image of gltf.images || []) {
+    if (image?.uri && !isExternalResourceUrl(image.uri)) {
+      image.uri = packageEntryUrl(packageContext, image.uri);
+    }
+  }
+}
+
+function packageEntryUrl({ fileUrl, modelDirectory }, uri) {
+  const entry = joinPackageEntry(modelDirectory, uri);
+  return absoluteResourceUrl(`${fileUrl}?entry=${encodeURIComponent(entry)}`);
+}
+
+function firstObjMaterialLibrary(objText) {
+  for (const line of String(objText || "").split(/\r?\n/)) {
+    const trimmed = line.trim();
+    if (!trimmed || trimmed.startsWith("#")) {
+      continue;
+    }
+    const match = /^mtllib\s+(.+)$/i.exec(trimmed);
+    if (match?.[1]) {
+      return match[1].trim();
+    }
+  }
+  return "";
+}
+
+function directoryUrlForSource(source) {
+  return new URL(".", source).href;
+}
+
+function absoluteResourceUrl(url) {
+  return new URL(String(url || ""), window.location.href).href;
+}
+
+function isExternalResourceUrl(url) {
+  const value = String(url || "");
+  return (
+    value.startsWith("http://") ||
+    value.startsWith("https://") ||
+    value.startsWith("data:") ||
+    value.startsWith("blob:") ||
+    value.startsWith("/")
+  );
+}
+
+function joinPackageEntry(baseDirectory, url) {
+  const cleanUrl = String(url || "").split("?")[0].split("#")[0].replace(/\\/g, "/");
+  const segments = [];
+  for (const part of `${baseDirectory || ""}/${cleanUrl}`.split("/")) {
+    if (!part || part === ".") {
+      continue;
+    }
+    if (part === "..") {
+      segments.pop();
+      continue;
+    }
+    segments.push(part);
+  }
+  return segments.join("/");
 }
 
 window.CreativeClaw3D = {
