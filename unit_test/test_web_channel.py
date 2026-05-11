@@ -98,9 +98,12 @@ class WebChannelTests(unittest.IsolatedAsyncioTestCase):
 
     async def test_web_channel_serves_3d_artifact_metadata_and_asset(self) -> None:
         cases = [
+            (".fbx", "application/octet-stream", b"Kaydara FBX Binary  \x00"),
             (".glb", "model/gltf-binary", b"fake-glb"),
+            (".usd", "model/vnd.usd", b"#usda 1.0\n"),
             (".obj", "model/obj", b"o cube\nv 0 0 0\n"),
             (".stl", "model/stl", b"solid cube\nendsolid cube\n"),
+            (".usdz", "model/vnd.usdz+zip", b"fake-usdz"),
         ]
         generated_files = []
         for extension, _mime_type, body in cases:
@@ -146,6 +149,44 @@ class WebChannelTests(unittest.IsolatedAsyncioTestCase):
             for generated_file in generated_files:
                 with contextlib.suppress(FileNotFoundError):
                     generated_file.unlink()
+
+    async def test_web_channel_selects_fbx_usd_from_zip_model_package(self) -> None:
+        generated_file = generated_root() / f"web_channel_hy3d_model_{uuid.uuid4().hex[:8]}.zip"
+        fbx_body = b"Kaydara FBX Binary  \x00"
+        usdz_body = b"fake-usdz"
+        with zipfile.ZipFile(generated_file, "w") as archive:
+            archive.writestr("models/preview.usdz", usdz_body)
+            archive.writestr("models/preview.fbx", fbx_body)
+            archive.writestr("notes/readme.txt", b"not a model")
+
+        try:
+            relative_path = workspace_relative_path(generated_file)
+
+            def fetch_json(path: str):
+                with urlopen(f"{self.channel.url}{path}") as response:  # noqa: S310 - local test server
+                    return response.status, response.headers.get("Content-Type", ""), json.loads(
+                        response.read().decode("utf-8")
+                    )
+
+            def fetch_bytes(path: str):
+                with urlopen(f"{self.channel.url}{path}") as response:  # noqa: S310 - local test server
+                    return response.status, response.headers.get("Content-Type", ""), response.read()
+
+            manifest_path = f"/workspace-3d-package/manifest/{quote(relative_path)}"
+            status, content_type, manifest = await asyncio.to_thread(fetch_json, manifest_path)
+            self.assertEqual(status, 200)
+            self.assertIn("application/json", content_type)
+            self.assertEqual(manifest["modelEntry"], "models/preview.fbx")
+            self.assertEqual(manifest["modelDirectory"], "models")
+            self.assertEqual(manifest["modelSizeBytes"], len(fbx_body))
+
+            status, content_type, body = await asyncio.to_thread(fetch_bytes, manifest["modelUrl"])
+            self.assertEqual(status, 200)
+            self.assertIn("application/octet-stream", content_type)
+            self.assertEqual(body, fbx_body)
+        finally:
+            with contextlib.suppress(FileNotFoundError):
+                generated_file.unlink()
 
     async def test_web_channel_serves_zip_model_package_manifest_and_entries(self) -> None:
         generated_file = generated_root() / f"web_channel_model_{uuid.uuid4().hex[:8]}.zip"
