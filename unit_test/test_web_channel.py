@@ -4,6 +4,7 @@ import contextlib
 import json
 import unittest
 import uuid
+import zipfile
 from pathlib import Path
 from urllib.parse import quote
 from urllib.request import urlopen
@@ -131,6 +132,7 @@ class WebChannelTests(unittest.IsolatedAsyncioTestCase):
                     self.assertFalse(artifact["isImage"])
                     self.assertTrue(artifact["is3D"])
                     self.assertEqual(artifact["mimeType"], expected_mime_type)
+                    self.assertEqual(artifact["sizeBytes"], len(expected_body))
 
                     def fetch_artifact():
                         with urlopen(f"{self.channel.url}{artifact['url']}") as response:  # noqa: S310 - local test server
@@ -144,6 +146,78 @@ class WebChannelTests(unittest.IsolatedAsyncioTestCase):
             for generated_file in generated_files:
                 with contextlib.suppress(FileNotFoundError):
                     generated_file.unlink()
+
+    async def test_web_channel_serves_zip_model_package_manifest_and_entries(self) -> None:
+        generated_file = generated_root() / f"web_channel_model_{uuid.uuid4().hex[:8]}.zip"
+        gltf_body = json.dumps(
+            {
+                "asset": {"version": "2.0"},
+                "buffers": [{"uri": "model.bin", "byteLength": 0}],
+                "scenes": [{"nodes": []}],
+                "scene": 0,
+            }
+        ).encode("utf-8")
+        bin_body = b""
+        with zipfile.ZipFile(generated_file, "w") as archive:
+            archive.writestr("models/model.gltf", gltf_body)
+            archive.writestr("models/model.bin", bin_body)
+            archive.writestr("notes/readme.txt", b"not a model")
+
+        try:
+            relative_path = workspace_relative_path(generated_file)
+
+            def fetch_json(path: str):
+                with urlopen(f"{self.channel.url}{path}") as response:  # noqa: S310 - local test server
+                    return response.status, response.headers.get("Content-Type", ""), json.loads(
+                        response.read().decode("utf-8")
+                    )
+
+            def fetch_bytes(path: str):
+                with urlopen(f"{self.channel.url}{path}") as response:  # noqa: S310 - local test server
+                    return response.status, response.headers.get("Content-Type", ""), response.read()
+
+            manifest_path = f"/workspace-3d-package/manifest/{quote(relative_path)}"
+            status, content_type, manifest = await asyncio.to_thread(fetch_json, manifest_path)
+            self.assertEqual(status, 200)
+            self.assertIn("application/json", content_type)
+            self.assertEqual(manifest["modelEntry"], "models/model.gltf")
+            self.assertEqual(manifest["modelDirectory"], "models")
+            self.assertEqual(manifest["modelSizeBytes"], len(gltf_body))
+            self.assertIn("/workspace-3d-package/file/", manifest["modelUrl"])
+            self.assertEqual(manifest["entryCount"], 3)
+
+            status, content_type, body = await asyncio.to_thread(fetch_bytes, manifest["modelUrl"])
+            self.assertEqual(status, 200)
+            self.assertIn("model/gltf+json", content_type)
+            self.assertEqual(body, gltf_body)
+
+            bin_path = f"/workspace-3d-package/file/{quote(relative_path)}?entry={quote('models/model.bin', safe='')}"
+            status, content_type, body = await asyncio.to_thread(fetch_bytes, bin_path)
+            self.assertEqual(status, 200)
+            self.assertIn("application/octet-stream", content_type)
+            self.assertEqual(body, bin_body)
+
+            async with websockets.connect(f"ws://127.0.0.1:{self.channel._port}/ws?session_id=zip-model-session") as websocket:
+                ready = json.loads(await asyncio.wait_for(websocket.recv(), timeout=2))
+                self.assertEqual(ready["type"], "ready")
+                await self.channel.send(
+                    OutboundMessage(
+                        channel="web",
+                        chat_id="zip-model-session",
+                        text="zip model ready",
+                        artifact_paths=[str(generated_file)],
+                        metadata={"display_style": "final"},
+                    )
+                )
+                final_message = await self._recv_until(websocket, "assistant_message")
+                self.assertEqual(len(final_message["artifacts"]), 1)
+                artifact = final_message["artifacts"][0]
+                self.assertTrue(artifact["is3D"])
+                self.assertEqual(artifact["mimeType"], "application/zip")
+                self.assertEqual(artifact["sizeBytes"], generated_file.stat().st_size)
+        finally:
+            with contextlib.suppress(FileNotFoundError):
+                generated_file.unlink()
 
     async def test_web_channel_serves_design_system_catalog_and_preview(self) -> None:
         def fetch_json(path: str):

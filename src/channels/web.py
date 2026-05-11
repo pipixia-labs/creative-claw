@@ -12,6 +12,7 @@ import re
 import tempfile
 import uuid
 import webbrowser
+import zipfile
 from collections.abc import Awaitable, Callable
 from dataclasses import dataclass
 from http import HTTPStatus
@@ -55,6 +56,14 @@ MODEL_MIME_TYPES = {
     ".usdz": "model/vnd.usdz+zip",
 }
 ASSISTANT_STREAM_CHUNK_SIZE = 96
+MODEL_PACKAGE_EXTENSIONS = {".glb", ".gltf", ".obj", ".stl"}
+MODEL_PACKAGE_EXTENSION_PRIORITY = {".glb": 0, ".gltf": 1, ".obj": 2, ".stl": 3}
+MODEL_PACKAGE_MAX_ENTRIES = 2000
+MODEL_PACKAGE_MAX_ENTRY_BYTES = 300 * 1024 * 1024
+MODEL_PACKAGE_NAME_PATTERN = re.compile(
+    r"(^|[._/\-])(3d|hy3d|seed3d|hyper3d|hitem3d|model|mesh)([._/\-]|$)",
+    re.IGNORECASE,
+)
 
 
 @dataclass(slots=True)
@@ -100,7 +109,34 @@ def _guess_content_type(filename: str) -> str:
 
 def _looks_like_3d_model(filename: str) -> bool:
     """Return whether one file name appears to be a 3D model artifact."""
-    return Path(filename).suffix.lower() in MODEL_MIME_TYPES or Path(filename).suffix.lower() == ".fbx"
+    suffix = Path(filename).suffix.lower()
+    return suffix in MODEL_MIME_TYPES or suffix == ".fbx" or (suffix == ".zip" and _looks_like_3d_package(filename))
+
+
+def _looks_like_3d_package(filename: str) -> bool:
+    """Return whether one zip name looks like a 3D model package."""
+    return bool(MODEL_PACKAGE_NAME_PATTERN.search(str(filename or "")))
+
+
+def _normalize_zip_entry(raw_entry: str) -> str | None:
+    """Normalize one zip entry name and reject path traversal."""
+    decoded = unquote(str(raw_entry or "").strip()).replace("\\", "/")
+    if not decoded:
+        return None
+    pure = PurePosixPath(decoded)
+    if pure.is_absolute() or ".." in pure.parts:
+        return None
+    normalized = pure.as_posix().strip("/")
+    return normalized or None
+
+
+def _zip_entry_sort_key(entry: dict[str, Any]) -> tuple[int, int, str]:
+    """Return model package entry priority for automatic preview selection."""
+    extension = Path(str(entry.get("name") or "")).suffix.lower()
+    depth = str(entry.get("name") or "").count("/")
+    return (MODEL_PACKAGE_EXTENSION_PRIORITY.get(extension, 99), depth, str(entry.get("name") or ""))
+
+
 def _should_stream_assistant_payload(payload: dict[str, Any]) -> bool:
     """Return whether one browser payload should be sent as assistant text deltas."""
     if payload.get("type") != "assistant_message":
@@ -665,6 +701,7 @@ class WebChannel(BaseChannel):
                     "isImage": looks_like_image(resolved),
                     "is3D": _looks_like_3d_model(resolved.name),
                     "mimeType": _guess_content_type(resolved.name),
+                    "sizeBytes": resolved.stat().st_size,
                 }
             )
         return artifacts
@@ -1114,6 +1151,17 @@ class WebChannel(BaseChannel):
         if parsed.path.startswith("/api/design-systems/"):
             return self._serve_design_system_api(parsed.path.removeprefix("/api/design-systems/"))
 
+        if parsed.path.startswith("/workspace-3d-package/manifest/"):
+            return self._serve_model_package_manifest(
+                parsed.path.removeprefix("/workspace-3d-package/manifest/")
+            )
+
+        if parsed.path.startswith("/workspace-3d-package/file/"):
+            return self._serve_model_package_file(
+                parsed.path.removeprefix("/workspace-3d-package/file/"),
+                parse_qs(parsed.query).get("entry", [""])[0],
+            )
+
         if parsed.path.startswith("/workspace-preview/"):
             return self._serve_workspace_preview(parsed.path.removeprefix("/workspace-preview/"))
 
@@ -1164,6 +1212,122 @@ class WebChannel(BaseChannel):
             )
 
         return _json_response({"error": "not found"}, status=HTTPStatus.NOT_FOUND)
+
+    def _serve_model_package_manifest(self, raw_relative_path: str) -> tuple[HTTPStatus, list[tuple[str, str]], bytes]:
+        """Serve metadata for one zipped 3D model package."""
+        package_path = self._resolve_workspace_file(raw_relative_path)
+        if package_path is None or package_path.suffix.lower() != ".zip":
+            return _json_response({"error": "model package not found"}, status=HTTPStatus.NOT_FOUND)
+
+        try:
+            with zipfile.ZipFile(package_path) as archive:
+                entries = self._model_package_entries(archive)
+        except zipfile.BadZipFile:
+            return _json_response({"error": "invalid zip package"}, status=HTTPStatus.UNSUPPORTED_MEDIA_TYPE)
+        except ValueError as exc:
+            return _json_response({"error": str(exc)}, status=HTTPStatus.REQUEST_ENTITY_TOO_LARGE)
+
+        model_entries = [
+            entry for entry in entries if Path(str(entry["name"])).suffix.lower() in MODEL_PACKAGE_EXTENSIONS
+        ]
+        if not model_entries:
+            return _json_response(
+                {"error": "zip package does not contain a supported 3D model"},
+                status=HTTPStatus.UNSUPPORTED_MEDIA_TYPE,
+            )
+
+        selected = sorted(model_entries, key=_zip_entry_sort_key)[0]
+        relative_path = workspace_relative_path(package_path)
+        file_url = f"/workspace-3d-package/file/{quote(relative_path)}"
+        model_entry = str(selected["name"])
+        model_url = f"{file_url}?entry={quote(model_entry, safe='')}"
+        model_directory = str(PurePosixPath(model_entry).parent)
+        if model_directory == ".":
+            model_directory = ""
+
+        return _json_response(
+            {
+                "name": package_path.name,
+                "path": relative_path,
+                "packageSizeBytes": package_path.stat().st_size,
+                "fileUrl": file_url,
+                "modelEntry": model_entry,
+                "modelUrl": model_url,
+                "modelDirectory": model_directory,
+                "modelSizeBytes": selected["sizeBytes"],
+                "entries": entries[:200],
+                "entryCount": len(entries),
+            }
+        )
+
+    def _serve_model_package_file(
+        self,
+        raw_relative_path: str,
+        raw_entry: str,
+    ) -> tuple[HTTPStatus, list[tuple[str, str]], bytes]:
+        """Serve one safe entry from a zipped 3D model package."""
+        package_path = self._resolve_workspace_file(raw_relative_path)
+        entry_name = _normalize_zip_entry(raw_entry)
+        if package_path is None or package_path.suffix.lower() != ".zip" or entry_name is None:
+            return (
+                HTTPStatus.NOT_FOUND,
+                [("Content-Type", "text/plain; charset=utf-8")],
+                b"Not Found",
+            )
+
+        try:
+            with zipfile.ZipFile(package_path) as archive:
+                info = self._find_zip_entry(archive, entry_name)
+                if info is None or info.is_dir():
+                    return (
+                        HTTPStatus.NOT_FOUND,
+                        [("Content-Type", "text/plain; charset=utf-8")],
+                        b"Not Found",
+                    )
+                if info.file_size > MODEL_PACKAGE_MAX_ENTRY_BYTES:
+                    return _json_response(
+                        {"error": "zip entry is too large to preview inline"},
+                        status=HTTPStatus.REQUEST_ENTITY_TOO_LARGE,
+                    )
+                body = archive.read(info)
+        except zipfile.BadZipFile:
+            return _json_response({"error": "invalid zip package"}, status=HTTPStatus.UNSUPPORTED_MEDIA_TYPE)
+
+        return (
+            HTTPStatus.OK,
+            [("Content-Type", self._content_type_header(entry_name)), ("Cache-Control", "no-cache")],
+            body,
+        )
+
+    def _model_package_entries(self, archive: zipfile.ZipFile) -> list[dict[str, Any]]:
+        """Return safe file entries from one zip archive."""
+        infos = [info for info in archive.infolist() if not info.is_dir()]
+        if len(infos) > MODEL_PACKAGE_MAX_ENTRIES:
+            raise ValueError("zip package contains too many files to preview inline")
+
+        entries: list[dict[str, Any]] = []
+        seen: set[str] = set()
+        for info in infos:
+            name = _normalize_zip_entry(info.filename)
+            if name is None or name in seen:
+                continue
+            seen.add(name)
+            entries.append(
+                {
+                    "name": name,
+                    "sizeBytes": int(info.file_size),
+                    "mimeType": _guess_content_type(name),
+                    "isModel": Path(name).suffix.lower() in MODEL_PACKAGE_EXTENSIONS,
+                }
+            )
+        return entries
+
+    def _find_zip_entry(self, archive: zipfile.ZipFile, entry_name: str) -> zipfile.ZipInfo | None:
+        """Find one zip entry by normalized safe name."""
+        for info in archive.infolist():
+            if _normalize_zip_entry(info.filename) == entry_name:
+                return info
+        return None
 
     def _serve_workspace_asset(self, raw_relative_path: str) -> tuple[HTTPStatus, list[tuple[str, str]], bytes]:
         """Serve one file from the CreativeClaw workspace."""
