@@ -18,8 +18,10 @@ from src.logger import logger
 from src.runtime.workspace import generated_session_dir, resolve_workspace_path
 
 DEFAULT_REGION = "ap-guangzhou"
-DEFAULT_MODEL = "3.0"
+DEFAULT_MODEL = "3.1"
 DEFAULT_GENERATE_TYPE = "Normal"
+DEFAULT_HY3D_ENABLE_PBR = True
+DEFAULT_HY3D_FACE_COUNT = 100000
 DEFAULT_TIMEOUT_SECONDS = 900
 DEFAULT_INTERVAL_SECONDS = 8
 TERMINAL_STATUSES = {"DONE", "FAIL"}
@@ -1059,9 +1061,9 @@ async def hy3d_generate_tool(
     prompt: str | None,
     input_path: str | None,
     model: str = DEFAULT_MODEL,
-    enable_pbr: bool = False,
+    enable_pbr: bool = DEFAULT_HY3D_ENABLE_PBR,
     generate_type: str = DEFAULT_GENERATE_TYPE,
-    face_count: int | None = None,
+    face_count: int | None = DEFAULT_HY3D_FACE_COUNT,
     polygon_type: str | None = None,
     result_format: str | None = None,
     timeout_seconds: int = DEFAULT_TIMEOUT_SECONDS,

@@ -2,14 +2,14 @@
 name = "3DGeneration"
 enabled = true
 default_provider = "hy3d"
-default_model = "3.0"
+default_model = "3.1"
 input_types = ["prompt", "image"]
 output_types = ["3d_asset"]
 routing_keywords = ["3d", "3D", "model", "asset", "mesh", "stl", "usdz", "fbx", "hunyuan", "seed3d", "doubao", "hyper3d", "hitem3d"]
 parameter_examples = [
-  "{'prompt': 'a wooden toy corgi', 'provider': 'hy3d'(optional), 'model': '3.0|3.1'(optional), 'generate_type': 'normal|lowpoly|sketch|geometry'(optional), 'enable_pbr': false(optional), 'face_count': 10000(optional), 'polygon_type': 'quad'(optional), 'result_format': 'stl|usdz|fbx'(optional), 'timeout_seconds': 900(optional), 'interval_seconds': 8(optional)}",
-  "{'input_path': 'workspace/path.png', 'provider': 'hy3d'(optional), 'model': '3.0|3.1'(optional), 'generate_type': 'normal|lowpoly|geometry'(optional), 'enable_pbr': false(optional), 'face_count': 10000(optional), 'polygon_type': 'quad'(optional), 'result_format': 'stl|usdz|fbx'(optional), 'timeout_seconds': 900(optional), 'interval_seconds': 8(optional)}",
-  "{'prompt': 'wood carving style', 'input_path': 'workspace/path.png', 'provider': 'hy3d'(optional), 'model': '3.0|3.1'(optional), 'generate_type': 'sketch', 'enable_pbr': false(optional), 'face_count': 10000(optional), 'polygon_type': 'quad'(optional), 'result_format': 'stl|usdz|fbx'(optional), 'timeout_seconds': 900(optional), 'interval_seconds': 8(optional)}",
+  "{'prompt': 'a wooden toy corgi', 'provider': 'hy3d'(optional), 'model': '3.0|3.1'(optional), 'generate_type': 'normal|lowpoly|sketch|geometry'(optional), 'enable_pbr': true(optional), 'face_count': 100000(optional), 'polygon_type': 'quad'(optional), 'result_format': 'stl|usdz|fbx'(optional), 'timeout_seconds': 900(optional), 'interval_seconds': 8(optional)}",
+  "{'input_path': 'workspace/path.png', 'provider': 'hy3d'(optional), 'model': '3.0|3.1'(optional), 'generate_type': 'normal|lowpoly|geometry'(optional), 'enable_pbr': true(optional), 'face_count': 100000(optional), 'polygon_type': 'quad'(optional), 'result_format': 'stl|usdz|fbx'(optional), 'timeout_seconds': 900(optional), 'interval_seconds': 8(optional)}",
+  "{'prompt': 'wood carving style', 'input_path': 'workspace/path.png', 'provider': 'hy3d'(optional), 'model': '3.0|3.1'(optional), 'generate_type': 'sketch', 'enable_pbr': true(optional), 'face_count': 100000(optional), 'polygon_type': 'quad'(optional), 'result_format': 'stl|usdz|fbx'(optional), 'timeout_seconds': 900(optional), 'interval_seconds': 8(optional)}",
   "{'input_path': 'workspace/path.png', 'provider': 'seed3d', 'model': 'doubao-seed3d-2-0-260328'(optional), 'file_format': 'glb|obj|usd|usdz'(optional), 'subdivision_level': 'low|medium|high'(optional), 'timeout_seconds': 900(optional), 'interval_seconds': 60(optional)}",
   "{'prompt': 'full-body sci-fi robot, hard-surface design', 'provider': 'hyper3d', 'model': 'hyper3d-gen2-260112'(optional), 'file_format': 'glb|obj|usdz|fbx|stl'(optional), 'mesh_mode': 'Raw|Quad'(optional), 'material': 'PBR|Shaded|All|None'(optional), 'quality_override': 150000(optional), 'hd_texture': true(optional), 'timeout_seconds': 900(optional), 'interval_seconds': 60(optional)}",
   "{'image_urls': ['https://example.com/front.png'], 'provider': 'hitem3d', 'model': 'hitem3d-2-0-251223'(optional), 'file_format': 'obj|glb|stl|fbx|usdz'(optional), 'resolution': '1536|1536pro'(optional), 'face_count': 2000000(optional), 'request_type': 3(optional), 'timeout_seconds': 900(optional), 'interval_seconds': 60(optional)}",
@@ -38,7 +38,8 @@ Use this expert to generate 3D asset files from a text prompt, one input image, 
 ## Provider Boundaries
 
 - Provider `hy3d` remains the default and uses Tencent Cloud Hunyuan 3D Pro.
-- `hy3d` default model is `3.0`; the parameters allow `model=3.0` or `model=3.1` when supported by the provider.
+- `hy3d` default model is `3.1`; the parameters allow `model=3.0` or `model=3.1` when supported by the provider.
+- `hy3d` prompt-only Normal mode appends concise quality constraints to improve default text-to-3D results.
 - `hy3d` supported generate types are `normal`, `lowpoly`, `sketch`, and `geometry`.
 - Provider `seed3d` uses Volcengine Ark model `doubao-seed3d-2-0-260328`.
 - `seed3d` is image-to-3D only and requires exactly one `input_path`, `input_paths`, or `image_url`.

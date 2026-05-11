@@ -51,6 +51,77 @@ class ThreeDGenerationAgentTests(unittest.IsolatedAsyncioTestCase):
                     "status": "success",
                     "message": "hy3d job job-1 succeeded with 1 file(s).",
                     "provider": "hy3d",
+                    "model_name": "3.1",
+                    "job_id": "job-1",
+                    "generate_type": "Normal",
+                    "downloaded_files": [
+                        {
+                            "path": fake_output_path,
+                            "type": "mesh",
+                            "url": "https://example.com/hy3d.fbx",
+                            "preview_image_url": "https://example.com/preview.png",
+                        }
+                    ],
+                }
+            ),
+        ) as hy3d_mock:
+            events = [event async for event in agent._run_async_impl(ctx)]
+
+        self.assertEqual(len(events), 1)
+        hy3d_mock.assert_awaited_once()
+        call_kwargs = hy3d_mock.await_args.kwargs
+        self.assertTrue(call_kwargs["prompt"].startswith("a toy corgi"))
+        self.assertIn("production-ready full 3D asset", call_kwargs["prompt"])
+        self.assertEqual(call_kwargs["input_path"], None)
+        self.assertEqual(call_kwargs["model"], "3.1")
+        self.assertEqual(call_kwargs["enable_pbr"], True)
+        self.assertEqual(call_kwargs["generate_type"], "Normal")
+        self.assertEqual(call_kwargs["face_count"], 100000)
+        self.assertEqual(call_kwargs["polygon_type"], None)
+        self.assertEqual(call_kwargs["result_format"], None)
+        self.assertEqual(call_kwargs["timeout_seconds"], 900)
+        self.assertEqual(call_kwargs["interval_seconds"], 8)
+        self.assertEqual(call_kwargs["session_id"], "session_1")
+        self.assertEqual(call_kwargs["turn_index"], 1)
+        self.assertEqual(call_kwargs["step"], 1)
+        current_output = events[0].actions.state_delta["current_output"]
+        self.assertEqual(current_output["job_id"], "job-1")
+        self.assertEqual(
+            current_output["output_files"][0]["path"],
+            "generated/session_1/turn_1/turn1_step1_3d_generation_job_1/hy3d_result_1_mesh.fbx",
+        )
+
+    async def test_3d_generation_preserves_explicit_hy3d_quality_overrides(self) -> None:
+        agent = ThreeDGenerationAgent(name="ThreeDGenerationAgent", public_name="3DGeneration")
+        ctx = _build_ctx(
+            {
+                "current_parameters": {
+                    "prompt": "a low-poly wooden corgi",
+                    "model": "3.0",
+                    "enable_pbr": False,
+                    "face_count": 30000,
+                },
+                "turn_index": 1,
+                "step": 1,
+                "expert_step": 1,
+            }
+        )
+        fake_output_path = (
+            workspace_root()
+            / "generated"
+            / "session_1"
+            / "turn_1"
+            / "turn1_step1_3d_generation_job_1"
+            / "hy3d_result_1_mesh.fbx"
+        )
+
+        with patch(
+            "src.agents.experts.three_d_generation.three_d_generation_agent.generation_tools.hy3d_generate_tool",
+            new=AsyncMock(
+                return_value={
+                    "status": "success",
+                    "message": "hy3d job job-1 succeeded with 1 file(s).",
+                    "provider": "hy3d",
                     "model_name": "3.0",
                     "job_id": "job-1",
                     "generate_type": "Normal",
@@ -68,27 +139,10 @@ class ThreeDGenerationAgentTests(unittest.IsolatedAsyncioTestCase):
             events = [event async for event in agent._run_async_impl(ctx)]
 
         self.assertEqual(len(events), 1)
-        hy3d_mock.assert_awaited_once_with(
-            prompt="a toy corgi",
-            input_path=None,
-            model="3.0",
-            enable_pbr=False,
-            generate_type="Normal",
-            face_count=None,
-            polygon_type=None,
-            result_format=None,
-            timeout_seconds=900,
-            interval_seconds=8,
-            session_id="session_1",
-            turn_index=1,
-            step=1,
-        )
-        current_output = events[0].actions.state_delta["current_output"]
-        self.assertEqual(current_output["job_id"], "job-1")
-        self.assertEqual(
-            current_output["output_files"][0]["path"],
-            "generated/session_1/turn_1/turn1_step1_3d_generation_job_1/hy3d_result_1_mesh.fbx",
-        )
+        call_kwargs = hy3d_mock.await_args.kwargs
+        self.assertEqual(call_kwargs["model"], "3.0")
+        self.assertEqual(call_kwargs["enable_pbr"], False)
+        self.assertEqual(call_kwargs["face_count"], 30000)
 
     async def test_3d_generation_requires_sketch_for_prompt_plus_image(self) -> None:
         agent = ThreeDGenerationAgent(name="ThreeDGenerationAgent", public_name="3DGeneration")
@@ -497,7 +551,7 @@ class ThreeDGenerationToolTests(unittest.IsolatedAsyncioTestCase):
             ),
             patch(
                 "src.agents.experts.three_d_generation.tool._build_submit_request",
-                return_value=SimpleNamespace(Model="3.0"),
+                return_value=SimpleNamespace(Model="3.1"),
             ),
             patch(
                 "src.agents.experts.three_d_generation.tool._submit_job_sync",

@@ -434,9 +434,10 @@ _EXPERT_SPECS = {
         default_prompt_key="prompt",
         default_parameters={
             "provider": "hy3d",
-            "model": "3.0",
+            "model": "3.1",
             "generate_type": "normal",
-            "enable_pbr": False,
+            "enable_pbr": True,
+            "face_count": 100000,
             "timeout_seconds": 900,
             "interval_seconds": 8,
         },
