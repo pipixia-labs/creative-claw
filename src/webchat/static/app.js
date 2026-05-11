@@ -28,6 +28,18 @@ const PREVIEW_TABS = ["tldraw", "html", "ppt", "model3d"];
 const AUTO_PREVIEW_PRIORITY = ["model3d", "ppt", "html", "tldraw"];
 const INLINE_3D_EXTENSIONS = new Set([".fbx", ".glb", ".gltf", ".obj", ".stl", ".usd", ".usda", ".usdc", ".usdz"]);
 const MODEL_3D_EXTENSIONS = new Set([".fbx", ".glb", ".gltf", ".obj", ".stl", ".usd", ".usda", ".usdc", ".usdz"]);
+const MODEL3D_PREVIEW_EXTENSION_PRIORITY = new Map([
+  [".glb", 0],
+  [".gltf", 1],
+  [".zip", 2],
+  [".obj", 3],
+  [".fbx", 4],
+  [".usdz", 5],
+  [".usd", 6],
+  [".usda", 7],
+  [".usdc", 8],
+  [".stl", 9],
+]);
 const MODEL3D_AUTO_PREVIEW_LIMIT_BYTES = 150 * 1024 * 1024;
 const UPLOAD_CHUNK_SIZE = 512 * 1024;
 const QUESTION_FORM_STREAM_MARKER = "<cc-question-form";
@@ -1563,6 +1575,7 @@ function groupPreviewArtifacts(artifacts) {
       addUniqueArtifact(groups[tabName], artifact);
     }
   }
+  groups.model3d = sortModel3DPreviewArtifacts(groups.model3d);
   return groups;
 }
 
@@ -2712,6 +2725,23 @@ function modelPackageManifestUrlForArtifact(artifact) {
     return url.replace("/workspace/", "/workspace-3d-package/manifest/");
   }
   return "";
+}
+
+function sortModel3DPreviewArtifacts(artifacts) {
+  return [...artifacts].sort((left, right) => {
+    const leftKey = model3DPreviewSortKey(left);
+    const rightKey = model3DPreviewSortKey(right);
+    return leftKey.priority - rightKey.priority || leftKey.name.localeCompare(rightKey.name);
+  });
+}
+
+function model3DPreviewSortKey(artifact) {
+  const extension = artifactExtension(artifact);
+  const priority = MODEL3D_PREVIEW_EXTENSION_PRIORITY.get(extension) ?? 99;
+  return {
+    priority,
+    name: artifactSourceText(artifact).toLowerCase(),
+  };
 }
 
 function isLikely3DZipArtifact(artifact) {
