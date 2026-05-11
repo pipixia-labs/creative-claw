@@ -472,7 +472,9 @@ _EXPERT_SPECS = {
             "`hy3d` uses Tencent Cloud Hunyuan 3D Pro and supports prompt-only, image-only, "
             "and Sketch prompt-plus-image input. `seed3d`, `hyper3d`, and `hitem3d` use "
             "Volcengine Ark. `seed3d` requires exactly one image source. `hyper3d` supports "
-            "English prompt-only or 1-5 images with optional prompt/commands. `hitem3d` "
+            "English prompt-only or 1-5 images with optional prompt/commands; keep the "
+            "`hyper3d` prompt no longer than 400 characters, and for image-to-3D use only "
+            "short style constraints or omit the prompt. `hitem3d` "
             "requires 1-4 externally accessible image URLs and accepts parameter commands only."
         ),
     ),
