@@ -184,8 +184,10 @@ class ExpertDispatcherTests(unittest.IsolatedAsyncioTestCase):
 
         self.assertEqual(parameters["prompt"], "make a wooden corgi figurine")
         self.assertEqual(parameters["provider"], "hy3d")
-        self.assertEqual(parameters["model"], "3.0")
+        self.assertEqual(parameters["model"], "3.1")
         self.assertEqual(parameters["generate_type"], "normal")
+        self.assertEqual(parameters["enable_pbr"], True)
+        self.assertEqual(parameters["face_count"], 100000)
         self.assertEqual(parameters["timeout_seconds"], 900)
         self.assertEqual(parameters["interval_seconds"], 8)
 

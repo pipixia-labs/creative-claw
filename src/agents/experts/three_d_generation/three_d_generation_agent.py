@@ -17,6 +17,15 @@ from src.logger import logger
 from src.runtime.workspace import build_workspace_file_record
 
 
+_HY3D_PROMPT_ENHANCEMENT_MARKER = "3D asset quality requirements:"
+_HY3D_PROMPT_ENHANCEMENT = (
+    "3D asset quality requirements: production-ready full 3D asset, coherent silhouette "
+    "from all viewing angles, clean separated parts, accurate proportions, rich surface "
+    "details, PBR-ready materials, no fused limbs, no melted surfaces, no broken fingers, "
+    "no floating fragments, no text, no watermark."
+)
+
+
 class ThreeDGenerationAgent(CreativeExpert):
     """Generate 3D assets through provider-specific tools."""
 
@@ -76,6 +85,32 @@ class ThreeDGenerationAgent(CreativeExpert):
         if provider != "hy3d" and raw_model in {"", generation_tools.DEFAULT_MODEL, "3.1"}:
             return default_model
         return raw_model or default_model
+
+    @staticmethod
+    def _hy3d_face_count(current_parameters: dict[str, Any]) -> Any:
+        """Return the hy3d face-count request value with the quality default."""
+        face_count = current_parameters.get("face_count")
+        if face_count in (None, ""):
+            return generation_tools.DEFAULT_HY3D_FACE_COUNT
+        return face_count
+
+    @staticmethod
+    def _enhance_hy3d_prompt_for_request(
+        prompt: str,
+        *,
+        input_paths: list[str],
+        generate_type: str,
+    ) -> str:
+        """Add concise production-quality constraints for prompt-only hy3d generation."""
+        normalized_prompt = prompt.strip()
+        if (
+            not normalized_prompt
+            or input_paths
+            or generate_type != "Normal"
+            or _HY3D_PROMPT_ENHANCEMENT_MARKER.lower() in normalized_prompt.lower()
+        ):
+            return normalized_prompt
+        return f"{normalized_prompt}\n\n{_HY3D_PROMPT_ENHANCEMENT}"
 
     @override
     async def _run_async_impl(self, ctx: InvocationContext) -> AsyncGenerator[Event, None]:
@@ -289,13 +324,25 @@ class ThreeDGenerationAgent(CreativeExpert):
                 yield self.format_event(error_text, {"current_output": {"status": "error", "message": error_text}})
                 return
 
-            result = await generation_tools.hy3d_generate_tool(
-                prompt=prompt or None,
-                input_path=input_paths[0] if input_paths else None,
-                model=str(current_parameters.get("model", generation_tools.DEFAULT_MODEL) or generation_tools.DEFAULT_MODEL),
-                enable_pbr=generation_tools.coerce_bool(current_parameters.get("enable_pbr"), default=False),
+            hy3d_prompt = self._enhance_hy3d_prompt_for_request(
+                prompt,
+                input_paths=input_paths,
                 generate_type=generate_type,
-                face_count=current_parameters.get("face_count"),
+            )
+            result = await generation_tools.hy3d_generate_tool(
+                prompt=hy3d_prompt or None,
+                input_path=input_paths[0] if input_paths else None,
+                model=self._provider_model(
+                    current_parameters,
+                    provider=provider,
+                    default_model=generation_tools.DEFAULT_MODEL,
+                ),
+                enable_pbr=generation_tools.coerce_bool(
+                    current_parameters.get("enable_pbr"),
+                    default=generation_tools.DEFAULT_HY3D_ENABLE_PBR,
+                ),
+                generate_type=generate_type,
+                face_count=self._hy3d_face_count(current_parameters),
                 polygon_type=(
                     str(current_parameters.get("polygon_type", "")).strip() or None
                 ),
