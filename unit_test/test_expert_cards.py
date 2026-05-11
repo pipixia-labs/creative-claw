@@ -179,6 +179,7 @@ class ExpertCardTests(unittest.TestCase):
                 "Tencent Cloud Hunyuan 3D Pro",
                 "doubao-seed3d-2-0-260328",
                 "hyper3d-gen2-260112",
+                "prompt text must be no longer than 400 characters",
                 "hitem3d-2-0-251223",
             ],
         }

@@ -46,6 +46,7 @@ Use this expert to generate 3D asset files from a text prompt, one input image, 
 - `seed3d` uses `ARK_API_KEY` / `services.ark_api_key` and downloads returned 3D files into the workspace.
 - Provider `hyper3d` uses Volcengine Ark model `hyper3d-gen2-260112`.
 - `hyper3d` supports English prompt-only text-to-3D and image-to-3D with 1-5 images. Local `input_path` images are sent as data URLs; `image_url`/`image_urls` are passed through directly.
+- `hyper3d` prompt text must be no longer than 400 characters. For image-to-3D, use only short style constraints or omit `prompt`; do not pass long image descriptions.
 - Provider `hitem3d` uses Volcengine Ark model `hitem3d-2-0-251223`.
 - `hitem3d` is image-to-3D only, requires 1-4 externally accessible `image_url`/`image_urls`, and does not accept free-form prompt text.
 - All Volcengine providers use `ARK_API_KEY` / `services.ark_api_key` and download returned 3D zip/model files into the workspace.

@@ -209,6 +209,7 @@ class ExpertDispatcherTests(unittest.IsolatedAsyncioTestCase):
         self.assertIn("doubao-seedance-2-0-260128", summary)
         self.assertIn("generate_audio=true", summary)
         self.assertIn("kling-v1-6", summary)
+        self.assertIn("`hyper3d` prompt no longer than 400 characters", summary)
 
     def test_normalize_invoke_agent_parameters_uses_3d_generation_defaults(self) -> None:
         parameters = normalize_invoke_agent_parameters(
