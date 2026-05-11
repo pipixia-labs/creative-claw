@@ -48,16 +48,29 @@ PDF_PREVIEW_ERROR_TITLE = "PDF preview unavailable"
 UPLOAD_SIZE_LIMIT = 100 * 1024 * 1024
 UPLOAD_ROOT = Path(tempfile.gettempdir()) / "creative-claw-web-uploads"
 MODEL_MIME_TYPES = {
+    ".fbx": "application/octet-stream",
     ".glb": "model/gltf-binary",
     ".gltf": "model/gltf+json",
     ".obj": "model/obj",
     ".stl": "model/stl",
     ".usd": "model/vnd.usd",
+    ".usda": "model/vnd.usd",
+    ".usdc": "model/vnd.usd",
     ".usdz": "model/vnd.usdz+zip",
 }
 ASSISTANT_STREAM_CHUNK_SIZE = 96
-MODEL_PACKAGE_EXTENSIONS = {".glb", ".gltf", ".obj", ".stl"}
-MODEL_PACKAGE_EXTENSION_PRIORITY = {".glb": 0, ".gltf": 1, ".obj": 2, ".stl": 3}
+MODEL_PACKAGE_EXTENSIONS = {".fbx", ".glb", ".gltf", ".obj", ".stl", ".usd", ".usda", ".usdc", ".usdz"}
+MODEL_PACKAGE_EXTENSION_PRIORITY = {
+    ".glb": 0,
+    ".gltf": 1,
+    ".obj": 2,
+    ".fbx": 3,
+    ".usdz": 4,
+    ".usd": 5,
+    ".usda": 6,
+    ".usdc": 7,
+    ".stl": 8,
+}
 MODEL_PACKAGE_MAX_ENTRIES = 2000
 MODEL_PACKAGE_MAX_ENTRY_BYTES = 300 * 1024 * 1024
 MODEL_PACKAGE_NAME_PATTERN = re.compile(
@@ -110,7 +123,7 @@ def _guess_content_type(filename: str) -> str:
 def _looks_like_3d_model(filename: str) -> bool:
     """Return whether one file name appears to be a 3D model artifact."""
     suffix = Path(filename).suffix.lower()
-    return suffix in MODEL_MIME_TYPES or suffix == ".fbx" or (suffix == ".zip" and _looks_like_3d_package(filename))
+    return suffix in MODEL_MIME_TYPES or (suffix == ".zip" and _looks_like_3d_package(filename))
 
 
 def _looks_like_3d_package(filename: str) -> bool:

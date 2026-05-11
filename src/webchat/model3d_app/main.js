@@ -1,11 +1,13 @@
 import * as THREE from "three";
 import { OrbitControls } from "three/examples/jsm/controls/OrbitControls.js";
+import { FBXLoader } from "three/examples/jsm/loaders/FBXLoader.js";
 import { GLTFLoader } from "three/examples/jsm/loaders/GLTFLoader.js";
 import { MTLLoader } from "three/examples/jsm/loaders/MTLLoader.js";
 import { OBJLoader } from "three/examples/jsm/loaders/OBJLoader.js";
 import { STLLoader } from "three/examples/jsm/loaders/STLLoader.js";
+import { USDLoader } from "three/examples/jsm/loaders/USDLoader.js";
 
-const SUPPORTED_EXTENSIONS = [".glb", ".gltf", ".obj", ".stl"];
+const SUPPORTED_EXTENSIONS = [".fbx", ".glb", ".gltf", ".obj", ".stl", ".usd", ".usda", ".usdc", ".usdz"];
 
 function mount(element, options = {}) {
   const viewer = new CreativeClawModelViewer(element, options);
@@ -20,6 +22,7 @@ class CreativeClawModelViewer {
   constructor(element, options) {
     this.element = element;
     this.name = options.name || "3D model";
+    this.sizeBytes = Number(options.sizeBytes || 0);
     this.frameId = 0;
     this.model = null;
     this.disposed = false;
@@ -116,6 +119,7 @@ class CreativeClawModelViewer {
       const packageContext = {
         fileUrl,
         modelDirectory: String(manifest.modelDirectory || ""),
+        modelSizeBytes: Number(manifest.modelSizeBytes || 0),
       };
       if (extension === ".gltf") {
         await this.loadPackagedGltf(modelUrl, packageContext);
@@ -149,14 +153,22 @@ class CreativeClawModelViewer {
       this.showError("Inline preview is not available for this 3D format.");
       return;
     }
-    this.showStatus("Loading model...");
+    this.showStatus(`Preparing ${formatExtensionLabel(extension)} preview...`);
 
+    if (extension === ".fbx") {
+      this.loadFbx(src, manager);
+      return;
+    }
     if (extension === ".obj") {
       this.loadObj(src, manager, packageContext);
       return;
     }
     if (extension === ".stl") {
       this.loadStl(src, manager);
+      return;
+    }
+    if (isUsdExtension(extension)) {
+      this.loadUsd(src, manager);
       return;
     }
     this.loadGltf(src, manager);
@@ -171,28 +183,52 @@ class CreativeClawModelViewer {
           disposeObject(gltf.scene);
           return;
         }
+        this.showStatus("Building scene...");
         this.setModel(gltf.scene);
         this.showStatus("");
       },
-      (event) => this.updateLoadingProgress(event),
+      (event) => this.updateLoadingProgress(event, "Downloading GLTF/GLB"),
       (error) => {
         console.warn(error);
-        this.showError("Could not load this 3D model.");
+        this.showError("Could not load this GLTF/GLB model.");
+      }
+    );
+  }
+
+  loadFbx(src, manager = null) {
+    const loader = new FBXLoader(manager || undefined);
+    loader.load(
+      src,
+      (object) => {
+        if (this.disposed) {
+          disposeObject(object);
+          return;
+        }
+        this.showStatus("Building scene...");
+        applyFallbackMaterial(object);
+        this.setModel(object);
+        this.showStatus("");
+      },
+      (event) => this.updateLoadingProgress(event, "Downloading FBX"),
+      (error) => {
+        console.warn(error);
+        this.showError("Could not load this FBX model.");
       }
     );
   }
 
   async loadObj(src, manager = null, packageContext = null) {
     try {
-      const response = await fetch(src, { cache: "no-store" });
-      if (!response.ok) {
-        throw new Error(`OBJ request failed with status ${response.status}.`);
-      }
-      const objText = await response.text();
+      const objText = await this.fetchTextWithProgress(
+        src,
+        "Downloading OBJ",
+        Number(packageContext?.modelSizeBytes || this.sizeBytes || 0)
+      );
       if (this.disposed) {
         return;
       }
 
+      this.showStatus("Parsing OBJ geometry...");
       const loader = new OBJLoader(manager || undefined);
       const materialCreator = await this.loadObjMaterials(objText, src, manager, packageContext);
       if (materialCreator) {
@@ -221,15 +257,12 @@ class CreativeClawModelViewer {
       const materialUrl = packageContext
         ? packageEntryUrl(packageContext, materialName)
         : new URL(materialName, objSrc).href;
-      const response = await fetch(materialUrl, { cache: "no-store" });
-      if (!response.ok) {
-        return null;
-      }
-      const mtlText = await response.text();
+      const mtlText = await this.fetchTextWithProgress(materialUrl, "Loading OBJ materials");
       const loader = new MTLLoader(manager || undefined);
       const basePath = packageContext ? "" : directoryUrlForSource(materialUrl);
       const materialCreator = loader.parse(mtlText, basePath);
       materialCreator.preload();
+      enhanceMtlMaterialsForPbr(materialCreator);
       return materialCreator;
     } catch (error) {
       console.warn(error);
@@ -249,10 +282,11 @@ class CreativeClawModelViewer {
         geometry.computeVertexNormals();
         const mesh = new THREE.Mesh(geometry, createFallbackMaterial());
         mesh.name = this.name;
+        this.showStatus("Building scene...");
         this.setModel(mesh);
         this.showStatus("");
       },
-      (event) => this.updateLoadingProgress(event),
+      (event) => this.updateLoadingProgress(event, "Downloading STL"),
       (error) => {
         console.warn(error);
         this.showError("Could not load this STL model.");
@@ -260,12 +294,57 @@ class CreativeClawModelViewer {
     );
   }
 
-  updateLoadingProgress(event) {
-    if (!event.total) {
-      return;
+  loadUsd(src, manager = null) {
+    const loader = new USDLoader(manager || undefined);
+    loader.load(
+      src,
+      (object) => {
+        if (this.disposed) {
+          disposeObject(object);
+          return;
+        }
+        this.showStatus("Building scene...");
+        applyFallbackMaterial(object);
+        this.setModel(object);
+        this.showStatus("");
+      },
+      (event) => this.updateLoadingProgress(event, "Downloading USD/USDZ"),
+      (error) => {
+        console.warn(error);
+        this.showError("Could not load this USD/USDZ model.");
+      }
+    );
+  }
+
+  updateLoadingProgress(event, stage = "Loading model") {
+    this.showStatus(progressStatusText(stage, event.loaded, event.total || this.sizeBytes));
+  }
+
+  async fetchTextWithProgress(url, stage, totalFallback = 0) {
+    const response = await fetch(url, { cache: "no-store" });
+    if (!response.ok) {
+      throw new Error(`${stage} request failed with status ${response.status}.`);
     }
-    const percent = Math.round((event.loaded / event.total) * 100);
-    this.showStatus(`Loading model... ${percent}%`);
+    const total = Number(response.headers.get("Content-Length") || totalFallback || 0);
+    if (!response.body?.getReader) {
+      this.showStatus(stage);
+      return response.text();
+    }
+    const reader = response.body.getReader();
+    const decoder = new TextDecoder();
+    let loaded = 0;
+    let result = "";
+    while (true) {
+      const { done, value } = await reader.read();
+      if (done) {
+        break;
+      }
+      loaded += value.byteLength;
+      result += decoder.decode(value, { stream: true });
+      this.showStatus(progressStatusText(stage, loaded, total));
+    }
+    result += decoder.decode();
+    return result;
   }
 
   setModel(model) {
@@ -405,10 +484,158 @@ function createFallbackMaterial() {
   });
 }
 
+function enhanceMtlMaterialsForPbr(materialCreator) {
+  const materialsInfo = materialCreator?.materialsInfo || {};
+  for (const [name, info] of Object.entries(materialsInfo)) {
+    const sourceMaterial = materialCreator.materials?.[name];
+    if (!sourceMaterial || !hasPbrMtlChannels(info)) {
+      continue;
+    }
+
+    const metalnessMap = loadMtlTexture(materialCreator, info.map_pm || info.map_metallic || "");
+    const roughnessMap = loadMtlTexture(materialCreator, info.map_pr || info.map_roughness || "");
+    const bumpValue = info.norm || info.map_bump || info.bump || "";
+    const standardMaterial = new THREE.MeshStandardMaterial({
+      name: sourceMaterial.name || name,
+      side: sourceMaterial.side,
+      color: sourceMaterial.color ? sourceMaterial.color.clone() : new THREE.Color(0xd8ded6),
+      map: sourceMaterial.map || null,
+      emissive: sourceMaterial.emissive ? sourceMaterial.emissive.clone() : new THREE.Color(0x000000),
+      emissiveMap: sourceMaterial.emissiveMap || null,
+      alphaMap: sourceMaterial.alphaMap || null,
+      transparent: sourceMaterial.transparent,
+      opacity: sourceMaterial.opacity,
+      displacementMap: sourceMaterial.displacementMap || null,
+      displacementScale: sourceMaterial.displacementScale,
+      displacementBias: sourceMaterial.displacementBias,
+      roughness: parseMtlNumber(info.pr, roughnessMap ? 1 : roughnessFromShininess(sourceMaterial.shininess)),
+      metalness: parseMtlNumber(info.pm, metalnessMap ? 1 : 0),
+      roughnessMap,
+      metalnessMap,
+    });
+
+    if (sourceMaterial.normalMap) {
+      standardMaterial.normalMap = sourceMaterial.normalMap;
+      standardMaterial.normalScale = sourceMaterial.normalScale;
+    } else if (sourceMaterial.bumpMap && looksLikeNormalTexture(bumpValue)) {
+      standardMaterial.normalMap = sourceMaterial.bumpMap;
+    } else {
+      standardMaterial.bumpMap = sourceMaterial.bumpMap || null;
+      standardMaterial.bumpScale = sourceMaterial.bumpScale;
+    }
+
+    materialCreator.materials[name] = standardMaterial;
+  }
+}
+
+function hasPbrMtlChannels(info) {
+  return Boolean(
+    info?.map_pm ||
+      info?.map_pr ||
+      info?.map_metallic ||
+      info?.map_roughness ||
+      info?.pm ||
+      info?.pr
+  );
+}
+
+function loadMtlTexture(materialCreator, value) {
+  if (!value) {
+    return null;
+  }
+  const texParams = materialCreator.getTextureParams(String(value), {});
+  if (!texParams.url) {
+    return null;
+  }
+  const texture = new THREE.TextureLoader(materialCreator.manager).load(
+    resolveMtlTextureUrl(materialCreator.baseUrl, texParams.url)
+  );
+  texture.repeat.copy(texParams.scale);
+  texture.offset.copy(texParams.offset);
+  texture.wrapS = materialCreator.wrap;
+  texture.wrapT = materialCreator.wrap;
+  return texture;
+}
+
+function resolveMtlTextureUrl(baseUrl, url) {
+  const value = String(url || "");
+  if (!value || isExternalResourceUrl(value)) {
+    return value;
+  }
+  if (!baseUrl) {
+    return value;
+  }
+  try {
+    return new URL(value, baseUrl).href;
+  } catch {
+    return `${baseUrl}${value}`;
+  }
+}
+
+function parseMtlNumber(value, fallback) {
+  const parsed = Number.parseFloat(value);
+  return Number.isFinite(parsed) ? parsed : fallback;
+}
+
+function roughnessFromShininess(shininess) {
+  const value = Number(shininess);
+  if (!Number.isFinite(value)) {
+    return 0.82;
+  }
+  return THREE.MathUtils.clamp(1 - value / 1000, 0.08, 1);
+}
+
+function looksLikeNormalTexture(value) {
+  return /(^|[._/\-])norm(al)?([._/\-]|$)/i.test(String(value || ""));
+}
+
 function extensionFromSource(source) {
   const cleaned = String(source || "").split("?")[0].split("#")[0].toLowerCase();
   const dotIndex = cleaned.lastIndexOf(".");
   return dotIndex >= 0 ? cleaned.slice(dotIndex) : "";
+}
+
+function isUsdExtension(extension) {
+  return [".usd", ".usda", ".usdc", ".usdz"].includes(extension);
+}
+
+function formatExtensionLabel(extension) {
+  if (extension === ".glb" || extension === ".gltf") {
+    return "GLTF/GLB";
+  }
+  if (isUsdExtension(extension)) {
+    return "USD/USDZ";
+  }
+  return extension.replace(".", "").toUpperCase() || "3D";
+}
+
+function progressStatusText(stage, loaded, total) {
+  const loadedBytes = Number(loaded || 0);
+  const totalBytes = Number(total || 0);
+  if (loadedBytes > 0 && totalBytes > 0) {
+    const percent = Math.min(100, Math.round((loadedBytes / totalBytes) * 100));
+    return `${stage}... ${percent}% (${formatBytes(loadedBytes)} / ${formatBytes(totalBytes)})`;
+  }
+  if (loadedBytes > 0) {
+    return `${stage}... ${formatBytes(loadedBytes)}`;
+  }
+  return `${stage}...`;
+}
+
+function formatBytes(value) {
+  const bytes = Number(value || 0);
+  if (!Number.isFinite(bytes) || bytes <= 0) {
+    return "0 B";
+  }
+  const units = ["B", "KB", "MB", "GB"];
+  let size = bytes;
+  let unitIndex = 0;
+  while (size >= 1024 && unitIndex < units.length - 1) {
+    size /= 1024;
+    unitIndex += 1;
+  }
+  const precision = unitIndex === 0 || size >= 10 ? 0 : 1;
+  return `${size.toFixed(precision)} ${units[unitIndex]}`;
 }
 
 function createPackageLoadingManager({ fileUrl, modelDirectory }) {

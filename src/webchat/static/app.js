@@ -26,8 +26,8 @@ const SESSION_INDEX_KEY = "creative_claw_webchat_sessions";
 const HIDDEN_PROGRESS_TITLES = new Set(["Starting", "Finalize Result"]);
 const PREVIEW_TABS = ["tldraw", "html", "ppt", "model3d"];
 const AUTO_PREVIEW_PRIORITY = ["model3d", "ppt", "html", "tldraw"];
-const INLINE_3D_EXTENSIONS = new Set([".glb", ".gltf", ".obj", ".stl"]);
-const MODEL_3D_EXTENSIONS = new Set([".glb", ".gltf", ".obj", ".stl", ".fbx", ".usdz", ".usd"]);
+const INLINE_3D_EXTENSIONS = new Set([".fbx", ".glb", ".gltf", ".obj", ".stl", ".usd", ".usda", ".usdc", ".usdz"]);
+const MODEL_3D_EXTENSIONS = new Set([".fbx", ".glb", ".gltf", ".obj", ".stl", ".usd", ".usda", ".usdc", ".usdz"]);
 const MODEL3D_AUTO_PREVIEW_LIMIT_BYTES = 150 * 1024 * 1024;
 const UPLOAD_CHUNK_SIZE = 512 * 1024;
 const QUESTION_FORM_STREAM_MARKER = "<cc-question-form";
@@ -2516,6 +2516,7 @@ function renderModel3dPreview() {
     src: artifact.url,
     packageManifestUrl: modelPackageManifestUrlForArtifact(artifact),
     name: artifact.name || "3D model",
+    sizeBytes: artifact.sizeBytes || 0,
   });
 }
 
@@ -2735,7 +2736,9 @@ function inline3DArtifactSupported(artifact) {
     mimeType === "model/gltf-binary" ||
     mimeType === "model/gltf+json" ||
     mimeType === "model/obj" ||
-    mimeType === "model/stl"
+    mimeType === "model/stl" ||
+    mimeType === "model/vnd.usd" ||
+    mimeType === "model/vnd.usdz+zip"
   );
 }
 
@@ -2824,6 +2827,8 @@ function mimeTypeForExtension(extension) {
     ".stl": "model/stl",
     ".svg": "image/svg+xml",
     ".usd": "model/vnd.usd",
+    ".usda": "model/vnd.usd",
+    ".usdc": "model/vnd.usd",
     ".usdz": "model/vnd.usdz+zip",
     ".webm": "video/webm",
     ".webp": "image/webp",
