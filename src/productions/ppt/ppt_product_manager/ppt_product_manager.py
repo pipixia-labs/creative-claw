@@ -22,6 +22,9 @@ from pydantic import PrivateAttr
 from conf.llm import build_llm
 from conf.path import PROJECT_PATH
 from src.productions.ppt.planning import PptContentPlanner
+from src.productions.ppt.ppt_product_manager.product_ppt_skills import (
+    ProductPptSkillRegistry,
+)
 from src.productions.ppt.routes.html import build_html_route_with_agent
 from src.productions.ppt.routes import PptRouteRegistration, build_default_ppt_route_registry
 from src.productions.ppt.schemas import (
@@ -59,6 +62,8 @@ PPT_WORKFLOW_WAITING_SINCE_TURN_KEY = "waiting_since_turn_index"
 PPT_WORKFLOW_LAST_CONSUMED_TURN_KEY = "last_consumed_turn_index"
 PPT_REQUIREMENT_ANALYSIS_BASE_KEY = "ppt_requirement_analysis_base"
 PPT_REQUIREMENT_ANALYSIS_AGENT_MESSAGE_KEY = "ppt_requirement_analysis_agent_message"
+PPT_PRODUCT_SKILLS_STATE_KEY = "product_ppt_skills"
+PPT_PRODUCT_ACTIVE_SKILL_STATE_KEY = "active_product_ppt_skill"
 
 
 class PptProductManager(LlmAgent):
@@ -67,10 +72,12 @@ class PptProductManager(LlmAgent):
     _project_root: Path = PrivateAttr()
     _content_planner: PptContentPlanner = PrivateAttr()
     _route_registry: dict[str, PptRouteRegistration] = PrivateAttr(default_factory=dict)
+    _skill_registry: ProductPptSkillRegistry = PrivateAttr()
 
     def __init__(
         self,
         project_root: str | Path | None = None,
+        skills_dir: str | Path | None = None,
         route_registry: dict[str, PptRouteRegistration] | None = None,
         **kwargs: Any,
     ) -> None:
@@ -87,8 +94,16 @@ class PptProductManager(LlmAgent):
         self.project_root = Path(project_root or PROJECT_PATH).resolve()
         self._content_planner = PptContentPlanner()
         self._route_registry = dict(route_registry or build_default_ppt_route_registry())
+        self._skill_registry = ProductPptSkillRegistry(
+            project_root=self.project_root,
+            skills_dir=skills_dir,
+        )
         if provided_tools is None:
-            self.tools = [self.dispatch_ppt_route]
+            self.tools = [
+                self.list_product_ppt_skills,
+                self.read_product_ppt_skill,
+                self.dispatch_ppt_route,
+            ]
 
     @property
     def project_root(self) -> Path:
@@ -104,6 +119,11 @@ class PptProductManager(LlmAgent):
     def content_planner(self) -> PptContentPlanner:
         """Return the content planner used by the current MVP execution path."""
         return self._content_planner
+
+    @property
+    def skill_registry(self) -> ProductPptSkillRegistry:
+        """Return the private product-ppt skill registry."""
+        return self._skill_registry
 
     @staticmethod
     def build_instruction() -> str:
@@ -129,6 +149,15 @@ Own PPT and PowerPoint production end to end. If the requested final deliverable
 - SVG route: later route for high-control SVG pages and SVG-to-PPTX.
 - XML route: later route for user-uploaded PPTX templates and native OOXML editing.
 
+# PPT system selection
+- Creative Claw currently has multiple PPT-making systems under this product line.
+- Private product-ppt skills live under `skills/product-ppt-skills/<skill-name>/SKILL.md`; those skills may describe a complete PPT production workflow.
+- The product manager also owns the built-in HTML route, which generates an HTML deck, previews, quality report, and editable PPTX.
+- Use only your private product-ppt skills, exposed through `list_product_ppt_skills` and `read_product_ppt_skill`.
+- Do not ask the orchestrator to read PPT private skills for you.
+- If the user explicitly names a PPT system, route, skill, template workflow, or output method, follow that choice when it is available and report clearly when it is not implemented.
+- If the user does not specify the PPT system, freely choose between the private PPT skill workflow and the built-in HTML route based on task fit. This selection policy is intentionally flexible for later testing and optimization.
+
 # Result policy
 Return structured status, current phase, selected route, warnings, next actions, and delivery manifest. Do not claim PPTX generation succeeded unless a route pipeline produced and validated a file.
 """.strip()
@@ -153,7 +182,9 @@ Return structured status, current phase, selected route, warnings, next actions,
                 "Preserve source_inputs, source_understanding, reference_assets, output_format, and safe defaults from the provided fallback JSON unless the user explicitly changes route, template, aspect ratio, language, page count, audience, scenario, topic, or style.\n"
                 "Always call save_ppt_confirmed_requirement_json with one argument named requirement_json.\n"
                 "The JSON must include route, request_brief, topic, audience, scenario, slide_count_policy, language, aspect_ratio, output_format, template_requirement, style_requirement, editability_requirement, and confirmed_by_user.\n"
-                "Use `html` route unless the user explicitly asks for svg or xml/template-native route.\n"
+                "Creative Claw has multiple PPT systems: private product-ppt skills and the built-in HTML route.\n"
+                "If the user explicitly names a route, skill, template workflow, or PPT system, preserve that choice in the normalized requirement when the schema can represent it.\n"
+                "If the user does not specify the system, choose the route freely based on task fit; `html` is the currently implemented built-in route and a reliable default.\n"
                 "If the user says 受众为/受众设置为, write that value to audience. If the user says 场景为/场景设置为, write that value to scenario.\n"
                 "For Chinese group meeting requests, scenario should be `组会`.\n"
                 "Do not invent source file paths or generated artifacts."
@@ -1452,6 +1483,33 @@ Return structured status, current phase, selected route, warnings, next actions,
             artifact_service=artifact_service,
             asset_resolver=asset_resolver,
         )
+
+    def list_product_ppt_skills(self, tool_context: ToolContext) -> dict[str, Any]:
+        """List private product-ppt skills available to this product manager."""
+        skills = [skill.to_dict() for skill in self.skill_registry.list_skills()]
+        tool_context.state[PPT_PRODUCT_SKILLS_STATE_KEY] = skills
+        return {
+            "status": "success",
+            "skills": skills,
+            "count": len(skills),
+        }
+
+    def read_product_ppt_skill(
+        self,
+        name: str,
+        tool_context: ToolContext,
+    ) -> dict[str, Any]:
+        """Read one private product-ppt skill."""
+        content = self.skill_registry.read_skill(name)
+        payload = {
+            "name": str(name or "").strip(),
+            "content": content,
+        }
+        tool_context.state[PPT_PRODUCT_ACTIVE_SKILL_STATE_KEY] = payload
+        return {
+            "status": "success",
+            **payload,
+        }
 
     def list_registered_routes(self) -> dict[str, dict[str, object]]:
         """Return product-level route registrations without exposing route internals."""

@@ -788,6 +788,7 @@ PPT workflow routing hints:
 - PPT is an independent product line optimized for slide generation. Do not route PPTX delivery through DesignProductManager.
 - The current PPT product priority is the HTML route first, then SVG and XML as later route pipelines.
 - PptProductManager owns PPT requirement normalization, route dispatch, route artifacts, PPTX validation, and delivery manifest registration.
+- PptProductManager has private product-ppt skills under `skills/product-ppt-skills` and decides whether to use a private PPT skill workflow or the built-in HTML route. Do not read or choose those skills from the orchestrator.
 - Do not call HTML, SVG, or OOXML route-internal tools directly from the orchestrator.
 
 Page workflow routing hints:

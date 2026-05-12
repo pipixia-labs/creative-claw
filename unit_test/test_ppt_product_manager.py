@@ -9,7 +9,10 @@ from pptx import Presentation
 from pptx.enum.shapes import MSO_SHAPE_TYPE
 
 from src.productions.ppt.planning.content_planner import _build_content_planning_user_message
-from src.productions.ppt.ppt_product_manager import PptProductManager
+from src.productions.ppt.ppt_product_manager import (
+    PptProductManager,
+    ProductPptSkillRegistry,
+)
 from src.productions.ppt.schemas import DeckContentPlan, DeckPageAsset, DeckPagePlan, SourceUnderstanding
 from src.runtime.workspace import (
     build_workspace_file_record,
@@ -17,6 +20,7 @@ from src.runtime.workspace import (
     workspace_relative_path,
     workspace_root,
 )
+from src.skills.registry import SkillRegistry
 
 
 def _write_markdown_source(name: str, text: str) -> str:
@@ -83,11 +87,57 @@ class PptProductManagerTests(unittest.IsolatedAsyncioTestCase):
 
         self.assertIsInstance(manager, LlmAgent)
         self.assertIs(manager.build_agent(), manager)
-        self.assertEqual([tool.__name__ for tool in manager.tools], ["dispatch_ppt_route"])
+        self.assertEqual(
+            {tool.__name__ for tool in manager.tools},
+            {
+                "list_product_ppt_skills",
+                "read_product_ppt_skill",
+                "dispatch_ppt_route",
+            },
+        )
         self.assertIn("PPT and PowerPoint production", instruction)
         self.assertIn("ADK workflow", instruction)
         self.assertIn("HTML route first", instruction)
+        self.assertIn("PPT system selection", instruction)
+        self.assertIn("skills/product-ppt-skills", instruction)
+        self.assertIn("built-in HTML route", instruction)
+        self.assertIn("freely choose", instruction)
         self.assertIn("Do not claim PPTX generation succeeded", instruction)
+
+    def test_private_product_ppt_skill_registry_lists_complete_workflow(self) -> None:
+        registry = ProductPptSkillRegistry()
+
+        skills = registry.list_skills()
+        skill_names = {skill.name for skill in skills}
+        content = registry.read_skill("ppt-complete-workflow")
+
+        self.assertIn("ppt-complete-workflow", skill_names)
+        self.assertIn("PPT Complete Workflow", content)
+        self.assertIn("Built-in HTML route", content)
+        self.assertIn("If the user explicitly specifies", content)
+        self.assertIn("Do not use local absolute paths", content)
+
+    def test_global_skill_registry_does_not_expose_private_product_ppt_skills(self) -> None:
+        global_registry = SkillRegistry()
+
+        skill_names = {skill.name for skill in global_registry.list_skills()}
+
+        self.assertNotIn("ppt-complete-workflow", skill_names)
+        self.assertNotIn("product-ppt-skills", skill_names)
+
+    def test_private_ppt_skill_tools_list_and_read_skills(self) -> None:
+        manager = PptProductManager()
+        tool_context = SimpleNamespace(state={})
+
+        listed = manager.list_product_ppt_skills(tool_context)
+        read = manager.read_product_ppt_skill("ppt-complete-workflow", tool_context)
+
+        self.assertEqual(listed["status"], "success")
+        self.assertGreaterEqual(listed["count"], 1)
+        self.assertEqual(read["status"], "success")
+        self.assertEqual(read["name"], "ppt-complete-workflow")
+        self.assertIn("PPT Complete Workflow", read["content"])
+        self.assertEqual(tool_context.state["active_product_ppt_skill"]["name"], "ppt-complete-workflow")
 
     def test_route_registry_registers_all_routes(self) -> None:
         manager = PptProductManager()
@@ -127,6 +177,8 @@ class PptProductManagerTests(unittest.IsolatedAsyncioTestCase):
             {"save_ppt_confirmed_requirement_json"},
         )
         self.assertIn("ConfirmedRequirement JSON", agent.instruction)
+        self.assertIn("multiple PPT systems", agent.instruction)
+        self.assertIn("choose the route freely", agent.instruction)
         self.assertIn("受众为", agent.instruction)
 
     def test_requirement_analysis_save_tool_preserves_source_inputs(self) -> None:
