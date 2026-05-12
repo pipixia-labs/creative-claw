@@ -21,6 +21,9 @@ from conf.path import PROJECT_PATH
 from src.productions.page.page_product_manager.page_code_generation_agent import (
     PageCodeGenerationAgent,
 )
+from src.productions.page.page_product_manager.page_artifact_visual_validation import (
+    validate_page_visual_artifact,
+)
 from src.productions.page.page_product_manager.page_product_experts import (
     PAGE_PRODUCT_EXPERT_ALLOWLIST,
     build_page_expert_listing,
@@ -145,6 +148,7 @@ Own content-first HTML page tasks end to end. This product line is for posters, 
 6. Resolve only the assets needed for a first usable version. Prefer Nano Banana image generation for public-facing illustrations and poster visuals.
 7. Generate the final standalone HTML with `invoke_page_code_generation`.
 8. Validate the final HTML with `validate_page_artifact`.
+   Treat visual warnings as revision signals: if the page appears to be a review board, has text overflow, broken images, weak first-screen focus, or horizontal overflow, revise once before delivery.
 9. Finish by calling `register_page_delivery`.
 
 # Content policy
@@ -446,9 +450,13 @@ Always call `register_page_delivery` before finishing. It must contain a user-fa
         self,
         paths: list[str],
         tool_context: ToolContext,
+        browser_preview: bool = True,
     ) -> dict[str, Any]:
         """Validate generated page artifact files with lightweight HTML checks."""
-        validations = [_validate_one_page_artifact(str(path)) for path in paths or []]
+        validations = [
+            _validate_one_page_artifact(str(path), browser_preview=browser_preview)
+            for path in paths or []
+        ]
         tool_context.state["page_product_validation"] = validations
         has_error = any(str(item.get("status", "")).lower() == "error" for item in validations)
         return {
@@ -714,7 +722,7 @@ def _file_records_for_paths(paths: list[str], *, state: Any) -> list[dict[str, A
     return [known_records[path] for path in paths if path in known_records]
 
 
-def _validate_one_page_artifact(path: str) -> dict[str, Any]:
+def _validate_one_page_artifact(path: str, *, browser_preview: bool = True) -> dict[str, Any]:
     """Run lightweight local checks for one generated page artifact."""
     clean_path = str(path or "").strip()
     errors: list[str] = []
@@ -727,6 +735,7 @@ def _validate_one_page_artifact(path: str) -> dict[str, Any]:
         "no_local_absolute_paths": False,
     }
     relative_path = clean_path
+    visual_validation: dict[str, Any] = {}
 
     try:
         resolved = resolve_workspace_path(clean_path)
@@ -765,13 +774,23 @@ def _validate_one_page_artifact(path: str) -> dict[str, Any]:
             warnings.append("HTML file is missing an explicit <body> tag.")
         if not checks["no_local_absolute_paths"]:
             errors.append("HTML file contains local absolute paths.")
+        if checks["is_html"] and checks["has_html_tag"]:
+            visual_validation = validate_page_visual_artifact(
+                resolved,
+                content=content,
+                browser_preview=browser_preview,
+            )
+            checks.update(dict(visual_validation.get("checks") or {}))
+            errors.extend(str(message) for message in visual_validation.get("errors", []) or [])
+            warnings.extend(str(message) for message in visual_validation.get("warnings", []) or [])
 
     return {
-        "status": "error" if errors else "success",
+        "status": "error" if errors else "warning" if warnings else "success",
         "path": relative_path,
         "errors": errors,
         "warnings": warnings,
         "checks": checks,
+        "visual_validation": visual_validation,
     }
 
 

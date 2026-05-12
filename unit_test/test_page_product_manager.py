@@ -276,6 +276,7 @@ class PageProductManagerTests(unittest.TestCase):
         validation = manager.validate_page_artifact(
             paths=[output_path],
             tool_context=tool_context,
+            browser_preview=False,
         )
         delivery = manager.register_page_delivery(
             status="success",
@@ -289,6 +290,8 @@ class PageProductManagerTests(unittest.TestCase):
         self.assertEqual(saved["status"], "success")
         self.assertTrue(resolve_workspace_path(output_path).exists())
         self.assertEqual(validation["status"], "success")
+        self.assertEqual(validation["validations"][0]["checks"]["browser_preview_checked"], False)
+        self.assertEqual(validation["validations"][0]["visual_validation"]["status"], "success")
         self.assertEqual(delivery["result_schema_version"], PAGE_PRODUCT_RESULT_SCHEMA_VERSION)
         self.assertEqual(delivery["status"], "success")
         self.assertEqual(delivery["product_line"], "page")
@@ -314,10 +317,100 @@ class PageProductManagerTests(unittest.TestCase):
             tool_context=tool_context,
         )
 
-        validation = manager.validate_page_artifact(paths=[saved["output_path"]], tool_context=tool_context)
+        validation = manager.validate_page_artifact(
+            paths=[saved["output_path"]],
+            tool_context=tool_context,
+            browser_preview=False,
+        )
 
         self.assertEqual(validation["status"], "error")
         self.assertIn("must be an HTML file", validation["validations"][0]["errors"][0])
+
+    def test_validate_page_artifact_warns_on_review_board_signals(self) -> None:
+        manager = PageProductManager()
+        tool_context = SimpleNamespace(
+            state={
+                "sid": "page-review-board-validation-test",
+                "turn_index": 1,
+                "step": 0,
+                "expert_step": 0,
+            }
+        )
+        saved = manager.save_page_artifact(
+            file_name="review-board.html",
+            content="""<!doctype html>
+<html lang="zh-CN">
+<body>
+  <main>
+    <h1>母亲节花店海报</h1>
+    <section>方案一：粉色花束方向</section>
+    <section>方案二：高级品牌方向</section>
+  </main>
+</body>
+</html>""",
+            description="Review-board style page.",
+            tool_context=tool_context,
+        )
+
+        validation = manager.validate_page_artifact(
+            paths=[saved["output_path"]],
+            tool_context=tool_context,
+            browser_preview=False,
+        )
+
+        self.assertEqual(validation["status"], "success")
+        self.assertEqual(validation["validations"][0]["status"], "warning")
+        self.assertIn("review-board", validation["validations"][0]["warnings"][0])
+        self.assertFalse(validation["validations"][0]["checks"]["visual_no_review_board_signals"])
+
+    def test_validate_page_artifact_includes_browser_visual_warnings(self) -> None:
+        manager = PageProductManager()
+        tool_context = SimpleNamespace(
+            state={
+                "sid": "page-browser-validation-test",
+                "turn_index": 1,
+                "step": 0,
+                "expert_step": 0,
+            }
+        )
+        saved = manager.save_page_artifact(
+            file_name="page.html",
+            content="""<!doctype html>
+<html lang="en">
+<body>
+  <main>
+    <h1>Launch Poster</h1>
+    <p>Clear CTA and supporting copy.</p>
+  </main>
+</body>
+</html>""",
+            description="Page artifact.",
+            tool_context=tool_context,
+        )
+        fake_browser_result = {
+            "checks": {
+                "browser_preview_available": True,
+                "browser_preview_checked": True,
+                "browser_poster_no_text_overflow": False,
+            },
+            "errors": [],
+            "warnings": ["visual validation: poster viewport has text overflow"],
+        }
+
+        with patch(
+            "src.productions.page.page_product_manager.page_artifact_visual_validation._run_node_playwright_page_preview",
+            return_value=fake_browser_result,
+        ):
+            validation = manager.validate_page_artifact(
+                paths=[saved["output_path"]],
+                tool_context=tool_context,
+                browser_preview=True,
+            )
+
+        self.assertEqual(validation["status"], "success")
+        self.assertEqual(validation["validations"][0]["status"], "warning")
+        self.assertFalse(validation["validations"][0]["checks"]["browser_poster_no_text_overflow"])
+        self.assertIn("text overflow", validation["validations"][0]["warnings"][0])
 
     def test_run_product_request_requires_adk_invocation_context(self) -> None:
         manager = PageProductManager()
