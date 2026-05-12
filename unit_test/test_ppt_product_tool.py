@@ -44,11 +44,19 @@ class PptProductToolTests(unittest.IsolatedAsyncioTestCase):
 
         self.assertEqual(result["status"], "awaiting_requirement_confirmation")
         self.assertEqual(result["result_schema_version"], "ppt-product-result-v1")
-        self.assertEqual(result["selected_route"], "html")
-        self.assertEqual(result["confirmed_requirement"]["slide_count_policy"]["target"], 5)
+        self.assertEqual(result["product_line"], "ppt")
+        self.assertEqual(result["final_file_paths"], [])
+        self.assertIn("请确认 PPT 需求参数", result["message"])
+        self.assertIn("回复“确认”继续", result["message"])
+        self.assertNotIn("selected_route", result)
+        self.assertNotIn("confirmed_requirement", result)
+        self.assertEqual(
+            tool_context.state["ppt_product_result"]["confirmed_requirement"]["slide_count_policy"]["target"],
+            5,
+        )
         self.assertEqual(tool_context.state["ppt_product_result"]["status"], "awaiting_requirement_confirmation")
         self.assertEqual(tool_context.state["ppt_workflow_state"]["stage"], "awaiting_requirement_confirmation")
-        self.assertIn("summary_markdown", result["confirmation_request"])
+        self.assertIn("summary_markdown", tool_context.state["ppt_product_result"]["confirmation_request"])
         self.assertNotIn("final_file_paths", tool_context.state)
         self.assertEqual(tool_context.state["orchestration_events"][0]["title"], "Run PPT Product")
         self.assertEqual(tool_context.state["orchestration_events"][0]["stage"], "ppt_product_planning")

@@ -36,6 +36,7 @@ from src.productions.page.page_product_manager import PageProductManager
 from src.productions.ppt.ppt_product_manager import PptProductManager
 from src.runtime.expert_dispatcher import dispatch_expert_call
 from src.runtime.expert_registry import build_expert_contract_summary
+from src.runtime.product_results import is_product_confirmation_result, slim_product_result
 from src.runtime.step_events import (
     CreativeClawStepEventPlugin,
     append_orchestration_step_event,
@@ -45,6 +46,7 @@ from src.runtime.step_events import (
 )
 from src.runtime.cancellation import get_cancellation_manager
 from src.runtime.tool_display import format_tool_args, stringify_value, summarize_tool_result
+from src.runtime.usage_logging import CreativeClawUsageLoggingPlugin
 from src.runtime.workspace import (
     build_workspace_file_record,
     relocate_generated_output,
@@ -478,6 +480,14 @@ def _extract_question_form_tool_result(event: Event) -> dict[str, Any] | None:
     return None
 
 
+def _extract_product_confirmation_tool_result(event: Event) -> dict[str, Any] | None:
+    """Return a slim product result that asks the user for confirmation."""
+    for result in _iter_function_response_results(event):
+        if is_product_confirmation_result(result):
+            return result
+    return None
+
+
 def _format_confirmation_reply(result: Any) -> str:
     """Render a product/tool confirmation request as one user-facing reply."""
     if not isinstance(result, dict):
@@ -687,7 +697,7 @@ class Orchestrator:
         self.app = App(
             name=self.app_name,
             root_agent=self.agent,
-            plugins=[CreativeClawStepEventPlugin()],
+            plugins=[CreativeClawStepEventPlugin(), CreativeClawUsageLoggingPlugin()],
         )
         self.runner = Runner(
             app=self.app,
@@ -1691,7 +1701,7 @@ Expert parameter contracts:
         """Hand the user's PPT task and real document inputs to PptProductManager."""
 
         async def _runner() -> dict[str, Any]:
-            return await self.ppt_product_manager.run_product_request(
+            result = await self.ppt_product_manager.run_product_request(
                 task=task,
                 inputs=inputs or [],
                 output=output or {},
@@ -1700,6 +1710,7 @@ Expert parameter contracts:
                 app_name=self.app_name,
                 artifact_service=self.artifact_service,
             )
+            return slim_product_result(result)
 
         return await self._run_async_tool_with_events(
             tool_context=tool_context,
@@ -1723,7 +1734,7 @@ Expert parameter contracts:
         """Hand one concise design product task to DesignProductManager."""
 
         async def _runner() -> dict[str, Any]:
-            return await self.design_product_manager.run_product_request(
+            result = await self.design_product_manager.run_product_request(
                 task=task,
                 inputs=inputs or [],
                 output=output or {},
@@ -1732,6 +1743,7 @@ Expert parameter contracts:
                 app_name=self.app_name,
                 artifact_service=self.artifact_service,
             )
+            return slim_product_result(result)
 
         return await self._run_async_tool_with_events(
             tool_context=tool_context,
@@ -1755,7 +1767,7 @@ Expert parameter contracts:
         """Hand one concise content-first page task to PageProductManager."""
 
         async def _runner() -> dict[str, Any]:
-            return await self.page_product_manager.run_product_request(
+            result = await self.page_product_manager.run_product_request(
                 task=task,
                 inputs=inputs or [],
                 output=output or {},
@@ -1764,6 +1776,7 @@ Expert parameter contracts:
                 app_name=self.app_name,
                 artifact_service=self.artifact_service,
             )
+            return slim_product_result(result)
 
         return await self._run_async_tool_with_events(
             tool_context=tool_context,
@@ -1790,13 +1803,14 @@ Expert parameter contracts:
                     "status": "error",
                     "message": "continue_ppt_product requires tool context.",
                 }
-            return await self.ppt_product_manager.continue_product_request(
+            result = await self.ppt_product_manager.continue_product_request(
                 user_response=user_response,
                 tool_context=tool_context,
                 expert_agents=self.expert_agents,
                 app_name=self.app_name,
                 artifact_service=self.artifact_service,
             )
+            return slim_product_result(result)
 
         return await self._run_async_tool_with_events(
             tool_context=tool_context,
@@ -1888,6 +1902,15 @@ Expert parameter contracts:
             question_form_result = _extract_question_form_tool_result(event)
             if question_form_result is not None:
                 final_reply = _format_question_form_reply(question_form_result)
+                await self._persist_confirmation_final_response(
+                    user_id=user_id,
+                    session_id=session_id,
+                    reply_text=final_reply,
+                )
+                return final_reply
+            product_confirmation_result = _extract_product_confirmation_tool_result(event)
+            if product_confirmation_result is not None:
+                final_reply = str(product_confirmation_result.get("message") or "").strip()
                 await self._persist_confirmation_final_response(
                     user_id=user_id,
                     session_id=session_id,
