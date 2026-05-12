@@ -26,6 +26,7 @@ const SESSION_INDEX_KEY = "creative_claw_webchat_sessions";
 const HIDDEN_PROGRESS_TITLES = new Set(["Starting", "Finalize Result"]);
 const PREVIEW_TABS = ["tldraw", "html", "ppt", "model3d"];
 const AUTO_PREVIEW_PRIORITY = ["model3d", "ppt", "html", "tldraw"];
+const INTERACTIVE_PPT_HTML_KIND = "interactive_ppt_html";
 const INLINE_3D_EXTENSIONS = new Set([".fbx", ".glb", ".gltf", ".obj", ".stl", ".usd", ".usda", ".usdc", ".usdz"]);
 const MODEL_3D_EXTENSIONS = new Set([".fbx", ".glb", ".gltf", ".obj", ".stl", ".usd", ".usda", ".usdc", ".usdz"]);
 const MODEL3D_PREVIEW_EXTENSION_PRIORITY = new Map([
@@ -2449,6 +2450,19 @@ function renderPptPreview() {
 
   pptPreview.appendChild(buildPreviewToolbar(artifact, [], { showMeta: false }));
 
+  if (isInteractiveHtmlDeckArtifact(artifact)) {
+    const iframe = document.createElement("iframe");
+    iframe.className = "ppt-preview-frame ppt-html-deck-frame";
+    iframe.src = artifact.url;
+    iframe.title = artifact.name || "HTML deck preview";
+    iframe.tabIndex = 0;
+    iframe.setAttribute("sandbox", "allow-scripts allow-same-origin allow-forms allow-popups allow-downloads");
+    iframe.setAttribute("allow", "fullscreen");
+    iframe.setAttribute("allowfullscreen", "");
+    pptPreview.appendChild(iframe);
+    return;
+  }
+
   if (isPdfArtifact(artifact) || isPptxArtifact(artifact)) {
     const iframe = document.createElement("iframe");
     iframe.className = "ppt-preview-frame";
@@ -2682,6 +2696,9 @@ function previewTabForArtifact(artifact) {
   if (isPptArtifact(artifact) || isPdfArtifact(artifact)) {
     return "ppt";
   }
+  if (isInteractiveHtmlDeckArtifact(artifact)) {
+    return "ppt";
+  }
   if (isHtmlArtifact(artifact)) {
     return "html";
   }
@@ -2698,6 +2715,18 @@ function isHtmlArtifact(artifact) {
   const extension = artifactExtension(artifact);
   const mimeType = artifactMimeType(artifact);
   return extension === ".html" || extension === ".htm" || mimeType === "text/html";
+}
+
+function isInteractiveHtmlDeckArtifact(artifact) {
+  if (!isHtmlArtifact(artifact)) {
+    return false;
+  }
+  const kind = String(artifact?.artifactKind || artifact?.kind || "").trim();
+  if (kind === INTERACTIVE_PPT_HTML_KIND) {
+    return true;
+  }
+  const pathText = String(artifact?.path || artifact?.url || "").toLowerCase();
+  return pathText.includes("ppt_private_skill_step_");
 }
 
 function isPptArtifact(artifact) {

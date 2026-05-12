@@ -47,6 +47,7 @@ PPTX_PREVIEW_ERROR_TITLE = "PPTX preview unavailable"
 PDF_PREVIEW_ERROR_TITLE = "PDF preview unavailable"
 UPLOAD_SIZE_LIMIT = 100 * 1024 * 1024
 UPLOAD_ROOT = Path(tempfile.gettempdir()) / "creative-claw-web-uploads"
+INTERACTIVE_PPT_HTML_KIND = "interactive_ppt_html"
 MODEL_MIME_TYPES = {
     ".fbx": "application/octet-stream",
     ".glb": "model/gltf-binary",
@@ -118,6 +119,16 @@ def _guess_content_type(filename: str) -> str:
         return model_mime_type
     guessed, _ = mimetypes.guess_type(filename)
     return guessed or "application/octet-stream"
+
+
+def _artifact_kind_for_workspace_file(relative_path: str, resolved: Path) -> str:
+    """Return a browser-facing artifact kind for special workspace files."""
+    if resolved.suffix.lower() not in {".html", ".htm"}:
+        return ""
+    parts = PurePosixPath(relative_path).parts
+    if any(part.startswith("ppt_private_skill_step_") for part in parts):
+        return INTERACTIVE_PPT_HTML_KIND
+    return ""
 
 
 def _looks_like_3d_model(filename: str) -> bool:
@@ -709,16 +720,20 @@ class WebChannel(BaseChannel):
             if url in seen_urls:
                 continue
             seen_urls.add(url)
+            artifact_kind = _artifact_kind_for_workspace_file(relative_path, resolved)
+            artifact = {
+                "name": resolved.name,
+                "path": relative_path,
+                "url": url,
+                "isImage": looks_like_image(resolved),
+                "is3D": _looks_like_3d_model(resolved.name),
+                "mimeType": _guess_content_type(resolved.name),
+                "sizeBytes": resolved.stat().st_size,
+            }
+            if artifact_kind:
+                artifact["artifactKind"] = artifact_kind
             artifacts.append(
-                {
-                    "name": resolved.name,
-                    "path": relative_path,
-                    "url": url,
-                    "isImage": looks_like_image(resolved),
-                    "is3D": _looks_like_3d_model(resolved.name),
-                    "mimeType": _guess_content_type(resolved.name),
-                    "sizeBytes": resolved.stat().st_size,
-                }
+                artifact
             )
         return artifacts
 

@@ -2,6 +2,7 @@ import asyncio
 import base64
 import contextlib
 import json
+import shutil
 import unittest
 import uuid
 import zipfile
@@ -18,6 +19,16 @@ from src.channels.events import OutboundMessage
 from src.channels.web import WebChannel
 from src.runtime import InboundMessage
 from src.runtime.workspace import generated_root, workspace_relative_path
+
+
+class WebchatStaticAssetTests(unittest.TestCase):
+    def test_webchat_shell_uses_workspace_focused_desktop_split(self) -> None:
+        styles_css = Path("src/webchat/static/styles.css").read_text(encoding="utf-8")
+
+        self.assertIn("grid-template-columns: minmax(0, 1fr) clamp(360px, 30vw, 480px);", styles_css)
+        self.assertNotIn("grid-template-columns: minmax(0, 3fr) minmax(380px, 2fr);", styles_css)
+        self.assertIn("@media (max-width: 1080px)", styles_css)
+        self.assertIn("grid-template-columns: 1fr;", styles_css)
 
 
 class WebChannelTests(unittest.IsolatedAsyncioTestCase):
@@ -95,6 +106,58 @@ class WebChannelTests(unittest.IsolatedAsyncioTestCase):
         finally:
             with contextlib.suppress(FileNotFoundError):
                 generated_file.unlink()
+
+    async def test_web_channel_marks_private_ppt_html_deck_artifact(self) -> None:
+        session_dir = generated_root() / f"art_session_web_channel_{uuid.uuid4().hex[:8]}"
+        private_dir = session_dir / "turn_1" / "ppt_private_skill_step_1"
+        private_html = private_dir / "index.html"
+        ordinary_html = generated_root() / f"web_channel_{uuid.uuid4().hex[:8]}.html"
+        private_dir.mkdir(parents=True, exist_ok=True)
+        private_html.write_text("<!doctype html><html><body><main id='deck'></main></body></html>", encoding="utf-8")
+        ordinary_html.write_text("<!doctype html><html><body>Poster page</body></html>", encoding="utf-8")
+
+        try:
+            async with websockets.connect(f"ws://127.0.0.1:{self.channel._port}/ws?session_id=ppt-html-session") as websocket:
+                ready = json.loads(await asyncio.wait_for(websocket.recv(), timeout=2))
+                self.assertEqual(ready["type"], "ready")
+
+                await self.channel.send(
+                    OutboundMessage(
+                        channel="web",
+                        chat_id="ppt-html-session",
+                        text="deck ready",
+                        artifact_paths=[str(private_html), str(ordinary_html)],
+                        metadata={"display_style": "final"},
+                    )
+                )
+                final_message = await self._recv_until(websocket, "assistant_message")
+                artifacts_by_path = {artifact["path"]: artifact for artifact in final_message["artifacts"]}
+                private_artifact = artifacts_by_path[workspace_relative_path(private_html)]
+                ordinary_artifact = artifacts_by_path[workspace_relative_path(ordinary_html)]
+
+                self.assertEqual(private_artifact["artifactKind"], "interactive_ppt_html")
+                self.assertEqual(private_artifact["mimeType"], "text/html")
+                self.assertNotIn("artifactKind", ordinary_artifact)
+                self.assertEqual(ordinary_artifact["mimeType"], "text/html")
+        finally:
+            shutil.rmtree(session_dir, ignore_errors=True)
+            with contextlib.suppress(FileNotFoundError):
+                ordinary_html.unlink()
+
+    def test_webchat_routes_interactive_html_decks_to_ppt_preview(self) -> None:
+        app_js = Path("src/webchat/static/app.js").read_text(encoding="utf-8")
+
+        preview_router = app_js[
+            app_js.index("function previewTabForArtifact") : app_js.index("function isHtmlArtifact")
+        ]
+        self.assertIn("function isInteractiveHtmlDeckArtifact", app_js)
+        self.assertIn('const INTERACTIVE_PPT_HTML_KIND = "interactive_ppt_html";', app_js)
+        self.assertLess(
+            preview_router.index("isInteractiveHtmlDeckArtifact"),
+            preview_router.index("isHtmlArtifact"),
+        )
+        self.assertIn('iframe.className = "ppt-preview-frame ppt-html-deck-frame";', app_js)
+        self.assertIn("iframe.src = artifact.url;", app_js)
 
     async def test_web_channel_serves_3d_artifact_metadata_and_asset(self) -> None:
         cases = [

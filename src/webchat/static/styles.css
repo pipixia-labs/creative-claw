@@ -60,7 +60,7 @@ button {
 
 .shell {
   display: grid;
-  grid-template-columns: minmax(0, 3fr) minmax(380px, 2fr);
+  grid-template-columns: minmax(0, 1fr) clamp(360px, 30vw, 480px);
   gap: 0;
   min-height: 100vh;
   height: 100vh;
@@ -506,6 +506,11 @@ button {
   min-height: 0;
   border: 0;
   background: #ffffff;
+}
+
+.ppt-html-deck-frame {
+  display: block;
+  background: #0a1f3d;
 }
 
 .model3d-viewer-host {
