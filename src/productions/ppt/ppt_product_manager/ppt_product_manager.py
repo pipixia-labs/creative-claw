@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 import copy
+import html as html_lib
 import inspect
 import json
 import re
@@ -64,6 +65,10 @@ PPT_REQUIREMENT_ANALYSIS_BASE_KEY = "ppt_requirement_analysis_base"
 PPT_REQUIREMENT_ANALYSIS_AGENT_MESSAGE_KEY = "ppt_requirement_analysis_agent_message"
 PPT_PRODUCT_SKILLS_STATE_KEY = "product_ppt_skills"
 PPT_PRODUCT_ACTIVE_SKILL_STATE_KEY = "active_product_ppt_skill"
+PPT_SYSTEM_SELECTION_STATE_KEY = "ppt_system_selection"
+PPT_SYSTEM_SELECTION_BASE_KEY = "ppt_system_selection_base"
+PPT_SYSTEM_SELECTION_AGENT_MESSAGE_KEY = "ppt_system_selection_agent_message"
+PPT_PRIVATE_SKILL_BUILD_STATE_KEY = "ppt_private_skill_build"
 
 
 class PptProductManager(LlmAgent):
@@ -102,6 +107,9 @@ class PptProductManager(LlmAgent):
             self.tools = [
                 self.list_product_ppt_skills,
                 self.read_product_ppt_skill,
+                self.read_product_ppt_skill_file,
+                self.save_ppt_system_selection,
+                self.save_ppt_private_skill_html,
                 self.dispatch_ppt_route,
             ]
 
@@ -141,11 +149,11 @@ Own PPT and PowerPoint production end to end. If the requested final deliverable
 - Pause for user confirmation after `ConfirmedRequirement` is prepared.
 - Pause again after `DeckContentPlan` is prepared, before searching or generating images.
 - Dispatch exactly one route pipeline per task.
-- Prefer the HTML route first for the MVP, then add SVG and XML as separate route pipelines.
+- Treat route implementation status as one input to the PPT system-selection step.
 - Do not expose route-internal editing tools at the top product-manager layer.
 
 # Route policy
-- HTML route: first route to implement; when the user does not specify or upload a template, use no-template free design; use system HTML templates only when explicitly selected; export to PPTX with explicit editability caveats.
+- HTML route: currently implemented built-in route; when selected, use no-template free design unless a system HTML template is explicitly selected; export to PPTX with explicit editability caveats.
 - SVG route: later route for high-control SVG pages and SVG-to-PPTX.
 - XML route: later route for user-uploaded PPTX templates and native OOXML editing.
 
@@ -155,8 +163,10 @@ Own PPT and PowerPoint production end to end. If the requested final deliverable
 - The product manager also owns the built-in HTML route, which generates an HTML deck, previews, quality report, and editable PPTX.
 - Use only your private product-ppt skills, exposed through `list_product_ppt_skills` and `read_product_ppt_skill`.
 - Do not ask the orchestrator to read PPT private skills for you.
+- Before committing to a delivery system, run a PPT system-selection step. Base the decision on the user's actual task, available private skill names/descriptions/content, and registered built-in routes.
 - If the user explicitly names a PPT system, route, skill, template workflow, or output method, follow that choice when it is available and report clearly when it is not implemented.
 - If the user does not specify the PPT system, freely choose between the private PPT skill workflow and the built-in HTML route based on task fit. This selection policy is intentionally flexible for later testing and optimization.
+- Do not rely on hard-coded keyword-to-skill rules. Inspect the available private skills and choose from their actual metadata and content.
 
 # Result policy
 Return structured status, current phase, selected route, warnings, next actions, and delivery manifest. Do not claim PPTX generation succeeded unless a route pipeline produced and validated a file.
@@ -184,13 +194,63 @@ Return structured status, current phase, selected route, warnings, next actions,
                 "The JSON must include route, request_brief, topic, audience, scenario, slide_count_policy, language, aspect_ratio, output_format, template_requirement, style_requirement, editability_requirement, and confirmed_by_user.\n"
                 "Creative Claw has multiple PPT systems: private product-ppt skills and the built-in HTML route.\n"
                 "If the user explicitly names a route, skill, template workflow, or PPT system, preserve that choice in the normalized requirement when the schema can represent it.\n"
-                "If the user does not specify the system, choose the route freely based on task fit; `html` is the currently implemented built-in route and a reliable default.\n"
+                "If the user does not specify the system, keep route normalization conservative; the separate PPT system-selection agent chooses the delivery system from task fit.\n"
                 "If the user says 受众为/受众设置为, write that value to audience. If the user says 场景为/场景设置为, write that value to scenario.\n"
                 "For Chinese group meeting requests, scenario should be `组会`.\n"
                 "Do not invent source file paths or generated artifacts."
             ),
             tools=[self.save_ppt_confirmed_requirement_json],
             output_key=PPT_REQUIREMENT_ANALYSIS_AGENT_MESSAGE_KEY,
+        )
+
+    def build_system_selection_agent(self) -> LlmAgent:
+        """Build the product-internal ADK agent that chooses a PPT delivery system."""
+        return LlmAgent(
+            name="PptSystemSelectionAgent",
+            model=build_llm(),
+            instruction=(
+                "You are Creative Claw's PPT system selection agent.\n"
+                "Choose the best delivery system for one PPT request.\n"
+                "You can choose a built-in route or one private product-ppt skill.\n"
+                "Always call list_product_ppt_skills first.\n"
+                "Read the most relevant private skill with read_product_ppt_skill when the user mentions a skill, "
+                "asks for a style/workflow that a skill may cover, or when skill metadata looks relevant.\n"
+                "Do not use hard-coded keyword rules. Decide from the user task, output request, available route summaries, "
+                "private skill names/descriptions, and any skill content you read.\n"
+                "If the user explicitly asks for an available private skill, choose system_type `private_skill` and its exact folder name.\n"
+                "If the user explicitly asks for a built-in route, choose system_type `built_in_route` and the route when available.\n"
+                "If nothing is explicit, choose freely based on task fit.\n"
+                "Private HTML/web deck skills may produce a final single-file HTML presentation instead of PPTX.\n"
+                "When ready, call save_ppt_system_selection with one argument named selection_json.\n"
+                "The JSON must include system_type, route, skill_name, output_format, and reason."
+            ),
+            tools=[
+                self.list_product_ppt_skills,
+                self.read_product_ppt_skill,
+                self.save_ppt_system_selection,
+            ],
+            output_key=PPT_SYSTEM_SELECTION_AGENT_MESSAGE_KEY,
+        )
+
+    def build_private_skill_execution_agent(self) -> LlmAgent:
+        """Build the product-internal ADK agent that executes a selected private PPT skill."""
+        return LlmAgent(
+            name="PptPrivateSkillExecutionAgent",
+            model=build_llm(),
+            instruction=(
+                "You are Creative Claw's private PPT skill execution agent.\n"
+                "Use the selected private product-ppt skill as the production guide.\n"
+                "Read additional skill files with read_product_ppt_skill_file when the skill references assets, templates, or references.\n"
+                "Generate a complete, standalone HTML presentation unless the selected skill explicitly says another single-file format is required.\n"
+                "Use the confirmed requirement and deck content plan as the content source of truth.\n"
+                "Keep text editable in HTML. Do not invent facts, citations, local absolute paths, or unavailable assets.\n"
+                "When the artifact is ready, call save_ppt_private_skill_html with file_name, html_content, and description."
+            ),
+            tools=[
+                self.read_product_ppt_skill_file,
+                self.save_ppt_private_skill_html,
+            ],
+            output_key="ppt_private_skill_execution_agent_message",
         )
 
     def build_html_mvp_workflow(self) -> SequentialAgent:
@@ -425,6 +485,112 @@ Return structured status, current phase, selected route, warnings, next actions,
         finally:
             await child_runner.close()
 
+    async def select_ppt_system_with_agent(
+        self,
+        *,
+        task: str,
+        output: dict[str, Any],
+        requirement: ConfirmedRequirement,
+        tool_context: ToolContext,
+        app_name: str,
+        artifact_service: BaseArtifactService | None,
+        system_selection_builder: Any | None = None,
+    ) -> dict[str, Any]:
+        """Choose the PPT delivery system through an internal agent or injected selector."""
+        if system_selection_builder is not None:
+            selected = await _call_system_selection_builder(
+                system_selection_builder,
+                task=task,
+                output=output,
+                requirement=requirement,
+                private_skills=[skill.to_dict() for skill in self.skill_registry.list_skills()],
+                routes=self.list_registered_routes(),
+            )
+            return self._persist_system_selection(tool_context, selected)
+
+        fallback_selection = self._build_default_system_selection(requirement)
+        if not hasattr(tool_context, "_invocation_context"):
+            return self._persist_system_selection(tool_context, fallback_selection)
+
+        invocation_context = tool_context._invocation_context
+        child_session_service = InMemorySessionService()
+        child_artifact_service = _resolve_child_artifact_service(
+            tool_context=tool_context,
+            fallback_service=artifact_service or InMemoryArtifactService(),
+        )
+        selection_agent = self.build_system_selection_agent()
+        child_runner = _build_child_runner(
+            agent=selection_agent,
+            app_name=app_name,
+            session_service=child_session_service,
+            artifact_service=child_artifact_service,
+            invocation_context=invocation_context,
+        )
+        child_state = _copy_state(tool_context.state)
+        child_state[PPT_SYSTEM_SELECTION_BASE_KEY] = {
+            "task": task,
+            "output": output,
+            "confirmed_requirement": requirement.model_dump(mode="json"),
+            "registered_routes": self.list_registered_routes(),
+            "fallback_selection": fallback_selection,
+        }
+
+        try:
+            child_session = await child_session_service.create_session(
+                app_name=app_name,
+                user_id=invocation_context.user_id,
+                state=child_state,
+            )
+            async for _event in child_runner.run_async(
+                user_id=child_session.user_id,
+                session_id=child_session.id,
+                new_message=Content(
+                    role="user",
+                    parts=[
+                        Part(
+                            text=_build_system_selection_user_message(
+                                task=task,
+                                output=output,
+                                requirement=requirement,
+                                route_summaries=self.list_registered_routes(),
+                            )
+                        )
+                    ],
+                ),
+            ):
+                pass
+            final_session = await child_session_service.get_session(
+                app_name=app_name,
+                user_id=child_session.user_id,
+                session_id=child_session.id,
+            )
+            final_state = final_session.state if final_session is not None else child_state
+            selection_payload = final_state.get(PPT_SYSTEM_SELECTION_STATE_KEY)
+            if not selection_payload:
+                raise ValueError("PptSystemSelectionAgent did not save a selection.")
+            selection = self._normalize_system_selection(selection_payload, fallback_selection=fallback_selection)
+            tool_context.state[PPT_SYSTEM_SELECTION_STATE_KEY] = selection
+            if final_state.get(PPT_SYSTEM_SELECTION_AGENT_MESSAGE_KEY):
+                tool_context.state[PPT_SYSTEM_SELECTION_AGENT_MESSAGE_KEY] = str(
+                    final_state.get(PPT_SYSTEM_SELECTION_AGENT_MESSAGE_KEY)
+                )
+            if final_state.get(PPT_PRODUCT_SKILLS_STATE_KEY):
+                tool_context.state[PPT_PRODUCT_SKILLS_STATE_KEY] = final_state[PPT_PRODUCT_SKILLS_STATE_KEY]
+            if final_state.get(PPT_PRODUCT_ACTIVE_SKILL_STATE_KEY):
+                tool_context.state[PPT_PRODUCT_ACTIVE_SKILL_STATE_KEY] = final_state[PPT_PRODUCT_ACTIVE_SKILL_STATE_KEY]
+            return selection
+        except Exception as exc:
+            selection = {
+                **fallback_selection,
+                "reason": (
+                    f"{fallback_selection.get('reason', '')} "
+                    f"System selection agent fallback: {type(exc).__name__}: {exc}"
+                ).strip(),
+            }
+            return self._persist_system_selection(tool_context, selection)
+        finally:
+            await child_runner.close()
+
     async def run_product_request(
         self,
         *,
@@ -438,6 +604,7 @@ Return structured status, current phase, selected route, warnings, next actions,
         source_converter: Any | None = None,
         content_plan_builder: Any | None = None,
         asset_resolver: Any | None = None,
+        system_selection_builder: Any | None = None,
     ) -> dict[str, Any]:
         """Accept one PPT product task and return the current structured status."""
         if tool_context is None:
@@ -476,6 +643,7 @@ Return structured status, current phase, selected route, warnings, next actions,
                 tool_context=tool_context,
                 app_name=app_name,
                 artifact_service=artifact_service,
+                system_selection_builder=system_selection_builder,
             )
 
         try:
@@ -510,7 +678,6 @@ Return structured status, current phase, selected route, warnings, next actions,
             requirement = requirement.model_copy(update={"source_inputs": source_inputs})
             tool_context.state[PPT_CONFIRMED_REQUIREMENT_STATE_KEY] = requirement.model_dump(mode="json")
             clarification_questions = self.validate_confirmed_requirement(requirement)
-            route_registration = self._route_registry.get(requirement.route)
             if clarification_questions:
                 result = PptProductResult(
                     status="needs_clarification",
@@ -522,81 +689,119 @@ Return structured status, current phase, selected route, warnings, next actions,
                     warnings=[],
                     next_actions=clarification_questions,
                 )
-            elif route_registration is None or not route_registration.implemented:
-                result = self._build_route_not_implemented_result(requirement, route_registration)
             else:
-                content_plan = await self.build_deck_content_plan(
-                    requirement,
-                    tool_context=tool_context,
-                    app_name=app_name,
-                    artifact_service=artifact_service,
-                    expert_agents=expert_agents or {},
-                    content_plan_builder=content_plan_builder,
-                    asset_resolver=asset_resolver,
-                )
-                output_dir = self._build_route_output_dir(tool_context.state)
-                route_build = await self._dispatch_ppt_route(
+                system_selection = await self.select_ppt_system_with_agent(
+                    task=clean_task,
+                    output=output_options,
                     requirement=requirement,
-                    content_plan=content_plan,
-                    output_dir=output_dir,
                     tool_context=tool_context,
                     app_name=app_name,
                     artifact_service=artifact_service,
+                    system_selection_builder=system_selection_builder,
                 )
-                route_succeeded = bool(route_build.pptx_path)
-                output_files = self._record_output_files(
-                    tool_context.state,
-                    [
-                        route_build.pptx_path,
-                        route_build.html_deck_path,
-                        route_build.quality_report_path,
-                        route_build.build_log_path,
-                        *route_build.preview_paths,
-                    ],
-                )
-                delivery_manifest = DeliveryManifest(
-                    final_pptx=route_build.pptx_path,
-                    previews=route_build.preview_paths,
-                    quality_report=route_build.quality_report_path,
-                    build_log=route_build.build_log_path,
-                    intermediate_artifacts=[route_build.html_deck_path],
-                    output_files=output_files,
-                )
-                result = PptProductResult(
-                    status="success" if route_succeeded else "generation_failed",
-                    phase="html_route_delivery",
-                    message=(
-                        "HTML route MVP generated an HTML deck, PNG previews, and an editable PPTX."
-                        if route_succeeded
-                        else "HTML route generated HTML and previews, but failed to export an editable PPTX. See the build log for conversion findings."
-                    ),
-                    selected_route=requirement.route,
-                    confirmed_requirement=requirement,
-                    deck_content_plan=content_plan,
-                    route_build=route_build,
-                    quality_review=QualityReviewResult(
-                        status="pass" if route_succeeded else "failed",
-                        page_count_ok=route_succeeded,
-                        file_open_ok=route_succeeded,
-                        text_complete_ok=route_succeeded,
-                        assets_ok=route_succeeded,
-                        placeholder_free_ok=route_succeeded,
-                        overflow_ok=None,
-                        style_consistency_ok=route_succeeded,
-                    ),
-                    delivery_manifest=delivery_manifest,
-                    output_files=output_files,
-                    warnings=[
-                        *list(route_build.warnings),
-                        *list(requirement.source_understanding.extraction_warnings),
-                        *list(tool_context.state.get("ppt_content_planning_warnings") or []),
-                    ],
-                    next_actions=(
-                        ["Review the generated PPTX and previews; improve HTML template fidelity next."]
-                        if route_succeeded
-                        else ["Fix the HTML-to-PPTX conversion findings and retry PPTX export."]
-                    ),
-                )
+                requirement = self._apply_system_selection_to_requirement(requirement, system_selection)
+                tool_context.state[PPT_CONFIRMED_REQUIREMENT_STATE_KEY] = requirement.model_dump(mode="json")
+                if self._is_private_skill_selection(system_selection):
+                    content_plan = await self.build_deck_content_plan(
+                        requirement,
+                        tool_context=tool_context,
+                        app_name=app_name,
+                        artifact_service=artifact_service,
+                        expert_agents=expert_agents or {},
+                        content_plan_builder=content_plan_builder,
+                        resolve_assets=False,
+                    )
+                    private_build = await self.execute_private_ppt_skill(
+                        requirement=requirement,
+                        content_plan=content_plan,
+                        system_selection=system_selection,
+                        tool_context=tool_context,
+                        app_name=app_name,
+                        artifact_service=artifact_service,
+                    )
+                    result = self._build_private_skill_delivery_result(
+                        requirement=requirement,
+                        content_plan=content_plan,
+                        system_selection=system_selection,
+                        private_build=private_build,
+                    )
+                else:
+                    route_registration = self._route_registry.get(requirement.route)
+                    if route_registration is None or not route_registration.implemented:
+                        result = self._build_route_not_implemented_result(requirement, route_registration)
+                    else:
+                        content_plan = await self.build_deck_content_plan(
+                            requirement,
+                            tool_context=tool_context,
+                            app_name=app_name,
+                            artifact_service=artifact_service,
+                            expert_agents=expert_agents or {},
+                            content_plan_builder=content_plan_builder,
+                            asset_resolver=asset_resolver,
+                        )
+                        output_dir = self._build_route_output_dir(tool_context.state)
+                        route_build = await self._dispatch_ppt_route(
+                            requirement=requirement,
+                            content_plan=content_plan,
+                            output_dir=output_dir,
+                            tool_context=tool_context,
+                            app_name=app_name,
+                            artifact_service=artifact_service,
+                        )
+                        route_succeeded = bool(route_build.pptx_path)
+                        output_files = self._record_output_files(
+                            tool_context.state,
+                            [
+                                route_build.pptx_path,
+                                route_build.html_deck_path,
+                                route_build.quality_report_path,
+                                route_build.build_log_path,
+                                *route_build.preview_paths,
+                            ],
+                        )
+                        delivery_manifest = DeliveryManifest(
+                            final_pptx=route_build.pptx_path,
+                            previews=route_build.preview_paths,
+                            quality_report=route_build.quality_report_path,
+                            build_log=route_build.build_log_path,
+                            intermediate_artifacts=[route_build.html_deck_path],
+                            output_files=output_files,
+                        )
+                        result = PptProductResult(
+                            status="success" if route_succeeded else "generation_failed",
+                            phase="html_route_delivery",
+                            message=(
+                                "HTML route MVP generated an HTML deck, PNG previews, and an editable PPTX."
+                                if route_succeeded
+                                else "HTML route generated HTML and previews, but failed to export an editable PPTX. See the build log for conversion findings."
+                            ),
+                            selected_route=requirement.route,
+                            confirmed_requirement=requirement,
+                            deck_content_plan=content_plan,
+                            route_build=route_build,
+                            quality_review=QualityReviewResult(
+                                status="pass" if route_succeeded else "failed",
+                                page_count_ok=route_succeeded,
+                                file_open_ok=route_succeeded,
+                                text_complete_ok=route_succeeded,
+                                assets_ok=route_succeeded,
+                                placeholder_free_ok=route_succeeded,
+                                overflow_ok=None,
+                                style_consistency_ok=route_succeeded,
+                            ),
+                            delivery_manifest=delivery_manifest,
+                            output_files=output_files,
+                            warnings=[
+                                *list(route_build.warnings),
+                                *list(requirement.source_understanding.extraction_warnings),
+                                *list(tool_context.state.get("ppt_content_planning_warnings") or []),
+                            ],
+                            next_actions=(
+                                ["Review the generated PPTX and previews; improve HTML template fidelity next."]
+                                if route_succeeded
+                                else ["Fix the HTML-to-PPTX conversion findings and retry PPTX export."]
+                            ),
+                        )
         except Exception as exc:
             result = PptProductResult(
                 status="error",
@@ -700,6 +905,7 @@ Return structured status, current phase, selected route, warnings, next actions,
         tool_context: ToolContext,
         app_name: str,
         artifact_service: BaseArtifactService | None,
+        system_selection_builder: Any | None = None,
     ) -> dict[str, Any]:
         """Start a PPT workflow and stop at the requirement confirmation gate."""
         try:
@@ -730,6 +936,17 @@ Return structured status, current phase, selected route, warnings, next actions,
                 )
                 return self._persist_product_result(tool_context, result)
 
+            system_selection = await self.select_ppt_system_with_agent(
+                task=task,
+                output=output,
+                requirement=requirement,
+                tool_context=tool_context,
+                app_name=app_name,
+                artifact_service=artifact_service,
+                system_selection_builder=system_selection_builder,
+            )
+            requirement = self._apply_system_selection_to_requirement(requirement, system_selection)
+            tool_context.state[PPT_CONFIRMED_REQUIREMENT_STATE_KEY] = requirement.model_dump(mode="json")
             workflow_state = {
                 "workflow_id": self._build_workflow_id(tool_context.state),
                 "stage": PPT_STAGE_AWAITING_REQUIREMENT_CONFIRMATION,
@@ -738,6 +955,7 @@ Return structured status, current phase, selected route, warnings, next actions,
                 "raw_inputs": raw_inputs,
                 "output": dict(output or {}),
                 "confirmed_requirement": requirement.model_dump(mode="json"),
+                "system_selection": system_selection,
             }
             self._mark_confirmation_waiting(workflow_state, tool_context.state)
             result = self._build_requirement_confirmation_result(requirement, workflow_state)
@@ -777,8 +995,13 @@ Return structured status, current phase, selected route, warnings, next actions,
             )
 
         requirement = ConfirmedRequirement.model_validate(workflow_state.get("confirmed_requirement") or {})
+        system_selection = self._get_workflow_system_selection(workflow_state, requirement, tool_context)
+        requirement = self._apply_system_selection_to_requirement(requirement, system_selection)
         route_registration = self._route_registry.get(requirement.route)
-        if route_registration is None or not route_registration.implemented:
+        if (
+            not self._is_private_skill_selection(system_selection)
+            and (route_registration is None or not route_registration.implemented)
+        ):
             result = self._build_route_not_implemented_result(requirement, route_registration)
             workflow_state["stage"] = PPT_STAGE_COMPLETED
             tool_context.state[PPT_WORKFLOW_STATE_KEY] = workflow_state
@@ -827,6 +1050,7 @@ Return structured status, current phase, selected route, warnings, next actions,
                 "source_materials": source_materials.model_dump(mode="json"),
                 "deck_content_plan": content_plan.model_dump(mode="json"),
                 "deck_content_plan_markdown": str(tool_context.state.get("ppt_deck_content_plan_markdown") or ""),
+                "system_selection": system_selection,
                 "revision": int(workflow_state.get("revision", 1) or 1) + 1,
             }
         )
@@ -863,10 +1087,20 @@ Return structured status, current phase, selected route, warnings, next actions,
             app_name=app_name,
             artifact_service=artifact_service,
         )
+        system_selection = await self.select_ppt_system_with_agent(
+            task=f"{base_task}\n{user_response}".strip(),
+            output=output,
+            requirement=requirement,
+            tool_context=tool_context,
+            app_name=app_name,
+            artifact_service=artifact_service,
+        )
+        requirement = self._apply_system_selection_to_requirement(requirement, system_selection)
         workflow_state.update(
             {
                 "task": base_task,
                 "confirmed_requirement": requirement.model_dump(mode="json"),
+                "system_selection": system_selection,
                 "revision": int(workflow_state.get("revision", 1) or 1) + 1,
                 "stage": PPT_STAGE_AWAITING_REQUIREMENT_CONFIRMATION,
             }
@@ -891,6 +1125,8 @@ Return structured status, current phase, selected route, warnings, next actions,
     ) -> dict[str, Any]:
         """Handle the second confirmation gate and then resolve assets plus route output."""
         requirement = ConfirmedRequirement.model_validate(workflow_state.get("confirmed_requirement") or {})
+        system_selection = self._get_workflow_system_selection(workflow_state, requirement, tool_context)
+        requirement = self._apply_system_selection_to_requirement(requirement, system_selection)
         if not self._is_confirmation_text(user_response):
             revised_requirement = requirement.model_copy(
                 update={
@@ -916,6 +1152,7 @@ Return structured status, current phase, selected route, warnings, next actions,
                     "confirmed_requirement": revised_requirement.model_dump(mode="json"),
                     "deck_content_plan": content_plan.model_dump(mode="json"),
                     "deck_content_plan_markdown": str(tool_context.state.get("ppt_deck_content_plan_markdown") or ""),
+                    "system_selection": system_selection,
                     "revision": int(workflow_state.get("revision", 1) or 1) + 1,
                 }
             )
@@ -926,6 +1163,32 @@ Return structured status, current phase, selected route, warnings, next actions,
             return self._persist_product_result(tool_context, result)
 
         content_plan = DeckContentPlan.model_validate(workflow_state.get("deck_content_plan") or {})
+        if self._is_private_skill_selection(system_selection):
+            private_build = await self.execute_private_ppt_skill(
+                requirement=requirement,
+                content_plan=content_plan,
+                system_selection=system_selection,
+                tool_context=tool_context,
+                app_name=app_name,
+                artifact_service=artifact_service,
+            )
+            workflow_state.update(
+                {
+                    "stage": PPT_STAGE_COMPLETED,
+                    "deck_content_plan": content_plan.model_dump(mode="json"),
+                    "private_skill_build": private_build,
+                    "system_selection": system_selection,
+                }
+            )
+            tool_context.state[PPT_WORKFLOW_STATE_KEY] = workflow_state
+            result = self._build_private_skill_delivery_result(
+                requirement=requirement,
+                content_plan=content_plan,
+                system_selection=system_selection,
+                private_build=private_build,
+            )
+            return self._persist_product_result(tool_context, result)
+
         resolved_plan = await self.content_planner.resolve_plan_assets(
             content_plan,
             requirement,
@@ -968,6 +1231,7 @@ Return structured status, current phase, selected route, warnings, next actions,
                 "stage": PPT_STAGE_COMPLETED,
                 "deck_content_plan": resolved_plan.model_dump(mode="json"),
                 "route_build": route_build.model_dump(mode="json"),
+                "system_selection": system_selection,
             }
         )
         tool_context.state[PPT_WORKFLOW_STATE_KEY] = workflow_state
@@ -1315,6 +1579,12 @@ Return structured status, current phase, selected route, warnings, next actions,
     ) -> PptProductResult:
         """Build the first user-confirmation result for normalized requirements."""
         summary_markdown = self._format_requirement_confirmation(requirement)
+        system_selection = workflow_state.get("system_selection")
+        if isinstance(system_selection, dict) and system_selection:
+            summary_markdown = (
+                f"{summary_markdown}\n\n"
+                f"{self._format_system_selection_confirmation(system_selection)}"
+            )
         return PptProductResult(
             status="awaiting_requirement_confirmation",
             phase="requirement_confirmation",
@@ -1339,10 +1609,19 @@ Return structured status, current phase, selected route, warnings, next actions,
     ) -> PptProductResult:
         """Build the second user-confirmation result for the content plan."""
         summary_markdown = self._format_content_plan_confirmation(content_plan)
+        system_selection = workflow_state.get("system_selection")
+        if isinstance(system_selection, dict) and system_selection:
+            summary_markdown = (
+                f"{summary_markdown}\n\n"
+                f"{self._format_system_selection_confirmation(system_selection)}"
+            )
+        message = "请确认 PPT 内容规划。确认后我才会开始搜索或生成图片，并导出 PPTX。"
+        if self._is_private_skill_selection(system_selection):
+            message = "请确认 PPT 内容规划。确认后我会按选中的私有 PPT skill 生成演示稿。"
         return PptProductResult(
             status="awaiting_content_plan_confirmation",
             phase="content_plan_confirmation",
-            message="请确认 PPT 内容规划。确认后我才会开始搜索或生成图片，并导出 PPTX。",
+            message=message,
             selected_route=requirement.route,
             confirmed_requirement=requirement,
             deck_content_plan=content_plan,
@@ -1412,6 +1691,27 @@ Return structured status, current phase, selected route, warnings, next actions,
                 f"{page.key_takeaway} | "
                 f"{visual_intent} |"
             )
+        return "\n".join(lines)
+
+    @staticmethod
+    def _format_system_selection_confirmation(selection: dict[str, Any]) -> str:
+        """Render the selected PPT system as user-facing Markdown."""
+        system_type = str(selection.get("system_type") or "").strip()
+        route = str(selection.get("route") or "").strip() or "html"
+        skill_name = str(selection.get("skill_name") or "").strip()
+        reason = str(selection.get("reason") or "").strip()
+        if system_type == "private_skill" and skill_name:
+            system_text = f"私有 PPT skill `{skill_name}`"
+        else:
+            system_text = f"内置路线 `{route}`"
+        lines = [
+            "| 系统选择 | 当前值 |",
+            "| --- | --- |",
+            f"| 制作系统 | {system_text} |",
+            f"| 输出方式 | {selection.get('output_format') or 'pptx'} |",
+        ]
+        if reason:
+            lines.append(f"| 选择理由 | {reason} |")
         return "\n".join(lines)
 
     def _persist_product_result(
@@ -1484,6 +1784,446 @@ Return structured status, current phase, selected route, warnings, next actions,
             asset_resolver=asset_resolver,
         )
 
+    async def execute_private_ppt_skill(
+        self,
+        *,
+        requirement: ConfirmedRequirement,
+        content_plan: DeckContentPlan,
+        system_selection: dict[str, Any],
+        tool_context: ToolContext,
+        app_name: str,
+        artifact_service: BaseArtifactService | None,
+    ) -> dict[str, Any]:
+        """Execute the selected private PPT skill and return its saved artifact state."""
+        selection = self._normalize_system_selection(
+            system_selection,
+            fallback_selection=self._build_default_system_selection(requirement),
+            strict=True,
+        )
+        skill_name = str(selection.get("skill_name") or "").strip()
+        skill_content = self.skill_registry.read_skill(skill_name)
+        tool_context.state[PPT_PRODUCT_ACTIVE_SKILL_STATE_KEY] = {
+            "name": skill_name,
+            "content": skill_content,
+        }
+
+        if not hasattr(tool_context, "_invocation_context"):
+            tool_context.state["ppt_private_skill_execution_output"] = {
+                "status": "fallback",
+                "message": "Private PPT skill execution agent skipped because no ADK invocation context was available.",
+                "source": "deterministic_fallback",
+            }
+            return self.save_ppt_private_skill_html(
+                file_name="index.html",
+                html_content=self._build_private_skill_fallback_html(
+                    requirement=requirement,
+                    content_plan=content_plan,
+                    system_selection=selection,
+                    skill_content=skill_content,
+                ),
+                description=f"Private PPT skill `{skill_name}` HTML deck artifact.",
+                tool_context=tool_context,
+            )
+
+        invocation_context = tool_context._invocation_context
+        child_session_service = InMemorySessionService()
+        child_artifact_service = _resolve_child_artifact_service(
+            tool_context=tool_context,
+            fallback_service=artifact_service or InMemoryArtifactService(),
+        )
+        execution_agent = self.build_private_skill_execution_agent()
+        child_runner = _build_child_runner(
+            agent=execution_agent,
+            app_name=app_name,
+            session_service=child_session_service,
+            artifact_service=child_artifact_service,
+            invocation_context=invocation_context,
+        )
+        child_state = _copy_state(tool_context.state)
+        child_state["ppt_private_skill_execution_base"] = {
+            "confirmed_requirement": requirement.model_dump(mode="json"),
+            "deck_content_plan": content_plan.model_dump(mode="json"),
+            "system_selection": selection,
+            "active_skill": {
+                "name": skill_name,
+                "content": skill_content,
+            },
+        }
+
+        try:
+            child_session = await child_session_service.create_session(
+                app_name=app_name,
+                user_id=invocation_context.user_id,
+                state=child_state,
+            )
+            async for _event in child_runner.run_async(
+                user_id=child_session.user_id,
+                session_id=child_session.id,
+                new_message=Content(
+                    role="user",
+                    parts=[
+                        Part(
+                            text=_build_private_skill_execution_user_message(
+                                requirement=requirement,
+                                content_plan=content_plan,
+                                system_selection=selection,
+                                skill_content=skill_content,
+                            )
+                        )
+                    ],
+                ),
+            ):
+                pass
+            final_session = await child_session_service.get_session(
+                app_name=app_name,
+                user_id=child_session.user_id,
+                session_id=child_session.id,
+            )
+            final_state = final_session.state if final_session is not None else child_state
+            private_build = dict(final_state.get(PPT_PRIVATE_SKILL_BUILD_STATE_KEY) or {})
+            if not str(private_build.get("output_path") or "").strip():
+                raise ValueError("PptPrivateSkillExecutionAgent did not save an HTML artifact.")
+            for key in (
+                PPT_PRIVATE_SKILL_BUILD_STATE_KEY,
+                "generated",
+                "new_files",
+                "files_history",
+                "final_file_paths",
+                "current_output",
+            ):
+                if key in final_state:
+                    tool_context.state[key] = copy.deepcopy(final_state[key])
+            if final_state.get("ppt_private_skill_execution_agent_message"):
+                tool_context.state["ppt_private_skill_execution_agent_message"] = str(
+                    final_state.get("ppt_private_skill_execution_agent_message")
+                )
+            tool_context.state["ppt_private_skill_execution_output"] = {
+                "status": "success",
+                "message": "PptPrivateSkillExecutionAgent saved the private skill artifact.",
+                "source": "llm_agent",
+            }
+            return private_build
+        except Exception as exc:
+            tool_context.state["ppt_private_skill_execution_output"] = {
+                "status": "fallback",
+                "message": f"Private skill execution agent fallback: {type(exc).__name__}: {exc}",
+                "source": "deterministic_fallback",
+            }
+            return self.save_ppt_private_skill_html(
+                file_name="index.html",
+                html_content=self._build_private_skill_fallback_html(
+                    requirement=requirement,
+                    content_plan=content_plan,
+                    system_selection=selection,
+                    skill_content=skill_content,
+                ),
+                description=f"Private PPT skill `{skill_name}` HTML deck artifact.",
+                tool_context=tool_context,
+            )
+        finally:
+            await child_runner.close()
+
+    def _build_private_skill_delivery_result(
+        self,
+        *,
+        requirement: ConfirmedRequirement,
+        content_plan: DeckContentPlan,
+        system_selection: dict[str, Any],
+        private_build: dict[str, Any],
+    ) -> PptProductResult:
+        """Build the product result for a private PPT skill delivery."""
+        skill_name = str(system_selection.get("skill_name") or "").strip()
+        output_path = str(private_build.get("output_path") or "").strip()
+        output_files = list(private_build.get("output_files") or [])
+        status = "success" if output_path else "generation_failed"
+        return PptProductResult(
+            status=status,
+            phase="private_skill_delivery",
+            message=(
+                f"Private PPT skill `{skill_name}` generated a presentation artifact."
+                if status == "success"
+                else f"Private PPT skill `{skill_name}` did not save a presentation artifact."
+            ),
+            selected_route=requirement.route,
+            confirmed_requirement=requirement,
+            deck_content_plan=content_plan,
+            quality_review=QualityReviewResult(status="not_run"),
+            delivery_manifest=DeliveryManifest(
+                final_pptx="",
+                intermediate_artifacts=[output_path] if output_path else [],
+                output_files=output_files,
+            ),
+            output_files=output_files,
+            warnings=[
+                *list(requirement.source_understanding.extraction_warnings),
+                "Private skill delivery may produce HTML instead of editable PPTX; no built-in PPTX export was claimed.",
+            ],
+            next_actions=(
+                ["Review the generated private-skill presentation artifact."]
+                if status == "success"
+                else ["Retry with another PPT system or inspect the private skill execution output."]
+            ),
+        )
+
+    def _persist_system_selection(
+        self,
+        tool_context: ToolContext,
+        selection_json: Any,
+        *,
+        fallback_selection: dict[str, Any] | None = None,
+        strict: bool = False,
+    ) -> dict[str, Any]:
+        """Normalize and save the current PPT system selection."""
+        selection = self._normalize_system_selection(
+            selection_json,
+            fallback_selection=fallback_selection,
+            strict=strict,
+        )
+        tool_context.state[PPT_SYSTEM_SELECTION_STATE_KEY] = selection
+        return selection
+
+    def _normalize_system_selection(
+        self,
+        selection_json: Any,
+        *,
+        fallback_selection: dict[str, Any] | None = None,
+        strict: bool = False,
+    ) -> dict[str, Any]:
+        """Normalize a PPT system selection without encoding skill-specific rules."""
+        fallback = dict(fallback_selection or {})
+        if not fallback:
+            fallback = {
+                "system_type": "built_in_route",
+                "route": "html",
+                "skill_name": "",
+                "output_format": "pptx",
+                "reason": "Using the built-in route as the conservative fallback.",
+            }
+        payload: Any = selection_json
+        if isinstance(payload, str):
+            payload = json.loads(payload)
+        if not isinstance(payload, dict):
+            if strict:
+                raise ValueError("selection_json must be a JSON object.")
+            payload = {}
+
+        skill_name = str(payload.get("skill_name") or "").strip()
+        system_type = str(payload.get("system_type") or "").strip().lower()
+        if system_type not in {"built_in_route", "private_skill"}:
+            if skill_name:
+                system_type = "private_skill"
+            else:
+                system_type = str(fallback.get("system_type") or "built_in_route").strip()
+        if system_type not in {"built_in_route", "private_skill"}:
+            system_type = "built_in_route"
+
+        route = str(payload.get("route") or fallback.get("route") or "html").strip().lower()
+        if route not in self._route_registry:
+            if strict:
+                raise ValueError(f"Unknown PPT route `{route}`.")
+            route = str(fallback.get("route") or "html").strip().lower()
+        if route not in self._route_registry:
+            route = "html"
+
+        output_format = str(payload.get("output_format") or "").strip().lower()
+        reason = str(payload.get("reason") or fallback.get("reason") or "").strip()
+
+        if system_type == "private_skill":
+            available_skills = {skill.name: skill.name for skill in self.skill_registry.list_skills()}
+            available_by_lower = {name.lower(): name for name in available_skills}
+            normalized_skill_name = available_skills.get(skill_name) or available_by_lower.get(skill_name.lower())
+            if not normalized_skill_name:
+                if strict:
+                    raise ValueError(f"Product PPT skill `{skill_name}` is not available.")
+                return self._normalize_system_selection(fallback, strict=False)
+            skill_name = normalized_skill_name
+            output_format = output_format or "html"
+        else:
+            skill_name = ""
+            output_format = output_format or "pptx"
+
+        return {
+            "system_type": system_type,
+            "route": route,
+            "skill_name": skill_name,
+            "output_format": output_format,
+            "reason": reason or "Selected by PPT system-selection step.",
+        }
+
+    def _build_default_system_selection(self, requirement: ConfirmedRequirement) -> dict[str, Any]:
+        """Return the conservative fallback system selection."""
+        route = requirement.route if requirement.route in self._route_registry else "html"
+        return {
+            "system_type": "built_in_route",
+            "route": route,
+            "skill_name": "",
+            "output_format": "pptx",
+            "reason": "No private PPT skill was selected; using the confirmed built-in route.",
+        }
+
+    def _get_workflow_system_selection(
+        self,
+        workflow_state: dict[str, Any],
+        requirement: ConfirmedRequirement,
+        tool_context: ToolContext,
+    ) -> dict[str, Any]:
+        """Return the workflow's saved PPT system selection, creating a fallback if needed."""
+        fallback_selection = self._build_default_system_selection(requirement)
+        selection = self._normalize_system_selection(
+            workflow_state.get("system_selection")
+            or tool_context.state.get(PPT_SYSTEM_SELECTION_STATE_KEY)
+            or fallback_selection,
+            fallback_selection=fallback_selection,
+        )
+        workflow_state["system_selection"] = selection
+        tool_context.state[PPT_SYSTEM_SELECTION_STATE_KEY] = selection
+        return selection
+
+    @staticmethod
+    def _is_private_skill_selection(selection: Any) -> bool:
+        """Return whether the normalized PPT system selection points to a private skill."""
+        return (
+            isinstance(selection, dict)
+            and str(selection.get("system_type") or "").strip() == "private_skill"
+            and bool(str(selection.get("skill_name") or "").strip())
+        )
+
+    @staticmethod
+    def _apply_system_selection_to_requirement(
+        requirement: ConfirmedRequirement,
+        system_selection: dict[str, Any],
+    ) -> ConfirmedRequirement:
+        """Apply the selected route from system selection back to ConfirmedRequirement."""
+        selected_route = str(system_selection.get("route") or "").strip().lower()
+        if selected_route and selected_route != requirement.route:
+            return requirement.model_copy(update={"route": selected_route})
+        return requirement
+
+    @staticmethod
+    def _build_private_skill_fallback_html(
+        *,
+        requirement: ConfirmedRequirement,
+        content_plan: DeckContentPlan,
+        system_selection: dict[str, Any],
+        skill_content: str,
+    ) -> str:
+        """Build a deterministic HTML fallback when the private skill execution agent is unavailable."""
+        skill_name = html_lib.escape(str(system_selection.get("skill_name") or "private-skill"))
+        topic = html_lib.escape(requirement.topic or content_plan.title or "Presentation")
+        audience = html_lib.escape(requirement.audience or "audience")
+        scenario = html_lib.escape(requirement.scenario or "presentation")
+        skill_excerpt = html_lib.escape(str(skill_content or "").strip()[:500])
+        slide_sections: list[str] = []
+        for page in content_plan.pages:
+            bullet_items = _extract_page_bullet_texts(page)
+            bullets = "\n".join(
+                f"<li>{html_lib.escape(item)}</li>"
+                for item in bullet_items[:5]
+            )
+            if not bullets:
+                bullets = f"<li>{html_lib.escape(page.key_takeaway or page.purpose)}</li>"
+            slide_sections.append(
+                "\n".join(
+                    [
+                        '<section class="slide">',
+                        f"<p class=\"kicker\">{html_lib.escape(page.page_type)}</p>",
+                        f"<h2>{html_lib.escape(page.title)}</h2>",
+                        f"<p class=\"takeaway\">{html_lib.escape(page.key_takeaway)}</p>",
+                        f"<ul>{bullets}</ul>",
+                        "</section>",
+                    ]
+                )
+            )
+        slides_html = "\n".join(slide_sections)
+        return f"""<!doctype html>
+<html lang="zh-CN">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>{topic}</title>
+  <style>
+    :root {{
+      color-scheme: light;
+      font-family: Inter, -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
+      background: #f7f5ef;
+      color: #17202a;
+    }}
+    body {{
+      margin: 0;
+      background: #f7f5ef;
+    }}
+    .deck {{
+      display: grid;
+      gap: 24px;
+      padding: 32px;
+    }}
+    .slide {{
+      box-sizing: border-box;
+      min-height: 720px;
+      padding: 64px;
+      border: 1px solid #d9d1c4;
+      background: #fffdf7;
+      display: flex;
+      flex-direction: column;
+      justify-content: center;
+    }}
+    h1, h2 {{
+      margin: 0 0 24px;
+      line-height: 1.08;
+    }}
+    h1 {{
+      font-size: 72px;
+    }}
+    h2 {{
+      font-size: 52px;
+    }}
+    p, li {{
+      font-size: 28px;
+      line-height: 1.5;
+    }}
+    ul {{
+      margin: 16px 0 0;
+      padding-left: 32px;
+    }}
+    .kicker {{
+      margin: 0 0 16px;
+      font-size: 18px;
+      letter-spacing: 0;
+      text-transform: uppercase;
+      color: #667085;
+    }}
+    .takeaway {{
+      font-weight: 650;
+      color: #224f8f;
+    }}
+    .meta {{
+      color: #475467;
+    }}
+    .skill-note {{
+      margin-top: 40px;
+      padding-top: 20px;
+      border-top: 1px solid #d9d1c4;
+      font-size: 16px;
+      color: #667085;
+      white-space: pre-wrap;
+    }}
+  </style>
+</head>
+<body>
+  <main class="deck" data-skill="{skill_name}">
+    <section class="slide">
+      <p class="kicker">{skill_name}</p>
+      <h1>{topic}</h1>
+      <p class="meta">Audience: {audience} | Scenario: {scenario}</p>
+      <p class="takeaway">{html_lib.escape(content_plan.core_narrative or requirement.request_brief)}</p>
+      <p class="skill-note">{skill_excerpt}</p>
+    </section>
+    {slides_html}
+  </main>
+</body>
+</html>
+"""
+
     def list_product_ppt_skills(self, tool_context: ToolContext) -> dict[str, Any]:
         """List private product-ppt skills available to this product manager."""
         skills = [skill.to_dict() for skill in self.skill_registry.list_skills()]
@@ -1510,6 +2250,82 @@ Return structured status, current phase, selected route, warnings, next actions,
             "status": "success",
             **payload,
         }
+
+    def read_product_ppt_skill_file(
+        self,
+        name: str,
+        relative_path: str,
+        tool_context: ToolContext,
+        max_chars: int = 60000,
+    ) -> dict[str, Any]:
+        """Read one text file inside a private product-ppt skill folder."""
+        content = self.skill_registry.read_skill_file(
+            name,
+            relative_path,
+            max_chars=max_chars,
+        )
+        payload = {
+            "name": str(name or "").strip(),
+            "relative_path": str(relative_path or "").strip(),
+            "content": content,
+            "truncated": len(content) >= max(0, int(max_chars)),
+        }
+        tool_context.state["active_product_ppt_skill_file"] = {
+            "name": payload["name"],
+            "relative_path": payload["relative_path"],
+            "truncated": payload["truncated"],
+        }
+        return {
+            "status": "success",
+            **payload,
+        }
+
+    def save_ppt_system_selection(
+        self,
+        selection_json: dict[str, Any],
+        tool_context: ToolContext,
+    ) -> dict[str, Any]:
+        """Validate and save the PPT system selected by the internal selector."""
+        selection = self._persist_system_selection(tool_context, selection_json)
+        return {
+            "status": "success",
+            "message": "PPT system selection saved.",
+            "selection": selection,
+        }
+
+    def save_ppt_private_skill_html(
+        self,
+        file_name: str,
+        html_content: str,
+        description: str,
+        tool_context: ToolContext,
+    ) -> dict[str, Any]:
+        """Save one private-skill HTML deck artifact into the workspace."""
+        output_dir = self._build_private_skill_output_dir(tool_context.state)
+        clean_name = Path(str(file_name or "index.html").strip() or "index.html").name
+        if not clean_name.lower().endswith((".html", ".htm")):
+            clean_name = f"{Path(clean_name).stem or 'index'}.html"
+        output_path = output_dir / clean_name
+        output_path.write_text(_strip_html_code_fence(html_content), encoding="utf-8")
+        relative_path = workspace_relative_path(output_path)
+        output_files = self._record_output_files(
+            tool_context.state,
+            [relative_path],
+            description=(
+                str(description or "").strip()
+                or "PPT product private skill HTML deck artifact."
+            ),
+            final_file_paths=[relative_path],
+        )
+        result = {
+            "status": "success",
+            "message": f"Saved private PPT skill HTML deck at {relative_path}.",
+            "output_path": relative_path,
+            "output_files": output_files,
+        }
+        tool_context.state[PPT_PRIVATE_SKILL_BUILD_STATE_KEY] = result
+        tool_context.state["current_output"] = result
+        return result
 
     def list_registered_routes(self) -> dict[str, dict[str, object]]:
         """Return product-level route registrations without exposing route internals."""
@@ -1659,9 +2475,22 @@ Return structured status, current phase, selected route, warnings, next actions,
         return output_dir
 
     @staticmethod
+    def _build_private_skill_output_dir(state: dict[str, Any]) -> Path:
+        """Return a deterministic output directory for private PPT skill artifacts."""
+        session_id = str(state.get("sid") or "ppt-session").strip()
+        turn_index = int(state.get("turn_index", 0) or 0)
+        step = int(state.get("step", 0) or 0)
+        output_dir = generated_session_dir(session_id, turn_index=turn_index) / f"ppt_private_skill_step_{step}"
+        output_dir.mkdir(parents=True, exist_ok=True)
+        return output_dir
+
+    @staticmethod
     def _record_output_files(
         state: dict[str, Any],
         paths: list[str],
+        *,
+        description: str = "PPT product HTML route artifact.",
+        final_file_paths: list[str] | None = None,
     ) -> list[dict[str, Any]]:
         """Record PPT product output files in session state."""
         current_turn = int(state.get("turn_index", 0) or 0)
@@ -1669,7 +2498,7 @@ Return structured status, current phase, selected route, warnings, next actions,
         records = [
             build_workspace_file_record(
                 path,
-                description="PPT product HTML route artifact.",
+                description=description,
                 source="ppt_product_manager",
                 turn=current_turn,
                 step=current_step,
@@ -1684,9 +2513,17 @@ Return structured status, current phase, selected route, warnings, next actions,
         state["generated"] = generated
         state["new_files"] = records
         state["files_history"] = files_history
-        final_pptx = next((record["path"] for record in records if record["path"].endswith(".pptx")), "")
-        if final_pptx:
-            state["final_file_paths"] = [final_pptx]
+        clean_final_file_paths = [
+            str(path).strip()
+            for path in (final_file_paths or [])
+            if str(path or "").strip()
+        ]
+        if clean_final_file_paths:
+            state["final_file_paths"] = clean_final_file_paths
+        else:
+            final_pptx = next((record["path"] for record in records if record["path"].endswith(".pptx")), "")
+            if final_pptx:
+                state["final_file_paths"] = [final_pptx]
         return records
 
     @classmethod
@@ -2635,6 +3472,101 @@ def _build_requirement_analysis_user_message(
         "Return the final requirement only by calling save_ppt_confirmed_requirement_json.\n\n"
         f"{json.dumps(payload, ensure_ascii=False, indent=2)}"
     )
+
+
+def _build_system_selection_user_message(
+    *,
+    task: str,
+    output: dict[str, Any],
+    requirement: ConfirmedRequirement,
+    route_summaries: dict[str, dict[str, object]],
+) -> str:
+    """Build the user message for the internal PPT system-selection agent."""
+    payload = {
+        "user_task": task,
+        "output_options": output,
+        "confirmed_requirement_json": requirement.model_dump(mode="json"),
+        "registered_routes": route_summaries,
+        "selection_contract": {
+            "system_type": "built_in_route | private_skill",
+            "route": "html | svg | xml",
+            "skill_name": "exact private skill folder name, or empty for built-in route",
+            "output_format": "pptx | html | other single-file format",
+            "reason": "short decision rationale grounded in the task and available systems",
+        },
+    }
+    return (
+        "Choose the PPT delivery system for this request.\n"
+        "First call list_product_ppt_skills. Read relevant private skills when needed.\n"
+        "Do not use hard-coded keyword-to-skill rules; decide from the task and actual available systems.\n"
+        "Save the final choice only by calling save_ppt_system_selection.\n\n"
+        f"{json.dumps(payload, ensure_ascii=False, indent=2)}"
+    )
+
+
+def _build_private_skill_execution_user_message(
+    *,
+    requirement: ConfirmedRequirement,
+    content_plan: DeckContentPlan,
+    system_selection: dict[str, Any],
+    skill_content: str,
+) -> str:
+    """Build the user message for the private PPT skill execution agent."""
+    payload = {
+        "confirmed_requirement_json": requirement.model_dump(mode="json"),
+        "deck_content_plan_json": content_plan.model_dump(mode="json"),
+        "system_selection": system_selection,
+        "selected_skill_content": skill_content,
+        "output_contract": {
+            "tool": "save_ppt_private_skill_html",
+            "file_name": "index.html",
+            "html_content": "complete standalone HTML presentation",
+            "description": "short artifact description",
+        },
+    }
+    return (
+        "Execute the selected private PPT skill for this request.\n"
+        "Use the skill content as production guidance and the deck content plan as content truth.\n"
+        "Read additional skill files only if the skill references them.\n"
+        "Save the final artifact only by calling save_ppt_private_skill_html.\n\n"
+        f"{json.dumps(payload, ensure_ascii=False, indent=2)}"
+    )
+
+
+async def _call_system_selection_builder(system_selection_builder: Any, **kwargs: Any) -> Any:
+    """Call an injected PPT system selector used by tests and controlled integrations."""
+    result = system_selection_builder(**kwargs)
+    if inspect.isawaitable(result):
+        return await result
+    return result
+
+
+def _strip_html_code_fence(html_content: str) -> str:
+    """Remove a single Markdown code fence around generated HTML."""
+    content = str(html_content or "").strip()
+    match = re.fullmatch(r"```(?:html)?\s*(?P<body>.*?)\s*```", content, flags=re.DOTALL | re.IGNORECASE)
+    if match:
+        content = str(match.group("body") or "").strip()
+    return f"{content}\n" if content else ""
+
+
+def _extract_page_bullet_texts(page: DeckPagePlan) -> list[str]:
+    """Extract short bullet text from generic content blocks."""
+    texts: list[str] = []
+    for block in page.content_blocks:
+        if not isinstance(block, dict):
+            continue
+        for key in ("text", "content", "body", "title"):
+            raw_value = block.get(key)
+            if isinstance(raw_value, str) and raw_value.strip():
+                texts.append(raw_value.strip())
+        for key in ("items", "bullets", "points"):
+            raw_items = block.get(key)
+            if isinstance(raw_items, list):
+                texts.extend(str(item).strip() for item in raw_items if str(item or "").strip())
+    if not texts and page.asset_intent:
+        texts.append(page.asset_intent)
+    return texts
 
 
 def _summarize_raw_inputs(raw_inputs: list[Any]) -> list[dict[str, Any]]:
