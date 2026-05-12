@@ -64,6 +64,7 @@ class PptHtmlRouteTests(unittest.TestCase):
 
         self.assertEqual(agent.name, "HtmlPageGenerationAgent")
         self.assertEqual(agent.output_key, "ppt_html_page_generation_agent_message")
+        self.assertEqual(agent.include_contents, "none")
         self.assertIn("Do not use a fixed template", agent.instruction)
         self.assertIn("one HTML fragment per slide", agent.instruction)
         self.assertIn("PPTX conversion compatibility", agent.instruction)

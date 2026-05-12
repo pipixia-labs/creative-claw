@@ -63,7 +63,8 @@ class KnowledgeAgent(BaseAgent):
             model=build_llm(llm_model),
             description=description,
             instruction=knowledge_intruction,
-            before_model_callback=knowledge_before_model_callback
+            before_model_callback=knowledge_before_model_callback,
+            include_contents="none",
         )
         
         super().__init__(

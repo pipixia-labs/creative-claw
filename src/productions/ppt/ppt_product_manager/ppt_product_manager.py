@@ -89,6 +89,7 @@ class PptProductManager(LlmAgent):
             description=kwargs.pop("description", "Owns PPT product requests and route dispatch."),
             instruction=kwargs.pop("instruction", type(self).build_instruction()),
             tools=provided_tools or [],
+            include_contents=kwargs.pop("include_contents", "none"),
             **kwargs,
         )
         self.project_root = Path(project_root or PROJECT_PATH).resolve()
@@ -191,6 +192,7 @@ Return structured status, current phase, selected route, warnings, next actions,
             ),
             tools=[self.save_ppt_confirmed_requirement_json],
             output_key=PPT_REQUIREMENT_ANALYSIS_AGENT_MESSAGE_KEY,
+            include_contents="none",
         )
 
     def build_html_mvp_workflow(self) -> SequentialAgent:
@@ -203,6 +205,7 @@ Return structured status, current phase, selected route, warnings, next actions,
                 "Use source understanding when available and do not plan individual slides."
             ),
             output_key=PPT_CONFIRMED_REQUIREMENT_STATE_KEY,
+            include_contents="none",
         )
         content_agent = self.content_planner.build_agent()
         quality_agent = LlmAgent(
@@ -213,6 +216,7 @@ Return structured status, current phase, selected route, warnings, next actions,
                 "For the current skeleton, report not_run when no route output exists."
             ),
             output_key="ppt_quality_delivery",
+            include_contents="none",
         )
         return SequentialAgent(
             name="PptHtmlMvpSequentialAgent",

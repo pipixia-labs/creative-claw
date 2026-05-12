@@ -576,6 +576,7 @@ def build_html_page_generation_agent() -> LlmAgent:
         ),
         tools=[save_html_route_pages],
         output_key=HTML_PAGE_GENERATION_AGENT_MESSAGE_KEY,
+        include_contents="none",
     )
 
 

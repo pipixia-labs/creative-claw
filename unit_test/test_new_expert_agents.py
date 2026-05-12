@@ -9,6 +9,7 @@ from unittest.mock import AsyncMock, patch
 from google.genai.types import Content, Part
 
 from src.agents.experts.speech_recognition import tool as recognition_tool
+from src.agents.experts.knowledge.knowledge_agent import KnowledgeAgent
 from src.agents.experts.speech_recognition.speech_recognition_expert import SpeechRecognitionExpert
 from src.agents.experts.text_transform.text_transform_expert import TextTransformExpert
 from src.agents.experts.video_understanding import tool as video_tool
@@ -66,6 +67,13 @@ class TextTransformExpertTests(unittest.IsolatedAsyncioTestCase):
         self.assertEqual(current_output["status"], "success")
         self.assertEqual(current_output["transformed_text"], "hello")
         self.assertEqual(events[0].actions.state_delta["text_transform_results"]["mode"], "compress")
+
+
+class KnowledgeAgentTests(unittest.TestCase):
+    def test_knowledge_agent_omits_prior_session_contents(self) -> None:
+        agent = KnowledgeAgent(name="KnowledgeAgent")
+
+        self.assertEqual(agent.llm.include_contents, "none")
 
 
 class VideoUnderstandingExpertTests(unittest.IsolatedAsyncioTestCase):

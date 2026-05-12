@@ -87,6 +87,7 @@ class PptProductManagerTests(unittest.IsolatedAsyncioTestCase):
 
         self.assertIsInstance(manager, LlmAgent)
         self.assertIs(manager.build_agent(), manager)
+        self.assertEqual(manager.include_contents, "none")
         self.assertEqual(
             {tool.__name__ for tool in manager.tools},
             {
@@ -157,6 +158,7 @@ class PptProductManagerTests(unittest.IsolatedAsyncioTestCase):
         self.assertIsInstance(agent, LlmAgent)
         self.assertEqual(agent.name, "PptContentPlanningAgent")
         self.assertEqual(agent.output_key, "ppt_content_planning_agent_message")
+        self.assertEqual(agent.include_contents, "none")
         self.assertEqual(
             {tool.__name__ for tool in agent.tools},
             {"read_ppt_markdown_sources", "save_ppt_deck_content_plan_markdown"},
@@ -172,6 +174,7 @@ class PptProductManagerTests(unittest.IsolatedAsyncioTestCase):
         self.assertIsInstance(agent, LlmAgent)
         self.assertEqual(agent.name, "PptRequirementAnalysisAgent")
         self.assertEqual(agent.output_key, "ppt_requirement_analysis_agent_message")
+        self.assertEqual(agent.include_contents, "none")
         self.assertEqual(
             {tool.__name__ for tool in agent.tools},
             {"save_ppt_confirmed_requirement_json"},

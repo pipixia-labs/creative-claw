@@ -48,6 +48,7 @@ class DesignBriefFormExpert(LlmAgent):
                 "Creates Web question-form JSON schemas for design brief clarification.",
             ),
             instruction=kwargs.pop("instruction", type(self).build_instruction()),
+            include_contents=kwargs.pop("include_contents", "none"),
             **kwargs,
         )
 

@@ -49,6 +49,7 @@ class DesignProductManagerTests(unittest.TestCase):
 
         self.assertIsInstance(manager, LlmAgent)
         self.assertEqual(manager.name, "DesignProductManager")
+        self.assertEqual(manager.include_contents, "none")
         self.assertEqual(
             {tool.__name__ for tool in manager.tools},
             {
@@ -171,6 +172,7 @@ class DesignProductManagerTests(unittest.TestCase):
         expert = DesignBriefFormExpert()
 
         self.assertIsInstance(expert, LlmAgent)
+        self.assertEqual(expert.include_contents, "none")
         self.assertIn("cross-task common question framework", expert.instruction)
         self.assertIn("default coverage framework", expert.instruction)
         self.assertIn("up to 5 task-specific questions", expert.instruction)

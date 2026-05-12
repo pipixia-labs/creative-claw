@@ -94,6 +94,7 @@ class DesignProductManager(LlmAgent):
             description=kwargs.pop("description", "Owns Creative Claw design product tasks."),
             instruction=kwargs.pop("instruction", type(self).build_instruction()),
             tools=provided_tools or [],
+            include_contents=kwargs.pop("include_contents", "none"),
             **kwargs,
         )
         self._project_root = Path(project_root or PROJECT_PATH).resolve()

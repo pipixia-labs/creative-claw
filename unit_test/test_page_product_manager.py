@@ -24,6 +24,7 @@ class PageProductManagerTests(unittest.TestCase):
 
         self.assertIsInstance(manager, LlmAgent)
         self.assertEqual(manager.name, "PageProductManager")
+        self.assertEqual(manager.include_contents, "none")
         self.assertEqual(
             {tool.__name__ for tool in manager.tools},
             {

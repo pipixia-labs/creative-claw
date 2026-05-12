@@ -93,6 +93,7 @@ class PptContentPlanner:
                 self.save_ppt_deck_content_plan_markdown,
             ],
             output_key=PPT_CONTENT_PLANNING_AGENT_MESSAGE_KEY,
+            include_contents="none",
         )
 
     async def build_plan_with_agent(
