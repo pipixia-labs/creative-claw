@@ -52,9 +52,12 @@ class PageProductManagerTests(unittest.TestCase):
         self.assertIn("content-first HTML page", prompt)
         self.assertIn("公众号", prompt)
         self.assertIn("long-image style work", prompt)
+        self.assertIn("finished publishable poster", prompt)
+        self.assertIn("multi-option review board", prompt)
+        self.assertIn("target artboard", prompt)
+        self.assertIn("type hierarchy", prompt)
         self.assertIn("做一篇小红书长图", prompt)
         self.assertNotIn("DesignCanvas", prompt)
-        self.assertNotIn("artboards", prompt)
 
     def test_page_code_generation_constraints_are_simple_page_constraints(self) -> None:
         constraints = build_page_code_generation_constraints(["fit 4:5 poster preview"])
@@ -62,6 +65,14 @@ class PageProductManagerTests(unittest.TestCase):
         self.assertIn("Generate exactly one standalone HTML file.", constraints)
         self.assertIn("Optimize for content-first communication: copy, narrative sequence, images, and CTA.", constraints)
         self.assertIn("Use workspace-relative asset paths exactly as provided.", constraints)
+        self.assertIn(
+            "For poster requests, generate one finished publishable artboard by default, not a multi-option review board.",
+            constraints,
+        )
+        self.assertIn(
+            "For poster artboards, use clear safe margins, type hierarchy, one hero subject, and an explicit CTA or memory point.",
+            constraints,
+        )
         self.assertIn("fit 4:5 poster preview", constraints)
         self.assertNotIn("Embed a DesignCanvas/DCViewport-style scaffold for the main design surface.", constraints)
 
@@ -76,6 +87,11 @@ class PageProductManagerTests(unittest.TestCase):
         self.assertIn("先做草稿", content)
         self.assertIn("图像期望", content)
         self.assertIn("对 poster 来说，排版就是产品", content)
+        self.assertIn("成品交付模式", content)
+        self.assertIn("多方案评审画布", content)
+        self.assertIn("Value Proposition", content)
+        self.assertIn("版式和精致度要求", content)
+        self.assertIn("负面清单", content)
         self.assertIn("对小红书、公众号文章、长图和视觉文章来说，内容结构就是产品", content)
         self.assertIn("Poster 草稿示例", content)
         self.assertIn("文章 / 长图草稿示例", content)
