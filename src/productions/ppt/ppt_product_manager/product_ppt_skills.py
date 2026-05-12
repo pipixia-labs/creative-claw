@@ -79,6 +79,36 @@ class ProductPptSkillRegistry:
                 return skill.path.read_text(encoding="utf-8")
         raise ValueError(f"Product PPT skill '{skill_name}' not found.")
 
+    def read_skill_file(
+        self,
+        name: str,
+        relative_path: str,
+        *,
+        max_chars: int = 60000,
+    ) -> str:
+        """Read one text file under a private product-ppt skill folder."""
+        skill_name = str(name or "").strip()
+        clean_relative_path = str(relative_path or "").strip()
+        if not skill_name:
+            raise ValueError("Skill name cannot be empty.")
+        if not clean_relative_path:
+            raise ValueError("Skill-relative file path cannot be empty.")
+
+        for skill in self.list_skills():
+            if skill.name != skill_name:
+                continue
+            skill_root = skill.path.parent.resolve()
+            target = (skill_root / clean_relative_path).resolve()
+            try:
+                target.relative_to(skill_root)
+            except ValueError as exc:
+                raise ValueError("Skill file path must stay inside the selected skill folder.") from exc
+            if not target.is_file():
+                raise ValueError(f"Product PPT skill file '{clean_relative_path}' not found.")
+            content = target.read_text(encoding="utf-8")
+            return content[: max(0, int(max_chars))]
+        raise ValueError(f"Product PPT skill '{skill_name}' not found.")
+
 
 def _extract_description(skill_file: Path) -> str:
     """Extract the YAML frontmatter description from a standard SKILL.md."""
