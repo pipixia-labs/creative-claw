@@ -10,34 +10,27 @@ class SkillRegistryTests(unittest.TestCase):
         registry = SkillRegistry(workspace=Path("/tmp/nonexistent-creative-claw-workspace"))
         names = {item.name for item in registry.list_skills()}
 
-        self.assertIn("code-edit", names)
         self.assertIn("minimax-cli-skill", names)
         self.assertIn("expert-usage-guide", names)
         self.assertIn("summarize", names)
         self.assertIn("web-research", names)
         self.assertIn("planning-with-files", names)
-        self.assertIn("creative-brief-to-storyboard", names)
-        self.assertIn("narration-to-visual-prompts", names)
-        self.assertIn("asset-to-script", names)
-        self.assertIn("style-brief-to-prompt", names)
-        self.assertIn("creative-workflow-router", names)
-        self.assertIn("creative-qc", names)
 
     def test_workspace_skill_overrides_builtin(self) -> None:
         with tempfile.TemporaryDirectory() as tmpdir:
             workspace = Path(tmpdir)
-            skill_dir = workspace / "skills" / "code-edit"
+            skill_dir = workspace / "skills" / "summarize"
             skill_dir.mkdir(parents=True, exist_ok=True)
             (skill_dir / "SKILL.md").write_text(
-                "---\nname: code-edit\ndescription: custom code edit\n---\n\n# Custom Code Edit\n",
+                "---\nname: summarize\ndescription: custom summary skill\n---\n\n# Custom Summary Skill\n",
                 encoding="utf-8",
             )
 
             registry = SkillRegistry(workspace=workspace)
             skills = {item.name: item for item in registry.list_skills()}
 
-            self.assertEqual(skills["code-edit"].source, "workspace")
-            self.assertIn("# Custom Code Edit", registry.read_skill("code-edit"))
+            self.assertEqual(skills["summarize"].source, "workspace")
+            self.assertIn("# Custom Summary Skill", registry.read_skill("summarize"))
 
     def test_read_skill_raises_for_missing_name(self) -> None:
         registry = SkillRegistry(workspace=Path("/tmp/nonexistent-creative-claw-workspace"))

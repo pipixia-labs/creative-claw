@@ -141,24 +141,8 @@ class DesignProductManagerTests(unittest.TestCase):
         skill_names = {skill.name for skill in skills}
 
         self.assertIn("design-canvas-artifact", skill_names)
-        self.assertIn("poster-page-designer", skill_names)
+        self.assertNotIn("poster-page-designer", skill_names)
         self.assertIn("Design Canvas Artifact", registry.read_skill("design-canvas-artifact"))
-
-    def test_poster_page_designer_skill_documents_expected_workflow(self) -> None:
-        registry = ProductDesignSkillRegistry()
-
-        content = registry.read_skill("poster-page-designer")
-
-        self.assertIn("Markdown draft", content)
-        self.assertIn("Asset Manifest", content)
-        self.assertIn("SearchAgent", content)
-        self.assertIn("ImageGenerationAgent", content)
-        self.assertIn('provider="nano_banana"', content)
-        self.assertIn("ImageUnderstandingAgent", content)
-        self.assertIn("AnythingToMD", content)
-        self.assertIn("invoke_design_code_generation", content)
-        self.assertIn("save_design_artifact", content)
-        self.assertIn("No local absolute paths", content)
 
     def test_global_skill_registry_does_not_expose_private_product_design_skills(self) -> None:
         global_registry = SkillRegistry()
@@ -167,20 +151,21 @@ class DesignProductManagerTests(unittest.TestCase):
 
         self.assertNotIn("poster-page-designer", skill_names)
         self.assertNotIn("product-design-skills", skill_names)
+        self.assertNotIn("product-page-skills", skill_names)
 
     def test_private_skill_tools_list_and_read_skills(self) -> None:
         manager = DesignProductManager()
         tool_context = SimpleNamespace(state={})
 
         listed = manager.list_product_design_skills(tool_context)
-        read = manager.read_product_design_skill("poster-page-designer", tool_context)
+        read = manager.read_product_design_skill("design-canvas-artifact", tool_context)
 
         self.assertEqual(listed["status"], "success")
-        self.assertGreaterEqual(listed["count"], 2)
+        self.assertGreaterEqual(listed["count"], 1)
         self.assertEqual(read["status"], "success")
-        self.assertEqual(read["name"], "poster-page-designer")
-        self.assertIn("Poster Page Designer", read["content"])
-        self.assertEqual(tool_context.state["active_product_design_skill"]["name"], "poster-page-designer")
+        self.assertEqual(read["name"], "design-canvas-artifact")
+        self.assertIn("Design Canvas Artifact", read["content"])
+        self.assertEqual(tool_context.state["active_product_design_skill"]["name"], "design-canvas-artifact")
 
     def test_design_brief_question_form_schema_helpers(self) -> None:
         expert = DesignBriefFormExpert()

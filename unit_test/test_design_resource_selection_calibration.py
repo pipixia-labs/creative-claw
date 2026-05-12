@@ -9,8 +9,10 @@ class ProductDesignSkillsRootTests(unittest.TestCase):
 
         skills = registry.list_skills()
 
-        self.assertGreaterEqual(len(skills), 2)
-        self.assertEqual([skill.name for skill in skills[:2]], ["aaa-skill", "bbb-skill"])
+        skill_names = {skill.name for skill in skills}
+        self.assertGreaterEqual(len(skills), 1)
+        self.assertIn("design-canvas-artifact", skill_names)
+        self.assertNotIn("poster-page-designer", skill_names)
 
 
 if __name__ == "__main__":

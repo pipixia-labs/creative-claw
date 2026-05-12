@@ -32,6 +32,7 @@ from src.productions.design.design_product_manager.brief_form import (
     DESIGN_BRIEF_FORM_ANSWERS_STATE_KEY,
     DESIGN_BRIEF_FORM_PENDING_TASK_STATE_KEY,
 )
+from src.productions.page.page_product_manager import PageProductManager
 from src.productions.ppt.ppt_product_manager import PptProductManager
 from src.runtime.expert_dispatcher import dispatch_expert_call
 from src.runtime.expert_registry import build_expert_contract_summary
@@ -104,6 +105,7 @@ _DISPLAY_TOOL_TITLES = {
     "list_session_files": "List Session Files",
     "run_ppt_product": "Run PPT Product",
     "continue_ppt_product": "Continue PPT Product",
+    "run_page_product": "Run Page Product",
     "run_design_product": "Run Design Product",
 }
 
@@ -632,6 +634,7 @@ class Orchestrator:
         self.skill_registry = get_skill_registry()
         self.toolbox = BuiltinToolbox()
         self.ppt_product_manager = PptProductManager()
+        self.page_product_manager = PageProductManager()
         self.design_product_manager = DesignProductManager()
 
         model_name = resolve_llm_model_name(llm_model or SYS_CONFIG.llm_model)
@@ -675,6 +678,7 @@ class Orchestrator:
                 self.list_session_files,
                 self.run_ppt_product,
                 self.continue_ppt_product,
+                self.run_page_product,
                 self.run_design_product,
                 self.invoke_agent,
             ],
@@ -709,18 +713,19 @@ You can use built-in tools, skills, `invoke_agent`, and your own reasoning to co
 You are the main agent, and expert agents are supporting capabilities invoked through `invoke_agent`.
 Prefer completing the task directly instead of describing an internal workflow.
 
-You can use six kinds of capabilities:
+You can use seven kinds of capabilities:
 1. Skills from local markdown files
 2. Built-in local file tools inside the fixed workspace
 3. Built-in shell and web tools
 4. The PPT product-line tools `run_ppt_product` and `continue_ppt_product`
-5. The Design product-line tool `run_design_product`
-6. Existing expert agents through `invoke_agent(agent_name, prompt)`
+5. The Page product-line tool `run_page_product`
+6. The Design product-line tool `run_design_product`
+7. Existing expert agents through `invoke_agent(agent_name, prompt)`
 
 Rules:
 - Treat yourself as the main conversational agent. Reply to the user's actual request, not to an internal workflow.
-- Product-line tools have priority over skills and lower-level experts. If a request belongs to PPT or Design product scope, call the product-line tool first; use skills only as supporting knowledge after the product path is chosen.
-- Route by the requested final deliverable: PPTX/PowerPoint/editable slide deck goes to `run_ppt_product`; code-backed design artifacts such as HTML, dashboards, landing pages, app prototypes, interactive tools, and HTML cards/posters go to `run_design_product`; standalone image deliverables stay with the orchestrator and should usually use `invoke_agent` with `ImageGenerationAgent`.
+- Product-line tools have priority over skills and lower-level experts. If a request belongs to PPT, Page, or Design product scope, call the product-line tool first; use skills only as supporting knowledge after the product path is chosen.
+- Route by the requested final deliverable and workflow: PPTX/PowerPoint/editable slide deck goes to `run_ppt_product`; content-first HTML posters, long-image pages, visual articles, social posts, and marketing one-pagers go to `run_page_product`; UI/design artifacts such as dashboards, app prototypes, interactive tools, wireframes, and interface-heavy HTML go to `run_design_product`; standalone image deliverables stay with the orchestrator and should usually use `invoke_agent` with `ImageGenerationAgent`.
 - If the current product lines cannot handle the requested deliverable or workflow, do not force the task into PPT or Design. Complete it yourself with skills, built-in tools, and existing expert agents.
 - When a skill seems relevant, call `list_skills` first and then `read_skill`.
 - Never invent skill content. Read the actual `SKILL.md` before using it deeply.
@@ -763,16 +768,12 @@ Rules:
 - Use the current delivery channel context when it helps adapt formatting or tone for the reply.
 - Do not expose raw routing identifiers such as `chat_id` or `sender_id` unless the user explicitly asks for them.
 
-Creative workflow routing hints:
-- If the user has a topic, campaign brief, or rough idea but does not yet have scenes, hook, or storyboard structure, prefer reading `creative-brief-to-storyboard` before jumping into generation.
-- If the user already has narration, script, or storyboard text and now needs image prompts or video prompts, prefer reading `narration-to-visual-prompts`.
-- If the user already has photos or video clips and wants the story built around those assets, prefer reading `asset-to-script`.
-- If the user mainly wants to translate style direction, mood, or art direction into reusable prompt language, prefer reading `style-brief-to-prompt`.
-- If the request mixes idea, script, assets, style, generation, and review in a way that is not immediately clear, prefer reading `creative-workflow-router` first to choose the smallest correct path.
-- If the user asks whether a storyboard, prompt pack, or generated result is ready, consistent, or worth revising before spending more generation budget, prefer reading `creative-qc`.
-- For these creative routing cases, do not skip straight to `ImageGenerationAgent` or `VideoGenerationAgent` when the user still needs planning, prompt derivation, or QC.
-- After reading a relevant creative skill, follow its handoff guidance and pass exact expert parameters as a JSON object string to `invoke_agent`.
-- If no skill is needed because the user gave a clear final generation request, execute directly with the smallest suitable expert call.
+Creative media workflow hints:
+- Do not assume video or media planning skills are globally available. Only read skills that appear in the Available skills list.
+- If the user has a topic, campaign brief, rough idea, script, narration, reference image, or clip but still needs scenes, storyboard structure, prompt derivation, or QC, reason directly and prepare the smallest useful plan before invoking generation experts.
+- If the user already gave a clear final generation request, execute directly with the smallest suitable expert call.
+- For image/video generation, pass exact expert parameters as a JSON object string to `invoke_agent`.
+- Prefer current session workspace file paths for source images, videos, audio, and generated assets.
 
 PPT workflow routing hints:
 - If session state shows a pending PPT confirmation, call `continue_ppt_product` with the user's latest response. Do not start a new PPT workflow unless the user explicitly asks to discard the current one.
@@ -788,11 +789,19 @@ PPT workflow routing hints:
 - PptProductManager owns PPT requirement normalization, route dispatch, route artifacts, PPTX validation, and delivery manifest registration.
 - Do not call HTML, SVG, or OOXML route-internal tools directly from the orchestrator.
 
+Page workflow routing hints:
+- If the user asks for 公众号文章, 小红书文章, 朋友圈长图, HTML poster, marketing poster, visual article, content-led social creative, campaign one-pager, or long-image page, prefer `run_page_product`.
+- If runtime context says `Product line: design` but the actual request is content-first poster/article/long-image work, call `run_page_product`. The current frontend may still display the returned HTML in the existing design preview surface.
+- PageProductManager owns content draft, page private skills, image/content asset planning, final standalone HTML generation, lightweight validation, and delivery.
+- PageProductManager has private product-page skills under `skills/product-page-skills`. Do not read or choose those skills from the orchestrator.
+- Pass the user's content/page task directly into `run_page_product`; do not rewrite it into a UI design brief.
+- Do not route dashboards, app screens, admin consoles, wireframes, or interaction-heavy prototypes to PageProductManager.
+
 Design workflow routing hints:
-- If runtime context says `Product line: design`, call `run_design_product` as the primary execution path before considering lower-level tools.
+- If runtime context says `Product line: design` and the request is not a content-first Page task, call `run_design_product` as the primary execution path before considering lower-level tools.
 - If the user task is a `[cc-form-answers ...]` block and runtime context shows an active Design brief form, call `run_design_product` with the exact answer block as `task`.
 - When `Product line options` includes a `design` object, pass only the concise task, relevant inputs, and explicit output request into `run_design_product`.
-- If the user asks for UI design, product design, dashboard, landing page, mobile app, deck, poster, social creative, greeting card, holiday card, invitation card, visual prototype, website mockup, or HTML design artifact, prefer `run_design_product` only when the requested final deliverable is not a PPTX/PowerPoint file.
+- If the user asks for UI design, product design, dashboard, landing page, mobile app, deck, greeting card, holiday card, invitation card, visual prototype, website mockup, or interface-heavy HTML design artifact, prefer `run_design_product` only when the requested final deliverable is not a PPTX/PowerPoint file and the task is not a content-first Page request.
 - Do not route a Design product request to a standalone skill or expert just because a skill trigger matches; product first, skills second.
 - DesignProductManager owns design skills, design decisions, artifact generation, progress, status, validation, and delivery.
 - DesignProductManager has private product-design skills. Do not read or choose those skills from the orchestrator.
@@ -1726,6 +1735,38 @@ Expert parameter contracts:
             tool_context=tool_context,
             tool_name="run_design_product",
             stage="design_planning",
+            args={
+                "task": task,
+                "inputs": inputs or [],
+                "output": output or {},
+            },
+            runner=_runner,
+        )
+
+    async def run_page_product(
+        self,
+        task: str,
+        inputs: list[dict[str, Any]] | None = None,
+        output: dict[str, Any] | None = None,
+        tool_context: ToolContext | None = None,
+    ) -> dict[str, Any]:
+        """Hand one concise content-first page task to PageProductManager."""
+
+        async def _runner() -> dict[str, Any]:
+            return await self.page_product_manager.run_product_request(
+                task=task,
+                inputs=inputs or [],
+                output=output or {},
+                tool_context=tool_context,
+                expert_agents=self.expert_agents,
+                app_name=self.app_name,
+                artifact_service=self.artifact_service,
+            )
+
+        return await self._run_async_tool_with_events(
+            tool_context=tool_context,
+            tool_name="run_page_product",
+            stage="page_planning",
             args={
                 "task": task,
                 "inputs": inputs or [],
