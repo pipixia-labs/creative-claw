@@ -93,16 +93,20 @@ class PptProductManagerTests(unittest.IsolatedAsyncioTestCase):
             {
                 "list_product_ppt_skills",
                 "read_product_ppt_skill",
+                "read_product_ppt_skill_file",
+                "save_ppt_system_selection",
+                "save_ppt_private_skill_html",
                 "dispatch_ppt_route",
             },
         )
         self.assertIn("PPT and PowerPoint production", instruction)
         self.assertIn("ADK workflow", instruction)
-        self.assertIn("HTML route first", instruction)
+        self.assertIn("currently implemented built-in route", instruction)
         self.assertIn("PPT system selection", instruction)
         self.assertIn("skills/product-ppt-skills", instruction)
         self.assertIn("built-in HTML route", instruction)
         self.assertIn("freely choose", instruction)
+        self.assertIn("hard-coded keyword-to-skill rules", instruction)
         self.assertIn("Do not claim PPTX generation succeeded", instruction)
 
     def test_private_product_ppt_skill_registry_lists_complete_workflow(self) -> None:
@@ -111,9 +115,11 @@ class PptProductManagerTests(unittest.IsolatedAsyncioTestCase):
         skills = registry.list_skills()
         skill_names = {skill.name for skill in skills}
         content = registry.read_skill("ppt-complete-workflow")
+        skill_file_content = registry.read_skill_file("ppt-complete-workflow", "SKILL.md")
 
         self.assertIn("ppt-complete-workflow", skill_names)
         self.assertIn("PPT Complete Workflow", content)
+        self.assertEqual(content, skill_file_content)
         self.assertIn("Built-in HTML route", content)
         self.assertIn("If the user explicitly specifies", content)
         self.assertIn("Do not use local absolute paths", content)
@@ -139,6 +145,21 @@ class PptProductManagerTests(unittest.IsolatedAsyncioTestCase):
         self.assertEqual(read["name"], "ppt-complete-workflow")
         self.assertIn("PPT Complete Workflow", read["content"])
         self.assertEqual(tool_context.state["active_product_ppt_skill"]["name"], "ppt-complete-workflow")
+
+    def test_private_ppt_skill_tool_reads_skill_relative_files(self) -> None:
+        manager = PptProductManager()
+        tool_context = SimpleNamespace(state={})
+
+        result = manager.read_product_ppt_skill_file(
+            name="ppt-complete-workflow",
+            relative_path="SKILL.md",
+            tool_context=tool_context,
+        )
+
+        self.assertEqual(result["status"], "success")
+        self.assertEqual(result["name"], "ppt-complete-workflow")
+        self.assertEqual(result["relative_path"], "SKILL.md")
+        self.assertIn("PPT Complete Workflow", result["content"])
 
     def test_route_registry_registers_all_routes(self) -> None:
         manager = PptProductManager()
@@ -181,8 +202,27 @@ class PptProductManagerTests(unittest.IsolatedAsyncioTestCase):
         )
         self.assertIn("ConfirmedRequirement JSON", agent.instruction)
         self.assertIn("multiple PPT systems", agent.instruction)
-        self.assertIn("choose the route freely", agent.instruction)
+        self.assertIn("system-selection agent", agent.instruction)
         self.assertIn("受众为", agent.instruction)
+
+    def test_system_selection_agent_chooses_without_keyword_rules(self) -> None:
+        manager = PptProductManager()
+
+        agent = manager.build_system_selection_agent()
+
+        self.assertIsInstance(agent, LlmAgent)
+        self.assertEqual(agent.name, "PptSystemSelectionAgent")
+        self.assertEqual(agent.output_key, "ppt_system_selection_agent_message")
+        self.assertEqual(
+            {tool.__name__ for tool in agent.tools},
+            {
+                "list_product_ppt_skills",
+                "read_product_ppt_skill",
+                "save_ppt_system_selection",
+            },
+        )
+        self.assertIn("Do not use hard-coded keyword rules", agent.instruction)
+        self.assertIn("choose freely", agent.instruction)
 
     def test_requirement_analysis_save_tool_preserves_source_inputs(self) -> None:
         source_path = _write_markdown_source("requirement_source.pdf", "%PDF test fixture")
@@ -649,6 +689,68 @@ Visual:
         self.assertTrue(html_path.exists())
         self.assertGreater(len(result["delivery_manifest"]["previews"]), 0)
         self.assertEqual(len(Presentation(str(pptx_path)).slides), len(result["deck_content_plan"]["pages"]))
+
+    async def test_run_can_deliver_private_skill_html_when_selector_chooses_skill(self) -> None:
+        manager = PptProductManager()
+        tool_context = SimpleNamespace(state={"sid": "ppt-manager-private-skill-test", "turn_index": 1, "step": 1})
+
+        def _content_plan_builder(_requirement):
+            return DeckContentPlan(
+                title="AI for Kids",
+                core_narrative="Explain AI through familiar classroom examples.",
+                pages=[
+                    DeckPagePlan(
+                        slide_number=1,
+                        page_type="cover",
+                        title="AI 是什么",
+                        purpose="Introduce AI in simple language.",
+                        key_takeaway="AI can help computers learn patterns.",
+                        content_blocks=[{"items": ["AI 像一个会观察和练习的小助手。"]}],
+                    ),
+                    DeckPagePlan(
+                        slide_number=2,
+                        page_type="content",
+                        title="AI 怎么学习",
+                        purpose="Explain learning from examples.",
+                        key_takeaway="Examples help AI get better.",
+                        content_blocks=[{"items": ["看到很多图片后，AI 能学会分类。"]}],
+                    ),
+                ],
+            )
+
+        async def _selector(**_kwargs):
+            return {
+                "system_type": "private_skill",
+                "route": "html",
+                "skill_name": "ppt-complete-workflow",
+                "output_format": "html",
+                "reason": "Test selector chose the private PPT skill.",
+            }
+
+        result = await manager.run_product_request(
+            task="给我做一个ppt，用来和小学生科普AI，不超过8页。用最合适的 skill 完成。",
+            inputs=[],
+            output={"format": "pptx", "auto_confirm": True},
+            tool_context=tool_context,
+            content_plan_builder=_content_plan_builder,
+            system_selection_builder=_selector,
+        )
+
+        self.assertEqual(result["status"], "success")
+        self.assertEqual(result["phase"], "private_skill_delivery")
+        self.assertEqual(result["selected_route"], "html")
+        self.assertEqual(result["delivery_manifest"]["final_pptx"], "")
+        self.assertEqual(tool_context.state["ppt_system_selection"]["system_type"], "private_skill")
+        self.assertEqual(tool_context.state["ppt_system_selection"]["skill_name"], "ppt-complete-workflow")
+        self.assertEqual(tool_context.state["active_product_ppt_skill"]["name"], "ppt-complete-workflow")
+        self.assertIn("final_file_paths", tool_context.state)
+        self.assertEqual(tool_context.state["final_file_paths"], result["delivery_manifest"]["intermediate_artifacts"])
+
+        html_path = resolve_workspace_path(result["delivery_manifest"]["intermediate_artifacts"][0])
+        self.assertTrue(html_path.exists())
+        html_text = html_path.read_text(encoding="utf-8")
+        self.assertIn("AI 是什么", html_text)
+        self.assertIn("ppt-complete-workflow", html_text)
 
     async def test_interactive_workflow_pauses_for_two_confirmations(self) -> None:
         image_path = _write_test_image("interactive_kid_word_asset.png")
