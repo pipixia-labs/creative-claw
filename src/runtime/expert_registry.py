@@ -469,13 +469,16 @@ _EXPERT_SPECS = {
         mirrored_output_keys=("three_d_generation_results",),
         notes=(
             "Generates 3D assets through provider-aware backends. "
+            "The orchestrator can pass the user's 3D task directly; this expert internally "
+            "optimizes text prompts with a private 3D prompt optimizer using generic asset-quality principles. "
             "`hy3d` uses Tencent Cloud Hunyuan 3D Pro and supports prompt-only, image-only, "
             "and Sketch prompt-plus-image input. `seed3d`, `hyper3d`, and `hitem3d` use "
             "Volcengine Ark. `seed3d` requires exactly one image source. `hyper3d` supports "
             "English prompt-only or 1-5 images with optional prompt/commands; keep the "
             "`hyper3d` prompt no longer than 400 characters, and for image-to-3D use only "
             "short style constraints or omit the prompt. `hitem3d` "
-            "requires 1-4 externally accessible image URLs and accepts parameter commands only."
+            "requires 1-4 externally accessible image URLs and accepts parameter commands only. "
+            "Optional optimize_prompt=false disables internal prompt optimization for exact prompts."
         ),
     ),
 }

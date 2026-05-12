@@ -12,18 +12,14 @@ from google.adk.events import Event
 from pydantic import PrivateAttr
 
 from src.agents.experts.base import CreativeExpert
+from src.agents.experts.three_d_generation.prompt_optimizer import (
+    HYPER3D_PROMPT_CHARACTER_LIMIT,
+    PromptOptimizationResult,
+    optimize_3d_prompt,
+)
 from src.agents.experts.three_d_generation import tool as generation_tools
 from src.logger import logger
 from src.runtime.workspace import build_workspace_file_record
-
-
-_HY3D_PROMPT_ENHANCEMENT_MARKER = "3D asset quality requirements:"
-_HY3D_PROMPT_ENHANCEMENT = (
-    "3D asset quality requirements: production-ready full 3D asset, coherent silhouette "
-    "from all viewing angles, clean separated parts, accurate proportions, rich surface "
-    "details, PBR-ready materials, no fused limbs, no melted surfaces, no broken fingers, "
-    "no floating fragments, no text, no watermark."
-)
 
 
 class ThreeDGenerationAgent(CreativeExpert):
@@ -95,22 +91,42 @@ class ThreeDGenerationAgent(CreativeExpert):
         return face_count
 
     @staticmethod
-    def _enhance_hy3d_prompt_for_request(
-        prompt: str,
+    def _prompt_optimization_enabled(current_parameters: dict[str, Any]) -> bool:
+        """Return whether the private prompt optimizer should run for this request."""
+        try:
+            return generation_tools.coerce_bool(
+                current_parameters.get("optimize_prompt", current_parameters.get("prompt_optimization")),
+                default=True,
+            )
+        except ValueError as exc:
+            logger.warning("Invalid prompt optimization flag; defaulting to enabled. error={!r}", exc)
+            return True
+
+    async def _optimize_prompt_for_request(
+        self,
+        ctx: InvocationContext,
         *,
-        input_paths: list[str],
+        prompt: str,
+        provider: str,
         generate_type: str,
-    ) -> str:
-        """Add concise production-quality constraints for prompt-only hy3d generation."""
+        input_paths: list[str],
+        image_urls: list[str],
+        current_parameters: dict[str, Any],
+    ) -> PromptOptimizationResult | None:
+        """Run the private prompt optimizer when text guidance is useful."""
         normalized_prompt = prompt.strip()
-        if (
-            not normalized_prompt
-            or input_paths
-            or generate_type != "Normal"
-            or _HY3D_PROMPT_ENHANCEMENT_MARKER.lower() in normalized_prompt.lower()
-        ):
-            return normalized_prompt
-        return f"{normalized_prompt}\n\n{_HY3D_PROMPT_ENHANCEMENT}"
+        if not normalized_prompt or not self._prompt_optimization_enabled(current_parameters):
+            return None
+
+        max_characters = HYPER3D_PROMPT_CHARACTER_LIMIT if provider == "hyper3d" else None
+        return await optimize_3d_prompt(
+            ctx,
+            prompt=normalized_prompt,
+            provider=provider,
+            generate_type=generate_type,
+            has_input_image=bool(input_paths or image_urls),
+            max_characters=max_characters,
+        )
 
     @override
     async def _run_async_impl(self, ctx: InvocationContext) -> AsyncGenerator[Event, None]:
@@ -138,6 +154,7 @@ class ThreeDGenerationAgent(CreativeExpert):
             return
 
         generate_type = ""
+        prompt_optimization_result: PromptOptimizationResult | None = None
         if provider == "seed3d":
             if len(input_paths) + len(image_urls) != 1:
                 error_text = f"{self._public_name} provider `seed3d` requires exactly one image source."
@@ -191,8 +208,21 @@ class ThreeDGenerationAgent(CreativeExpert):
                 yield self.format_event(error_text, {"current_output": {"status": "error", "message": error_text}})
                 return
 
+            hyper3d_prompt = prompt
+            prompt_optimization_result = await self._optimize_prompt_for_request(
+                ctx,
+                prompt=prompt,
+                provider=provider,
+                generate_type="image_to_3d" if input_paths or image_urls else "text_to_3d",
+                input_paths=input_paths,
+                image_urls=image_urls,
+                current_parameters=current_parameters,
+            )
+            if prompt_optimization_result is not None:
+                hyper3d_prompt = prompt_optimization_result.prompt
+
             result = await generation_tools.hyper3d_generate_tool(
-                prompt=prompt or None,
+                prompt=hyper3d_prompt or None,
                 input_paths=input_paths,
                 image_urls=image_urls,
                 model=self._provider_model(
@@ -324,11 +354,18 @@ class ThreeDGenerationAgent(CreativeExpert):
                 yield self.format_event(error_text, {"current_output": {"status": "error", "message": error_text}})
                 return
 
-            hy3d_prompt = self._enhance_hy3d_prompt_for_request(
-                prompt,
-                input_paths=input_paths,
+            hy3d_prompt = prompt
+            prompt_optimization_result = await self._optimize_prompt_for_request(
+                ctx,
+                prompt=prompt,
+                provider=provider,
                 generate_type=generate_type,
+                input_paths=input_paths,
+                image_urls=image_urls,
+                current_parameters=current_parameters,
             )
+            if prompt_optimization_result is not None:
+                hy3d_prompt = prompt_optimization_result.prompt
             result = await generation_tools.hy3d_generate_tool(
                 prompt=hy3d_prompt or None,
                 input_path=input_paths[0] if input_paths else None,
@@ -368,6 +405,12 @@ class ThreeDGenerationAgent(CreativeExpert):
                 "model_name": result.get("model_name", ""),
                 "job_id": result.get("job_id", ""),
             }
+            if prompt_optimization_result is not None:
+                current_output["prompt_optimization"] = {
+                    "used_llm": prompt_optimization_result.used_llm,
+                    "model_name": prompt_optimization_result.model_name,
+                    "message": prompt_optimization_result.message,
+                }
             logger.error("{} execution failed: {}", self._public_name, result["message"])
             yield self.format_event(result["message"], {"current_output": current_output})
             return
@@ -427,6 +470,13 @@ class ThreeDGenerationAgent(CreativeExpert):
             "resolution": result.get("resolution", ""),
             "result_files": structured_results,
         }
+        if prompt_optimization_result is not None:
+            current_output["prompt_optimization"] = {
+                "used_llm": prompt_optimization_result.used_llm,
+                "model_name": prompt_optimization_result.model_name,
+                "message": prompt_optimization_result.message,
+            }
+            current_output["optimized_prompt"] = prompt_optimization_result.prompt
         logger.info(message)
         yield self.format_event(
             message,
