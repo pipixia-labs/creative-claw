@@ -5,6 +5,7 @@ from types import SimpleNamespace
 from src.runtime.step_events import (
     CreativeClawStepEventPlugin,
     append_orchestration_step_event,
+    assistant_delta_streaming_active,
     configure_step_event_publisher,
     publish_assistant_delta,
     publish_orchestration_step_event,
@@ -95,11 +96,13 @@ class StepEventPluginTests(unittest.IsolatedAsyncioTestCase):
 
     async def test_assistant_delta_only_publishes_for_web_channel(self) -> None:
         with route_context("cli", "chat-cli"):
+            self.assertFalse(assistant_delta_streaming_active())
             published = await publish_assistant_delta(session_id="session-cli", delta="Hello", turn_index=1)
         self.assertFalse(published)
         self.assertEqual(self.messages, [])
 
         with route_context("web", "chat-web"):
+            self.assertTrue(assistant_delta_streaming_active())
             published = await publish_assistant_delta(session_id="session-web", delta="Hello", turn_index=2)
 
         self.assertTrue(published)

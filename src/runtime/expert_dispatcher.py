@@ -8,7 +8,6 @@ from dataclasses import dataclass
 from typing import Any
 
 from google.adk.agents import BaseAgent
-from google.adk.agents.run_config import RunConfig, StreamingMode
 from google.adk.apps import App
 from google.adk.artifacts import BaseArtifactService, InMemoryArtifactService
 from google.adk.memory import InMemoryMemoryService
@@ -22,7 +21,6 @@ from src.runtime.expert_registry import (
     normalize_expert_output,
     validate_expert_parameters,
 )
-from src.runtime.step_events import publish_assistant_delta
 from src.runtime.tool_context_artifact_service import ToolContextArtifactService
 from src.runtime.workspace import (
     build_workspace_file_record,
@@ -58,10 +56,6 @@ _NON_FORWARDABLE_STATE_KEYS = {
     "final_response",
     "last_orchestrator_response",
     "orchestration_events",
-}
-
-_STREAM_RELAY_EXPERTS = {
-    "KnowledgeAgent",
 }
 
 
@@ -248,23 +242,6 @@ def _resolve_child_artifact_service(
     return fallback_service
 
 
-def _should_relay_expert_stream(agent_name: str) -> bool:
-    """Return whether one expert's text partials are safe to relay to Web."""
-    return agent_name in _STREAM_RELAY_EXPERTS
-
-
-def _partial_text_delta(event) -> str:
-    """Extract user-visible text from one ADK partial event."""
-    if not getattr(event, "partial", False) or not event.content or not event.content.parts:
-        return ""
-    if any(
-        getattr(part, "function_call", None) or getattr(part, "function_response", None)
-        for part in event.content.parts
-    ):
-        return ""
-    return "".join(str(part.text or "") for part in event.content.parts if part.text)
-
-
 def _build_child_runner(
     *,
     agent: BaseAgent,
@@ -314,8 +291,6 @@ async def _run_child_expert_session(
     )
 
     forwarded_state_delta: dict[str, Any] = {}
-    assistant_text_streamed = False
-    relay_stream = _should_relay_expert_stream(agent_name)
     run_kwargs = {
         "user_id": child_session.user_id,
         "session_id": child_session.id,
@@ -331,20 +306,8 @@ async def _run_child_expert_session(
             ],
         ),
     }
-    if relay_stream:
-        run_kwargs["run_config"] = RunConfig(streaming_mode=StreamingMode.SSE)
     try:
         async for event in child_runner.run_async(**run_kwargs):
-            text_delta = _partial_text_delta(event) if relay_stream else ""
-            if text_delta:
-                assistant_text_streamed = (
-                    await publish_assistant_delta(
-                        session_id=str(parent_state.get("sid", "") or child_session.id),
-                        turn_index=int(parent_state.get("turn_index", 0) or 0),
-                        delta=text_delta,
-                    )
-                    or assistant_text_streamed
-                )
             if event.actions and event.actions.state_delta:
                 forwarded_state_delta.update(
                     _extract_forwardable_state_delta(event.actions.state_delta)
@@ -366,7 +329,7 @@ async def _run_child_expert_session(
         }
     finally:
         await child_runner.close()
-    return current_output, forwarded_state_delta, assistant_text_streamed
+    return current_output, forwarded_state_delta, False
 
 
 def _build_tool_result(

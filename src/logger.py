@@ -1,8 +1,11 @@
+import os
 import sys
 from loguru import logger
 from conf.system import SYS_CONFIG
 from conf.path import LOGS_ROOT
 from pathlib import Path
+
+_VALID_LOG_LEVELS = {"TRACE", "DEBUG", "INFO", "SUCCESS", "WARNING", "ERROR", "CRITICAL"}
 
 
 def setup_logger() -> None:
@@ -20,10 +23,12 @@ def setup_logger() -> None:
     # Remove default handlers so logging is fully controlled here.
     logger.remove()
 
-    # Add a console handler.
+    console_level = _resolve_console_log_level()
+
+    # Add a console handler. Keep the terminal quieter than the diagnostic file logs by default.
     logger.add(
         sys.stderr,
-        level=SYS_CONFIG.log_level,
+        level=console_level,
         format="<green>{time:YYYY-MM-DD HH:mm:ss.SSS}</green> | "
         "<level>{level: <8}</level> | "
         "<cyan>{name}</cyan>:<cyan>{function}</cyan>:<cyan>{line}</cyan> - <level>{message}</level>",
@@ -63,9 +68,17 @@ def setup_logger() -> None:
             diagnose=True,
         )
 
-    logger.info("Logger initialized.")
+    logger.info("Logger initialized. console_level={}, file_level={}", console_level, SYS_CONFIG.log_level)
     logger.debug(f"Log level set to: {SYS_CONFIG.log_level}")
     logger.debug(f"Log files will be written to: {log_dir}, template: {log_file_template}")
+
+
+def _resolve_console_log_level() -> str:
+    """Return the terminal log level, defaulting to INFO to avoid noisy backend output."""
+    configured_level = os.getenv("CREATIVE_CLAW_CONSOLE_LOG_LEVEL", "INFO").strip().upper()
+    if configured_level in _VALID_LOG_LEVELS:
+        return configured_level
+    return "INFO"
 
 
 def _resolve_log_dir() -> Path:

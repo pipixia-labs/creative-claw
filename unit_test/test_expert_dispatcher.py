@@ -356,7 +356,7 @@ class ExpertDispatcherTests(unittest.IsolatedAsyncioTestCase):
             "child saw filtered state",
         )
 
-    async def test_dispatch_expert_call_relays_allowlisted_expert_partials_to_web(self) -> None:
+    async def test_dispatch_expert_call_does_not_stream_expert_partials_to_web(self) -> None:
         artifact_service = InMemoryArtifactService()
         parent_state = State(
             {
@@ -394,12 +394,9 @@ class ExpertDispatcherTests(unittest.IsolatedAsyncioTestCase):
         finally:
             configure_step_event_publisher(None)
 
-        self.assertTrue(result.assistant_text_streamed)
-        self.assertIs(expert.streaming_mode, StreamingMode.SSE)
-        self.assertEqual([message.text for message in published], ["streamed ", "expert text"])
-        self.assertEqual(published[0].metadata["display_style"], "assistant_delta")
-        self.assertEqual(published[0].metadata["session_id"], "parent-session")
-        self.assertEqual(published[0].metadata["turn_index"], 7)
+        self.assertFalse(result.assistant_text_streamed)
+        self.assertIsNot(expert.streaming_mode, StreamingMode.SSE)
+        self.assertEqual(published, [])
 
 
 if __name__ == "__main__":

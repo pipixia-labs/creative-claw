@@ -304,7 +304,7 @@ class CreativeClawRuntime:
                 user_id=user_id,
                 session_id=session_id,
             )
-            logger.debug(
+            logger.trace(
                 "session.state (Orchestrator): {}",
                 json.dumps(current_session.state, indent=2, ensure_ascii=False),
             )

@@ -39,6 +39,7 @@ from src.runtime.expert_registry import build_expert_contract_summary
 from src.runtime.step_events import (
     CreativeClawStepEventPlugin,
     append_orchestration_step_event,
+    assistant_delta_streaming_active,
     publish_assistant_delta,
     step_event_streaming_active,
 )
@@ -1845,22 +1846,25 @@ Expert parameter contracts:
         )
         turn_index = int((current_session.state if current_session else {}).get("turn_index", 0) or 0)
         reply_stream = _ReplyTextStreamExtractor()
+        stream_reply_text = assistant_delta_streaming_active()
+        run_config_kwargs: dict[str, Any] = {
+            "max_llm_calls": SYS_CONFIG.max_iterations_orchestrator,
+        }
+        if stream_reply_text:
+            run_config_kwargs["streaming_mode"] = StreamingMode.SSE
         async for event in self.runner.run_async(
             user_id=user_id,
             session_id=session_id,
             new_message=new_message,
-            run_config=RunConfig(
-                max_llm_calls=SYS_CONFIG.max_iterations_orchestrator,
-                streaming_mode=StreamingMode.SSE,
-            ),
+            run_config=RunConfig(**run_config_kwargs),
         ):
-            logger.debug(
+            logger.trace(
                 "uid: {}, sid: {}, Event: {}",
                 user_id,
                 session_id,
                 event.model_dump_json(indent=2, exclude_none=True),
             )
-            if getattr(event, "partial", False) and event.content and event.content.parts:
+            if stream_reply_text and getattr(event, "partial", False) and event.content and event.content.parts:
                 text_delta = "".join(part.text or "" for part in event.content.parts if part.text)
                 safe_delta = reply_stream.append(text_delta)
                 if safe_delta:

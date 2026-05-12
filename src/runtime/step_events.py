@@ -59,6 +59,12 @@ def step_event_streaming_active() -> bool:
     return _STEP_EVENT_PUBLISHER is not None and bool(channel) and bool(chat_id)
 
 
+def assistant_delta_streaming_active() -> bool:
+    """Return whether assistant text deltas can be consumed by the Web UI."""
+    channel, chat_id = get_route()
+    return _STEP_EVENT_PUBLISHER is not None and channel == "web" and bool(chat_id)
+
+
 def _render_history(history: list[dict[str, str]], limit: int = 8) -> str:
     """Render recent tool events into one readable progress timeline."""
     recent = history[-limit:]
@@ -156,10 +162,10 @@ async def publish_assistant_delta(
 ) -> bool:
     """Publish one realtime Web assistant text delta through the configured publisher."""
     publisher = _STEP_EVENT_PUBLISHER
-    channel, chat_id = get_route()
     normalized_delta = str(delta or "")
-    if publisher is None or channel != "web" or not chat_id or not normalized_delta:
+    if not assistant_delta_streaming_active() or not normalized_delta:
         return False
+    channel, chat_id = get_route()
 
     metadata: dict[str, Any] = {
         "session_id": session_id,

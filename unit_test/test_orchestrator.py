@@ -867,6 +867,62 @@ class OrchestratorCallbackTests(unittest.IsolatedAsyncioTestCase):
         self.assertEqual(published[0].metadata["display_style"], "assistant_delta")
         self.assertEqual(published[0].metadata["turn_index"], 3)
 
+    async def test_run_agent_does_not_enable_sse_when_assistant_delta_is_not_visible(self) -> None:
+        session_service = InMemorySessionService()
+        orchestrator = Orchestrator(
+            session_service=session_service,
+            artifact_service=InMemoryArtifactService(),
+            expert_agents={},
+        )
+        user_id = "user-cli-stream"
+        session_id = "session-cli-stream"
+        await session_service.create_session(
+            app_name=SYS_CONFIG.app_name,
+            user_id=user_id,
+            session_id=session_id,
+            state={"turn_index": 4},
+        )
+
+        class _FakeRunner:
+            def __init__(self) -> None:
+                self.run_config = None
+
+            async def run_async(self, **kwargs):
+                self.run_config = kwargs["run_config"]
+                yield Event(
+                    author="CreativeClawOrchestrator",
+                    partial=True,
+                    content=Content(role="model", parts=[Part(text='{"reply_text":"Hidden')]),
+                )
+                yield Event(
+                    author="CreativeClawOrchestrator",
+                    content=Content(
+                        role="model",
+                        parts=[Part(text='{"reply_text":"Hidden","final_file_paths":[]}')],
+                    ),
+                )
+
+        published = []
+
+        async def _publisher(message):
+            published.append(message)
+
+        fake_runner = _FakeRunner()
+        orchestrator.runner = fake_runner
+        configure_step_event_publisher(_publisher)
+        try:
+            with route_context("cli", "chat-cli-stream"):
+                await orchestrator.run_agent_and_log_events(
+                    user_id=user_id,
+                    session_id=session_id,
+                    new_message=Content(role="user", parts=[Part(text="hi")]),
+                )
+        finally:
+            configure_step_event_publisher(None)
+
+        self.assertIsNot(fake_runner.run_config.streaming_mode, StreamingMode.SSE)
+        self.assertEqual(published, [])
+
     async def test_design_brief_form_tool_call_streams_placeholder(self) -> None:
         orchestrator = Orchestrator(
             session_service=InMemorySessionService(),
