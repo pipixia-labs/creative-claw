@@ -515,10 +515,10 @@ button {
   overflow: hidden;
   border-radius: 0 0 11px 11px;
   background:
-    radial-gradient(circle at 50% 40%, rgba(255, 255, 252, 0.74), transparent 42%),
+    linear-gradient(180deg, rgba(255, 255, 252, 0.72), rgba(233, 238, 230, 0.9)),
     linear-gradient(rgba(24, 33, 29, 0.035) 1px, transparent 1px),
     linear-gradient(90deg, rgba(24, 33, 29, 0.035) 1px, transparent 1px),
-    #f3f5ef;
+    #f4f6f1;
   background-size: auto, 28px 28px, 28px 28px, auto;
 }
 
@@ -552,6 +552,127 @@ button {
 .model3d-status.error {
   border-color: rgba(179, 72, 64, 0.2);
   color: var(--danger);
+}
+
+.model3d-controls {
+  position: absolute;
+  left: 12px;
+  top: 12px;
+  z-index: 3;
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+  max-width: calc(100% - 24px);
+  pointer-events: none;
+}
+
+.model3d-control-group {
+  display: flex;
+  align-items: center;
+  gap: 4px;
+  padding: 4px;
+  border: 1px solid rgba(30, 40, 34, 0.12);
+  border-radius: 12px;
+  background: rgba(255, 255, 252, 0.78);
+  box-shadow: 0 12px 30px rgba(35, 42, 36, 0.1);
+  backdrop-filter: blur(16px);
+  pointer-events: auto;
+}
+
+.model3d-control-button {
+  min-width: 44px;
+  min-height: 30px;
+  padding: 0 9px;
+  border: 1px solid transparent;
+  border-radius: 8px;
+  background: transparent;
+  color: var(--text);
+  font-family: var(--font-ui);
+  font-size: 11px;
+  font-weight: 800;
+  line-height: 1;
+  cursor: pointer;
+  transition:
+    background 160ms ease,
+    border-color 160ms ease,
+    color 160ms ease,
+    transform 160ms ease;
+}
+
+.model3d-control-button:hover {
+  border-color: rgba(30, 40, 34, 0.12);
+  background: rgba(24, 33, 29, 0.06);
+}
+
+.model3d-control-button:active {
+  transform: translateY(1px);
+}
+
+.model3d-control-button.active {
+  border-color: rgba(24, 33, 29, 0.16);
+  background: #18211d;
+  color: #ffffff;
+}
+
+.model3d-info-panel {
+  position: absolute;
+  left: 12px;
+  bottom: 12px;
+  z-index: 2;
+  width: min(360px, calc(100% - 24px));
+  padding: 12px;
+  border: 1px solid rgba(30, 40, 34, 0.12);
+  border-radius: 14px;
+  background: rgba(255, 255, 252, 0.8);
+  color: var(--text);
+  box-shadow: 0 14px 34px rgba(35, 42, 36, 0.1);
+  backdrop-filter: blur(16px);
+}
+
+.model3d-info-panel > strong {
+  display: block;
+  margin-bottom: 9px;
+  overflow: hidden;
+  color: var(--text);
+  font-family: var(--font-ui);
+  font-size: 12px;
+  font-weight: 900;
+  line-height: 1.2;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.model3d-info-grid {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 7px 10px;
+  margin: 0;
+}
+
+.model3d-info-grid div {
+  min-width: 0;
+}
+
+.model3d-info-grid dt {
+  margin: 0 0 2px;
+  color: var(--text-muted);
+  font-family: var(--font-ui);
+  font-size: 9px;
+  font-weight: 800;
+  letter-spacing: 0;
+  text-transform: uppercase;
+}
+
+.model3d-info-grid dd {
+  margin: 0;
+  overflow: hidden;
+  color: var(--text);
+  font-family: var(--font-ui);
+  font-size: 11px;
+  font-weight: 800;
+  line-height: 1.25;
+  text-overflow: ellipsis;
+  white-space: nowrap;
 }
 
 .document-preview-card {

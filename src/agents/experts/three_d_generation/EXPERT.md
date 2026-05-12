@@ -7,7 +7,7 @@ input_types = ["prompt", "image"]
 output_types = ["3d_asset"]
 routing_keywords = ["3d", "3D", "model", "asset", "mesh", "stl", "usdz", "fbx", "hunyuan", "seed3d", "doubao", "hyper3d", "hitem3d"]
 parameter_examples = [
-  "{'prompt': 'a wooden toy corgi', 'provider': 'hy3d'(optional), 'model': '3.0|3.1'(optional), 'generate_type': 'normal|lowpoly|sketch|geometry'(optional), 'enable_pbr': true(optional), 'face_count': 100000(optional), 'polygon_type': 'quad'(optional), 'result_format': 'stl|usdz|fbx'(optional), 'timeout_seconds': 900(optional), 'interval_seconds': 8(optional)}",
+  "{'prompt': 'a wooden toy corgi', 'provider': 'hy3d'(optional), 'model': '3.0|3.1'(optional), 'generate_type': 'normal|lowpoly|sketch|geometry'(optional), 'enable_pbr': true(optional), 'face_count': 100000(optional), 'polygon_type': 'quad'(optional), 'result_format': 'stl|usdz|fbx'(optional), 'optimize_prompt': true(optional), 'timeout_seconds': 900(optional), 'interval_seconds': 8(optional)}",
   "{'input_path': 'workspace/path.png', 'provider': 'hy3d'(optional), 'model': '3.0|3.1'(optional), 'generate_type': 'normal|lowpoly|geometry'(optional), 'enable_pbr': true(optional), 'face_count': 100000(optional), 'polygon_type': 'quad'(optional), 'result_format': 'stl|usdz|fbx'(optional), 'timeout_seconds': 900(optional), 'interval_seconds': 8(optional)}",
   "{'prompt': 'wood carving style', 'input_path': 'workspace/path.png', 'provider': 'hy3d'(optional), 'model': '3.0|3.1'(optional), 'generate_type': 'sketch', 'enable_pbr': true(optional), 'face_count': 100000(optional), 'polygon_type': 'quad'(optional), 'result_format': 'stl|usdz|fbx'(optional), 'timeout_seconds': 900(optional), 'interval_seconds': 8(optional)}",
   "{'input_path': 'workspace/path.png', 'provider': 'seed3d', 'model': 'doubao-seed3d-2-0-260328'(optional), 'file_format': 'glb|obj|usd|usdz'(optional), 'subdivision_level': 'low|medium|high'(optional), 'timeout_seconds': 900(optional), 'interval_seconds': 60(optional)}",
@@ -25,6 +25,7 @@ Use this expert to generate 3D asset files from a text prompt, one input image, 
 ## Routing Notes
 
 - Use prompt-only generation when the user describes a 3D object or asset in text.
+- Pass the user's 3D task through directly; this expert internally optimizes text prompts for generic 3D asset quality.
 - Use image-only generation when the user provides one reference image and wants a 3D asset derived from it.
 - Use prompt plus image only with `generate_type=sketch`; current code rejects prompt-plus-image for other generate types.
 - Prefer provider `seed3d` when the user explicitly asks for Doubao Seed3D or Volcengine image-to-3D.
@@ -39,17 +40,18 @@ Use this expert to generate 3D asset files from a text prompt, one input image, 
 
 - Provider `hy3d` remains the default and uses Tencent Cloud Hunyuan 3D Pro.
 - `hy3d` default model is `3.1`; the parameters allow `model=3.0` or `model=3.1` when supported by the provider.
-- `hy3d` prompt-only Normal mode appends concise quality constraints to improve default text-to-3D results.
+- `hy3d` text prompts are optimized by a private internal LLM prompt optimizer that preserves the user request and adds only general 3D asset quality principles.
 - `hy3d` supported generate types are `normal`, `lowpoly`, `sketch`, and `geometry`.
 - Provider `seed3d` uses Volcengine Ark model `doubao-seed3d-2-0-260328`.
 - `seed3d` is image-to-3D only and requires exactly one `input_path`, `input_paths`, or `image_url`.
 - `seed3d` uses `ARK_API_KEY` / `services.ark_api_key` and downloads returned 3D files into the workspace.
 - Provider `hyper3d` uses Volcengine Ark model `hyper3d-gen2-260112`.
 - `hyper3d` supports English prompt-only text-to-3D and image-to-3D with 1-5 images. Local `input_path` images are sent as data URLs; `image_url`/`image_urls` are passed through directly.
-- `hyper3d` prompt text must be no longer than 400 characters. For image-to-3D, use only short style constraints or omit `prompt`; do not pass long image descriptions.
+- `hyper3d` prompt text must be no longer than 400 characters. The internal prompt optimizer enforces this limit; for image-to-3D, use only short style constraints or omit `prompt`; do not pass long image descriptions.
 - Provider `hitem3d` uses Volcengine Ark model `hitem3d-2-0-251223`.
 - `hitem3d` is image-to-3D only, requires 1-4 externally accessible `image_url`/`image_urls`, and does not accept free-form prompt text.
 - All Volcengine providers use `ARK_API_KEY` / `services.ark_api_key` and download returned 3D zip/model files into the workspace.
+- Optional `optimize_prompt=false` disables the private prompt optimizer for debugging or exact-provider tests.
 
 ## When Not to Use
 

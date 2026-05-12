@@ -7,6 +7,12 @@ from unittest.mock import AsyncMock, MagicMock, patch
 from conf.schema import CreativeClawConfig
 from conf.app_config import save_app_config, get_config_path
 from src.agents.experts.three_d_generation import tool as generation_tools
+from src.agents.experts.three_d_generation.prompt_optimizer import (
+    GENERAL_3D_QUALITY_MARKER,
+    PromptOptimizationResult,
+    fallback_3d_prompt,
+    limit_prompt_length,
+)
 from src.agents.experts.three_d_generation.three_d_generation_agent import (
     ThreeDGenerationAgent,
 )
@@ -44,34 +50,47 @@ class ThreeDGenerationAgentTests(unittest.IsolatedAsyncioTestCase):
             / "hy3d_result_1_mesh.fbx"
         )
 
-        with patch(
-            "src.agents.experts.three_d_generation.three_d_generation_agent.generation_tools.hy3d_generate_tool",
-            new=AsyncMock(
-                return_value={
-                    "status": "success",
-                    "message": "hy3d job job-1 succeeded with 1 file(s).",
-                    "provider": "hy3d",
-                    "model_name": "3.1",
-                    "job_id": "job-1",
-                    "generate_type": "Normal",
-                    "downloaded_files": [
-                        {
-                            "path": fake_output_path,
-                            "type": "mesh",
-                            "url": "https://example.com/hy3d.fbx",
-                            "preview_image_url": "https://example.com/preview.png",
-                        }
-                    ],
-                }
-            ),
-        ) as hy3d_mock:
+        with (
+            patch(
+                "src.agents.experts.three_d_generation.three_d_generation_agent.optimize_3d_prompt",
+                new=AsyncMock(
+                    return_value=PromptOptimizationResult(
+                        prompt="optimized 3D corgi asset prompt",
+                        used_llm=True,
+                        provider="google_adk",
+                        model_name="test/model",
+                    )
+                ),
+            ) as optimize_mock,
+            patch(
+                "src.agents.experts.three_d_generation.three_d_generation_agent.generation_tools.hy3d_generate_tool",
+                new=AsyncMock(
+                    return_value={
+                        "status": "success",
+                        "message": "hy3d job job-1 succeeded with 1 file(s).",
+                        "provider": "hy3d",
+                        "model_name": "3.1",
+                        "job_id": "job-1",
+                        "generate_type": "Normal",
+                        "downloaded_files": [
+                            {
+                                "path": fake_output_path,
+                                "type": "mesh",
+                                "url": "https://example.com/hy3d.fbx",
+                                "preview_image_url": "https://example.com/preview.png",
+                            }
+                        ],
+                    }
+                ),
+            ) as hy3d_mock,
+        ):
             events = [event async for event in agent._run_async_impl(ctx)]
 
         self.assertEqual(len(events), 1)
+        optimize_mock.assert_awaited_once()
         hy3d_mock.assert_awaited_once()
         call_kwargs = hy3d_mock.await_args.kwargs
-        self.assertTrue(call_kwargs["prompt"].startswith("a toy corgi"))
-        self.assertIn("production-ready full 3D asset", call_kwargs["prompt"])
+        self.assertEqual(call_kwargs["prompt"], "optimized 3D corgi asset prompt")
         self.assertEqual(call_kwargs["input_path"], None)
         self.assertEqual(call_kwargs["model"], "3.1")
         self.assertEqual(call_kwargs["enable_pbr"], True)
@@ -86,6 +105,8 @@ class ThreeDGenerationAgentTests(unittest.IsolatedAsyncioTestCase):
         self.assertEqual(call_kwargs["step"], 1)
         current_output = events[0].actions.state_delta["current_output"]
         self.assertEqual(current_output["job_id"], "job-1")
+        self.assertEqual(current_output["optimized_prompt"], "optimized 3D corgi asset prompt")
+        self.assertTrue(current_output["prompt_optimization"]["used_llm"])
         self.assertEqual(
             current_output["output_files"][0]["path"],
             "generated/session_1/turn_1/turn1_step1_3d_generation_job_1/hy3d_result_1_mesh.fbx",
@@ -100,6 +121,7 @@ class ThreeDGenerationAgentTests(unittest.IsolatedAsyncioTestCase):
                     "model": "3.0",
                     "enable_pbr": False,
                     "face_count": 30000,
+                    "optimize_prompt": False,
                 },
                 "turn_index": 1,
                 "step": 1,
@@ -291,34 +313,48 @@ class ThreeDGenerationAgentTests(unittest.IsolatedAsyncioTestCase):
             / "hyper3d_result_1.zip"
         )
 
-        with patch(
-            "src.agents.experts.three_d_generation.three_d_generation_agent.generation_tools.hyper3d_generate_tool",
-            new=AsyncMock(
-                return_value={
-                    "status": "success",
-                    "message": "Hyper3D task task-2 succeeded with 1 file(s).",
-                    "provider": "hyper3d",
-                    "model_name": "hyper3d-gen2-260112",
-                    "job_id": "task-2",
-                    "generate_type": "image_to_3d",
-                    "file_format": "fbx",
-                    "subdivision_level": "",
-                    "downloaded_files": [
-                        {
-                            "path": fake_output_path,
-                            "type": "fbx",
-                            "url": "https://example.com/hyper3d.zip",
-                            "preview_image_url": "",
-                        }
-                    ],
-                }
-            ),
-        ) as hyper3d_mock:
+        with (
+            patch(
+                "src.agents.experts.three_d_generation.three_d_generation_agent.optimize_3d_prompt",
+                new=AsyncMock(
+                    return_value=PromptOptimizationResult(
+                        prompt="concise optimized sci-fi robot prompt",
+                        used_llm=True,
+                        provider="google_adk",
+                        model_name="test/model",
+                    )
+                ),
+            ) as optimize_mock,
+            patch(
+                "src.agents.experts.three_d_generation.three_d_generation_agent.generation_tools.hyper3d_generate_tool",
+                new=AsyncMock(
+                    return_value={
+                        "status": "success",
+                        "message": "Hyper3D task task-2 succeeded with 1 file(s).",
+                        "provider": "hyper3d",
+                        "model_name": "hyper3d-gen2-260112",
+                        "job_id": "task-2",
+                        "generate_type": "image_to_3d",
+                        "file_format": "fbx",
+                        "subdivision_level": "",
+                        "downloaded_files": [
+                            {
+                                "path": fake_output_path,
+                                "type": "fbx",
+                                "url": "https://example.com/hyper3d.zip",
+                                "preview_image_url": "",
+                            }
+                        ],
+                    }
+                ),
+            ) as hyper3d_mock,
+        ):
             events = [event async for event in agent._run_async_impl(ctx)]
 
         self.assertEqual(len(events), 1)
+        optimize_mock.assert_awaited_once()
         hyper3d_mock.assert_awaited_once_with(
-            prompt="full-body sci-fi robot",
+            prompt="concise optimized sci-fi robot prompt",
             input_paths=[],
             image_urls=["https://example.com/front.png"],
             model="hyper3d-gen2-260112",
@@ -341,6 +377,7 @@ class ThreeDGenerationAgentTests(unittest.IsolatedAsyncioTestCase):
         current_output = events[0].actions.state_delta["current_output"]
         self.assertEqual(current_output["provider"], "hyper3d")
         self.assertEqual(current_output["file_format"], "fbx")
+        self.assertEqual(current_output["optimized_prompt"], "concise optimized sci-fi robot prompt")
 
     async def test_3d_generation_routes_hitem3d_provider(self) -> None:
         agent = ThreeDGenerationAgent(name="ThreeDGenerationAgent", public_name="3DGeneration")
@@ -439,6 +476,22 @@ class ThreeDGenerationAgentTests(unittest.IsolatedAsyncioTestCase):
 
 
 class ThreeDGenerationToolTests(unittest.IsolatedAsyncioTestCase):
+    def test_3d_prompt_fallback_adds_general_quality_constraints(self) -> None:
+        prompt = fallback_3d_prompt("a ceramic teapot")
+
+        self.assertTrue(prompt.startswith("a ceramic teapot"))
+        self.assertIn(GENERAL_3D_QUALITY_MARKER, prompt)
+        self.assertIn("complete standalone 3D asset", prompt)
+
+    def test_3d_prompt_limit_preserves_character_budget(self) -> None:
+        prompt = limit_prompt_length(
+            "a detailed mechanical object with clean hard-surface proportions",
+            max_characters=32,
+        )
+
+        self.assertLessEqual(len(prompt), 32)
+        self.assertTrue(prompt.endswith("."))
+
     def test_build_client_from_env_reads_tencent_credentials_from_conf_json(self) -> None:
         fake_models = object()
         fake_sdk_exception = RuntimeError
