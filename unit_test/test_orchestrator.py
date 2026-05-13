@@ -22,6 +22,7 @@ from src.agents.orchestrator.final_response import (
 from src.agents.orchestrator.orchestrator_agent import (
     Orchestrator,
     _ReplyTextStreamExtractor,
+    _extract_completed_page_product_tool_result,
     _extract_confirmation_tool_result,
     _extract_question_form_tool_result,
     _format_confirmation_reply,
@@ -578,6 +579,28 @@ class OrchestratorTests(unittest.TestCase):
 
         self.assertEqual(_extract_confirmation_tool_result(event), tool_result)
 
+    def test_extract_completed_page_product_tool_result_from_function_response_event(self) -> None:
+        tool_result = {
+            "result_schema_version": "page-product-result-v1",
+            "status": "success",
+            "product_line": "page",
+            "message": "页面已完成。",
+            "final_file_paths": ["520_guandan_friendship_poster.html"],
+        }
+        event = SimpleNamespace(
+            content=Content(
+                role="user",
+                parts=[
+                    Part.from_function_response(
+                        name="run_page_product",
+                        response=tool_result,
+                    )
+                ],
+            )
+        )
+
+        self.assertEqual(_extract_completed_page_product_tool_result(event), tool_result)
+
 
 class OrchestratorCallbackTests(unittest.IsolatedAsyncioTestCase):
     async def test_before_model_callback_includes_workspace_file_history_without_new_upload(self) -> None:
@@ -806,6 +829,75 @@ class OrchestratorCallbackTests(unittest.IsolatedAsyncioTestCase):
         structured = session.state[ORCHESTRATOR_FINAL_RESPONSE_OUTPUT_KEY]
         self.assertEqual(structured["reply_text"], form_message)
         self.assertEqual(structured["final_file_paths"], [])
+
+    async def test_run_agent_stops_after_completed_page_product_result(self) -> None:
+        session_service = InMemorySessionService()
+        orchestrator = Orchestrator(
+            session_service=session_service,
+            artifact_service=InMemoryArtifactService(),
+            expert_agents={},
+        )
+        user_id = "user-page-complete"
+        session_id = "session-page-complete"
+        await session_service.create_session(
+            app_name=SYS_CONFIG.app_name,
+            user_id=user_id,
+            session_id=session_id,
+            state={},
+        )
+        tool_result = {
+            "result_schema_version": "page-product-result-v1",
+            "status": "success",
+            "product_line": "page",
+            "message": "页面已完成。",
+            "final_file_paths": ["520_guandan_friendship_poster.html"],
+        }
+
+        class _FakeRunner:
+            def __init__(self) -> None:
+                self.continued_after_page_result = False
+
+            async def run_async(self, **_kwargs):
+                event = Event(
+                    author="CreativeClawOrchestrator",
+                    content=Content(
+                        role="user",
+                        parts=[
+                            Part.from_function_response(
+                                name="run_page_product",
+                                response=tool_result,
+                            )
+                        ],
+                    ),
+                )
+                self.extracted_result = _extract_completed_page_product_tool_result(event)
+                yield event
+                self.continued_after_page_result = True
+                yield Event(
+                    author="CreativeClawOrchestrator",
+                    content=Content(role="model", parts=[Part(text="should not continue")]),
+                )
+
+        fake_runner = _FakeRunner()
+        orchestrator.runner = fake_runner
+
+        reply = await orchestrator.run_agent_and_log_events(
+            user_id=user_id,
+            session_id=session_id,
+            new_message=Content(role="user", parts=[Part(text="做一个朋友圈海报")]),
+        )
+
+        self.assertFalse(fake_runner.continued_after_page_result)
+        self.assertEqual(fake_runner.extracted_result, tool_result)
+        self.assertEqual(reply, "页面已完成。")
+        session = await session_service.get_session(
+            app_name=SYS_CONFIG.app_name,
+            user_id=user_id,
+            session_id=session_id,
+        )
+        structured = session.state[ORCHESTRATOR_FINAL_RESPONSE_OUTPUT_KEY]
+        self.assertEqual(structured["reply_text"], "页面已完成。")
+        self.assertEqual(structured["final_file_paths"], ["520_guandan_friendship_poster.html"])
 
     async def test_run_agent_streams_reply_text_deltas_with_adk_sse(self) -> None:
         session_service = InMemorySessionService()

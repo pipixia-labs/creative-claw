@@ -36,7 +36,11 @@ from src.productions.page.page_product_manager import PageProductManager
 from src.productions.ppt.ppt_product_manager import PptProductManager
 from src.runtime.expert_dispatcher import dispatch_expert_call
 from src.runtime.expert_registry import build_expert_contract_summary
-from src.runtime.product_results import is_product_confirmation_result, slim_product_result
+from src.runtime.product_results import (
+    is_completed_page_product_result,
+    is_product_confirmation_result,
+    slim_product_result,
+)
 from src.runtime.step_events import (
     CreativeClawStepEventPlugin,
     append_orchestration_step_event,
@@ -488,6 +492,14 @@ def _extract_product_confirmation_tool_result(event: Event) -> dict[str, Any] | 
     return None
 
 
+def _extract_completed_page_product_tool_result(event: Event) -> dict[str, Any] | None:
+    """Return a completed Page product result from a tool response event."""
+    for result in _iter_function_response_results(event):
+        if is_completed_page_product_result(result):
+            return result
+    return None
+
+
 def _format_confirmation_reply(result: Any) -> str:
     """Render a product/tool confirmation request as one user-facing reply."""
     if not isinstance(result, dict):
@@ -805,6 +817,7 @@ Page workflow routing hints:
 - If the user asks for 公众号文章, 小红书文章, 朋友圈长图, HTML poster, marketing poster, visual article, content-led social creative, campaign one-pager, or long-image page, prefer `run_page_product`.
 - If runtime context says `Product line: design` but the actual request is content-first poster/article/long-image work, call `run_page_product`. The current frontend may still display the returned HTML in the existing design preview surface.
 - PageProductManager owns content draft, page private skills, image/content asset planning, final standalone HTML generation, lightweight validation, and delivery.
+- When `run_page_product` returns `status="success"` with `final_file_paths`, treat that product result as complete. Do not call `write_file`, `edit_file`, `invoke_agent`, or another code-generation path to rewrite the returned page.
 - PageProductManager has private product-page skills under `skills/product-page-skills`. Do not read or choose those skills from the orchestrator.
 - Pass the user's content/page task directly into `run_page_product`; do not rewrite it into a UI design brief.
 - Do not route dashboards, app screens, admin consoles, wireframes, or interaction-heavy prototypes to PageProductManager.
@@ -1911,10 +1924,21 @@ Expert parameter contracts:
             product_confirmation_result = _extract_product_confirmation_tool_result(event)
             if product_confirmation_result is not None:
                 final_reply = str(product_confirmation_result.get("message") or "").strip()
-                await self._persist_confirmation_final_response(
+                await self._persist_structured_final_response(
                     user_id=user_id,
                     session_id=session_id,
                     reply_text=final_reply,
+                    final_file_paths=[],
+                )
+                return final_reply
+            completed_page_result = _extract_completed_page_product_tool_result(event)
+            if completed_page_result is not None:
+                final_reply = str(completed_page_result.get("message") or "").strip()
+                await self._persist_structured_final_response(
+                    user_id=user_id,
+                    session_id=session_id,
+                    reply_text=final_reply,
+                    final_file_paths=list(completed_page_result.get("final_file_paths") or []),
                 )
                 return final_reply
             if event.is_final_response() and event.content and event.content.parts:
@@ -1931,6 +1955,22 @@ Expert parameter contracts:
         reply_text: str,
     ) -> None:
         """Persist a tool-requested confirmation as the final user reply for this turn."""
+        await self._persist_structured_final_response(
+            user_id=user_id,
+            session_id=session_id,
+            reply_text=reply_text,
+            final_file_paths=[],
+        )
+
+    async def _persist_structured_final_response(
+        self,
+        *,
+        user_id: str,
+        session_id: str,
+        reply_text: str,
+        final_file_paths: list[str],
+    ) -> None:
+        """Persist a structured final response requested by deterministic tool handling."""
         current_session = await self.session_service.get_session(
             app_name=self.app_name,
             user_id=user_id,
@@ -1940,7 +1980,7 @@ Expert parameter contracts:
             return
         structured_response = OrchestratorFinalResponse(
             reply_text=reply_text,
-            final_file_paths=[],
+            final_file_paths=final_file_paths,
         )
         await self.session_service.append_event(
             current_session,

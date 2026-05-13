@@ -1,6 +1,7 @@
 import unittest
 
 from src.runtime.product_results import (
+    is_completed_page_product_result,
     is_product_confirmation_result,
     slim_product_result,
 )
@@ -31,6 +32,20 @@ class ProductResultSlimmingTests(unittest.TestCase):
                 "final_file_paths": ["generated/page.html"],
             },
         )
+        self.assertTrue(is_completed_page_product_result(result))
+
+    def test_page_result_without_final_paths_is_not_completed(self) -> None:
+        result = slim_product_result(
+            {
+                "result_schema_version": "page-product-result-v1",
+                "status": "success",
+                "product_line": "page",
+                "message": "页面已完成。",
+                "final_file_paths": [],
+            }
+        )
+
+        self.assertFalse(is_completed_page_product_result(result))
 
     def test_ppt_confirmation_result_merges_summary_into_message(self) -> None:
         result = slim_product_result(
