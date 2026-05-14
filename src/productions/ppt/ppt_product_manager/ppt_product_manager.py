@@ -69,6 +69,9 @@ PPT_SYSTEM_SELECTION_STATE_KEY = "ppt_system_selection"
 PPT_SYSTEM_SELECTION_BASE_KEY = "ppt_system_selection_base"
 PPT_SYSTEM_SELECTION_AGENT_MESSAGE_KEY = "ppt_system_selection_agent_message"
 PPT_PRIVATE_SKILL_BUILD_STATE_KEY = "ppt_private_skill_build"
+PPT_PRIVATE_SKILL_MASKED_HTML_COUNT_STATE_KEY = "ppt_private_skill_masked_html_content_count"
+PPT_PRIVATE_SKILL_HTML_CONTENT_MASK_THRESHOLD = 8000
+PPT_PRIVATE_SKILL_HTML_SAVE_TOOL_NAME = "save_ppt_private_skill_html"
 
 
 class PptProductManager(LlmAgent):
@@ -78,6 +81,9 @@ class PptProductManager(LlmAgent):
     _content_planner: PptContentPlanner = PrivateAttr()
     _route_registry: dict[str, PptRouteRegistration] = PrivateAttr(default_factory=dict)
     _skill_registry: ProductPptSkillRegistry = PrivateAttr()
+    _skill_runtime_expert_agents: dict[str, BaseAgent] = PrivateAttr(default_factory=dict)
+    _skill_runtime_app_name: str = PrivateAttr(default="creative_claw")
+    _skill_runtime_artifact_service: BaseArtifactService | None = PrivateAttr(default=None)
 
     def __init__(
         self,
@@ -95,6 +101,10 @@ class PptProductManager(LlmAgent):
             instruction=kwargs.pop("instruction", type(self).build_instruction()),
             tools=provided_tools or [],
             include_contents=kwargs.pop("include_contents", "none"),
+            before_model_callback=kwargs.pop(
+                "before_model_callback",
+                _mask_private_skill_html_content_before_model,
+            ),
             **kwargs,
         )
         self.project_root = Path(project_root or PROJECT_PATH).resolve()
@@ -109,6 +119,8 @@ class PptProductManager(LlmAgent):
                 self.list_product_ppt_skills,
                 self.read_product_ppt_skill,
                 self.read_product_ppt_skill_file,
+                self.list_ppt_experts,
+                self.invoke_ppt_expert,
                 self.save_ppt_system_selection,
                 self.save_ppt_private_skill_html,
                 self.dispatch_ppt_route,
@@ -168,6 +180,12 @@ Own PPT and PowerPoint production end to end. If the requested final deliverable
 - If the user explicitly names a PPT system, route, skill, template workflow, or output method, follow that choice when it is available and report clearly when it is not implemented.
 - If the user does not specify the PPT system, freely choose between the private PPT skill workflow and the built-in HTML route based on task fit. This selection policy is intentionally flexible for later testing and optimization.
 - Do not rely on hard-coded keyword-to-skill rules. Inspect the available private skills and choose from their actual metadata and content.
+
+# Private skill execution
+- When a private product-ppt skill is selected, you run that skill workflow directly as PptProductManager.
+- Let the selected skill drive the execution order: read its referenced files, call available PPT product tools, call `invoke_ppt_expert` when it needs a registered expert, and save the final artifact with `save_ppt_private_skill_html`.
+- Do not delegate selected private skill execution to a separate private execution agent.
+- Do not invent facts, citations, local absolute paths, unavailable resources, or generated file paths.
 
 # Result policy
 Return structured status, current phase, selected route, warnings, next actions, and delivery manifest. Do not claim PPTX generation succeeded unless a route pipeline produced and validated a file.
@@ -232,27 +250,6 @@ Return structured status, current phase, selected route, warnings, next actions,
                 self.save_ppt_system_selection,
             ],
             output_key=PPT_SYSTEM_SELECTION_AGENT_MESSAGE_KEY,
-        )
-
-    def build_private_skill_execution_agent(self) -> LlmAgent:
-        """Build the product-internal ADK agent that executes a selected private PPT skill."""
-        return LlmAgent(
-            name="PptPrivateSkillExecutionAgent",
-            model=build_llm(),
-            instruction=(
-                "You are Creative Claw's private PPT skill execution agent.\n"
-                "Use the selected private product-ppt skill as the production guide.\n"
-                "Read additional skill files with read_product_ppt_skill_file when the skill references assets, templates, or references.\n"
-                "Generate a complete, standalone HTML presentation unless the selected skill explicitly says another single-file format is required.\n"
-                "Use the confirmed requirement and deck content plan as the content source of truth.\n"
-                "Keep text editable in HTML. Do not invent facts, citations, local absolute paths, or unavailable assets.\n"
-                "When the artifact is ready, call save_ppt_private_skill_html with file_name, html_content, and description."
-            ),
-            tools=[
-                self.read_product_ppt_skill_file,
-                self.save_ppt_private_skill_html,
-            ],
-            output_key="ppt_private_skill_execution_agent_message",
         )
 
     def build_html_mvp_workflow(self) -> SequentialAgent:
@@ -720,6 +717,7 @@ Return structured status, current phase, selected route, warnings, next actions,
                         content_plan=content_plan,
                         system_selection=system_selection,
                         tool_context=tool_context,
+                        expert_agents=expert_agents or {},
                         app_name=app_name,
                         artifact_service=artifact_service,
                     )
@@ -1173,6 +1171,7 @@ Return structured status, current phase, selected route, warnings, next actions,
                 content_plan=content_plan,
                 system_selection=system_selection,
                 tool_context=tool_context,
+                expert_agents=expert_agents,
                 app_name=app_name,
                 artifact_service=artifact_service,
             )
@@ -1795,10 +1794,11 @@ Return structured status, current phase, selected route, warnings, next actions,
         content_plan: DeckContentPlan,
         system_selection: dict[str, Any],
         tool_context: ToolContext,
+        expert_agents: dict[str, BaseAgent],
         app_name: str,
         artifact_service: BaseArtifactService | None,
     ) -> dict[str, Any]:
-        """Execute the selected private PPT skill and return its saved artifact state."""
+        """Run the selected private PPT skill through PptProductManager itself."""
         selection = self._normalize_system_selection(
             system_selection,
             fallback_selection=self._build_default_system_selection(requirement),
@@ -1814,7 +1814,7 @@ Return structured status, current phase, selected route, warnings, next actions,
         if not hasattr(tool_context, "_invocation_context"):
             tool_context.state["ppt_private_skill_execution_output"] = {
                 "status": "fallback",
-                "message": "Private PPT skill execution agent skipped because no ADK invocation context was available.",
+                "message": "PptProductManager skill runner skipped because no ADK invocation context was available.",
                 "source": "deterministic_fallback",
             }
             return self.save_ppt_private_skill_html(
@@ -1835,15 +1835,24 @@ Return structured status, current phase, selected route, warnings, next actions,
             tool_context=tool_context,
             fallback_service=artifact_service or InMemoryArtifactService(),
         )
-        execution_agent = self.build_private_skill_execution_agent()
         child_runner = _build_child_runner(
-            agent=execution_agent,
+            agent=self,
             app_name=app_name,
             session_service=child_session_service,
             artifact_service=child_artifact_service,
             invocation_context=invocation_context,
         )
         child_state = _copy_state(tool_context.state)
+        child_state["ppt_product_manager_skill_run_base"] = {
+            "confirmed_requirement": requirement.model_dump(mode="json"),
+            "deck_content_plan": content_plan.model_dump(mode="json"),
+            "system_selection": selection,
+            "active_skill": {
+                "name": skill_name,
+                "content": skill_content,
+            },
+            "available_experts": sorted((expert_agents or {}).keys()),
+        }
         child_state["ppt_private_skill_execution_base"] = {
             "confirmed_requirement": requirement.model_dump(mode="json"),
             "deck_content_plan": content_plan.model_dump(mode="json"),
@@ -1854,6 +1863,14 @@ Return structured status, current phase, selected route, warnings, next actions,
             },
         }
 
+        previous_runtime = (
+            dict(self._skill_runtime_expert_agents),
+            self._skill_runtime_app_name,
+            self._skill_runtime_artifact_service,
+        )
+        self._skill_runtime_expert_agents = dict(expert_agents or {})
+        self._skill_runtime_app_name = app_name
+        self._skill_runtime_artifact_service = artifact_service
         try:
             child_session = await child_session_service.create_session(
                 app_name=app_name,
@@ -1867,11 +1884,12 @@ Return structured status, current phase, selected route, warnings, next actions,
                     role="user",
                     parts=[
                         Part(
-                            text=_build_private_skill_execution_user_message(
+                            text=_build_product_manager_skill_run_user_message(
                                 requirement=requirement,
                                 content_plan=content_plan,
                                 system_selection=selection,
                                 skill_content=skill_content,
+                                available_experts=sorted((expert_agents or {}).keys()),
                             )
                         )
                     ],
@@ -1886,7 +1904,7 @@ Return structured status, current phase, selected route, warnings, next actions,
             final_state = final_session.state if final_session is not None else child_state
             private_build = dict(final_state.get(PPT_PRIVATE_SKILL_BUILD_STATE_KEY) or {})
             if not str(private_build.get("output_path") or "").strip():
-                raise ValueError("PptPrivateSkillExecutionAgent did not save an HTML artifact.")
+                raise ValueError("PptProductManager did not save a private skill HTML artifact.")
             for key in (
                 PPT_PRIVATE_SKILL_BUILD_STATE_KEY,
                 "generated",
@@ -1901,16 +1919,20 @@ Return structured status, current phase, selected route, warnings, next actions,
                 tool_context.state["ppt_private_skill_execution_agent_message"] = str(
                     final_state.get("ppt_private_skill_execution_agent_message")
                 )
+            if final_state.get("ppt_skill_last_expert_result"):
+                tool_context.state["ppt_skill_last_expert_result"] = copy.deepcopy(
+                    final_state["ppt_skill_last_expert_result"]
+                )
             tool_context.state["ppt_private_skill_execution_output"] = {
                 "status": "success",
-                "message": "PptPrivateSkillExecutionAgent saved the private skill artifact.",
-                "source": "llm_agent",
+                "message": "PptProductManager ran the selected private skill and saved the artifact.",
+                "source": "ppt_product_manager",
             }
             return private_build
         except Exception as exc:
             tool_context.state["ppt_private_skill_execution_output"] = {
                 "status": "fallback",
-                "message": f"Private skill execution agent fallback: {type(exc).__name__}: {exc}",
+                "message": f"PptProductManager private skill fallback: {type(exc).__name__}: {exc}",
                 "source": "deterministic_fallback",
             }
             return self.save_ppt_private_skill_html(
@@ -1925,6 +1947,11 @@ Return structured status, current phase, selected route, warnings, next actions,
                 tool_context=tool_context,
             )
         finally:
+            (
+                self._skill_runtime_expert_agents,
+                self._skill_runtime_app_name,
+                self._skill_runtime_artifact_service,
+            ) = previous_runtime
             await child_runner.close()
 
     def _build_private_skill_delivery_result(
@@ -2111,7 +2138,7 @@ Return structured status, current phase, selected route, warnings, next actions,
         system_selection: dict[str, Any],
         skill_content: str,
     ) -> str:
-        """Build a deterministic HTML fallback when the private skill execution agent is unavailable."""
+        """Build a deterministic HTML fallback when the PM skill runner is unavailable."""
         skill_name = html_lib.escape(str(system_selection.get("skill_name") or "private-skill"))
         topic = html_lib.escape(requirement.topic or content_plan.title or "Presentation")
         audience = html_lib.escape(requirement.audience or "audience")
@@ -2283,6 +2310,77 @@ Return structured status, current phase, selected route, warnings, next actions,
             "status": "success",
             **payload,
         }
+
+    def list_ppt_experts(self, tool_context: ToolContext) -> dict[str, Any]:
+        """List expert agents available to the current PPT skill run."""
+        expert_names = sorted(self._skill_runtime_expert_agents)
+        payload = {
+            "status": "success",
+            "experts": expert_names,
+            "count": len(expert_names),
+        }
+        tool_context.state["ppt_skill_available_experts"] = expert_names
+        return payload
+
+    async def invoke_ppt_expert(
+        self,
+        agent_name: str,
+        prompt: str,
+        tool_context: ToolContext,
+    ) -> dict[str, Any]:
+        """Invoke one registered expert agent from a PPT skill workflow."""
+        clean_agent_name = str(agent_name or "").strip()
+        if not clean_agent_name:
+            return {
+                "status": "error",
+                "message": "invoke_ppt_expert requires agent_name.",
+            }
+        if clean_agent_name not in self._skill_runtime_expert_agents:
+            return {
+                "status": "error",
+                "message": (
+                    f"Expert `{clean_agent_name}` is not available in this PPT skill run. "
+                    f"Available experts: {', '.join(sorted(self._skill_runtime_expert_agents)) or 'none'}."
+                ),
+            }
+        if not hasattr(tool_context, "_invocation_context"):
+            return {
+                "status": "error",
+                "message": "invoke_ppt_expert requires an ADK invocation context.",
+            }
+        if self._skill_runtime_artifact_service is None:
+            return {
+                "status": "error",
+                "message": "invoke_ppt_expert requires an artifact service.",
+            }
+
+        invocation = await dispatch_expert_call(
+            agent_name=clean_agent_name,
+            prompt=str(prompt or ""),
+            tool_context=tool_context,
+            expert_agents=self._skill_runtime_expert_agents,
+            app_name=self._skill_runtime_app_name,
+            artifact_service=self._skill_runtime_artifact_service,
+        )
+        current_output = copy.deepcopy(invocation.current_output)
+        if not isinstance(current_output, dict):
+            current_output = {}
+        tool_result = copy.deepcopy(invocation.tool_result)
+        if not isinstance(tool_result, dict):
+            tool_result = {}
+        payload = {
+            "status": str(current_output.get("status") or tool_result.get("status") or "success"),
+            "agent_name": clean_agent_name,
+            "current_output": current_output,
+            "tool_result": tool_result,
+            "output_files": list(
+                current_output.get("output_files")
+                or tool_result.get("output_files")
+                or []
+            ),
+        }
+        tool_context.state["ppt_skill_last_expert_result"] = payload
+        return payload
 
     def save_ppt_system_selection(
         self,
@@ -3508,19 +3606,21 @@ def _build_system_selection_user_message(
     )
 
 
-def _build_private_skill_execution_user_message(
+def _build_product_manager_skill_run_user_message(
     *,
     requirement: ConfirmedRequirement,
     content_plan: DeckContentPlan,
     system_selection: dict[str, Any],
     skill_content: str,
+    available_experts: list[str],
 ) -> str:
-    """Build the user message for the private PPT skill execution agent."""
+    """Build the user message for a PptProductManager-led private skill run."""
     payload = {
         "confirmed_requirement_json": requirement.model_dump(mode="json"),
         "deck_content_plan_json": content_plan.model_dump(mode="json"),
         "system_selection": system_selection,
         "selected_skill_content": skill_content,
+        "available_experts": available_experts,
         "output_contract": {
             "tool": "save_ppt_private_skill_html",
             "file_name": "index.html",
@@ -3529,11 +3629,99 @@ def _build_private_skill_execution_user_message(
         },
     }
     return (
-        "Execute the selected private PPT skill for this request.\n"
-        "Use the skill content as production guidance and the deck content plan as content truth.\n"
-        "Read additional skill files only if the skill references them.\n"
-        "Save the final artifact only by calling save_ppt_private_skill_html.\n\n"
+        "Run the selected private PPT skill as PptProductManager.\n"
+        "Let the selected skill content drive the workflow, layout choices, resources, and optional expert/tool use.\n"
+        "Use the confirmed requirement and deck content plan as content truth.\n"
+        "Read additional skill files with read_product_ppt_skill_file when the skill references them.\n"
+        "Use list_ppt_experts and invoke_ppt_expert when the skill needs a registered expert.\n"
+        "Save the final artifact by calling save_ppt_private_skill_html.\n\n"
         f"{json.dumps(payload, ensure_ascii=False, indent=2)}"
+    )
+
+
+def _mask_private_skill_html_content_before_model(
+    callback_context: Any,
+    llm_request: Any,
+) -> None:
+    """Replace saved private-skill HTML tool arguments with workspace pointers."""
+    state = getattr(callback_context, "state", {}) or {}
+    masked_count = _mask_private_skill_html_content_in_request(llm_request, state=state)
+    if masked_count <= 0:
+        return
+
+    try:
+        state[PPT_PRIVATE_SKILL_MASKED_HTML_COUNT_STATE_KEY] = int(
+            state.get(PPT_PRIVATE_SKILL_MASKED_HTML_COUNT_STATE_KEY, 0) or 0
+        ) + masked_count
+    except Exception:
+        # Masking is a cost optimization. Never let bookkeeping block the model request.
+        return
+
+
+def _mask_private_skill_html_content_in_request(
+    llm_request: Any,
+    *,
+    state: Any,
+    threshold: int = PPT_PRIVATE_SKILL_HTML_CONTENT_MASK_THRESHOLD,
+) -> int:
+    """Mask oversized `html_content` values in private PPT save-tool calls."""
+    masked_count = 0
+    output_path = _saved_private_skill_output_path(state)
+    contents = list(getattr(llm_request, "contents", []) or [])
+    for content in contents:
+        for part in list(getattr(content, "parts", []) or []):
+            function_call = getattr(part, "function_call", None)
+            if getattr(function_call, "name", "") != PPT_PRIVATE_SKILL_HTML_SAVE_TOOL_NAME:
+                continue
+            args = getattr(function_call, "args", None)
+            if not isinstance(args, dict):
+                continue
+            html_content = args.get("html_content")
+            if not isinstance(html_content, str) or len(html_content) <= threshold:
+                continue
+
+            masked_args = dict(args)
+            masked_args["html_content"] = _build_private_skill_html_mask_placeholder(
+                output_path=output_path,
+                file_name=str(args.get("file_name") or "").strip(),
+                original_length=len(html_content),
+            )
+            function_call.args = masked_args
+            masked_count += 1
+    return masked_count
+
+
+def _saved_private_skill_output_path(state: Any) -> str:
+    """Return the workspace-relative output path saved by the private PPT tool."""
+    try:
+        private_build = state.get(PPT_PRIVATE_SKILL_BUILD_STATE_KEY) or {}
+        if isinstance(private_build, dict):
+            output_path = str(private_build.get("output_path") or "").strip()
+            if output_path:
+                return output_path
+        current_output = state.get("current_output") or {}
+        if isinstance(current_output, dict):
+            output_path = str(current_output.get("output_path") or "").strip()
+            if output_path:
+                return output_path
+    except Exception:
+        return ""
+    return ""
+
+
+def _build_private_skill_html_mask_placeholder(
+    *,
+    output_path: str,
+    file_name: str,
+    original_length: int,
+) -> str:
+    """Build a compact LLM-visible placeholder for already-saved HTML content."""
+    location = output_path or file_name or "workspace output path unavailable"
+    return (
+        "<tool_output_masked>\n"
+        "[Private PPT HTML content was omitted because it was already saved to workspace. "
+        f"Full file: {location}. Original length: {original_length} chars.]\n"
+        "</tool_output_masked>"
     )
 
 

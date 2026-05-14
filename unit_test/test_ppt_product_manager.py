@@ -4,6 +4,7 @@ from pathlib import Path
 from types import SimpleNamespace
 
 from google.adk.agents import LlmAgent
+from google.genai.types import Content, Part
 from PIL import Image
 from pptx import Presentation
 from pptx.enum.shapes import MSO_SHAPE_TYPE
@@ -94,6 +95,8 @@ class PptProductManagerTests(unittest.IsolatedAsyncioTestCase):
                 "list_product_ppt_skills",
                 "read_product_ppt_skill",
                 "read_product_ppt_skill_file",
+                "list_ppt_experts",
+                "invoke_ppt_expert",
                 "save_ppt_system_selection",
                 "save_ppt_private_skill_html",
                 "dispatch_ppt_route",
@@ -107,6 +110,8 @@ class PptProductManagerTests(unittest.IsolatedAsyncioTestCase):
         self.assertIn("built-in HTML route", instruction)
         self.assertIn("freely choose", instruction)
         self.assertIn("hard-coded keyword-to-skill rules", instruction)
+        self.assertIn("you run that skill workflow directly as PptProductManager", instruction)
+        self.assertIn("invoke_ppt_expert", instruction)
         self.assertIn("Do not claim PPTX generation succeeded", instruction)
 
     def test_private_product_ppt_skill_registry_lists_complete_workflow(self) -> None:
@@ -223,6 +228,78 @@ class PptProductManagerTests(unittest.IsolatedAsyncioTestCase):
         )
         self.assertIn("Do not use hard-coded keyword rules", agent.instruction)
         self.assertIn("choose freely", agent.instruction)
+
+    def test_product_manager_skill_runner_masks_saved_long_html_arguments(self) -> None:
+        manager = PptProductManager()
+        long_html = "<!DOCTYPE html>" + ("x" * 9000)
+        output_path = "generated/session/turn_3/ppt_private_skill_step_3/index.html"
+        callback_context = SimpleNamespace(
+            state={
+                "ppt_private_skill_build": {
+                    "output_path": output_path,
+                }
+            }
+        )
+        llm_request = SimpleNamespace(
+            contents=[
+                Content(
+                    role="model",
+                    parts=[
+                        Part.from_function_call(
+                            name="save_ppt_private_skill_html",
+                            args={
+                                "file_name": "index.html",
+                                "html_content": long_html,
+                                "description": "HTML deck",
+                            },
+                        )
+                    ],
+                )
+            ]
+        )
+
+        self.assertEqual(manager.include_contents, "none")
+        manager.before_model_callback(callback_context, llm_request)
+
+        args = llm_request.contents[0].parts[0].function_call.args
+        self.assertEqual(args["file_name"], "index.html")
+        self.assertEqual(args["description"], "HTML deck")
+        self.assertNotIn("<!DOCTYPE html>", args["html_content"])
+        self.assertIn(output_path, args["html_content"])
+        self.assertIn("<tool_output_masked>", args["html_content"])
+        self.assertEqual(callback_context.state["ppt_private_skill_masked_html_content_count"], 1)
+
+    def test_product_manager_skill_runner_keeps_short_html_arguments(self) -> None:
+        manager = PptProductManager()
+        short_html = "<!DOCTYPE html><html><body>Short</body></html>"
+        callback_context = SimpleNamespace(state={})
+        llm_request = SimpleNamespace(
+            contents=[
+                Content(
+                    role="model",
+                    parts=[
+                        Part.from_function_call(
+                            name="save_ppt_private_skill_html",
+                            args={
+                                "file_name": "index.html",
+                                "html_content": short_html,
+                            },
+                        )
+                    ],
+                )
+            ]
+        )
+
+        manager.before_model_callback(callback_context, llm_request)
+
+        args = llm_request.contents[0].parts[0].function_call.args
+        self.assertEqual(args["html_content"], short_html)
+        self.assertNotIn("ppt_private_skill_masked_html_content_count", callback_context.state)
+
+    def test_private_skill_execution_agent_is_not_exposed(self) -> None:
+        manager = PptProductManager()
+
+        self.assertFalse(hasattr(manager, "build_private_skill_execution_agent"))
 
     def test_requirement_analysis_save_tool_preserves_source_inputs(self) -> None:
         source_path = _write_markdown_source("requirement_source.pdf", "%PDF test fixture")
@@ -743,6 +820,7 @@ Visual:
         self.assertEqual(tool_context.state["ppt_system_selection"]["system_type"], "private_skill")
         self.assertEqual(tool_context.state["ppt_system_selection"]["skill_name"], "ppt-complete-workflow")
         self.assertEqual(tool_context.state["active_product_ppt_skill"]["name"], "ppt-complete-workflow")
+        self.assertIn("PptProductManager skill runner", tool_context.state["ppt_private_skill_execution_output"]["message"])
         self.assertIn("final_file_paths", tool_context.state)
         self.assertEqual(tool_context.state["final_file_paths"], result["delivery_manifest"]["intermediate_artifacts"])
 
