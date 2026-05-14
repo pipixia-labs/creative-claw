@@ -10,7 +10,7 @@ import textwrap
 from pathlib import Path
 from typing import Any
 
-from google.adk.agents import LlmAgent
+from google.adk.agents import BaseAgent, LlmAgent
 from google.adk.apps import App
 from google.adk.artifacts import BaseArtifactService, InMemoryArtifactService
 from google.adk.memory import InMemoryMemoryService
@@ -48,6 +48,7 @@ _COLOR_PANEL = RGBColor(255, 255, 255)
 _COLOR_WHITE = RGBColor(255, 255, 255)
 _FONT_FAMILY = "Aptos"
 _FREE_DESIGN_TEMPLATE_ID = "free_design"
+PPT_HTML_PAGE_GENERATION_EXPERT_NAME = "PptHtmlPageGenerationExpert"
 HTML_PAGE_GENERATION_CONTENT_PLAN_KEY = "ppt_html_route_content_plan"
 HTML_PAGE_GENERATION_PAGES_KEY = "ppt_html_route_generated_pages"
 HTML_PAGE_GENERATION_AGENT_MESSAGE_KEY = "ppt_html_page_generation_agent_message"
@@ -163,6 +164,7 @@ async def build_html_route_with_agent(
     tool_context: ToolContext | None = None,
     app_name: str = "creative_claw",
     artifact_service: BaseArtifactService | None = None,
+    page_generation_agent: BaseAgent | None = None,
 ) -> HtmlRouteBuildPackage:
     """Generate HTML-route artifacts, using the page-generation agent when available."""
     paths = prepare_html_route_paths(output_dir)
@@ -174,6 +176,7 @@ async def build_html_route_with_agent(
         tool_context=tool_context,
         app_name=app_name,
         artifact_service=artifact_service,
+        page_generation_agent=page_generation_agent,
     )
     pptx_stage = export_html_pptx(
         content_plan=content_plan,
@@ -287,11 +290,14 @@ async def generate_html_pages_with_agent(
     tool_context: ToolContext | None,
     app_name: str,
     artifact_service: BaseArtifactService | None,
+    page_generation_agent: BaseAgent | None = None,
 ) -> HtmlPageGenerationResult:
     """Generate per-slide HTML with an ADK page-generation agent, falling back deterministically."""
     if template.template_id != _FREE_DESIGN_TEMPLATE_ID:
         return generate_html_pages(content_plan=content_plan, template=template, paths=paths)
     if tool_context is None or not hasattr(tool_context, "_invocation_context"):
+        return generate_html_pages(content_plan=content_plan, template=template, paths=paths)
+    if page_generation_agent is None:
         return generate_html_pages(content_plan=content_plan, template=template, paths=paths)
 
     try:
@@ -301,6 +307,7 @@ async def generate_html_pages_with_agent(
             tool_context=tool_context,
             app_name=app_name,
             artifact_service=artifact_service,
+            page_generation_agent=page_generation_agent,
         )
         paths.html_path.write_text(
             _render_agent_html_deck(content_plan, template, page_fragments),
@@ -324,7 +331,8 @@ async def generate_html_pages_with_agent(
             warnings=warnings,
         )
     except Exception as exc:
-        warning = f"HtmlPageGenerationAgent fallback: {type(exc).__name__}: {exc}"
+        agent_name = getattr(page_generation_agent, "name", PPT_HTML_PAGE_GENERATION_EXPERT_NAME)
+        warning = f"{agent_name} fallback: {type(exc).__name__}: {exc}"
         _append_html_page_generation_warning(tool_context.state, warning)
         fallback = generate_html_pages(content_plan=content_plan, template=template, paths=paths)
         return HtmlPageGenerationResult(
@@ -548,10 +556,16 @@ def _build_non_html_to_pptx_conversion_report(
 
 
 def build_html_page_generation_agent() -> LlmAgent:
-    """Build the ADK agent that turns a DeckContentPlan into per-slide HTML."""
+    """Build the PPT product expert that turns a DeckContentPlan into per-slide HTML."""
+    return build_ppt_html_page_generation_expert()
+
+
+def build_ppt_html_page_generation_expert() -> LlmAgent:
+    """Build the PPT product-level expert for editable HTML slide fragments."""
     return LlmAgent(
-        name="HtmlPageGenerationAgent",
+        name=PPT_HTML_PAGE_GENERATION_EXPERT_NAME,
         model=build_llm(),
+        description="Generates editable PPT-friendly HTML fragments from a DeckContentPlan.",
         instruction=(
             "You are Creative Claw's HTML PPT page generation agent.\n"
             "You receive a complete DeckContentPlan JSON and must create one HTML fragment per slide.\n"
@@ -592,7 +606,7 @@ def save_html_route_pages(
     tool_context.state[HTML_PAGE_GENERATION_PAGES_KEY] = payload
     tool_context.state["current_output"] = {
         "status": "success",
-        "message": "HtmlPageGenerationAgent saved per-slide HTML.",
+        "message": f"{PPT_HTML_PAGE_GENERATION_EXPERT_NAME} saved per-slide HTML.",
         "html_pages": payload,
     }
     return {
@@ -624,6 +638,7 @@ async def _run_html_page_generation_agent(
     tool_context: ToolContext,
     app_name: str,
     artifact_service: BaseArtifactService | None,
+    page_generation_agent: BaseAgent,
 ) -> list[_GeneratedHtmlPage]:
     """Run the child page-generation agent and return saved HTML fragments."""
     invocation_context = tool_context._invocation_context
@@ -632,9 +647,8 @@ async def _run_html_page_generation_agent(
         tool_context=tool_context,
         fallback_service=artifact_service or InMemoryArtifactService(),
     )
-    page_agent = build_html_page_generation_agent()
     child_runner = _build_child_runner(
-        agent=page_agent,
+        agent=page_generation_agent,
         app_name=app_name,
         session_service=child_session_service,
         artifact_service=child_artifact_service,
@@ -672,7 +686,10 @@ async def _run_html_page_generation_agent(
         final_state = final_session.state if final_session is not None else child_state
         pages_payload = final_state.get(HTML_PAGE_GENERATION_PAGES_KEY)
         if not pages_payload:
-            raise ValueError("HtmlPageGenerationAgent did not save HTML route pages.")
+            raise ValueError(
+                f"{getattr(page_generation_agent, 'name', PPT_HTML_PAGE_GENERATION_EXPERT_NAME)} "
+                "did not save HTML route pages."
+            )
         normalized_pages = _normalize_agent_page_fragments(pages_payload, content_plan=content_plan)
         tool_context.state[HTML_PAGE_GENERATION_PAGES_KEY] = [
             page.model_dump(mode="json") for page in normalized_pages
@@ -684,6 +701,27 @@ async def _run_html_page_generation_agent(
         return normalized_pages
     finally:
         await child_runner.close()
+
+
+async def run_html_page_generation_expert(
+    *,
+    content_plan: DeckContentPlan,
+    template: HtmlTemplatePackage,
+    tool_context: ToolContext,
+    app_name: str,
+    artifact_service: BaseArtifactService | None,
+    page_generation_agent: BaseAgent,
+) -> list[dict[str, Any]]:
+    """Run the PPT HTML page-generation expert and return JSON-safe page fragments."""
+    pages = await _run_html_page_generation_agent(
+        content_plan=content_plan,
+        template=template,
+        tool_context=tool_context,
+        app_name=app_name,
+        artifact_service=artifact_service,
+        page_generation_agent=page_generation_agent,
+    )
+    return [page.model_dump(mode="json") for page in pages]
 
 
 def _build_html_page_generation_user_message(
@@ -883,7 +921,7 @@ def _resolve_child_artifact_service(
 
 def _build_child_runner(
     *,
-    agent: LlmAgent,
+    agent: BaseAgent,
     app_name: str,
     session_service: InMemorySessionService,
     artifact_service: BaseArtifactService,

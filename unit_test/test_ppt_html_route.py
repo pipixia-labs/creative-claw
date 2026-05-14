@@ -15,8 +15,10 @@ from src.productions.ppt.routes.html import (
     HTML_PAGE_GENERATION_CONTENT_PLAN_KEY,
     HTML_PAGE_GENERATION_PAGES_KEY,
     HTML_ROUTE_STAGE_SEQUENCE,
+    PPT_HTML_PAGE_GENERATION_EXPERT_NAME,
     HtmlPageGenerationResult,
     build_html_page_generation_agent,
+    build_ppt_html_page_generation_expert,
     build_html_route,
     deliver_html_route_quality,
     export_html_pptx,
@@ -60,11 +62,14 @@ class PptHtmlRouteTests(unittest.TestCase):
         self.assertIn("No system HTML template", template_stage.template.editability_notes)
 
     def test_html_page_generation_agent_uses_free_html_contract(self) -> None:
-        agent = build_html_page_generation_agent()
+        agent = build_ppt_html_page_generation_expert()
+        compatibility_agent = build_html_page_generation_agent()
 
-        self.assertEqual(agent.name, "HtmlPageGenerationAgent")
+        self.assertEqual(agent.name, PPT_HTML_PAGE_GENERATION_EXPERT_NAME)
+        self.assertEqual(compatibility_agent.name, PPT_HTML_PAGE_GENERATION_EXPERT_NAME)
         self.assertEqual(agent.output_key, "ppt_html_page_generation_agent_message")
         self.assertEqual(agent.include_contents, "none")
+        self.assertIn("editable PPT-friendly HTML fragments", agent.description)
         self.assertIn("Do not use a fixed template", agent.instruction)
         self.assertIn("one HTML fragment per slide", agent.instruction)
         self.assertIn("PPTX conversion compatibility", agent.instruction)

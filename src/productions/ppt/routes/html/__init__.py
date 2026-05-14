@@ -8,6 +8,7 @@ from src.productions.ppt.routes.html.route import (
     HTML_DELIVERY_STAGE,
     HTML_PAGE_GENERATION_CONTENT_PLAN_KEY,
     HTML_PAGE_GENERATION_PAGES_KEY,
+    PPT_HTML_PAGE_GENERATION_EXPERT_NAME,
     HTML_ROUTE_STAGE_SEQUENCE,
     HtmlPageGenerationResult,
     HtmlPptxOutputResult,
@@ -15,6 +16,7 @@ from src.productions.ppt.routes.html.route import (
     HtmlRoutePaths,
     HtmlTemplatePreparationResult,
     build_html_page_generation_agent,
+    build_ppt_html_page_generation_expert,
     build_html_route,
     build_html_route_with_agent,
     deliver_html_route_quality,
@@ -23,6 +25,7 @@ from src.productions.ppt.routes.html.route import (
     generate_html_pages_with_agent,
     prepare_html_route_paths,
     prepare_html_template,
+    run_html_page_generation_expert,
     save_html_route_pages,
 )
 
@@ -30,6 +33,7 @@ __all__ = [
     "HTML_DELIVERY_STAGE",
     "HTML_PAGE_GENERATION_CONTENT_PLAN_KEY",
     "HTML_PAGE_GENERATION_PAGES_KEY",
+    "PPT_HTML_PAGE_GENERATION_EXPERT_NAME",
     "HTML_ROUTE_STAGE_SEQUENCE",
     "HtmlToPptxConversionResult",
     "HtmlPageGenerationResult",
@@ -38,6 +42,7 @@ __all__ = [
     "HtmlRoutePaths",
     "HtmlTemplatePreparationResult",
     "build_html_page_generation_agent",
+    "build_ppt_html_page_generation_expert",
     "build_html_route",
     "build_html_route_with_agent",
     "convert_html_pages_to_pptx",
@@ -47,5 +52,6 @@ __all__ = [
     "generate_html_pages_with_agent",
     "prepare_html_route_paths",
     "prepare_html_template",
+    "run_html_page_generation_expert",
     "save_html_route_pages",
 ]

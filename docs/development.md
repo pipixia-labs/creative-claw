@@ -6,6 +6,8 @@ If you only want to try the product, start from [../README.md](../README.md).
 
 For a compact user-facing list of concrete model names, mapped experts, and token application links, see [model_and_token_map.md](model_and_token_map.md).
 
+For PPT product architecture details, see [ppt_product_architecture.md](ppt_product_architecture.md).
+
 ## Architecture
 
 CreativeClaw is a channel-oriented creative agent system built on Google's Agent Development Kit (ADK).

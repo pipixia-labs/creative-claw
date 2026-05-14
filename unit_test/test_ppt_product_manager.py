@@ -2,6 +2,7 @@ import tempfile
 import unittest
 from pathlib import Path
 from types import SimpleNamespace
+from unittest.mock import patch
 
 from google.adk.agents import LlmAgent
 from google.genai.types import Content, Part
@@ -15,6 +16,7 @@ from src.productions.ppt.ppt_product_manager import (
     ProductPptSkillRegistry,
 )
 from src.productions.ppt.schemas import DeckContentPlan, DeckPageAsset, DeckPagePlan, SourceUnderstanding
+from src.productions.ppt.routes.html import PPT_HTML_PAGE_GENERATION_EXPERT_NAME
 from src.runtime.workspace import (
     build_workspace_file_record,
     resolve_workspace_path,
@@ -111,8 +113,71 @@ class PptProductManagerTests(unittest.IsolatedAsyncioTestCase):
         self.assertIn("freely choose", instruction)
         self.assertIn("hard-coded keyword-to-skill rules", instruction)
         self.assertIn("you run that skill workflow directly as PptProductManager", instruction)
+        self.assertIn("PptHtmlPageGenerationExpert", instruction)
         self.assertIn("invoke_ppt_expert", instruction)
         self.assertIn("Do not claim PPTX generation succeeded", instruction)
+
+    def test_product_manager_registers_html_page_generation_expert(self) -> None:
+        manager = PptProductManager()
+        tool_context = SimpleNamespace(state={})
+
+        experts = manager.product_expert_agents
+        listed = manager.list_ppt_experts(tool_context)
+
+        self.assertIn(PPT_HTML_PAGE_GENERATION_EXPERT_NAME, experts)
+        self.assertEqual(experts[PPT_HTML_PAGE_GENERATION_EXPERT_NAME].name, PPT_HTML_PAGE_GENERATION_EXPERT_NAME)
+        self.assertEqual(
+            {tool.__name__ for tool in experts[PPT_HTML_PAGE_GENERATION_EXPERT_NAME].tools},
+            {"save_html_route_pages"},
+        )
+        self.assertIn(PPT_HTML_PAGE_GENERATION_EXPERT_NAME, listed["experts"])
+        self.assertEqual(tool_context.state["ppt_skill_available_experts"], listed["experts"])
+
+    async def test_invoke_ppt_html_page_generation_expert_uses_ppt_state(self) -> None:
+        manager = PptProductManager()
+        requirement = manager.prepare_confirmed_requirement(
+            task="做一个 3 页 PPTX 产品介绍。",
+            inputs=[],
+            output={"format": "pptx", "slide_count": 3},
+        )
+        content_plan = manager.build_initial_deck_content_plan(requirement)
+        captured: dict[str, object] = {}
+
+        async def _fake_run_html_page_generation_expert(**kwargs):
+            captured.update(kwargs)
+            return [{"slide_number": 1, "html": "<section><h1>Slide</h1></section>"}]
+
+        tool_context = SimpleNamespace(
+            state={
+                "ppt_confirmed_requirement": requirement.model_dump(mode="json"),
+                "ppt_deck_content_plan": content_plan.model_dump(mode="json"),
+            },
+            _invocation_context=SimpleNamespace(app_name="creative_claw", user_id="test-user"),
+        )
+
+        with patch(
+            "src.productions.ppt.ppt_product_manager.ppt_product_manager.run_html_page_generation_expert",
+            _fake_run_html_page_generation_expert,
+        ):
+            result = await manager.invoke_ppt_expert(
+                PPT_HTML_PAGE_GENERATION_EXPERT_NAME,
+                "Generate editable HTML slide fragments.",
+                tool_context,
+            )
+
+        self.assertEqual(result["status"], "success")
+        self.assertEqual(result["agent_name"], PPT_HTML_PAGE_GENERATION_EXPERT_NAME)
+        self.assertEqual(result["current_output"]["html_pages"][0]["slide_number"], 1)
+        self.assertIs(
+            captured["page_generation_agent"],
+            manager.product_expert_agents[PPT_HTML_PAGE_GENERATION_EXPERT_NAME],
+        )
+        self.assertEqual(captured["template"].template_id, "free_design")
+        self.assertEqual(tool_context.state["current_output"]["status"], "success")
+        self.assertEqual(
+            tool_context.state["ppt_skill_last_expert_result"]["agent_name"],
+            PPT_HTML_PAGE_GENERATION_EXPERT_NAME,
+        )
 
     def test_private_product_ppt_skill_registry_lists_complete_workflow(self) -> None:
         registry = ProductPptSkillRegistry()
@@ -549,6 +614,39 @@ Visual:
         self.assertEqual(result["selected_route"], "html")
         self.assertEqual(tool_context.state["ppt_route_build"]["template"]["template_id"], "free_design")
         self.assertTrue(result["output_files"])
+
+    async def test_dispatch_ppt_route_injects_product_html_page_expert(self) -> None:
+        manager = PptProductManager()
+        requirement = manager.prepare_confirmed_requirement(
+            task="做一个 5 页 PPTX 产品介绍。",
+            inputs=[],
+            output={"format": "pptx"},
+        )
+        content_plan = manager.build_initial_deck_content_plan(requirement)
+        captured: dict[str, object] = {}
+
+        async def _fake_build_html_route_with_agent(**kwargs):
+            captured.update(kwargs)
+            return SimpleNamespace(pptx_path="generated/test/deck.pptx")
+
+        with tempfile.TemporaryDirectory(dir=workspace_root()) as tmpdir:
+            with patch(
+                "src.productions.ppt.ppt_product_manager.ppt_product_manager.build_html_route_with_agent",
+                _fake_build_html_route_with_agent,
+            ):
+                result = await manager._dispatch_ppt_route(
+                    requirement=requirement,
+                    content_plan=content_plan,
+                    output_dir=Path(tmpdir),
+                    tool_context=SimpleNamespace(state={}),
+                    expert_agents=manager.product_expert_agents,
+                )
+
+        self.assertEqual(result.pptx_path, "generated/test/deck.pptx")
+        self.assertIs(
+            captured["page_generation_agent"],
+            manager.product_expert_agents[PPT_HTML_PAGE_GENERATION_EXPERT_NAME],
+        )
 
     def test_prepare_confirmed_requirement_defaults_to_html_mvp_for_pptx(self) -> None:
         manager = PptProductManager()

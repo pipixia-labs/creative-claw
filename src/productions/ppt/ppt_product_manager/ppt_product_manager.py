@@ -26,7 +26,13 @@ from src.productions.ppt.planning import PptContentPlanner
 from src.productions.ppt.ppt_product_manager.product_ppt_skills import (
     ProductPptSkillRegistry,
 )
-from src.productions.ppt.routes.html import build_html_route_with_agent
+from src.productions.ppt.routes.html import (
+    PPT_HTML_PAGE_GENERATION_EXPERT_NAME,
+    build_html_route_with_agent,
+    build_ppt_html_page_generation_expert,
+    prepare_html_template,
+    run_html_page_generation_expert,
+)
 from src.productions.ppt.routes import PptRouteRegistration, build_default_ppt_route_registry
 from src.productions.ppt.schemas import (
     ConfirmedRequirement,
@@ -81,6 +87,7 @@ class PptProductManager(LlmAgent):
     _content_planner: PptContentPlanner = PrivateAttr()
     _route_registry: dict[str, PptRouteRegistration] = PrivateAttr(default_factory=dict)
     _skill_registry: ProductPptSkillRegistry = PrivateAttr()
+    _product_expert_agents: dict[str, BaseAgent] = PrivateAttr(default_factory=dict)
     _skill_runtime_expert_agents: dict[str, BaseAgent] = PrivateAttr(default_factory=dict)
     _skill_runtime_app_name: str = PrivateAttr(default="creative_claw")
     _skill_runtime_artifact_service: BaseArtifactService | None = PrivateAttr(default=None)
@@ -114,6 +121,7 @@ class PptProductManager(LlmAgent):
             project_root=self.project_root,
             skills_dir=skills_dir,
         )
+        self._product_expert_agents = self.build_product_expert_agents()
         if provided_tools is None:
             self.tools = [
                 self.list_product_ppt_skills,
@@ -183,6 +191,7 @@ Own PPT and PowerPoint production end to end. If the requested final deliverable
 
 # Private skill execution
 - When a private product-ppt skill is selected, you run that skill workflow directly as PptProductManager.
+- Product-level PPT experts are registered by PptProductManager; for example, `PptHtmlPageGenerationExpert` generates editable PPT-friendly HTML slide fragments.
 - Let the selected skill drive the execution order: read its referenced files, call available PPT product tools, call `invoke_ppt_expert` when it needs a registered expert, and save the final artifact with `save_ppt_private_skill_html`.
 - Do not delegate selected private skill execution to a separate private execution agent.
 - Do not invent facts, citations, local absolute paths, unavailable resources, or generated file paths.
@@ -196,6 +205,30 @@ Return structured status, current phase, selected route, warnings, next actions,
         if tools is not None:
             self.tools = tools
         return self
+
+    @property
+    def product_expert_agents(self) -> dict[str, BaseAgent]:
+        """Return PPT product-level expert agents managed by this product manager."""
+        return dict(self._product_expert_agents)
+
+    def build_product_expert_agents(self) -> dict[str, BaseAgent]:
+        """Build PPT product-level experts that routes and skills may call."""
+        return {
+            PPT_HTML_PAGE_GENERATION_EXPERT_NAME: self.build_html_page_generation_expert(),
+        }
+
+    def build_html_page_generation_expert(self) -> LlmAgent:
+        """Build the PPT expert that generates editable HTML slide fragments."""
+        return build_ppt_html_page_generation_expert()
+
+    def _resolve_ppt_expert_agents(
+        self,
+        expert_agents: dict[str, BaseAgent] | None = None,
+    ) -> dict[str, BaseAgent]:
+        """Merge built-in PPT experts with externally supplied expert agents."""
+        resolved = dict(self._product_expert_agents)
+        resolved.update(expert_agents or {})
+        return resolved
 
     def build_requirement_analysis_agent(self) -> LlmAgent:
         """Build the product-internal ADK agent that writes ConfirmedRequirement JSON."""
@@ -623,6 +656,7 @@ Return structured status, current phase, selected route, warnings, next actions,
                 "result_schema_version": PPT_PRODUCT_RESULT_SCHEMA_VERSION,
             }
 
+        available_expert_agents = self._resolve_ppt_expert_agents(expert_agents)
         output_options = dict(output or {})
         if not self._should_auto_confirm(output_options):
             workflow_state = self._get_workflow_state(tool_context.state)
@@ -630,7 +664,7 @@ Return structured status, current phase, selected route, warnings, next actions,
                 return await self.continue_product_request(
                     user_response=clean_task,
                     tool_context=tool_context,
-                    expert_agents=expert_agents,
+                    expert_agents=available_expert_agents,
                     app_name=app_name,
                     artifact_service=artifact_service,
                     source_converter=source_converter,
@@ -653,7 +687,7 @@ Return structured status, current phase, selected route, warnings, next actions,
             source_inputs = self._stage_source_inputs_for_workspace(source_inputs, tool_context.state)
             source_converter = source_converter or self._build_source_converter(
                 tool_context=tool_context,
-                expert_agents=expert_agents or {},
+                expert_agents=available_expert_agents,
                 app_name=app_name,
                 artifact_service=artifact_service,
             )
@@ -708,7 +742,7 @@ Return structured status, current phase, selected route, warnings, next actions,
                         tool_context=tool_context,
                         app_name=app_name,
                         artifact_service=artifact_service,
-                        expert_agents=expert_agents or {},
+                        expert_agents=available_expert_agents,
                         content_plan_builder=content_plan_builder,
                         resolve_assets=False,
                     )
@@ -717,7 +751,7 @@ Return structured status, current phase, selected route, warnings, next actions,
                         content_plan=content_plan,
                         system_selection=system_selection,
                         tool_context=tool_context,
-                        expert_agents=expert_agents or {},
+                        expert_agents=available_expert_agents,
                         app_name=app_name,
                         artifact_service=artifact_service,
                     )
@@ -737,7 +771,7 @@ Return structured status, current phase, selected route, warnings, next actions,
                             tool_context=tool_context,
                             app_name=app_name,
                             artifact_service=artifact_service,
-                            expert_agents=expert_agents or {},
+                            expert_agents=available_expert_agents,
                             content_plan_builder=content_plan_builder,
                             asset_resolver=asset_resolver,
                         )
@@ -749,6 +783,7 @@ Return structured status, current phase, selected route, warnings, next actions,
                             tool_context=tool_context,
                             app_name=app_name,
                             artifact_service=artifact_service,
+                            expert_agents=available_expert_agents,
                         )
                         route_succeeded = bool(route_build.pptx_path)
                         output_files = self._record_output_files(
@@ -845,6 +880,7 @@ Return structured status, current phase, selected route, warnings, next actions,
         workflow_state = self._get_workflow_state(tool_context.state)
         stage = str(workflow_state.get("stage") or "").strip()
         clean_response = str(user_response or "").strip()
+        available_expert_agents = self._resolve_ppt_expert_agents(expert_agents)
         if not workflow_state or not stage:
             result = PptProductResult(
                 status="error",
@@ -870,7 +906,7 @@ Return structured status, current phase, selected route, warnings, next actions,
                 user_response=clean_response,
                 workflow_state=workflow_state,
                 tool_context=tool_context,
-                expert_agents=expert_agents or {},
+                expert_agents=available_expert_agents,
                 app_name=app_name,
                 artifact_service=artifact_service,
                 source_converter=source_converter,
@@ -881,7 +917,7 @@ Return structured status, current phase, selected route, warnings, next actions,
                 user_response=clean_response,
                 workflow_state=workflow_state,
                 tool_context=tool_context,
-                expert_agents=expert_agents or {},
+                expert_agents=available_expert_agents,
                 app_name=app_name,
                 artifact_service=artifact_service,
                 content_plan_builder=content_plan_builder,
@@ -1209,6 +1245,7 @@ Return structured status, current phase, selected route, warnings, next actions,
             tool_context=tool_context,
             app_name=app_name,
             artifact_service=artifact_service,
+            expert_agents=expert_agents,
         )
         route_succeeded = bool(route_build.pptx_path)
         output_files = self._record_output_files(
@@ -2313,7 +2350,8 @@ Return structured status, current phase, selected route, warnings, next actions,
 
     def list_ppt_experts(self, tool_context: ToolContext) -> dict[str, Any]:
         """List expert agents available to the current PPT skill run."""
-        expert_names = sorted(self._skill_runtime_expert_agents)
+        available_experts = self._skill_runtime_expert_agents or self._product_expert_agents
+        expert_names = sorted(available_experts)
         payload = {
             "status": "success",
             "experts": expert_names,
@@ -2330,17 +2368,18 @@ Return structured status, current phase, selected route, warnings, next actions,
     ) -> dict[str, Any]:
         """Invoke one registered expert agent from a PPT skill workflow."""
         clean_agent_name = str(agent_name or "").strip()
+        available_experts = self._skill_runtime_expert_agents or self._product_expert_agents
         if not clean_agent_name:
             return {
                 "status": "error",
                 "message": "invoke_ppt_expert requires agent_name.",
             }
-        if clean_agent_name not in self._skill_runtime_expert_agents:
+        if clean_agent_name not in available_experts:
             return {
                 "status": "error",
                 "message": (
-                    f"Expert `{clean_agent_name}` is not available in this PPT skill run. "
-                    f"Available experts: {', '.join(sorted(self._skill_runtime_expert_agents)) or 'none'}."
+                    f"Expert `{clean_agent_name}` is not available in this PPT run. "
+                    f"Available experts: {', '.join(sorted(available_experts)) or 'none'}."
                 ),
             }
         if not hasattr(tool_context, "_invocation_context"):
@@ -2348,19 +2387,27 @@ Return structured status, current phase, selected route, warnings, next actions,
                 "status": "error",
                 "message": "invoke_ppt_expert requires an ADK invocation context.",
             }
-        if self._skill_runtime_artifact_service is None:
-            return {
-                "status": "error",
-                "message": "invoke_ppt_expert requires an artifact service.",
-            }
+        artifact_service = self._skill_runtime_artifact_service or InMemoryArtifactService()
+        app_name = self._skill_runtime_app_name or str(
+            getattr(getattr(tool_context, "_invocation_context", None), "app_name", "creative_claw")
+        )
+
+        if clean_agent_name == PPT_HTML_PAGE_GENERATION_EXPERT_NAME:
+            return await self._invoke_html_page_generation_expert(
+                prompt=str(prompt or ""),
+                tool_context=tool_context,
+                page_generation_agent=available_experts[clean_agent_name],
+                app_name=app_name,
+                artifact_service=artifact_service,
+            )
 
         invocation = await dispatch_expert_call(
             agent_name=clean_agent_name,
             prompt=str(prompt or ""),
             tool_context=tool_context,
-            expert_agents=self._skill_runtime_expert_agents,
-            app_name=self._skill_runtime_app_name,
-            artifact_service=self._skill_runtime_artifact_service,
+            expert_agents=available_experts,
+            app_name=app_name,
+            artifact_service=artifact_service,
         )
         current_output = copy.deepcopy(invocation.current_output)
         if not isinstance(current_output, dict):
@@ -2380,6 +2427,88 @@ Return structured status, current phase, selected route, warnings, next actions,
             ),
         }
         tool_context.state["ppt_skill_last_expert_result"] = payload
+        return payload
+
+    async def _invoke_html_page_generation_expert(
+        self,
+        *,
+        prompt: str,
+        tool_context: ToolContext,
+        page_generation_agent: BaseAgent,
+        app_name: str,
+        artifact_service: BaseArtifactService | None,
+    ) -> dict[str, Any]:
+        """Run the PM-managed HTML page expert with PPT-native state inputs."""
+        skill_base = dict(tool_context.state.get("ppt_product_manager_skill_run_base") or {})
+        content_plan_payload = (
+            tool_context.state.get("ppt_deck_content_plan")
+            or skill_base.get("deck_content_plan")
+            or {}
+        )
+        if not content_plan_payload:
+            return {
+                "status": "error",
+                "agent_name": PPT_HTML_PAGE_GENERATION_EXPERT_NAME,
+                "message": "PptHtmlPageGenerationExpert requires ppt_deck_content_plan in PPT state.",
+            }
+
+        requirement_payload = (
+            tool_context.state.get(PPT_CONFIRMED_REQUIREMENT_STATE_KEY)
+            or skill_base.get("confirmed_requirement")
+            or {}
+        )
+        aspect_ratio = "16:9"
+        if requirement_payload:
+            try:
+                aspect_ratio = ConfirmedRequirement.model_validate(requirement_payload).aspect_ratio
+            except Exception:
+                aspect_ratio = "16:9"
+
+        try:
+            content_plan = DeckContentPlan.model_validate(content_plan_payload)
+            template = prepare_html_template(template_id="", aspect_ratio=aspect_ratio).template
+            html_pages = await run_html_page_generation_expert(
+                content_plan=content_plan,
+                template=template,
+                tool_context=tool_context,
+                app_name=app_name,
+                artifact_service=artifact_service,
+                page_generation_agent=page_generation_agent,
+            )
+        except Exception as exc:
+            payload = {
+                "status": "error",
+                "agent_name": PPT_HTML_PAGE_GENERATION_EXPERT_NAME,
+                "message": f"PptHtmlPageGenerationExpert failed: {type(exc).__name__}: {exc}",
+                "current_output": {},
+                "tool_result": {},
+                "output_files": [],
+            }
+            tool_context.state["ppt_skill_last_expert_result"] = payload
+            return payload
+
+        current_output = {
+            "status": "success",
+            "message": "PptHtmlPageGenerationExpert generated editable HTML slide fragments.",
+            "html_pages": html_pages,
+            "prompt": prompt,
+        }
+        tool_result = {
+            "status": "success",
+            "agent_name": PPT_HTML_PAGE_GENERATION_EXPERT_NAME,
+            "html_pages": html_pages,
+            "output_files": [],
+        }
+        payload = {
+            "status": "success",
+            "agent_name": PPT_HTML_PAGE_GENERATION_EXPERT_NAME,
+            "current_output": current_output,
+            "tool_result": tool_result,
+            "output_files": [],
+        }
+        tool_context.state["ppt_html_page_generation_expert_result"] = current_output
+        tool_context.state["ppt_skill_last_expert_result"] = payload
+        tool_context.state["current_output"] = current_output
         return payload
 
     def save_ppt_system_selection(
@@ -2485,6 +2614,7 @@ Return structured status, current phase, selected route, warnings, next actions,
             tool_context=tool_context,
             app_name=str(getattr(getattr(tool_context, "_invocation_context", None), "app_name", "creative_claw")),
             artifact_service=None,
+            expert_agents=self._resolve_ppt_expert_agents(),
         )
         route_succeeded = bool(route_build.pptx_path)
         output_files = self._record_output_files(
@@ -2515,6 +2645,7 @@ Return structured status, current phase, selected route, warnings, next actions,
         tool_context: ToolContext | None = None,
         app_name: str = "creative_claw",
         artifact_service: InMemoryArtifactService | None = None,
+        expert_agents: dict[str, BaseAgent] | None = None,
     ) -> Any:
         """Dispatch one confirmed PPT request to the registered route workflow."""
         registration = self._route_registry.get(requirement.route)
@@ -2537,6 +2668,7 @@ Return structured status, current phase, selected route, warnings, next actions,
                 tool_context=tool_context,
                 app_name=app_name,
                 artifact_service=artifact_service,
+                page_generation_agent=(expert_agents or {}).get(PPT_HTML_PAGE_GENERATION_EXPERT_NAME),
             )
         return registration.handler(
             content_plan,
