@@ -230,6 +230,7 @@ Current provider env-fallback coverage:
 - auto-fallback is implemented for `openai`, `anthropic`, `gemini`, `groq`, `deepseek`, `dashscope`, `zhipu`, `moonshot`, `minimax`, `mistral`, `stepfun`, and `qianfan`
 - `gemini` accepts `GOOGLE_API_KEY` as the primary env var and also accepts `GEMINI_API_KEY` as a compatibility alias
 - providers such as `openrouter`, `vllm`, `ollama`, `siliconflow`, `volcengine`, `byteplus`, `azure_openai`, and `custom` can still use `providers.<name>.api_key` from `conf.json`, but `apply_env_fallbacks()` does not currently auto-import them from provider-specific environment variables
+- `openai_codex` does not use an API key; it uses `creative-claw provider login openai-codex` to store a local OAuth session outside `conf.json`
 
 Common environment variables:
 
@@ -253,6 +254,12 @@ Reference fuller template:
     "openai": {
       "api_key": "",
       "api_base": null,
+      "api_version": null,
+      "extra_headers": {}
+    },
+    "openai_codex": {
+      "api_key": "",
+      "api_base": "https://chatgpt.com/backend-api/codex/responses",
       "api_version": null,
       "extra_headers": {}
     },
@@ -335,12 +342,13 @@ Field notes:
 | --- | --- | --- |
 | `workspace` | Root directory for runtime files | Move generated content to another disk or shared mount |
 | `llm.provider` | Default text-provider name | Switch the orchestrator from OpenAI to Gemini, Anthropic, or another provider |
-| `llm.model` | Default model within the provider | Example: `gpt-5.4`, `gemini-2.5-flash`, `claude-sonnet-4-5`, `deepseek-v4-pro`, `deepseek-v4-flash` |
+| `llm.model` | Default model within the provider | Example: `gpt-5.4`, `gpt-5.5`, `gemini-2.5-flash`, `claude-sonnet-4-5`, `deepseek-v4-pro`, `deepseek-v4-flash` |
 | `providers.<name>.api_key` | Provider credential | Required by most hosted providers |
 | `providers.<name>.api_base` | Custom API endpoint | Needed for OpenAI-compatible gateways, self-hosted services, or Azure |
 | `providers.<name>.api_version` | Provider-specific API version | Mainly Azure OpenAI |
 | `providers.<name>.extra_headers` | Extra HTTP headers | Enterprise proxy or custom gateway integration |
 | `providers.ollama.api_base` | Local Ollama endpoint | Prefilled as `http://localhost:11434/v1` by `creative-claw init` |
+| `providers.openai_codex.api_base` | Codex OAuth Responses endpoint | Usually left as the default after `creative-claw provider login openai-codex` |
 | `services.ark_api_key` | Volcengine Ark key | Seedream and Seedance paths |
 | `providers.dashscope.api_key` | DashScope key | DashScope text LLMs plus Wan/HappyHorse video and Wan/Qwen/Z-Image generation |
 | `services.dds_api_key` | DeepDataSpace key | Image grounding and image segmentation |
@@ -357,6 +365,7 @@ Field notes:
 First-round text LLM providers:
 
 - `openai`
+- `openai_codex`
 - `anthropic`
 - `gemini`
 - `openrouter`
@@ -376,6 +385,27 @@ First-round text LLM providers:
 - `qianfan`
 - `azure_openai`
 - `custom`
+
+OpenAI Codex OAuth uses a custom ADK `BaseLlm` backend instead of ADK `LiteLlm`.
+Authenticate once:
+
+```bash
+creative-claw provider login openai-codex
+```
+
+Then configure:
+
+```json
+{
+  "llm": {
+    "provider": "openai_codex",
+    "model": "gpt-5.5"
+  }
+}
+```
+
+The runtime builds `OpenAICodexLlm(model="openai_codex/gpt-5.5", ...)` and sends the bare model id `gpt-5.5` to the Codex backend.
+This route depends on the signed-in ChatGPT/Codex account permissions and does not use `OPENAI_API_KEY`.
 
 DeepSeek V4 models use the existing `deepseek` provider and remain backed by ADK `LiteLlm`.
 The runtime builds `LiteLlm(model="deepseek/deepseek-v4-pro", api_base="https://api.deepseek.com", ...)` or `LiteLlm(model="deepseek/deepseek-v4-flash", api_base="https://api.deepseek.com", ...)`.

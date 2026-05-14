@@ -90,6 +90,13 @@ class CreativeClawCliParserTests(unittest.TestCase):
         self.assertEqual(args.title, "Demo")
         self.assertTrue(args.open_browser)
 
+    def test_build_parser_parses_provider_login_command(self) -> None:
+        args = build_parser().parse_args(["provider", "login", "openai-codex"])
+
+        self.assertEqual(args.command, "provider")
+        self.assertEqual(args.provider_command, "login")
+        self.assertEqual(args.provider_name, "openai-codex")
+
     def test_build_parser_rejects_removed_local_chat_command(self) -> None:
         with self.assertRaises(SystemExit):
             build_parser().parse_args(["chat", "local"])
@@ -160,6 +167,24 @@ class CreativeClawCliDispatchTests(unittest.IsolatedAsyncioTestCase):
 
         self.assertEqual(exit_code, 0)
         mocked_run_chat_service.assert_awaited_once_with("web", web_config=web_config)
+
+    async def test_run_cli_dispatches_provider_login(self) -> None:
+        args = build_parser().parse_args(["provider", "login", "openai-codex"])
+
+        with patch("src.creative_claw_cli.login_openai_codex") as mocked_login:
+            exit_code = await run_cli(args)
+
+        self.assertEqual(exit_code, 0)
+        mocked_login.assert_called_once_with()
+
+    async def test_run_cli_dispatches_provider_logout(self) -> None:
+        args = build_parser().parse_args(["provider", "logout", "openai_codex"])
+
+        with patch("src.creative_claw_cli.logout_openai_codex") as mocked_logout:
+            exit_code = await run_cli(args)
+
+        self.assertEqual(exit_code, 0)
+        mocked_logout.assert_called_once_with()
 
 
 class ChatRunnerTests(unittest.TestCase):

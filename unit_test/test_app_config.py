@@ -20,6 +20,7 @@ from conf.llm import (
     get_known_provider_models,
     resolve_llm_model_name,
 )
+from conf.openai_codex import OpenAICodexLlm
 from conf.schema import CreativeClawConfig, ProviderConfig
 
 
@@ -50,6 +51,10 @@ class AppConfigTests(unittest.TestCase):
             self.assertEqual(data["workspace"], str(workspace_path))
             self.assertEqual(data["providers"]["ollama"]["api_base"], "http://localhost:11434/v1")
             self.assertEqual(data["providers"]["openrouter"]["api_base"], "https://openrouter.ai/api/v1")
+            self.assertEqual(
+                data["providers"]["openai_codex"]["api_base"],
+                "https://chatgpt.com/backend-api/codex/responses",
+            )
             self.assertEqual(data["providers"]["azure_openai"]["api_version"], "2024-10-21")
 
     def test_build_default_config_applies_recommended_provider_defaults(self) -> None:
@@ -62,6 +67,7 @@ class AppConfigTests(unittest.TestCase):
 
             self.assertEqual(config.providers.ollama.api_base, "http://localhost:11434/v1")
             self.assertEqual(config.providers.custom.api_base, "https://your-openai-compatible-endpoint/v1")
+            self.assertEqual(config.providers.openai_codex.api_base, "https://chatgpt.com/backend-api/codex/responses")
             self.assertEqual(config.providers.deepseek.api_base, "https://api.deepseek.com")
             self.assertEqual(config.providers.azure_openai.api_base, "https://your-resource.openai.azure.com")
             self.assertEqual(config.providers.azure_openai.api_version, "2024-10-21")
@@ -247,6 +253,43 @@ class AppConfigTests(unittest.TestCase):
             self.assertIsInstance(llm, LiteLlm)
             self.assertEqual(llm.model, "openai/gpt-5.4")
             self.assertEqual(resolve_llm_model_name(), "openai/gpt-5.4")
+
+    def test_build_llm_returns_codex_oauth_model_for_openai_codex(self) -> None:
+        with tempfile.TemporaryDirectory() as tmp_dir, patch.dict(
+            os.environ,
+            {"CREATIVE_CLAW_HOME": tmp_dir},
+            clear=False,
+        ):
+            config = CreativeClawConfig(workspace=str(get_config_path().parent / "workspace"))
+            config.llm.provider = "openai_codex"
+            config.llm.model = "gpt-5.5"
+            save_app_config(config)
+            load_app_config(reload=True)
+
+            llm = build_llm()
+
+            self.assertIsInstance(llm, OpenAICodexLlm)
+            self.assertEqual(llm.model, "openai_codex/gpt-5.5")
+            self.assertEqual(llm.api_base, "https://chatgpt.com/backend-api/codex/responses")
+            self.assertEqual(resolve_llm_model_name(), "openai_codex/gpt-5.5")
+
+    def test_build_llm_resolves_openai_codex_model_reference_alias(self) -> None:
+        with tempfile.TemporaryDirectory() as tmp_dir, patch.dict(
+            os.environ,
+            {"CREATIVE_CLAW_HOME": tmp_dir},
+            clear=False,
+        ):
+            config = CreativeClawConfig(workspace=str(get_config_path().parent / "workspace"))
+            config.llm.provider = "openai"
+            config.llm.model = "gpt-5.4"
+            save_app_config(config)
+            load_app_config(reload=True)
+
+            llm = build_llm("openai-codex/gpt-5.5")
+
+            self.assertIsInstance(llm, OpenAICodexLlm)
+            self.assertEqual(llm.model, "openai_codex/gpt-5.5")
+            self.assertEqual(resolve_llm_model_name("openai-codex/gpt-5.5"), "openai_codex/gpt-5.5")
 
     def test_build_llm_uses_litellm_for_deepseek_v4_pro(self) -> None:
         with tempfile.TemporaryDirectory() as tmp_dir, patch.dict(

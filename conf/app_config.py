@@ -284,6 +284,7 @@ def apply_env_fallbacks(config: CreativeClawConfig) -> None:
 def _apply_recommended_provider_defaults(config: CreativeClawConfig) -> None:
     """Populate practical provider defaults for the generated `conf.json` template."""
     config.providers.openrouter.api_base = "https://openrouter.ai/api/v1"
+    config.providers.openai_codex.api_base = "https://chatgpt.com/backend-api/codex/responses"
     config.providers.deepseek.api_base = "https://api.deepseek.com"
     config.providers.zhipu.api_base = "https://open.bigmodel.cn/api/paas/v4"
     config.providers.dashscope.api_base = "https://dashscope.aliyuncs.com/compatible-mode/v1"

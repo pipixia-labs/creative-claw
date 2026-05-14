@@ -22,6 +22,7 @@ class ProvidersConfig(BaseModel):
 
     custom: ProviderConfig = Field(default_factory=ProviderConfig)
     azure_openai: ProviderConfig = Field(default_factory=ProviderConfig)
+    openai_codex: ProviderConfig = Field(default_factory=ProviderConfig)
     anthropic: ProviderConfig = Field(default_factory=ProviderConfig)
     openai: ProviderConfig = Field(default_factory=ProviderConfig)
     openrouter: ProviderConfig = Field(default_factory=ProviderConfig)

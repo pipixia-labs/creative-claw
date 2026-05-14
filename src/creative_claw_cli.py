@@ -5,6 +5,7 @@ from __future__ import annotations
 import argparse
 import asyncio
 from collections.abc import Sequence
+from pathlib import Path
 
 from conf.app_config import initialize_runtime_config
 from conf.channel import CHANNEL_CONFIG, WebChannelConfig
@@ -29,6 +30,23 @@ def build_parser() -> argparse.ArgumentParser:
         action="store_true",
         help="Overwrite an existing conf.json with the default template.",
     )
+
+    provider_parser = command_parsers.add_parser(
+        "provider",
+        help="Manage provider authentication.",
+    )
+    provider_command_parsers = provider_parser.add_subparsers(dest="provider_command")
+    provider_command_parsers.required = True
+    for command_name in ("login", "logout"):
+        command_parser = provider_command_parsers.add_parser(
+            command_name,
+            help=f"{command_name.title()} to an OAuth-backed provider.",
+        )
+        command_parser.add_argument(
+            "provider_name",
+            type=str,
+            help="OAuth provider name. Currently supported: openai-codex.",
+        )
 
     chat_parser = command_parsers.add_parser(
         "chat",
@@ -120,6 +138,56 @@ def build_web_channel_config(args: argparse.Namespace) -> WebChannelConfig:
     )
 
 
+def login_openai_codex(print_fn=print, prompt_fn=input) -> None:
+    """Authenticate with the OpenAI Codex OAuth provider."""
+    try:
+        from oauth_cli_kit import get_token, login_oauth_interactive
+    except ImportError as exc:
+        raise RuntimeError("oauth-cli-kit is not installed. Install project dependencies first.") from exc
+
+    token = None
+    try:
+        token = get_token()
+    except Exception:
+        token = None
+    if not (token and getattr(token, "access", None)):
+        token = login_oauth_interactive(print_fn=print_fn, prompt_fn=prompt_fn)
+    if not (token and getattr(token, "access", None)):
+        raise RuntimeError("OpenAI Codex OAuth authentication failed.")
+    print_fn(f"Authenticated with OpenAI Codex: {getattr(token, 'account_id', '')}")
+
+
+def logout_openai_codex(print_fn=print) -> None:
+    """Remove the local OpenAI Codex OAuth token."""
+    try:
+        from oauth_cli_kit.providers import OPENAI_CODEX_PROVIDER
+        from oauth_cli_kit.storage import FileTokenStorage
+    except ImportError as exc:
+        raise RuntimeError("oauth-cli-kit is not installed. Install project dependencies first.") from exc
+
+    token_path = Path(FileTokenStorage(token_filename=OPENAI_CODEX_PROVIDER.token_filename).get_token_path())
+    if token_path.exists():
+        token_path.unlink()
+        print_fn(f"Removed OpenAI Codex OAuth token: {token_path}")
+    else:
+        print_fn("No local OpenAI Codex OAuth token found.")
+
+
+def run_provider_command(args: argparse.Namespace) -> int:
+    """Run an OAuth provider management command."""
+    provider_name = str(args.provider_name or "").strip().replace("_", "-")
+    if provider_name != "openai-codex":
+        raise ValueError(f"Unsupported OAuth provider '{args.provider_name}'. Supported providers: openai-codex.")
+
+    if args.provider_command == "login":
+        login_openai_codex()
+        return 0
+    if args.provider_command == "logout":
+        logout_openai_codex()
+        return 0
+    raise ValueError(f"Unsupported provider command '{args.provider_command}'.")
+
+
 async def run_cli(args: argparse.Namespace) -> int:
     """Run the parsed CreativeClaw CLI command."""
     if args.command == "init":
@@ -129,6 +197,9 @@ async def run_cli(args: argparse.Namespace) -> int:
         print(f"Config file {action}: {config_path}")
         print(f"Workspace ready: {workspace_path}")
         return 0
+
+    if args.command == "provider":
+        return run_provider_command(args)
 
     if args.command != "chat":
         raise ValueError(f"Unsupported command '{args.command}'.")

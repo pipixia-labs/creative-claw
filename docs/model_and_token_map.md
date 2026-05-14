@@ -5,6 +5,7 @@ This document lists the concrete model names currently used in the codebase, the
 | Model Name | Expert | Required Key / Token | Application Link |
 | --- | --- | --- | --- |
 | `gpt-5.4` | `OrchestratorAgent`, `KnowledgeAgent`, and the default text-LLM path | `OPENAI_API_KEY` | [OpenAI API Key](https://platform.openai.com/docs/quickstart/step-2-set-up-your-api-key%23.class) |
+| `gpt-5.5` | `OrchestratorAgent`, `KnowledgeAgent`, and the `openai_codex` text-LLM path | OpenAI Codex OAuth session | Run `creative-claw provider login openai-codex` |
 | `gpt-image-2` | `ImageGenerationAgent` (`gpt_image`) | `OPENAI_API_KEY` | [OpenAI API Key](https://platform.openai.com/docs/quickstart/step-2-set-up-your-api-key%23.class) |
 | `gemini-3.1-flash-image-preview` | `ImageGenerationAgent` (`nano_banana`), `ImageEditingAgent` (`nano_banana`) | `GOOGLE_API_KEY` / `GEMINI_API_KEY` | [Google AI Studio API Key](https://ai.google.dev/gemini-api/docs/api-key) |
 | `wan2.7-image-pro` | `ImageGenerationAgent` (`dashscope`) | `DASHSCOPE_API_KEY` | [DashScope API Key](https://bailian.console.aliyun.com/?tab=model#/api-key) |
@@ -28,6 +29,7 @@ The text-LLM layer supports more providers than the single default example `gpt-
 | Provider | Typical Model Examples | Config Field | Environment Variable | Application Link |
 | --- | --- | --- | --- | --- |
 | `openai` | `gpt-5.4`, `gpt-4.1` | `providers.openai.api_key` | `OPENAI_API_KEY` | [OpenAI API Key](https://platform.openai.com/docs/quickstart/step-2-set-up-your-api-key%23.class) |
+| `openai_codex` | `gpt-5.5` | local Codex OAuth session | no API-key env var | Run `creative-claw provider login openai-codex` |
 | `anthropic` | `claude-sonnet-4-5` | `providers.anthropic.api_key` | `ANTHROPIC_API_KEY` | [Anthropic API Keys](https://docs.anthropic.com/en/api/getting-started) |
 | `gemini` | `gemini-2.5-flash`, `gemini-2.5-pro` | `providers.gemini.api_key` | `GOOGLE_API_KEY` or `GEMINI_API_KEY` | [Google AI Studio API Key](https://ai.google.dev/gemini-api/docs/api-key) |
 | `openrouter` | `openai/gpt-5`, `anthropic/claude-sonnet-4` | `providers.openrouter.api_key` | no dedicated fallback env var | [OpenRouter Keys](https://openrouter.ai/settings/keys) |

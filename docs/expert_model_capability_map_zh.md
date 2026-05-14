@@ -58,6 +58,7 @@
 | Provider | 运行时模型 ID | 典型示例 | Key / Token | Key 获取链接 | 备注 |
 | --- | --- | --- | --- | --- | --- |
 | `openai` | 运行时配置 | `gpt-5.4` | `OPENAI_API_KEY` | 待补 |  |
+| `openai_codex` | 运行时配置 | `gpt-5.5` | Codex OAuth 登录 | `creative-claw provider login openai-codex` | 不使用 API key |
 | `anthropic` | 运行时配置 | `claude-sonnet-4-5` | `ANTHROPIC_API_KEY` | 待补 |  |
 | `gemini` | 运行时配置 | `gemini-2.5-flash` | `GOOGLE_API_KEY` / `GEMINI_API_KEY` | 待补 |  |
 | `openrouter` | 运行时配置 | `openai/gpt-5` | `providers.openrouter.api_key` | 待补 |  |

@@ -7,8 +7,10 @@ from dataclasses import dataclass
 from google.adk.models import BaseLlm, Gemini, LiteLlm
 
 from conf.app_config import load_app_config
+from conf.openai_codex import OpenAICodexLlm
 
 DEEPSEEK_V4_MODEL_NAMES = ("deepseek-v4-pro", "deepseek-v4-flash")
+PROVIDER_ALIASES = {"openai-codex": "openai_codex"}
 
 
 @dataclass(frozen=True, slots=True)
@@ -30,6 +32,12 @@ PROVIDERS: dict[str, ProviderSpec] = {
         kind="azure",
         model_prefix="azure",
         default_api_version="2024-10-21",
+    ),
+    "openai_codex": ProviderSpec(
+        name="openai_codex",
+        kind="codex_oauth",
+        model_prefix="openai_codex",
+        default_api_base="https://chatgpt.com/backend-api/codex/responses",
     ),
     "anthropic": ProviderSpec(name="anthropic", kind="litellm_prefix", model_prefix="anthropic"),
     "openai": ProviderSpec(name="openai", kind="litellm_prefix", model_prefix="openai"),
@@ -115,6 +123,11 @@ def build_llm(
 
     if spec.kind == "gemini":
         return Gemini(model=model_name)
+    if spec.kind == "codex_oauth":
+        return OpenAICodexLlm(
+            model=f"{spec.model_prefix}/{model_name}",
+            api_base=provider_config.api_base or spec.default_api_base,
+        )
 
     kwargs: dict[str, object] = {}
     if provider_config.api_key:
@@ -152,13 +165,14 @@ def resolve_provider_and_model(
 ) -> tuple[str, str]:
     """Resolve one provider name and model name from config plus optional overrides."""
     app_config = load_app_config()
-    provider_name = (provider_override or app_config.llm.provider).strip()
+    provider_name = _normalize_provider_name(provider_override or app_config.llm.provider)
     model_name = (model_reference or app_config.llm.model).strip()
 
     if model_reference and "/" in model_reference:
         prefix, bare_model = model_reference.split("/", 1)
-        if prefix in PROVIDERS:
-            provider_name = prefix
+        normalized_prefix = _normalize_provider_name(prefix)
+        if normalized_prefix in PROVIDERS:
+            provider_name = normalized_prefix
             model_name = bare_model.strip()
 
     if provider_name not in PROVIDERS:
@@ -167,6 +181,12 @@ def resolve_provider_and_model(
     if not model_name:
         raise ValueError("LLM model name cannot be empty.")
     return provider_name, model_name
+
+
+def _normalize_provider_name(name: str | None) -> str:
+    """Return the canonical provider name for config and model references."""
+    cleaned = str(name or "").strip()
+    return PROVIDER_ALIASES.get(cleaned, cleaned)
 
 
 def get_provider_spec(name: str) -> ProviderSpec:

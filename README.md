@@ -52,7 +52,8 @@ The following diagram shows the high-level architecture of CreativeClaw, includi
 
 ### 🧠 LLM
 
--  `openai`, `anthropic`, `gemini`, `openrouter`, `deepseek`, `groq`, `zhipu`, `dashscope`, `vllm`, `ollama`, `moonshot`, `minimax`, `mistral`, `stepfun`, `siliconflow`, `volcengine`, `byteplus`, `qianfan`, `azure_openai`, `custom`
+-  `openai`, `openai_codex` (`openai-codex` config alias), `anthropic`, `gemini`, `openrouter`, `deepseek`, `groq`, `zhipu`, `dashscope`, `vllm`, `ollama`, `moonshot`, `minimax`, `mistral`, `stepfun`, `siliconflow`, `volcengine`, `byteplus`, `qianfan`, `azure_openai`, `custom`
+- `openai_codex` / `openai-codex` uses ChatGPT/Codex OAuth instead of `OPENAI_API_KEY`. Run `creative-claw provider login openai-codex` first, then set `llm.provider` to `openai-codex` or `openai_codex`, and set `llm.model` to `gpt-5.5`.
 - DeepSeek V4 is available through the `deepseek` provider with `deepseek-v4-pro` or `deepseek-v4-flash`. The runtime keeps the ADK `LiteLlm` path and sends requests as `deepseek/<model>` with `api_base` set to `https://api.deepseek.com` by default.
 
 ### 🖼️ Image Generation
@@ -140,6 +141,7 @@ The minimum working config looks like this:
 Notes:
 
 - This is enough to try the default CLI chat flow.
+- To use a Codex OAuth account instead of an OpenAI API key, run `creative-claw provider login openai-codex` first, then set `llm.provider` to `openai-codex` or `openai_codex`, and set `llm.model` to `gpt-5.5`; this route does not need `providers.openai.api_key`.
 - Image, video, search, and some provider-specific capabilities only need extra credentials when you actually use them.
 - `VideoGenerationAgent` provider `seedance` now defaults to `doubao-seedance-2-0-260128`. For faster generation use `model_name="doubao-seedance-2-0-fast-260128"` and keep `resolution` at `720p`; legacy `model_name="doubao-seedance-1-0-pro-250528"` remains accepted.
 - For exact dialogue or native generated audio with Seedance 2.0, use `provider="seedance"`, `generate_audio=true`, and `prompt_rewrite="off"` so quoted dialogue is preserved.
@@ -153,7 +155,7 @@ Notes:
 - `SpeechSynthesisExpert` uses Volcengine streaming TTS with `seed-tts-2.0` by default. Users or the orchestrator may select Seed TTS 2.0 voices with `speaker`, `voice_type`, or `voice_name`; the default voice is Vivi 2.0 (`zh_female_vv_uranus_bigtts`).
 - `SpeechRecognitionExpert` uses Volcengine speech services. Besides `VOLCENGINE_APPID` and `VOLCENGINE_ACCESS_TOKEN`, the current backend also needs these resource grants: `volc.bigasr.auc_turbo` for `task=asr`, `vc.async.default` for subtitle generation, and `volc.ata.default` for subtitle timing when `subtitle_text` / `audio_text` is provided. The activation entry is the [Volcengine speech console](https://console.volcengine.com/speech/app). Missing grants usually surface as `requested resource not granted` or `requested grant not found`.
 - Resolution order is: repository-local `.env` is loaded first without overriding shell variables; `conf.json` remains primary; if an API key is empty in `conf.json`, runtime falls back to the matching environment variable.
-- The first-round text LLM providers include `openai`, `anthropic`, `gemini`, `openrouter`, `deepseek`, `groq`, `zhipu`, `dashscope`, `vllm`, `ollama`, `moonshot`, `minimax`, `mistral`, `stepfun`, `siliconflow`, `volcengine`, `byteplus`, `qianfan`, `azure_openai`, and `custom`.
+- The first-round text LLM providers include `openai`, `openai_codex`, `anthropic`, `gemini`, `openrouter`, `deepseek`, `groq`, `zhipu`, `dashscope`, `vllm`, `ollama`, `moonshot`, `minimax`, `mistral`, `stepfun`, `siliconflow`, `volcengine`, `byteplus`, `qianfan`, `azure_openai`, and `custom`.
 - To use DeepSeek V4 Pro or Flash, set `llm.provider` to `deepseek`, set `llm.model` to `deepseek-v4-pro` or `deepseek-v4-flash`, and provide `providers.deepseek.api_key` or `DEEPSEEK_API_KEY`.
 - For the full environment and credential matrix, the reference full template, and common field descriptions, see [docs/development.md](docs/development.md).
 
