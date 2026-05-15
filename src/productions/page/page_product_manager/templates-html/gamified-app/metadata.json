@@ -1,0 +1,69 @@
+{
+  "id": "gamified-app",
+  "name": "Gamified App",
+  "description": "三屏: 封面 / 今日任务带 XP / 任务详情, 暗色舞台",
+  "usage": "【模板: 游戏化 App / Quest UI】 三屏: 封面 / 今日任务带 XP / 任务详情, 暗色舞台",
+  "tags": [
+    "gamified",
+    "habit",
+    "rpg",
+    "quest",
+    "xp",
+    "category:mobile",
+    "scenario:personal",
+    "aspect:3 × iPhone"
+  ],
+  "trigger_terms": [
+    "gamified-app",
+    "游戏化 App 多屏",
+    "Gamified App",
+    "三屏: 封面 / 今日任务带 XP / 任务详情, 暗色舞台",
+    "mobile",
+    "personal",
+    "3 × iPhone",
+    "gamified",
+    "app",
+    "habit",
+    "rpg",
+    "quest",
+    "xp",
+    "category:mobile",
+    "scenario:personal",
+    "aspect:3 × iPhone"
+  ],
+  "best_for": [
+    "三屏: 封面 / 今日任务带 XP / 任务详情, 暗色舞台",
+    "Requests that need mobile pages.",
+    "Briefs matching scenario: personal.",
+    "Use when the user asks for 游戏化 App 多屏."
+  ],
+  "avoid_for": [
+    "Requests unrelated to this template category or scenario.",
+    "Cases where the user explicitly asks for a different medium, layout, or visual style."
+  ],
+  "layout_rules": [
+    "Frame 1: Cover / Poster",
+    "Frame 2: Today's quests + XP ribbon + level bar",
+    "Frame 3: Quest detail (子任务 + 奖励)"
+  ],
+  "style_rules": [
+    "醒目的 quest tile 渐变 + 等级 ribbon + 底部 tab bar",
+    "【设计细节】",
+    "Frame 1: Cover / Poster",
+    "Frame 2: Today's quests + XP ribbon + level bar",
+    "Frame 3: Quest detail (子任务 + 奖励)"
+  ],
+  "content_rules": [
+    "Frame 1: Cover / Poster",
+    "Frame 2: Today's quests + XP ribbon + level bar",
+    "Frame 3: Quest detail (子任务 + 奖励)",
+    "醒目的 quest tile 渐变 + 等级 ribbon + 底部 tab bar",
+    "【模板: 游戏化 App / Quest UI】"
+  ],
+  "quality_checks": [
+    "Use the reference HTML as a style and structure guide, not as final placeholder content.",
+    "Preserve user-provided facts, numbers, dates, and claims.",
+    "Return one complete standalone HTML file with no markdown wrapper.",
+    "Keep visible text readable and avoid overlapping UI or content blocks."
+  ]
+}

@@ -1,0 +1,67 @@
+{
+  "id": "blog-post",
+  "name": "Blog Post",
+  "description": "杂志感长文, 含 masthead、hero、figures、pull quote、作者署名",
+  "usage": "【模板: 博客长文 / Blog Post】 杂志感长文, 含 masthead、hero、figures、pull quote、作者署名",
+  "tags": [
+    "blog",
+    "essay",
+    "case study",
+    "长文",
+    "category:article",
+    "scenario:marketing",
+    "aspect:长页面"
+  ],
+  "trigger_terms": [
+    "blog-post",
+    "博客长文",
+    "Blog Post",
+    "杂志感长文, 含 masthead、hero、figures、pull quote、作者署名",
+    "article",
+    "marketing",
+    "长页面",
+    "blog",
+    "post",
+    "essay",
+    "case study",
+    "长文",
+    "category:article",
+    "scenario:marketing",
+    "aspect:长页面"
+  ],
+  "best_for": [
+    "杂志感长文, 含 masthead、hero、figures、pull quote、作者署名",
+    "Requests that need article pages.",
+    "Briefs matching scenario: marketing.",
+    "Use when the user asks for 博客长文."
+  ],
+  "avoid_for": [
+    "Requests unrelated to this template category or scenario.",
+    "Cases where the user explicitly asks for a different medium, layout, or visual style."
+  ],
+  "layout_rules": [
+    "Hero (大标题 + 副标 + 作者署名 + 阅读时间)",
+    "Author bio 卡片",
+    "【布局】"
+  ],
+  "style_rules": [
+    "【设计细节】",
+    "Masthead (publication name + date)",
+    "Hero (大标题 + 副标 + 作者署名 + 阅读时间)",
+    "正文 (单栏 65ch, 含 figures, pull quotes, 行内引用)",
+    "Author bio 卡片"
+  ],
+  "content_rules": [
+    "Hero (大标题 + 副标 + 作者署名 + 阅读时间)",
+    "Masthead (publication name + date)",
+    "正文 (单栏 65ch, 含 figures, pull quotes, 行内引用)",
+    "Author bio 卡片",
+    "Related posts (3 张卡)"
+  ],
+  "quality_checks": [
+    "Use the reference HTML as a style and structure guide, not as final placeholder content.",
+    "Preserve user-provided facts, numbers, dates, and claims.",
+    "Return one complete standalone HTML file with no markdown wrapper.",
+    "Keep visible text readable and avoid overlapping UI or content blocks."
+  ]
+}

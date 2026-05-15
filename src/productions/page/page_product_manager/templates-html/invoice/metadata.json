@@ -1,0 +1,64 @@
+{
+  "id": "invoice",
+  "name": "Printable Invoice",
+  "description": "标准发票: 寄件/收件 + 明细 + 税 + 总额 + 付款指引",
+  "usage": "【模板: 可打印发票】 标准发票: 寄件/收件 + 明细 + 税 + 总额 + 付款指引",
+  "tags": [
+    "invoice",
+    "bill",
+    "发票",
+    "category:finance",
+    "scenario:finance",
+    "aspect:A4"
+  ],
+  "trigger_terms": [
+    "invoice",
+    "可打印发票",
+    "Printable Invoice",
+    "标准发票: 寄件/收件 + 明细 + 税 + 总额 + 付款指引",
+    "finance",
+    "A4",
+    "bill",
+    "发票",
+    "category:finance",
+    "scenario:finance",
+    "aspect:A4"
+  ],
+  "best_for": [
+    "标准发票: 寄件/收件 + 明细 + 税 + 总额 + 付款指引",
+    "Requests that need finance pages.",
+    "Briefs matching scenario: finance.",
+    "Use when the user asks for 可打印发票."
+  ],
+  "avoid_for": [
+    "Requests unrelated to this template category or scenario.",
+    "Cases where the user explicitly asks for a different medium, layout, or visual style."
+  ],
+  "layout_rules": [
+    "【布局】",
+    "Header: 发票号 / 日期 / 截止日",
+    "From / Bill to 两块",
+    "Line items table (描述 / 数量 / 单价 / 金额)",
+    "Tax breakdown + Totals (右对齐)"
+  ],
+  "style_rules": [
+    "@media print 样式; 颜色对比保留",
+    "【设计细节】",
+    "Header: 发票号 / 日期 / 截止日",
+    "From / Bill to 两块",
+    "Line items table (描述 / 数量 / 单价 / 金额)"
+  ],
+  "content_rules": [
+    "Header: 发票号 / 日期 / 截止日",
+    "From / Bill to 两块",
+    "Line items table (描述 / 数量 / 单价 / 金额)",
+    "Tax breakdown + Totals (右对齐)",
+    "Payment instructions 区"
+  ],
+  "quality_checks": [
+    "Use the reference HTML as a style and structure guide, not as final placeholder content.",
+    "Preserve user-provided facts, numbers, dates, and claims.",
+    "Return one complete standalone HTML file with no markdown wrapper.",
+    "Keep visible text readable and avoid overlapping UI or content blocks."
+  ]
+}

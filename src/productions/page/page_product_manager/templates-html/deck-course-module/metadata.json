@@ -1,0 +1,68 @@
+{
+  "id": "deck-course-module",
+  "name": "Course Module Deck",
+  "description": "暖纸背景 + Playfair, 左侧学习目标常驻, 含 MCQ 自测页",
+  "usage": "【模板: 课程 / 培训模块 Deck】 暖纸背景 + Playfair, 左侧学习目标常驻, 含 MCQ 自测页",
+  "tags": [
+    "course",
+    "workshop",
+    "training",
+    "教学",
+    "category:slides",
+    "scenario:education",
+    "aspect:16:9"
+  ],
+  "trigger_terms": [
+    "deck-course-module",
+    "课程 / 培训 Deck",
+    "Course Module Deck",
+    "暖纸背景 + Playfair, 左侧学习目标常驻, 含 MCQ 自测页",
+    "slides",
+    "education",
+    "16:9",
+    "deck",
+    "course",
+    "module",
+    "workshop",
+    "training",
+    "教学",
+    "category:slides",
+    "scenario:education",
+    "aspect:16:9"
+  ],
+  "best_for": [
+    "暖纸背景 + Playfair, 左侧学习目标常驻, 含 MCQ 自测页",
+    "Requests that need presentation and deck-style storytelling.",
+    "Briefs matching scenario: education.",
+    "Use when the user asks for 课程 / 培训 Deck."
+  ],
+  "avoid_for": [
+    "Requests unrelated to this template category or scenario.",
+    "Cases where the user explicitly asks for a different medium, layout, or visual style."
+  ],
+  "layout_rules": [
+    "【模板: 课程 / 培训模块 Deck】",
+    "【意图】教学 / workshop 用 deck, 持续显示学习目标。",
+    "【布局】"
+  ],
+  "style_rules": [
+    "【设计细节】",
+    "Cover (模块名 + 讲师)",
+    "Learning objectives 列表 (左侧持续显示)",
+    "正文页 (concept + 例子)",
+    "MCQ 自测页"
+  ],
+  "content_rules": [
+    "Cover (模块名 + 讲师)",
+    "Learning objectives 列表 (左侧持续显示)",
+    "正文页 (concept + 例子)",
+    "MCQ 自测页",
+    "Wrap-up + 下一模块预告"
+  ],
+  "quality_checks": [
+    "Use the reference HTML as a style and structure guide, not as final placeholder content.",
+    "Preserve user-provided facts, numbers, dates, and claims.",
+    "Return one complete standalone HTML file with no markdown wrapper.",
+    "Keep visible text readable and avoid overlapping UI or content blocks."
+  ]
+}

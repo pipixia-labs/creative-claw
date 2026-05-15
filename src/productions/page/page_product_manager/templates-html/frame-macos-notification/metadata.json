@@ -1,0 +1,66 @@
+{
+  "id": "frame-macos-notification",
+  "name": "macOS Notification Banner",
+  "description": "拟真 macOS 通知 banner + app icon + 标题正文, 适合 video overlay / 产品发布预告",
+  "usage": "【模板: macOS 通知横幅】 拟真 macOS 通知 banner + app icon + 标题正文, 适合 video overlay / 产品发布预告",
+  "tags": [
+    "macos",
+    "notification",
+    "banner",
+    "overlay",
+    "frame",
+    "category:card",
+    "scenario:video",
+    "aspect:1920×1080 视频或 480×120 横幅"
+  ],
+  "trigger_terms": [
+    "frame-macos-notification",
+    "macOS 通知横幅",
+    "macOS Notification Banner",
+    "拟真 macOS 通知 banner + app icon + 标题正文, 适合 video overlay / 产品发布预告",
+    "card",
+    "video",
+    "1920×1080 视频或 480×120 横幅",
+    "frame",
+    "macos",
+    "notification",
+    "banner",
+    "overlay",
+    "category:card",
+    "scenario:video",
+    "aspect:1920×1080 视频或 480×120 横幅",
+    "macOS 通知 · 新功能发布",
+    "Big Sur 磨砂玻璃 banner"
+  ],
+  "best_for": [
+    "拟真 macOS 通知 banner + app icon + 标题正文, 适合 video overlay / 产品发布预告",
+    "Requests that need social card and shareable visual content.",
+    "Briefs matching scenario: video.",
+    "Use when the user asks for macOS 通知横幅."
+  ],
+  "avoid_for": [
+    "Requests unrelated to this template category or scenario.",
+    "Cases where the user explicitly asks for a different medium, layout, or visual style."
+  ],
+  "layout_rules": [
+    "【意图】把一段公告 / 消息 / 提示渲染成 macOS Big Sur+ 风格的通知横幅, 适合视频角落叠加、产品发布预告、社媒图。Inspired by hyperframes macos-notification。",
+    "【画布】两种用法:",
+    "【横幅结构】"
+  ],
+  "style_rules": [
+    "背景: **frosted glass** 效果 — `background: rgba(245,245,247,0.78)` + `backdrop-filter: blur(40px) saturate(180%)`; 暗色版 `rgba(28,28,30,0.78)`。",
+    "入场动效: 从屏幕外右侧滑入 `transform: translateX(110%)→0`, 200ms ease-out; 可被 `prefers-reduced-motion` 关闭。",
+    "light mode 背景白磨砂, dark mode (推荐 video) 几乎黑磨砂。"
+  ],
+  "content_rules": [
+    "标题 (15px, weight 600, 1 行截断)。",
+    "必须用用户提供的内容; 标题 + 正文清晰来自用户输入。",
+    "【内容】"
+  ],
+  "quality_checks": [
+    "Use the reference HTML as a style and structure guide, not as final placeholder content.",
+    "Preserve user-provided facts, numbers, dates, and claims.",
+    "Return one complete standalone HTML file with no markdown wrapper.",
+    "Keep visible text readable and avoid overlapping UI or content blocks."
+  ]
+}

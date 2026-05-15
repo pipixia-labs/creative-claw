@@ -1,0 +1,67 @@
+{
+  "id": "ppt-keynote",
+  "name": "Keynote-style Slides",
+  "description": "苹果 Keynote 级别幻灯片, 一屏一卡, 键盘左右切换",
+  "usage": "【模板: Keynote 风格 PPT】 苹果 Keynote 级别幻灯片, 一屏一卡, 键盘左右切换",
+  "tags": [
+    "slides",
+    "deck",
+    "presentation",
+    "幻灯片",
+    "演讲",
+    "category:slides",
+    "scenario:marketing",
+    "aspect:16:9 (1280×720)"
+  ],
+  "trigger_terms": [
+    "ppt-keynote",
+    "Keynote 风格 PPT",
+    "Keynote-style Slides",
+    "苹果 Keynote 级别幻灯片, 一屏一卡, 键盘左右切换",
+    "slides",
+    "marketing",
+    "16:9 (1280×720)",
+    "ppt",
+    "keynote",
+    "deck",
+    "presentation",
+    "幻灯片",
+    "演讲",
+    "category:slides",
+    "scenario:marketing",
+    "aspect:16:9 (1280×720)",
+    "Keynote PPT · 产品介绍",
+    "7 张幻灯片讲清产品"
+  ],
+  "best_for": [
+    "苹果 Keynote 级别幻灯片, 一屏一卡, 键盘左右切换",
+    "Requests that need presentation and deck-style storytelling.",
+    "Briefs matching scenario: marketing.",
+    "Use when the user asks for Keynote 风格 PPT."
+  ],
+  "avoid_for": [
+    "Requests unrelated to this template category or scenario.",
+    "Cases where the user explicitly asks for a different medium, layout, or visual style."
+  ],
+  "layout_rules": [
+    "每张幻灯片是一个 `<section class=\"slide\">`, 整体宽 1280 高 720, 居中显示, 背景渐变。",
+    "加一段 JavaScript 监听 ArrowLeft / ArrowRight / 空格键切换 slide; 同时维护 hash (#/3)。",
+    "保持留白, 数据卡片用 grid 布局对齐, 颜色克制。"
+  ],
+  "style_rules": [
+    "每张幻灯片是一个 `<section class=\"slide\">`, 整体宽 1280 高 720, 居中显示, 背景渐变。",
+    "字号: 标题 `text-7xl font-semibold tracking-tight`, 副标题 `text-2xl text-neutral-500`。",
+    "保持留白, 数据卡片用 grid 布局对齐, 颜色克制。"
+  ],
+  "content_rules": [
+    "单页内容极简: 大标题 + 1-3 行支持文字; 或一张数据图; 或一个金句。",
+    "字号: 标题 `text-7xl font-semibold tracking-tight`, 副标题 `text-2xl text-neutral-500`。",
+    "保持留白, 数据卡片用 grid 布局对齐, 颜色克制。"
+  ],
+  "quality_checks": [
+    "Use the reference HTML as a style and structure guide, not as final placeholder content.",
+    "Preserve user-provided facts, numbers, dates, and claims.",
+    "Return one complete standalone HTML file with no markdown wrapper.",
+    "Keep visible text readable and avoid overlapping UI or content blocks."
+  ]
+}

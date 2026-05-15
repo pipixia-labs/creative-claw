@@ -1,0 +1,66 @@
+{
+  "id": "social-media-matrix",
+  "name": "Social Media Matrix Tracker",
+  "description": "电影感多平台社媒分析: 互动图、悬浮洞察、区间对比、明暗主题",
+  "usage": "【模板: 社媒矩阵追踪 (Social Matrix Tracker)】 电影感多平台社媒分析: 互动图、悬浮洞察、区间对比、明暗主题",
+  "tags": [
+    "matrix",
+    "tracker",
+    "multi-platform",
+    "category:dashboard",
+    "scenario:creator",
+    "aspect:桌面长页"
+  ],
+  "trigger_terms": [
+    "social-media-matrix",
+    "社媒矩阵追踪面板",
+    "Social Media Matrix Tracker",
+    "电影感多平台社媒分析: 互动图、悬浮洞察、区间对比、明暗主题",
+    "dashboard",
+    "creator",
+    "桌面长页",
+    "social",
+    "media",
+    "matrix",
+    "tracker",
+    "multi-platform",
+    "category:dashboard",
+    "scenario:creator",
+    "aspect:桌面长页"
+  ],
+  "best_for": [
+    "电影感多平台社媒分析: 互动图、悬浮洞察、区间对比、明暗主题",
+    "Requests that need dashboard and operational views.",
+    "Briefs matching scenario: creator.",
+    "Use when the user asks for 社媒矩阵追踪面板."
+  ],
+  "avoid_for": [
+    "Requests unrelated to this template category or scenario.",
+    "Cases where the user explicitly asks for a different medium, layout, or visual style."
+  ],
+  "layout_rules": [
+    "Hero header (统一品牌 + 时间窗 + 主题切换)",
+    "Top posts grid",
+    "【布局】"
+  ],
+  "style_rules": [
+    "【设计细节】",
+    "Hero header (统一品牌 + 时间窗 + 主题切换)",
+    "Multi-platform KPI matrix (横 platform × 纵 metric)",
+    "交互式 charts (hover tooltip + range compare)",
+    "Insights drawer (右抽屉, 文字洞察)"
+  ],
+  "content_rules": [
+    "dark / light 切换; 数据用 seed 兜底",
+    "【意图】电影感、数据密集的多平台社媒看板。",
+    "Hero header (统一品牌 + 时间窗 + 主题切换)",
+    "Multi-platform KPI matrix (横 platform × 纵 metric)",
+    "交互式 charts (hover tooltip + range compare)"
+  ],
+  "quality_checks": [
+    "Use the reference HTML as a style and structure guide, not as final placeholder content.",
+    "Preserve user-provided facts, numbers, dates, and claims.",
+    "Return one complete standalone HTML file with no markdown wrapper.",
+    "Keep visible text readable and avoid overlapping UI or content blocks."
+  ]
+}

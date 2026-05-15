@@ -1,0 +1,64 @@
+{
+  "id": "video-hyperframes",
+  "name": "Hyperframes Video",
+  "description": "Hyperframes / Remotion 兼容的连续帧动画, 可自动播放",
+  "usage": "【模板: Hyperframes 视频帧】 Hyperframes / Remotion 兼容的连续帧动画, 可自动播放",
+  "tags": [
+    "video",
+    "hyperframes",
+    "remotion",
+    "视频",
+    "category:video",
+    "scenario:video",
+    "aspect:1920×1080 (16:9)"
+  ],
+  "trigger_terms": [
+    "video-hyperframes",
+    "Hyperframes 视频脚本",
+    "Hyperframes Video",
+    "Hyperframes / Remotion 兼容的连续帧动画, 可自动播放",
+    "video",
+    "1920×1080 (16:9)",
+    "hyperframes",
+    "remotion",
+    "视频",
+    "category:video",
+    "scenario:video",
+    "aspect:1920×1080 (16:9)",
+    "Hyperframes · AI workflow 视频",
+    "8 帧自动播放, 含进度条 + 元数据"
+  ],
+  "best_for": [
+    "Hyperframes / Remotion 兼容的连续帧动画, 可自动播放",
+    "Requests that need video frames and motion-oriented visual scenes.",
+    "Briefs matching scenario: video.",
+    "Use when the user asks for Hyperframes 视频脚本."
+  ],
+  "avoid_for": [
+    "Requests unrelated to this template category or scenario.",
+    "Cases where the user explicitly asks for a different medium, layout, or visual style."
+  ],
+  "layout_rules": [
+    "输出 N 个连续 `<section class=\"frame\">`, 每个 `w-[1920px] h-[1080px]`; N 由【用户内容】信息密度决定 (短脚本 6-10 帧起步, 长脚本应更多, 每帧只承载一个镜头/概念)。",
+    "每帧底部隐藏标记 `<!-- frame:N duration:3000 transition:fade -->` 供后续 Remotion / Hyperframes 渲染脚本读取。",
+    "输出最后包含一段简短注释 `<!-- HYPERFRAMES_META: ... -->`, 包含每帧 duration / transition / sceneSummary 的 JSON 元数据, 用于后续转 Remotion。"
+  ],
+  "style_rules": [
+    "每帧底部隐藏标记 `<!-- frame:N duration:3000 transition:fade -->` 供后续 Remotion / Hyperframes 渲染脚本读取。",
+    "字号巨大 (text-9xl), 一句话即可, 不要堆砌。",
+    "配色统一一套电影感 (深色背景 + 1 个霓虹强调色)。",
+    "输出最后包含一段简短注释 `<!-- HYPERFRAMES_META: ... -->`, 包含每帧 duration / transition / sceneSummary 的 JSON 元数据, 用于后续转 Remotion。"
+  ],
+  "content_rules": [
+    "输出 N 个连续 `<section class=\"frame\">`, 每个 `w-[1920px] h-[1080px]`; N 由【用户内容】信息密度决定 (短脚本 6-10 帧起步, 长脚本应更多, 每帧只承载一个镜头/概念)。",
+    "第 1 帧是 hook (一个数据 / 一个反常识 / 一个问题), 第 2-N 是论证, 最后是结论 + CTA。",
+    "字号巨大 (text-9xl), 一句话即可, 不要堆砌。",
+    "输出最后包含一段简短注释 `<!-- HYPERFRAMES_META: ... -->`, 包含每帧 duration / transition / sceneSummary 的 JSON 元数据, 用于后续转 Remotion。"
+  ],
+  "quality_checks": [
+    "Use the reference HTML as a style and structure guide, not as final placeholder content.",
+    "Preserve user-provided facts, numbers, dates, and claims.",
+    "Return one complete standalone HTML file with no markdown wrapper.",
+    "Keep visible text readable and avoid overlapping UI or content blocks."
+  ]
+}

@@ -1,0 +1,68 @@
+{
+  "id": "pm-spec",
+  "name": "Product Spec / PRD",
+  "description": "问题 + 成功指标 + 范围 + user stories + 设计 + 发布 + 待解决",
+  "usage": "【模板: PRD / Product Spec】 问题 + 成功指标 + 范围 + user stories + 设计 + 发布 + 待解决",
+  "tags": [
+    "prd",
+    "spec",
+    "需求",
+    "product",
+    "category:doc",
+    "scenario:product",
+    "aspect:长页面"
+  ],
+  "trigger_terms": [
+    "pm-spec",
+    "PRD / 产品 Spec",
+    "Product Spec / PRD",
+    "问题 + 成功指标 + 范围 + user stories + 设计 + 发布 + 待解决",
+    "doc",
+    "product",
+    "长页面",
+    "pm",
+    "spec",
+    "prd",
+    "需求",
+    "category:doc",
+    "scenario:product",
+    "aspect:长页面"
+  ],
+  "best_for": [
+    "问题 + 成功指标 + 范围 + user stories + 设计 + 发布 + 待解决",
+    "Requests that need doc pages.",
+    "Briefs matching scenario: product.",
+    "Use when the user asks for PRD / 产品 Spec."
+  ],
+  "avoid_for": [
+    "Requests unrelated to this template category or scenario.",
+    "Cases where the user explicitly asks for a different medium, layout, or visual style."
+  ],
+  "layout_rules": [
+    "【意图】产品需求文档单页, 结构清晰。",
+    "【布局】",
+    "Title bar + 状态 pill (draft/approved/shipped)",
+    "Problem & Why now",
+    "Success metrics (3-5 个 KPI)"
+  ],
+  "style_rules": [
+    "Title bar + 状态 pill (draft/approved/shipped)",
+    "Problem & Why now",
+    "Success metrics (3-5 个 KPI)",
+    "Scope (in / out)",
+    "User stories (Given/When/Then)"
+  ],
+  "content_rules": [
+    "Title bar + 状态 pill (draft/approved/shipped)",
+    "Problem & Why now",
+    "Success metrics (3-5 个 KPI)",
+    "Scope (in / out)",
+    "User stories (Given/When/Then)"
+  ],
+  "quality_checks": [
+    "Use the reference HTML as a style and structure guide, not as final placeholder content.",
+    "Preserve user-provided facts, numbers, dates, and claims.",
+    "Return one complete standalone HTML file with no markdown wrapper.",
+    "Keep visible text readable and avoid overlapping UI or content blocks."
+  ]
+}

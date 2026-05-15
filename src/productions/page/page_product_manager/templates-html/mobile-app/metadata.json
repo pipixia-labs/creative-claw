@@ -1,0 +1,67 @@
+{
+  "id": "mobile-app",
+  "name": "Mobile App Screen",
+  "description": "像素级 iPhone 15 Pro 边框, 一屏 app 截图",
+  "usage": "【模板: iPhone 单屏 App】 像素级 iPhone 15 Pro 边框, 一屏 app 截图",
+  "tags": [
+    "mobile",
+    "ios",
+    "app",
+    "phone",
+    "category:mobile",
+    "scenario:design",
+    "aspect:iPhone 15 Pro frame"
+  ],
+  "trigger_terms": [
+    "mobile-app",
+    "iPhone App 单屏",
+    "Mobile App Screen",
+    "像素级 iPhone 15 Pro 边框, 一屏 app 截图",
+    "mobile",
+    "design",
+    "iPhone 15 Pro frame",
+    "app",
+    "ios",
+    "phone",
+    "category:mobile",
+    "scenario:design",
+    "aspect:iPhone 15 Pro frame"
+  ],
+  "best_for": [
+    "像素级 iPhone 15 Pro 边框, 一屏 app 截图",
+    "Requests that need mobile pages.",
+    "Briefs matching scenario: design.",
+    "Use when the user asks for iPhone App 单屏."
+  ],
+  "avoid_for": [
+    "Requests unrelated to this template category or scenario.",
+    "Cases where the user explicitly asks for a different medium, layout, or visual style."
+  ],
+  "layout_rules": [
+    "【意图】一个屏幕的 mobile app 设计, 放在像素级 iPhone 15 Pro frame 里。",
+    "【布局】",
+    "Status bar (时间 + 电池 + 信号)",
+    "App header (标题 / 头像 / 搜索)",
+    "Main content (一个清晰的 archetype: feed / list / detail / form)"
+  ],
+  "style_rules": [
+    "【意图】一个屏幕的 mobile app 设计, 放在像素级 iPhone 15 Pro frame 里。",
+    "【设计细节】",
+    "Status bar (时间 + 电池 + 信号)",
+    "App header (标题 / 头像 / 搜索)",
+    "Main content (一个清晰的 archetype: feed / list / detail / form)"
+  ],
+  "content_rules": [
+    "App header (标题 / 头像 / 搜索)",
+    "Status bar (时间 + 电池 + 信号)",
+    "Main content (一个清晰的 archetype: feed / list / detail / form)",
+    "Bottom tab bar (4-5 tab)",
+    "真实的 dynamic island; safe-area 留白"
+  ],
+  "quality_checks": [
+    "Use the reference HTML as a style and structure guide, not as final placeholder content.",
+    "Preserve user-provided facts, numbers, dates, and claims.",
+    "Return one complete standalone HTML file with no markdown wrapper.",
+    "Keep visible text readable and avoid overlapping UI or content blocks."
+  ]
+}

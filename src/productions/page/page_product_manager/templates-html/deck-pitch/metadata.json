@@ -1,0 +1,67 @@
+{
+  "id": "deck-pitch",
+  "name": "Investor Pitch Deck",
+  "description": "10 页融资 deck, 白底 + 蓝紫渐变 hero, traction 柱状, $X.XM ask",
+  "usage": "【模板: Investor Pitch Deck】 10 页融资 deck, 白底 + 蓝紫渐变 hero, traction 柱状, $X.XM ask",
+  "tags": [
+    "pitch",
+    "investor",
+    "seed",
+    "vc",
+    "category:slides",
+    "scenario:finance",
+    "aspect:16:9 ×10"
+  ],
+  "trigger_terms": [
+    "deck-pitch",
+    "投资人 Pitch Deck",
+    "Investor Pitch Deck",
+    "10 页融资 deck, 白底 + 蓝紫渐变 hero, traction 柱状, $X.XM ask",
+    "slides",
+    "finance",
+    "16:9 ×10",
+    "deck",
+    "pitch",
+    "investor",
+    "seed",
+    "vc",
+    "category:slides",
+    "scenario:finance",
+    "aspect:16:9 ×10"
+  ],
+  "best_for": [
+    "10 页融资 deck, 白底 + 蓝紫渐变 hero, traction 柱状, $X.XM ask",
+    "Requests that need presentation and deck-style storytelling.",
+    "Briefs matching scenario: finance.",
+    "Use when the user asks for 投资人 Pitch Deck."
+  ],
+  "avoid_for": [
+    "Requests unrelated to this template category or scenario.",
+    "Cases where the user explicitly asks for a different medium, layout, or visual style."
+  ],
+  "layout_rules": [
+    "【模板: Investor Pitch Deck】",
+    "【意图】10 页投资人 ready 的 fundraising deck。",
+    "【布局】"
+  ],
+  "style_rules": [
+    "Ask: $4.5M-style page",
+    "Cover (Logo + Tagline + Round/$Ask)",
+    "Problem · Solution · Why Now",
+    "Product (截图占位)",
+    "Market size (TAM/SAM/SOM)"
+  ],
+  "content_rules": [
+    "Cover (Logo + Tagline + Round/$Ask)",
+    "Problem · Solution · Why Now",
+    "Product (截图占位)",
+    "Market size (TAM/SAM/SOM)",
+    "Traction (柱状图大数字)"
+  ],
+  "quality_checks": [
+    "Use the reference HTML as a style and structure guide, not as final placeholder content.",
+    "Preserve user-provided facts, numbers, dates, and claims.",
+    "Return one complete standalone HTML file with no markdown wrapper.",
+    "Keep visible text readable and avoid overlapping UI or content blocks."
+  ]
+}

@@ -1,0 +1,68 @@
+{
+  "id": "mobile-onboarding",
+  "name": "Mobile Onboarding",
+  "description": "三个手机框并排: splash / value-prop / sign-in",
+  "usage": "【模板: App 引导三屏】 三个手机框并排: splash / value-prop / sign-in",
+  "tags": [
+    "onboarding",
+    "ios",
+    "signup",
+    "引导",
+    "category:mobile",
+    "scenario:design",
+    "aspect:3 × iPhone"
+  ],
+  "trigger_terms": [
+    "mobile-onboarding",
+    "App 引导多屏",
+    "Mobile Onboarding",
+    "三个手机框并排: splash / value-prop / sign-in",
+    "mobile",
+    "design",
+    "3 × iPhone",
+    "onboarding",
+    "ios",
+    "signup",
+    "引导",
+    "category:mobile",
+    "scenario:design",
+    "aspect:3 × iPhone"
+  ],
+  "best_for": [
+    "三个手机框并排: splash / value-prop / sign-in",
+    "Requests that need mobile pages.",
+    "Briefs matching scenario: design.",
+    "Use when the user asks for App 引导多屏."
+  ],
+  "avoid_for": [
+    "Requests unrelated to this template category or scenario.",
+    "Cases where the user explicitly asks for a different medium, layout, or visual style."
+  ],
+  "layout_rules": [
+    "【布局】",
+    "Phone 1: Splash (logo + tagline)",
+    "Phone 2: Value-prop (illustration + 1 句 + dot indicators)",
+    "Phone 3: Sign-in (email / Apple / Google + 主 CTA)",
+    "【模板: App 引导三屏】"
+  ],
+  "style_rules": [
+    "Phone 1: Splash (logo + tagline)",
+    "Phone 2: Value-prop (illustration + 1 句 + dot indicators)",
+    "Phone 3: Sign-in (email / Apple / Google + 主 CTA)",
+    "【模板: App 引导三屏】",
+    "【意图】并排展示三个 mobile onboarding 关键屏。"
+  ],
+  "content_rules": [
+    "Phone 3: Sign-in (email / Apple / Google + 主 CTA)",
+    "Phone 1: Splash (logo + tagline)",
+    "Phone 2: Value-prop (illustration + 1 句 + dot indicators)",
+    "【模板: App 引导三屏】",
+    "【意图】并排展示三个 mobile onboarding 关键屏。"
+  ],
+  "quality_checks": [
+    "Use the reference HTML as a style and structure guide, not as final placeholder content.",
+    "Preserve user-provided facts, numbers, dates, and claims.",
+    "Return one complete standalone HTML file with no markdown wrapper.",
+    "Keep visible text readable and avoid overlapping UI or content blocks."
+  ]
+}

@@ -1,0 +1,67 @@
+{
+  "id": "pricing-page",
+  "name": "Pricing Page",
+  "description": "三档定价 + 特性对比表 + FAQ",
+  "usage": "【模板: 定价页】 三档定价 + 特性对比表 + FAQ",
+  "tags": [
+    "pricing",
+    "plans",
+    "定价",
+    "category:prototype",
+    "scenario:sales",
+    "aspect:桌面 1440"
+  ],
+  "trigger_terms": [
+    "pricing-page",
+    "定价页",
+    "Pricing Page",
+    "三档定价 + 特性对比表 + FAQ",
+    "prototype",
+    "sales",
+    "桌面 1440",
+    "pricing",
+    "page",
+    "plans",
+    "定价",
+    "category:prototype",
+    "scenario:sales",
+    "aspect:桌面 1440"
+  ],
+  "best_for": [
+    "三档定价 + 特性对比表 + FAQ",
+    "Requests that need web pages and product prototypes.",
+    "Briefs matching scenario: sales.",
+    "Use when the user asks for 定价页."
+  ],
+  "avoid_for": [
+    "Requests unrelated to this template category or scenario.",
+    "Cases where the user explicitly asks for a different medium, layout, or visual style."
+  ],
+  "layout_rules": [
+    "3 档定价卡片 (Free / Pro / Enterprise), 中间档 popular 高亮",
+    "【布局】",
+    "Header + monthly/annual 切换",
+    "完整特性对比表 (✓ / – / 不同档勾)",
+    "FAQ (details/summary)"
+  ],
+  "style_rules": [
+    "Header + monthly/annual 切换",
+    "3 档定价卡片 (Free / Pro / Enterprise), 中间档 popular 高亮",
+    "完整特性对比表 (✓ / – / 不同档勾)",
+    "FAQ (details/summary)",
+    "底部 CTA"
+  ],
+  "content_rules": [
+    "底部 CTA",
+    "Header + monthly/annual 切换",
+    "3 档定价卡片 (Free / Pro / Enterprise), 中间档 popular 高亮",
+    "完整特性对比表 (✓ / – / 不同档勾)",
+    "FAQ (details/summary)"
+  ],
+  "quality_checks": [
+    "Use the reference HTML as a style and structure guide, not as final placeholder content.",
+    "Preserve user-provided facts, numbers, dates, and claims.",
+    "Return one complete standalone HTML file with no markdown wrapper.",
+    "Keep visible text readable and avoid overlapping UI or content blocks."
+  ]
+}

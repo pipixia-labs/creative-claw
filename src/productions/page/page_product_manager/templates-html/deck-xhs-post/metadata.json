@@ -1,0 +1,68 @@
+{
+  "id": "deck-xhs-post",
+  "name": "Xiaohongshu Post Deck",
+  "description": "9 页 3:4 竖版图文, 暖 pastel + 虚线 sticker 卡片",
+  "usage": "【模板: 小红书 / Instagram Carousel】 9 页 3:4 竖版图文, 暖 pastel + 虚线 sticker 卡片",
+  "tags": [
+    "xhs",
+    "instagram",
+    "carousel",
+    "category:slides",
+    "scenario:marketing",
+    "aspect:810×1080 ×9"
+  ],
+  "trigger_terms": [
+    "deck-xhs-post",
+    "小红书图文 Deck",
+    "Xiaohongshu Post Deck",
+    "9 页 3:4 竖版图文, 暖 pastel + 虚线 sticker 卡片",
+    "slides",
+    "marketing",
+    "810×1080 ×9",
+    "deck",
+    "xhs",
+    "post",
+    "instagram",
+    "carousel",
+    "category:slides",
+    "scenario:marketing",
+    "aspect:810×1080 ×9"
+  ],
+  "best_for": [
+    "9 页 3:4 竖版图文, 暖 pastel + 虚线 sticker 卡片",
+    "Requests that need presentation and deck-style storytelling.",
+    "Briefs matching scenario: marketing.",
+    "Use when the user asks for 小红书图文 Deck."
+  ],
+  "avoid_for": [
+    "Requests unrelated to this template category or scenario.",
+    "Cases where the user explicitly asks for a different medium, layout, or visual style."
+  ],
+  "layout_rules": [
+    "虚线 sticker 卡片 + 底部页码 dots",
+    "【布局】",
+    "Cover + N 个 content 页 + 收尾 CTA (N 由【用户内容】决定, 完整覆盖每个要点; 短内容 7 页起步, 长内容应更多, 受小红书平台单帖图片数约束建议总数 ≤ 18)",
+    "暖色 pastel 背景",
+    "【模板: 小红书 / Instagram Carousel】"
+  ],
+  "style_rules": [
+    "暖色 pastel 背景",
+    "Cover + N 个 content 页 + 收尾 CTA (N 由【用户内容】决定, 完整覆盖每个要点; 短内容 7 页起步, 长内容应更多, 受小红书平台单帖图片数约束建议总数 ≤ 18)",
+    "虚线 sticker 卡片 + 底部页码 dots",
+    "【模板: 小红书 / Instagram Carousel】",
+    "【意图】发小红书 / IG carousel 的 9 页 3:4 竖版图文。"
+  ],
+  "content_rules": [
+    "Cover + N 个 content 页 + 收尾 CTA (N 由【用户内容】决定, 完整覆盖每个要点; 短内容 7 页起步, 长内容应更多, 受小红书平台单帖图片数约束建议总数 ≤ 18)",
+    "暖色 pastel 背景",
+    "虚线 sticker 卡片 + 底部页码 dots",
+    "【模板: 小红书 / Instagram Carousel】",
+    "【意图】发小红书 / IG carousel 的 9 页 3:4 竖版图文。"
+  ],
+  "quality_checks": [
+    "Use the reference HTML as a style and structure guide, not as final placeholder content.",
+    "Preserve user-provided facts, numbers, dates, and claims.",
+    "Return one complete standalone HTML file with no markdown wrapper.",
+    "Keep visible text readable and avoid overlapping UI or content blocks."
+  ]
+}

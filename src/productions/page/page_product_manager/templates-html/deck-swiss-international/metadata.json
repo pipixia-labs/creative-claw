@@ -1,0 +1,74 @@
+{
+  "id": "deck-swiss-international",
+  "name": "Swiss International Deck",
+  "description": "16 列网格 + 单一饱和 accent + 22 个锁死版面 (Klein Blue / Lemon / Mint / Safety Orange)",
+  "usage": "【模板: 瑞士国际主义 Deck (Swiss International)】 16 列网格 + 单一饱和 accent + 22 个锁死版面 (Klein Blue / Lemon / Mint / Safety Orange)",
+  "tags": [
+    "swiss",
+    "grid",
+    "international",
+    "ikb",
+    "editorial",
+    "facts",
+    "category:slides",
+    "scenario:marketing",
+    "aspect:16:9 横向翻页"
+  ],
+  "trigger_terms": [
+    "deck-swiss-international",
+    "瑞士国际主义 Deck",
+    "Swiss International Deck",
+    "16 列网格 + 单一饱和 accent + 22 个锁死版面 (Klein Blue / Lemon / Mint / Safety Orange)",
+    "slides",
+    "marketing",
+    "16:9 横向翻页",
+    "deck",
+    "swiss",
+    "international",
+    "grid",
+    "ikb",
+    "editorial",
+    "facts",
+    "category:slides",
+    "scenario:marketing",
+    "aspect:16:9 横向翻页",
+    "Swiss International · 产品路线",
+    "Klein Blue IKB + 16 列网格"
+  ],
+  "best_for": [
+    "16 列网格 + 单一饱和 accent + 22 个锁死版面 (Klein Blue / Lemon / Mint / Safety Orange)",
+    "Requests that need presentation and deck-style storytelling.",
+    "Briefs matching scenario: marketing.",
+    "Use when the user asks for 瑞士国际主义 Deck."
+  ],
+  "avoid_for": [
+    "Requests unrelated to this template category or scenario.",
+    "Cases where the user explicitly asks for a different medium, layout, or visual style."
+  ],
+  "layout_rules": [
+    "**S05 Three Sub-cards** — 左侧 hero 标题 + 右侧 3 张水平堆叠的灰色卡。",
+    "**S13 Three Forces Cards** — 左 ink hero 块; 右 3 张灰色卡, 每卡: 大数字 + 文本。",
+    "**S15 Image Matrix + Hero Stat** — 4×3 等高卡片 (12 项) + 底部 summary 大数字 + 标签。",
+    "**S22 Image Hero** — 上 60% 全宽图 + 白色标题块覆盖; 下 40% 解释 + 3 列 KPI。",
+    "**16 列网格**: `grid-template-columns: repeat(16, 1fr); gap: 0`。"
+  ],
+  "style_rules": [
+    "🔵 **Klein Blue (IKB)** — accent `#002FA7`, paper `#fafaf8`, ink `#0a0a0a`. 商业 / AI / 设计场景。",
+    "**1px hairline borders**, 黑色或 accent; 严禁阴影 / 渐变 / blur。",
+    "**字体**: Inter Tight (Latin display) / Inter (body) / Noto Sans SC (中文) / JetBrains Mono (数据); 严禁衬线、严禁装饰字体。",
+    "**字号极端反差**: cover 用 9.6vw display, body 14-16px, label 11px uppercase letterspacing 0.08em。"
+  ],
+  "content_rules": [
+    "🟡 **Lemon Yellow** — accent `#FFD500`, paper `#f7f5ee` (淡奶油), ink `#0a0a0a`. 年轻 / 零售 / 体育。文字必须用黑色 (不能白色)。",
+    "🟢 **Lemon Green / Neon** — accent `#C5E803`, paper `#f7f5ee`, ink `#0a0a0a`. 可持续 / 科技初创 / Gen-Z 品牌。文字必须用黑色。",
+    "**S01 Cover** — 全屏 accent + ASCII 呼吸点阵 + 反白标题 + 元数据 chrome (date / № / topic)。",
+    "**S04 Six Cells** — 2×3 网格, 每格: icon + 编号 + 短标题 + 单行描述。",
+    "**S05 Three Sub-cards** — 左侧 hero 标题 + 右侧 3 张水平堆叠的灰色卡。"
+  ],
+  "quality_checks": [
+    "Use the reference HTML as a style and structure guide, not as final placeholder content.",
+    "Preserve user-provided facts, numbers, dates, and claims.",
+    "Return one complete standalone HTML file with no markdown wrapper.",
+    "Keep visible text readable and avoid overlapping UI or content blocks."
+  ]
+}

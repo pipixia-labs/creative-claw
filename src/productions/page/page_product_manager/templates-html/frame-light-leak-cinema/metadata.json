@@ -1,0 +1,75 @@
+{
+  "id": "frame-light-leak-cinema",
+  "name": "Light-Leak Cinematic Frame",
+  "description": "胶片漏光 + 颗粒噪点 + 16:9 letterbox + 衬线大字, 电影感开场 / 章节卡",
+  "usage": "【模板: 胶片漏光电影帧】 胶片漏光 + 颗粒噪点 + 16:9 letterbox + 衬线大字, 电影感开场 / 章节卡",
+  "tags": [
+    "cinema",
+    "film",
+    "light-leak",
+    "grain",
+    "letterbox",
+    "frame",
+    "category:video",
+    "scenario:video",
+    "aspect:2.39:1 letterbox (1920×800) 或 16:9 (1920×1080)"
+  ],
+  "trigger_terms": [
+    "frame-light-leak-cinema",
+    "胶片漏光电影帧",
+    "Light-Leak Cinematic Frame",
+    "胶片漏光 + 颗粒噪点 + 16:9 letterbox + 衬线大字, 电影感开场 / 章节卡",
+    "video",
+    "2.39:1 letterbox (1920×800) 或 16:9 (1920×1080)",
+    "frame",
+    "light",
+    "leak",
+    "cinema",
+    "film",
+    "light-leak",
+    "grain",
+    "letterbox",
+    "category:video",
+    "scenario:video",
+    "aspect:2.39:1 letterbox (1920×800) 或 16:9 (1920×1080)",
+    "胶片漏光 · REEL 03",
+    "暖橙漏光 + 35mm 颗粒"
+  ],
+  "best_for": [
+    "胶片漏光 + 颗粒噪点 + 16:9 letterbox + 衬线大字, 电影感开场 / 章节卡",
+    "Requests that need video frames and motion-oriented visual scenes.",
+    "Briefs matching scenario: video.",
+    "Use when the user asks for 胶片漏光电影帧."
+  ],
+  "avoid_for": [
+    "Requests unrelated to this template category or scenario.",
+    "Cases where the user explicitly asks for a different medium, layout, or visual style."
+  ],
+  "layout_rules": [
+    "【意图】纪录片 / 个人短片 / 视频章节卡的开场单帧 —— 暖橙漏光 + 35mm 颗粒 + 衬线大字, 古典胶片质感。Inspired by hyperframes light-leak。",
+    "【画布】",
+    "**2.39:1 letterbox** (推荐): 1920×800, 上下黑边各 140px (`#000`)。",
+    "或 16:9: 1920×1080, 无 letterbox。",
+    "底层: 深暖色 (深红棕 `#1a0d08` / 墨绿 `#0a1410` / 蓝紫 `#0d0e1a`) 或场景描绘 (CSS gradient 模拟天空 / 室内 / 室外)。"
+  ],
+  "style_rules": [
+    "**胶片漏光 (Light Leak)**: 2-3 个大 `radial-gradient(ellipse at top right, #ffb547 0%, transparent 50%)` + 1 个底部 `linear-gradient(to top, #d97757 0%, transparent 30%)`; 颜色取暖橙 / 桃 / 玫红 / 暗黄, **不要冷蓝**。",
+    "中央或左下: 大字衬线 (Source Serif Pro / Playfair Display / EB Garamond) 5-8vw, weight 500 italic; 颜色暖白 `#f5e9d6` 或 cream。",
+    "\"胶片划痕\": 几条 1-2px 竖向白线, opacity 0.2, 不规则间距 (用 `box-shadow` 多重 inset 或多个 `<div>`)。",
+    "入场动效: 整画面从 underexposed (brightness 0.3) → normal, 800ms 内; 漏光位置缓慢漂移 12s 一个周期。",
+    "颜色绝不超过 4 个色相 (深背景 + 2 个暖漏光色 + 文字 cream)。"
+  ],
+  "content_rules": [
+    "**胶片漏光 (Light Leak)**: 2-3 个大 `radial-gradient(ellipse at top right, #ffb547 0%, transparent 50%)` + 1 个底部 `linear-gradient(to top, #d97757 0%, transparent 30%)`; 颜色取暖橙 / 桃 / 玫红 / 暗黄, **不要冷蓝**。",
+    "必须用用户提供的标题; 自动估算合理\"年份 / 章节 / 地点\" 元数据 (但来源用户内容)。",
+    "**2.39:1 letterbox** (推荐): 1920×800, 上下黑边各 140px (`#000`)。",
+    "或 16:9: 1920×1080, 无 letterbox。",
+    "底层: 深暖色 (深红棕 `#1a0d08` / 墨绿 `#0a1410` / 蓝紫 `#0d0e1a`) 或场景描绘 (CSS gradient 模拟天空 / 室内 / 室外)。"
+  ],
+  "quality_checks": [
+    "Use the reference HTML as a style and structure guide, not as final placeholder content.",
+    "Preserve user-provided facts, numbers, dates, and claims.",
+    "Return one complete standalone HTML file with no markdown wrapper.",
+    "Keep visible text readable and avoid overlapping UI or content blocks."
+  ]
+}

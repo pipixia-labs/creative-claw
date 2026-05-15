@@ -1,0 +1,70 @@
+{
+  "id": "card-twitter",
+  "name": "Twitter Share Card",
+  "description": "推特金句 / 数据卡, 适合配推文",
+  "usage": "【模板: Twitter 分享卡】 推特金句 / 数据卡, 适合配推文",
+  "tags": [
+    "twitter",
+    "x",
+    "quote",
+    "金句",
+    "category:card",
+    "scenario:marketing",
+    "aspect:1600×900 (16:9)"
+  ],
+  "trigger_terms": [
+    "card-twitter",
+    "Twitter 分享卡",
+    "Twitter Share Card",
+    "推特金句 / 数据卡, 适合配推文",
+    "card",
+    "marketing",
+    "1600×900 (16:9)",
+    "twitter",
+    "x",
+    "quote",
+    "金句",
+    "category:card",
+    "scenario:marketing",
+    "aspect:1600×900 (16:9)",
+    "推特卡 · 金句",
+    "16:9 暗色金句卡, 截图直接配推文"
+  ],
+  "best_for": [
+    "推特金句 / 数据卡, 适合配推文",
+    "Requests that need social card and shareable visual content.",
+    "Briefs matching scenario: marketing.",
+    "Use when the user asks for Twitter 分享卡."
+  ],
+  "avoid_for": [
+    "Requests unrelated to this template category or scenario.",
+    "Cases where the user explicitly asks for a different medium, layout, or visual style."
+  ],
+  "layout_rules": [
+    "中央一句 hero 金句 (text-6xl, font-semibold, 限 2-3 行)。",
+    "整张卡片有微妙的纹理 (grid 网格 / noise / dot pattern)。",
+    "容器 `w-[1600px] h-[900px]`, 暗色 / 亮色二选一根据内容情绪。",
+    "下方作者署名 + 头像占位 + handle。",
+    "左上角小标签 (类型: \"Insight\" / \"Data\" / \"Quote\")。"
+  ],
+  "style_rules": [
+    "中央一句 hero 金句 (text-6xl, font-semibold, 限 2-3 行)。",
+    "容器 `w-[1600px] h-[900px]`, 暗色 / 亮色二选一根据内容情绪。",
+    "下方作者署名 + 头像占位 + handle。",
+    "左上角小标签 (类型: \"Insight\" / \"Data\" / \"Quote\")。",
+    "右下角品牌水印。"
+  ],
+  "content_rules": [
+    "容器 `w-[1600px] h-[900px]`, 暗色 / 亮色二选一根据内容情绪。",
+    "中央一句 hero 金句 (text-6xl, font-semibold, 限 2-3 行)。",
+    "下方作者署名 + 头像占位 + handle。",
+    "左上角小标签 (类型: \"Insight\" / \"Data\" / \"Quote\")。",
+    "右下角品牌水印。"
+  ],
+  "quality_checks": [
+    "Use the reference HTML as a style and structure guide, not as final placeholder content.",
+    "Preserve user-provided facts, numbers, dates, and claims.",
+    "Return one complete standalone HTML file with no markdown wrapper.",
+    "Keep visible text readable and avoid overlapping UI or content blocks."
+  ]
+}

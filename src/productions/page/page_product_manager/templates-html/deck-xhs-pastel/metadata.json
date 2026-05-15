@@ -1,0 +1,66 @@
+{
+  "id": "deck-xhs-pastel",
+  "name": "Pastel Slow-life Deck",
+  "description": "奶油底 + 柔光 blob + 马卡龙圆角卡片 + Playfair 斜体序号",
+  "usage": "【模板: 马卡龙慢生活 Deck】 奶油底 + 柔光 blob + 马卡龙圆角卡片 + Playfair 斜体序号",
+  "tags": [
+    "xhs",
+    "pastel",
+    "lifestyle",
+    "category:slides",
+    "scenario:personal",
+    "aspect:16:9"
+  ],
+  "trigger_terms": [
+    "deck-xhs-pastel",
+    "马卡龙慢生活 Deck",
+    "Pastel Slow-life Deck",
+    "奶油底 + 柔光 blob + 马卡龙圆角卡片 + Playfair 斜体序号",
+    "slides",
+    "personal",
+    "16:9",
+    "deck",
+    "xhs",
+    "pastel",
+    "lifestyle",
+    "category:slides",
+    "scenario:personal",
+    "aspect:16:9"
+  ],
+  "best_for": [
+    "奶油底 + 柔光 blob + 马卡龙圆角卡片 + Playfair 斜体序号",
+    "Requests that need presentation and deck-style storytelling.",
+    "Briefs matching scenario: personal.",
+    "Use when the user asks for 马卡龙慢生活 Deck."
+  ],
+  "avoid_for": [
+    "Requests unrelated to this template category or scenario.",
+    "Cases where the user explicitly asks for a different medium, layout, or visual style."
+  ],
+  "layout_rules": [
+    "28px 圆角马卡龙卡片 (桃 / 薄荷 / 天 / 紫 / 柠 / 玫)",
+    "【模板: 马卡龙慢生活 Deck】",
+    "【意图】生活方式 / 个人成长 / 情绪向内容用 deck。",
+    "【布局】"
+  ],
+  "style_rules": [
+    "奶油 #fef8f1 底 + 三个柔光 blob",
+    "Playfair 斜体衬线 display + sans 正文",
+    "28px 圆角马卡龙卡片 (桃 / 薄荷 / 天 / 紫 / 柠 / 玫)",
+    "Playfair 斜体 01-04 序号",
+    "SVG donut 图 + chip+page 顶栏"
+  ],
+  "content_rules": [
+    "【意图】生活方式 / 个人成长 / 情绪向内容用 deck。",
+    "奶油 #fef8f1 底 + 三个柔光 blob",
+    "Playfair 斜体衬线 display + sans 正文",
+    "28px 圆角马卡龙卡片 (桃 / 薄荷 / 天 / 紫 / 柠 / 玫)",
+    "Playfair 斜体 01-04 序号"
+  ],
+  "quality_checks": [
+    "Use the reference HTML as a style and structure guide, not as final placeholder content.",
+    "Preserve user-provided facts, numbers, dates, and claims.",
+    "Return one complete standalone HTML file with no markdown wrapper.",
+    "Keep visible text readable and avoid overlapping UI or content blocks."
+  ]
+}

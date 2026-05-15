@@ -1,0 +1,70 @@
+{
+  "id": "deck-guizang-editorial",
+  "name": "Guizang Editorial E-Ink Deck",
+  "description": "电子杂志 × 电子墨水; 10 个版面 + 5 套调色板 (墨水/靛蓝瓷/森林墨/牛皮纸/沙丘)",
+  "usage": "【模板: 贵赞编辑墨水 Deck (Editorial × E-Ink)】 电子杂志 × 电子墨水; 10 个版面 + 5 套调色板 (墨水/靛蓝瓷/森林墨/牛皮纸/沙丘)",
+  "tags": [
+    "editorial",
+    "e-ink",
+    "magazine",
+    "narrative",
+    "guizang",
+    "category:slides",
+    "scenario:marketing",
+    "aspect:16:9 横向翻页"
+  ],
+  "trigger_terms": [
+    "deck-guizang-editorial",
+    "贵赞编辑墨水 Deck",
+    "Guizang Editorial E-Ink Deck",
+    "电子杂志 × 电子墨水; 10 个版面 + 5 套调色板 (墨水/靛蓝瓷/森林墨/牛皮纸/沙丘)",
+    "slides",
+    "marketing",
+    "16:9 横向翻页",
+    "deck",
+    "guizang",
+    "editorial",
+    "e-ink",
+    "magazine",
+    "narrative",
+    "category:slides",
+    "scenario:marketing",
+    "aspect:16:9 横向翻页",
+    "贵赞编辑墨水 · 章节封页",
+    "墨水经典调色板 + 衬线 display"
+  ],
+  "best_for": [
+    "电子杂志 × 电子墨水; 10 个版面 + 5 套调色板 (墨水/靛蓝瓷/森林墨/牛皮纸/沙丘)",
+    "Requests that need presentation and deck-style storytelling.",
+    "Briefs matching scenario: marketing.",
+    "Use when the user asks for 贵赞编辑墨水 Deck."
+  ],
+  "avoid_for": [
+    "Requests unrelated to this template category or scenario.",
+    "Cases where the user explicitly asks for a different medium, layout, or visual style."
+  ],
+  "layout_rules": [
+    "**L01 Hero Cover** — 居中大字 hero typography + kicker + subtitle + lead paragraph + 底部元数据 row。",
+    "**L03 Big Numbers Grid** — 3×2 数据卡 (label / 大数字 / 注释)。",
+    "**L05 Image Grid** — 3×2 或 3×1 等高图网格 (26vh 或 22vh); 严格统一高度。",
+    "**L07 Hero Question** — 7vw 全屏单一问句, 按语义断行, 周围极简。"
+  ],
+  "style_rules": [
+    "🌙 **沙丘 Dune** — ink `#1f1a14`, paper `#f0e6d2`, paper-tint `#e3d7bf`, ink-tint `#2d2620`. 艺术 / 设计 / 时尚。",
+    "**严禁**: 渐变 / drop-shadow / 圆角 / 圆形装饰 / blur / SVG 图标库 / emoji 装饰。",
+    "**字体**: Display 用 `Playfair Display` (英) / `Noto Serif SC` (中); Body 用 `Inter` / `Noto Sans SC`; 编号 / 数字偶尔可用 italic 衬线。"
+  ],
+  "content_rules": [
+    "🌊 **靛蓝瓷 Indigo Porcelain** — ink `#0a1f3d`, paper `#f1f3f5`, paper-tint `#e4e8ec`, ink-tint `#152a4a`. 科技 / 研究 / 数据。",
+    "**L01 Hero Cover** — 居中大字 hero typography + kicker + subtitle + lead paragraph + 底部元数据 row。",
+    "**L03 Big Numbers Grid** — 3×2 数据卡 (label / 大数字 / 注释)。",
+    "**L06 Pipeline / Flow** — 横向编号步骤组, 每步: №X + 标题 + 描述; 支持键盘逐步推进。",
+    "**不许**: 数据捏造、Lorem ipsum、占位图片 URL。所有图请用纯 CSS / SVG 内联描绘 (色块 + 简笔)。"
+  ],
+  "quality_checks": [
+    "Use the reference HTML as a style and structure guide, not as final placeholder content.",
+    "Preserve user-provided facts, numbers, dates, and claims.",
+    "Return one complete standalone HTML file with no markdown wrapper.",
+    "Keep visible text readable and avoid overlapping UI or content blocks."
+  ]
+}

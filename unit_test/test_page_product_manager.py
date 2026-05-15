@@ -125,8 +125,8 @@ class PageProductManagerTests(unittest.TestCase):
         self.assertIn("Visual Quality Defaults", prompt)
         self.assertIn("Template-specific or skill-specific style rules override these defaults.", prompt)
         self.assertIn("Selected Built-In Page Template", prompt)
-        self.assertIn("Template ID: xhs_knowledge_long_image", prompt)
-        self.assertIn("Use a 1080 px wide vertical artboard", prompt)
+        self.assertIn("Template ID: card-xiaohongshu", prompt)
+        self.assertIn("Xiaohongshu Card", prompt)
         self.assertIn("做一篇小红书长图", prompt)
         self.assertNotIn("DesignCanvas", prompt)
 
@@ -153,7 +153,7 @@ class PageProductManagerTests(unittest.TestCase):
         )
         self.assertIn("Do not rely on external network assets or CDN resources unless explicitly approved.", constraints)
         self.assertIn(
-            "Use the selected built-in Page template as structural and visual guidance unless explicit user requirements override it.",
+            "When a built-in Page template is selected, use it as structural and visual guidance unless explicit user requirements override it.",
             constraints,
         )
         self.assertIn(
@@ -167,11 +167,21 @@ class PageProductManagerTests(unittest.TestCase):
         template_ids = {template.id for template in PAGE_TEMPLATES}
         summaries = list_page_templates()
 
-        self.assertEqual(len(PAGE_TEMPLATES), 8)
-        self.assertEqual(len(summaries), 8)
+        self.assertEqual(len(PAGE_TEMPLATES), 75)
+        self.assertEqual(len(summaries), 75)
         self.assertTrue(TEMPLATES_HTML_DIR.exists())
-        self.assertEqual(
-            template_ids,
+        self.assertTrue(
+            {
+                "article-magazine",
+                "card-xiaohongshu",
+                "data-report",
+                "poster-hero",
+                "saas-landing",
+                "social-x-post-card",
+                "weekly-update",
+            }.issubset(template_ids)
+        )
+        self.assertFalse(
             {
                 "xhs_knowledge_long_image",
                 "wechat_editorial_article",
@@ -181,12 +191,13 @@ class PageProductManagerTests(unittest.TestCase):
                 "quote_social_card",
                 "event_agenda_page",
                 "product_detail_story",
-            },
+            }
+            & template_ids
         )
         for template in PAGE_TEMPLATES:
             self.assertIn("templates-html", template.source_dir)
-            self.assertIn("<!DOCTYPE html>", template.template_html)
-            self.assertGreaterEqual(len(template.tags), 4)
+            self.assertIn("<!doctype html>", template.template_html.lower())
+            self.assertGreaterEqual(len(template.tags), 1)
             self.assertGreaterEqual(len(template.layout_rules), 3)
             self.assertGreaterEqual(len(template.style_rules), 3)
             self.assertGreaterEqual(len(template.content_rules), 3)
@@ -195,24 +206,26 @@ class PageProductManagerTests(unittest.TestCase):
     def test_page_templates_load_from_templates_html_directory(self) -> None:
         templates = load_page_templates_from_directory(TEMPLATES_HTML_DIR)
 
-        self.assertEqual(len(templates), 8)
+        self.assertEqual(len(templates), 75)
         for template in templates:
             template_dir = TEMPLATES_HTML_DIR / template.id
 
             self.assertTrue((template_dir / "metadata.json").exists())
             self.assertTrue((template_dir / "template.html").exists())
+            self.assertFalse((template_dir / "SKILL.md").exists())
+            self.assertFalse((template_dir / "example.md").exists())
+            self.assertFalse((template_dir / "example.html").exists())
             self.assertEqual(template.source_dir, str(template_dir))
 
     def test_page_template_selector_matches_typical_briefs(self) -> None:
         cases = {
-            "做一张产品发布海报，强调新品首发和预约 CTA。": "poster_product_launch",
-            "根据这份 CSV 数据生成一页视觉报告，突出关键洞察。": "visual_report_brief",
-            "做一个 SaaS 官网 landing page，包含 value proposition 和 waitlist。": "saas_landing_onepager",
-            "做一张朋友圈金句社交卡，文案是保持长期主义。": "quote_social_card",
-            "生成活动议程页，包含大会日程、嘉宾和报名信息。": "event_agenda_page",
-            "做一个商品详情页，突出材质、规格和使用场景。": "product_detail_story",
-            "写一篇微信公众号视觉文章，主题是 AI 写作方法。": "wechat_editorial_article",
-            "做一篇小红书知识长图，主题是 AI 写作。": "xhs_knowledge_long_image",
+            "根据这份 CSV 数据生成一页视觉报告，突出关键洞察。": "data-report",
+            "做一张小红书图文卡片，主题是 AI 写作。": "card-xiaohongshu",
+            "做一个 SaaS 官网 landing page，包含 value proposition 和 waitlist。": "saas-landing",
+            "做一张产品发布海报，强调新品首发和预约 CTA。": "poster-hero",
+            "写一篇杂志风文章，主题是 AI 写作方法。": "article-magazine",
+            "做一个 pricing 页面，包含三个套餐。": "pricing-page",
+            "生成团队 OKR 页面。": "team-okrs",
         }
 
         for brief, expected_template_id in cases.items():
@@ -222,14 +235,33 @@ class PageProductManagerTests(unittest.TestCase):
                 self.assertEqual(match.template.id, expected_template_id)
                 self.assertGreater(match.score, 0)
 
+    def test_page_template_selector_returns_no_template_for_underspecified_brief(self) -> None:
+        match = select_page_template_match("zzzz qqqq 123456")
+
+        self.assertIsNone(match.template)
+        self.assertEqual(match.score, 0)
+        self.assertFalse(match.to_dict()["use_template"])
+        self.assertEqual(match.to_dict()["template_id"], "")
+        self.assertIn("No built-in Page template matched", match.reasons[0])
+
     def test_page_code_generation_prompt_can_use_explicit_template_id(self) -> None:
         prompt = build_page_code_generation_prompt(
             "做一个新品营销页面。",
-            template_id="quote_social_card",
+            template_id="social-x-post-card",
         )
 
-        self.assertIn("Template ID: quote_social_card", prompt)
-        self.assertIn("Make the quote the main composition", prompt)
+        self.assertIn("Template ID: social-x-post-card", prompt)
+        self.assertIn("X Post Card", prompt)
+
+    def test_page_code_generation_prompt_can_skip_template_injection(self) -> None:
+        prompt = build_page_code_generation_prompt(
+            "做一个普通说明页面。",
+            allow_auto_template=False,
+        )
+
+        self.assertIn("No built-in Page template was selected.", prompt)
+        self.assertNotIn("<template_html>", prompt)
+        self.assertNotIn("Template ID: article-magazine", prompt)
 
     def test_private_product_page_skill_registry_lists_poster_page_designer(self) -> None:
         registry = ProductPageSkillRegistry()
@@ -373,14 +405,14 @@ class PageProductManagerTests(unittest.TestCase):
                     output_path="generated/page.html",
                     context_files=["skills/product-page-skills/poster-page-designer/SKILL.md"],
                     constraints=["single long image style page"],
-                    template_id="poster_product_launch",
+                    template_id="poster-hero",
                     tool_context=tool_context,
                 )
             )
 
         self.assertEqual(result["status"], "success")
         mocked_generation.assert_awaited_once()
-        self.assertEqual(mocked_generation.await_args.kwargs["template_id"], "poster_product_launch")
+        self.assertEqual(mocked_generation.await_args.kwargs["template_id"], "poster-hero")
         self.assertEqual(
             tool_context.state["page_product_last_code_generation_result"]["status"],
             "success",
@@ -665,7 +697,7 @@ class PageProductManagerTests(unittest.TestCase):
             result = asyncio.run(
                 manager.run_product_request(
                     task="根据 CSV 数据做一个数据周报网页。",
-                    output={"template_id": "visual_report_brief"},
+                    output={"template_id": "data-report"},
                     tool_context=tool_context,
                 )
             )
@@ -676,7 +708,7 @@ class PageProductManagerTests(unittest.TestCase):
         self.assertEqual(tool_context.state["final_file_paths"], ["generated/page-pipeline.html"])
         self.assertEqual(
             tool_context.state[PAGE_PRODUCT_TEMPLATE_SELECTION_STATE_KEY]["template_id"],
-            "visual_report_brief",
+            "data-report",
         )
         self.assertEqual(tool_context.state[PAGE_PRODUCT_DRAFT_STATE_KEY]["status"], "success")
         self.assertEqual(tool_context.state[PAGE_PRODUCT_MATERIALS_STATE_KEY]["status"], "success")
@@ -701,7 +733,129 @@ class PageProductManagerTests(unittest.TestCase):
         mocked_generation.assert_awaited_once()
         mocked_validation.assert_not_called()
         self.assertIn("Final Page HTML Generation Brief", mocked_generation.await_args.kwargs["prompt"])
-        self.assertEqual(mocked_generation.await_args.kwargs["template_id"], "visual_report_brief")
+        self.assertEqual(mocked_generation.await_args.kwargs["template_id"], "data-report")
+        self.assertTrue(mocked_generation.await_args.kwargs["allow_auto_template"])
+
+    def test_run_product_request_uses_freeform_generation_when_no_template_matches(self) -> None:
+        manager = PageProductManager()
+        tool_context = SimpleNamespace(
+            state={
+                "sid": "page-freeform-pipeline-test",
+                "turn_index": 1,
+                "step": 0,
+                "expert_step": 0,
+            },
+            _invocation_context=SimpleNamespace(user_id="user-page-freeform"),
+        )
+        generation_output = {
+            "status": "success",
+            "message": "Generated html code at generated/page-freeform.html.",
+            "output_path": "generated/page-freeform.html",
+            "output_files": [
+                {
+                    "path": "generated/page-freeform.html",
+                    "description": "Page artifact generated by PageCodeGenerationAgent.",
+                    "source": "page_code_generation_agent",
+                }
+            ],
+            "language": "html",
+            "error_type": "",
+            "retryable": False,
+            "raw_error_summary": "",
+            "warnings": [],
+        }
+        mocked_generation = AsyncMock(return_value=generation_output)
+
+        with (
+            patch.object(PageCodeGenerationAgent, "run_generation", new=mocked_generation),
+            patch(
+                "src.productions.page.page_product_manager.page_product_manager._validate_one_page_artifact",
+                side_effect=AssertionError("Page pipeline delivery should skip visual validation."),
+            ) as mocked_validation,
+            patch("src.productions.page.page_product_manager.page_product_manager.logger.info") as mocked_logger,
+        ):
+            result = asyncio.run(
+                manager.run_product_request(
+                    task="zzzz qqqq 123456",
+                    tool_context=tool_context,
+                )
+            )
+
+        self.assertEqual(result["status"], "success")
+        mocked_validation.assert_not_called()
+        selection = tool_context.state[PAGE_PRODUCT_TEMPLATE_SELECTION_STATE_KEY]
+        self.assertFalse(selection["use_template"])
+        self.assertEqual(selection["template_id"], "")
+        self.assertEqual(selection["selection_mode"], "freeform")
+        final_prompt = mocked_generation.await_args.kwargs["prompt"]
+        self.assertIn("Use template: False", final_prompt)
+        self.assertIn("Template ID: none", final_prompt)
+        self.assertEqual(mocked_generation.await_args.kwargs["template_id"], "")
+        self.assertFalse(mocked_generation.await_args.kwargs["allow_auto_template"])
+        self.assertTrue(
+            any(
+                call.args
+                and str(call.args[0]).startswith("Page template selection:")
+                and call.args[1] is False
+                for call in mocked_logger.call_args_list
+            )
+        )
+
+    def test_run_product_request_does_not_generate_visual_materials_for_poster_by_default(self) -> None:
+        manager = PageProductManager()
+        image_agent = _FakeImageGenerationAgent()
+        tool_context = SimpleNamespace(
+            state={
+                "sid": "page-no-auto-image-test",
+                "turn_index": 1,
+                "step": 0,
+                "expert_step": 0,
+            },
+            _invocation_context=SimpleNamespace(user_id="user-page-no-auto-image"),
+        )
+        generation_output = {
+            "status": "success",
+            "message": "Generated html code at generated/page-no-auto-image.html.",
+            "output_path": "generated/page-no-auto-image.html",
+            "output_files": [
+                {
+                    "path": "generated/page-no-auto-image.html",
+                    "description": "Page artifact generated by PageCodeGenerationAgent.",
+                    "source": "page_code_generation_agent",
+                }
+            ],
+            "language": "html",
+            "error_type": "",
+            "retryable": False,
+            "raw_error_summary": "",
+            "warnings": [],
+        }
+        mocked_generation = AsyncMock(return_value=generation_output)
+
+        with (
+            patch.object(PageCodeGenerationAgent, "run_generation", new=mocked_generation),
+            patch(
+                "src.productions.page.page_product_manager.page_product_manager._validate_one_page_artifact",
+                side_effect=AssertionError("Page pipeline delivery should skip visual validation."),
+            ) as mocked_validation,
+        ):
+            result = asyncio.run(
+                manager.run_product_request(
+                    task="做一张产品发布海报，强调新品首发和预约 CTA。",
+                    output={"template_id": "poster-hero"},
+                    tool_context=tool_context,
+                    expert_agents={"ImageGenerationAgent": image_agent},
+                )
+            )
+
+        self.assertEqual(result["status"], "success")
+        mocked_validation.assert_not_called()
+        self.assertEqual(image_agent.calls, [])
+        materials = tool_context.state[PAGE_PRODUCT_MATERIALS_STATE_KEY]
+        self.assertEqual(materials["visual_asset_plan"], [])
+        self.assertEqual(materials["generated_assets"], [])
+        self.assertFalse(materials["requires_external_generation"])
+        self.assertIn("No external material paths", mocked_generation.await_args.kwargs["prompt"])
 
     def test_run_product_request_generates_visual_materials_before_html(self) -> None:
         manager = PageProductManager()
@@ -745,7 +899,7 @@ class PageProductManagerTests(unittest.TestCase):
                 manager.run_product_request(
                     task="做一张产品发布海报，需要主视觉插图。",
                     output={
-                        "template_id": "poster_product_launch",
+                        "template_id": "poster-hero",
                         "image_assets": [
                             {
                                 "asset_id": "launch_hero",

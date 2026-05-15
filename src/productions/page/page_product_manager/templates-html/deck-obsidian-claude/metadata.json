@@ -1,0 +1,72 @@
+{
+  "id": "deck-obsidian-claude",
+  "name": "Obsidian Claude Gradient Deck",
+  "description": "GitHub-dark + 紫蓝环境光 + 三色渐变标题 + GitHub 风代码",
+  "usage": "【模板: Obsidian Claude Gradient Deck】 GitHub-dark + 紫蓝环境光 + 三色渐变标题 + GitHub 风代码",
+  "tags": [
+    "github",
+    "dark",
+    "purple",
+    "mcp",
+    "agent",
+    "category:slides",
+    "scenario:engineering",
+    "aspect:16:9"
+  ],
+  "trigger_terms": [
+    "deck-obsidian-claude",
+    "GitHub Dark 紫渐变 Deck",
+    "Obsidian Claude Gradient Deck",
+    "GitHub-dark + 紫蓝环境光 + 三色渐变标题 + GitHub 风代码",
+    "slides",
+    "engineering",
+    "16:9",
+    "deck",
+    "obsidian",
+    "claude",
+    "github",
+    "dark",
+    "purple",
+    "mcp",
+    "agent",
+    "category:slides",
+    "scenario:engineering",
+    "aspect:16:9"
+  ],
+  "best_for": [
+    "GitHub-dark + 紫蓝环境光 + 三色渐变标题 + GitHub 风代码",
+    "Requests that need presentation and deck-style storytelling.",
+    "Briefs matching scenario: engineering.",
+    "Use when the user asks for GitHub Dark 紫渐变 Deck."
+  ],
+  "avoid_for": [
+    "Requests unrelated to this template category or scenario.",
+    "Cases where the user explicitly asks for a different medium, layout, or visual style."
+  ],
+  "layout_rules": [
+    "居中布局 + 紫色 pill tag",
+    "【模板: Obsidian Claude Gradient Deck】",
+    "【意图】类 GitHub Blog / Linear Changelog 的开发者教程 deck。",
+    "【布局】"
+  ],
+  "style_rules": [
+    "三色渐变标题 (#a855f7→#60a5fa→#34d399)",
+    "GitHub-dark #0d1117 + 紫蓝 radial 环境光 + 60px 网格 mask",
+    "居中布局 + 紫色 pill tag",
+    "GitHub 风代码 palette + 紫色左边框高亮块",
+    "【模板: Obsidian Claude Gradient Deck】"
+  ],
+  "content_rules": [
+    "三色渐变标题 (#a855f7→#60a5fa→#34d399)",
+    "GitHub-dark #0d1117 + 紫蓝 radial 环境光 + 60px 网格 mask",
+    "居中布局 + 紫色 pill tag",
+    "GitHub 风代码 palette + 紫色左边框高亮块",
+    "【模板: Obsidian Claude Gradient Deck】"
+  ],
+  "quality_checks": [
+    "Use the reference HTML as a style and structure guide, not as final placeholder content.",
+    "Preserve user-provided facts, numbers, dates, and claims.",
+    "Return one complete standalone HTML file with no markdown wrapper.",
+    "Keep visible text readable and avoid overlapping UI or content blocks."
+  ]
+}

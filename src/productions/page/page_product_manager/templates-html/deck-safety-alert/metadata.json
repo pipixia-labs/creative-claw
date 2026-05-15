@@ -1,0 +1,69 @@
+{
+  "id": "deck-safety-alert",
+  "name": "Testing / Safety Alert Deck",
+  "description": "红琥珀警示色 + hazard 条纹 + L1/L2/L3 tier 卡片 + 删除线标题",
+  "usage": "【模板: Safety Alert Deck】 红琥珀警示色 + hazard 条纹 + L1/L2/L3 tier 卡片 + 删除线标题",
+  "tags": [
+    "safety",
+    "security",
+    "policy",
+    "incident",
+    "category:slides",
+    "scenario:engineering",
+    "aspect:16:9"
+  ],
+  "trigger_terms": [
+    "deck-safety-alert",
+    "安全 / 风险红色 Deck",
+    "Testing / Safety Alert Deck",
+    "红琥珀警示色 + hazard 条纹 + L1/L2/L3 tier 卡片 + 删除线标题",
+    "slides",
+    "engineering",
+    "16:9",
+    "deck",
+    "safety",
+    "alert",
+    "security",
+    "policy",
+    "incident",
+    "category:slides",
+    "scenario:engineering",
+    "aspect:16:9"
+  ],
+  "best_for": [
+    "红琥珀警示色 + hazard 条纹 + L1/L2/L3 tier 卡片 + 删除线标题",
+    "Requests that need presentation and deck-style storytelling.",
+    "Briefs matching scenario: engineering.",
+    "Use when the user asks for 安全 / 风险红色 Deck."
+  ],
+  "avoid_for": [
+    "Requests unrelated to this template category or scenario.",
+    "Cases where the user explicitly asks for a different medium, layout, or visual style."
+  ],
+  "layout_rules": [
+    "L1/L2/L3 绿 / 琥珀 / 红 tier 卡片",
+    "【模板: Safety Alert Deck】",
+    "【意图】安全 / 风险 / 事故复盘 / red team / policy-as-code 用 deck。",
+    "【布局】"
+  ],
+  "style_rules": [
+    "顶/底 45° 红黑 hazard 条纹",
+    "红色删除线否定标题",
+    "L1/L2/L3 绿 / 琥珀 / 红 tier 卡片",
+    "圆点状态 alert box",
+    "policy-yaml 代码块 (红左边框 + bad 关键词高亮)"
+  ],
+  "content_rules": [
+    "红色删除线否定标题",
+    "顶/底 45° 红黑 hazard 条纹",
+    "L1/L2/L3 绿 / 琥珀 / 红 tier 卡片",
+    "圆点状态 alert box",
+    "policy-yaml 代码块 (红左边框 + bad 关键词高亮)"
+  ],
+  "quality_checks": [
+    "Use the reference HTML as a style and structure guide, not as final placeholder content.",
+    "Preserve user-provided facts, numbers, dates, and claims.",
+    "Return one complete standalone HTML file with no markdown wrapper.",
+    "Keep visible text readable and avoid overlapping UI or content blocks."
+  ]
+}

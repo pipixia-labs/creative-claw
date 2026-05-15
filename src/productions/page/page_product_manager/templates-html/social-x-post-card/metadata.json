@@ -1,0 +1,71 @@
+{
+  "id": "social-x-post-card",
+  "name": "X / Twitter Post Card",
+  "description": "拟真 X 推文卡片 + 互动数据 (likes/reposts/views), 适配视频叠加或图卡分享",
+  "usage": "【模板: X (Twitter) 帖子卡】 拟真 X 推文卡片 + 互动数据 (likes/reposts/views), 适配视频叠加或图卡分享",
+  "tags": [
+    "twitter",
+    "x",
+    "social",
+    "card",
+    "overlay",
+    "category:card",
+    "scenario:marketing",
+    "aspect:1280×720 或 1080×1080"
+  ],
+  "trigger_terms": [
+    "social-x-post-card",
+    "X (Twitter) 帖子卡",
+    "X / Twitter Post Card",
+    "拟真 X 推文卡片 + 互动数据 (likes/reposts/views), 适配视频叠加或图卡分享",
+    "card",
+    "marketing",
+    "1280×720 或 1080×1080",
+    "social",
+    "x",
+    "post",
+    "twitter",
+    "overlay",
+    "category:card",
+    "scenario:marketing",
+    "aspect:1280×720 或 1080×1080",
+    "X 帖子卡 · AlchainHust 金句",
+    "X dark mode + 互动数据"
+  ],
+  "best_for": [
+    "拟真 X 推文卡片 + 互动数据 (likes/reposts/views), 适配视频叠加或图卡分享",
+    "Requests that need social card and shareable visual content.",
+    "Briefs matching scenario: marketing.",
+    "Use when the user asks for X (Twitter) 帖子卡."
+  ],
+  "avoid_for": [
+    "Requests unrelated to this template category or scenario.",
+    "Cases where the user explicitly asks for a different medium, layout, or visual style."
+  ],
+  "layout_rules": [
+    "可选: 卡片背后加微妙径向高光 `radial-gradient(...)` 增加视频叠加的可读性。",
+    "【意图】把一段推文内容 (或用户的金句) 渲染成一张拟真度极高的 X 帖子卡片, 用于视频叠加、推特发图、知识沉淀。Inspired by hyperframes x-post。",
+    "【画布】1280×720 或 1080×1080, 暗背景 `#0f1419` 或亮背景 `#ffffff` (按 X 主题); 卡片居中, 阴影柔和。",
+    "【卡片结构】"
+  ],
+  "style_rules": [
+    "可选: 1 张图 (CSS 渐变 + 描述占位, 不能外链图片), 比例 16:9, 圆角 12px。",
+    "西文: `Chirp` (X 的字体) → fallback `Inter` 或 `Segoe UI`。",
+    "数字: 同主字体, 不用 mono。",
+    "配色 light: bg `#fff`, text `#0f1419`, secondary `#536471`, border `#eff3f4`, accent `#1d9bf0`。",
+    "配色 dark (推荐, 视频叠加用): bg `#000`, text `#e7e9ea`, secondary `#71767b`, border `#2f3336`, accent `#1d9bf0`。"
+  ],
+  "content_rules": [
+    "顶部 row: 头像 (48×48 圆形, 用 CSS gradient 占位) + 用户名 + handle `@username` + verified 蓝勾 + 时间 (mono, 12px, 灰)。",
+    "数字格式化: 1.2K / 4.5M (不要原始 1234)。",
+    "内容必须来自用户输入, 不能编造推文。",
+    "若用户输入是数据 → 自动总结成一句\"金句\"推文 (≤ 280 字符)。",
+    "单文件 HTML; icon 内联 SVG; 不要任何外部图片 URL。"
+  ],
+  "quality_checks": [
+    "Use the reference HTML as a style and structure guide, not as final placeholder content.",
+    "Preserve user-provided facts, numbers, dates, and claims.",
+    "Return one complete standalone HTML file with no markdown wrapper.",
+    "Keep visible text readable and avoid overlapping UI or content blocks."
+  ]
+}

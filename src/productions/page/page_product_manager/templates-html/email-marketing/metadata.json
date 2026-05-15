@@ -1,0 +1,63 @@
+{
+  "id": "email-marketing",
+  "name": "Marketing Email",
+  "description": "产品发布邮件, 含 masthead、hero、CTA、规格表, table-fallback",
+  "usage": "【模板: 品牌产品发布邮件】 产品发布邮件, 含 masthead、hero、CTA、规格表, table-fallback",
+  "tags": [
+    "email",
+    "newsletter",
+    "mjml",
+    "category:email",
+    "scenario:marketing",
+    "aspect:600 邮件宽"
+  ],
+  "trigger_terms": [
+    "email-marketing",
+    "营销邮件",
+    "Marketing Email",
+    "产品发布邮件, 含 masthead、hero、CTA、规格表, table-fallback",
+    "email",
+    "marketing",
+    "600 邮件宽",
+    "newsletter",
+    "mjml",
+    "category:email",
+    "scenario:marketing",
+    "aspect:600 邮件宽"
+  ],
+  "best_for": [
+    "产品发布邮件, 含 masthead、hero、CTA、规格表, table-fallback",
+    "Requests that need email pages.",
+    "Briefs matching scenario: marketing.",
+    "Use when the user asks for 营销邮件."
+  ],
+  "avoid_for": [
+    "Requests unrelated to this template category or scenario.",
+    "Cases where the user explicitly asks for a different medium, layout, or visual style."
+  ],
+  "layout_rules": [
+    "Hero 图块 (SVG 占位)",
+    "Specifications grid (3 列)",
+    "使用 `<table role='presentation'>` 做布局兜底"
+  ],
+  "style_rules": [
+    "颜色用 inline style (不要依赖 class)",
+    "【设计细节】",
+    "Masthead (wordmark 居中)",
+    "Hero 图块 (SVG 占位)",
+    "Headline lockup (含 skewed-italic accent)"
+  ],
+  "content_rules": [
+    "Body copy + primary CTA 按钮",
+    "颜色用 inline style (不要依赖 class)",
+    "Masthead (wordmark 居中)",
+    "Hero 图块 (SVG 占位)",
+    "Headline lockup (含 skewed-italic accent)"
+  ],
+  "quality_checks": [
+    "Use the reference HTML as a style and structure guide, not as final placeholder content.",
+    "Preserve user-provided facts, numbers, dates, and claims.",
+    "Return one complete standalone HTML file with no markdown wrapper.",
+    "Keep visible text readable and avoid overlapping UI or content blocks."
+  ]
+}

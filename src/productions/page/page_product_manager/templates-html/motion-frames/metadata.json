@@ -1,0 +1,67 @@
+{
+  "id": "motion-frames",
+  "name": "Motion Frames",
+  "description": "可循环 CSS 动效组合: 旋转环、地球仪、计时器、视差标签",
+  "usage": "【模板: Motion 帧 / Hero Loop】 可循环 CSS 动效组合: 旋转环、地球仪、计时器、视差标签",
+  "tags": [
+    "motion",
+    "title card",
+    "loop",
+    "video poster",
+    "category:video",
+    "scenario:marketing",
+    "aspect:桌面 hero"
+  ],
+  "trigger_terms": [
+    "motion-frames",
+    "动效英雄帧",
+    "Motion Frames",
+    "可循环 CSS 动效组合: 旋转环、地球仪、计时器、视差标签",
+    "video",
+    "marketing",
+    "桌面 hero",
+    "motion",
+    "frames",
+    "title card",
+    "loop",
+    "video poster",
+    "category:video",
+    "scenario:marketing",
+    "aspect:桌面 hero"
+  ],
+  "best_for": [
+    "可循环 CSS 动效组合: 旋转环、地球仪、计时器、视差标签",
+    "Requests that need video frames and motion-oriented visual scenes.",
+    "Briefs matching scenario: marketing.",
+    "Use when the user asks for 动效英雄帧."
+  ],
+  "avoid_for": [
+    "Requests unrelated to this template category or scenario.",
+    "Cases where the user explicitly asks for a different medium, layout, or visual style."
+  ],
+  "layout_rules": [
+    "【模板: Motion 帧 / Hero Loop】",
+    "【意图】一帧带循环动效的 hero, 可作为视频片头或落地页大图。",
+    "【布局】"
+  ],
+  "style_rules": [
+    "Ticking timer (mono 字体, JS 可有可无)",
+    "纯 CSS 动效, 流畅可循环",
+    "【模板: Motion 帧 / Hero Loop】",
+    "【意图】一帧带循环动效的 hero, 可作为视频片头或落地页大图。",
+    "【设计细节】"
+  ],
+  "content_rules": [
+    "Rotating type ring (SVG + transform)",
+    "Animated globe / 抽象几何",
+    "Ticking timer (mono 字体, JS 可有可无)",
+    "Parallax labels 浮动",
+    "纯 CSS 动效, 流畅可循环"
+  ],
+  "quality_checks": [
+    "Use the reference HTML as a style and structure guide, not as final placeholder content.",
+    "Preserve user-provided facts, numbers, dates, and claims.",
+    "Return one complete standalone HTML file with no markdown wrapper.",
+    "Keep visible text readable and avoid overlapping UI or content blocks."
+  ]
+}

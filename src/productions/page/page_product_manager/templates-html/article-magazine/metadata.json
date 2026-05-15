@@ -1,0 +1,75 @@
+{
+  "id": "article-magazine",
+  "name": "Magazine Article",
+  "description": "Substack / Medium 高级感长文排版, 适合公众号、博客发布",
+  "usage": "【模板: 杂志文章】 Substack / Medium 高级感长文排版, 适合公众号、博客发布",
+  "tags": [
+    "blog",
+    "essay",
+    "newsletter",
+    "公众号",
+    "博客",
+    "文章",
+    "category:article",
+    "scenario:marketing",
+    "aspect:A4 / 长页面"
+  ],
+  "trigger_terms": [
+    "article-magazine",
+    "杂志文章",
+    "Magazine Article",
+    "Substack / Medium 高级感长文排版, 适合公众号、博客发布",
+    "article",
+    "marketing",
+    "A4 / 长页面",
+    "magazine",
+    "blog",
+    "essay",
+    "newsletter",
+    "公众号",
+    "博客",
+    "文章",
+    "category:article",
+    "scenario:marketing",
+    "aspect:A4 / 长页面",
+    "杂志文章 · HTML 取代 Markdown",
+    "灵感来自 @trq212 的推文"
+  ],
+  "best_for": [
+    "Substack / Medium 高级感长文排版, 适合公众号、博客发布",
+    "Requests that need article pages.",
+    "Briefs matching scenario: marketing.",
+    "Use when the user asks for 杂志文章."
+  ],
+  "avoid_for": [
+    "Requests unrelated to this template category or scenario.",
+    "Cases where the user explicitly asks for a different medium, layout, or visual style."
+  ],
+  "layout_rules": [
+    "顶部 hero: 大标题 (text-5xl/6xl) + 可选副标题 + 作者 / 阅读时间 / 日期元数据。",
+    "文末加一个简单的 \"如果觉得有用，欢迎转发\" 行动卡片。",
+    "正文: 单栏, 最大宽度约 700px, 居中。段落 `text-lg leading-relaxed text-neutral-700 dark:text-neutral-300`。",
+    "H2 / H3 标题用 serif 字体, 让正文与标题有视觉对比。",
+    "引用块使用左侧粗 accent 色边线 + 斜体。"
+  ],
+  "style_rules": [
+    "H2 / H3 标题用 serif 字体, 让正文与标题有视觉对比。",
+    "代码块: 圆角 + 深色背景 + 浅色文字, 显示语言标签。",
+    "顶部 hero: 大标题 (text-5xl/6xl) + 可选副标题 + 作者 / 阅读时间 / 日期元数据。",
+    "正文: 单栏, 最大宽度约 700px, 居中。段落 `text-lg leading-relaxed text-neutral-700 dark:text-neutral-300`。",
+    "引用块使用左侧粗 accent 色边线 + 斜体。"
+  ],
+  "content_rules": [
+    "顶部 hero: 大标题 (text-5xl/6xl) + 可选副标题 + 作者 / 阅读时间 / 日期元数据。",
+    "H2 / H3 标题用 serif 字体, 让正文与标题有视觉对比。",
+    "正文: 单栏, 最大宽度约 700px, 居中。段落 `text-lg leading-relaxed text-neutral-700 dark:text-neutral-300`。",
+    "引用块使用左侧粗 accent 色边线 + 斜体。",
+    "代码块: 圆角 + 深色背景 + 浅色文字, 显示语言标签。"
+  ],
+  "quality_checks": [
+    "Use the reference HTML as a style and structure guide, not as final placeholder content.",
+    "Preserve user-provided facts, numbers, dates, and claims.",
+    "Return one complete standalone HTML file with no markdown wrapper.",
+    "Keep visible text readable and avoid overlapping UI or content blocks."
+  ]
+}

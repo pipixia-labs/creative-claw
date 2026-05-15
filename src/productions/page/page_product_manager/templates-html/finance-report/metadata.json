@@ -1,0 +1,68 @@
+{
+  "id": "finance-report",
+  "name": "Finance Report",
+  "description": "Masthead + KPI + 收入/烧钱图 + P&L 表 + 重点 + 展望",
+  "usage": "【模板: 季度财报 / Finance Report】 Masthead + KPI + 收入/烧钱图 + P&L 表 + 重点 + 展望",
+  "tags": [
+    "financial",
+    "p&l",
+    "mrr",
+    "财报",
+    "category:finance",
+    "scenario:finance",
+    "aspect:长页面"
+  ],
+  "trigger_terms": [
+    "finance-report",
+    "季度财报",
+    "Finance Report",
+    "Masthead + KPI + 收入/烧钱图 + P&L 表 + 重点 + 展望",
+    "finance",
+    "长页面",
+    "report",
+    "financial",
+    "p&l",
+    "mrr",
+    "财报",
+    "category:finance",
+    "scenario:finance",
+    "aspect:长页面"
+  ],
+  "best_for": [
+    "Masthead + KPI + 收入/烧钱图 + P&L 表 + 重点 + 展望",
+    "Requests that need finance pages.",
+    "Briefs matching scenario: finance.",
+    "Use when the user asks for 季度财报."
+  ],
+  "avoid_for": [
+    "Requests unrelated to this template category or scenario.",
+    "Cases where the user explicitly asks for a different medium, layout, or visual style."
+  ],
+  "layout_rules": [
+    "Masthead (公司 + Q + 报告标题) + 4 个 hero KPI",
+    "【布局】",
+    "Revenue chart + Burn chart (Chart.js / ECharts)",
+    "P&L 概要表 (zebra + sticky header)",
+    "Top-line highlights (5 条 bullet)"
+  ],
+  "style_rules": [
+    "Masthead (公司 + Q + 报告标题) + 4 个 hero KPI",
+    "Revenue chart + Burn chart (Chart.js / ECharts)",
+    "P&L 概要表 (zebra + sticky header)",
+    "Top-line highlights (5 条 bullet)",
+    "Outlook 段落"
+  ],
+  "content_rules": [
+    "Masthead (公司 + Q + 报告标题) + 4 个 hero KPI",
+    "Revenue chart + Burn chart (Chart.js / ECharts)",
+    "P&L 概要表 (zebra + sticky header)",
+    "Top-line highlights (5 条 bullet)",
+    "Outlook 段落"
+  ],
+  "quality_checks": [
+    "Use the reference HTML as a style and structure guide, not as final placeholder content.",
+    "Preserve user-provided facts, numbers, dates, and claims.",
+    "Return one complete standalone HTML file with no markdown wrapper.",
+    "Keep visible text readable and avoid overlapping UI or content blocks."
+  ]
+}

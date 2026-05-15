@@ -1,0 +1,70 @@
+{
+  "id": "data-report",
+  "name": "Data Visualization Report",
+  "description": "把 CSV/Excel/JSON 数据转成漂亮的可视化报告页",
+  "usage": "【模板: 数据可视化报告】 把 CSV/Excel/JSON 数据转成漂亮的可视化报告页",
+  "tags": [
+    "data",
+    "report",
+    "chart",
+    "数据",
+    "报告",
+    "category:data",
+    "scenario:finance",
+    "aspect:桌面长页面"
+  ],
+  "trigger_terms": [
+    "data-report",
+    "数据可视化报告",
+    "Data Visualization Report",
+    "把 CSV/Excel/JSON 数据转成漂亮的可视化报告页",
+    "data",
+    "finance",
+    "桌面长页面",
+    "report",
+    "chart",
+    "数据",
+    "报告",
+    "category:data",
+    "scenario:finance",
+    "aspect:桌面长页面",
+    "数据报告 · 周报",
+    "KPI 卡 + Chart.js 图表 + 表格"
+  ],
+  "best_for": [
+    "把 CSV/Excel/JSON 数据转成漂亮的可视化报告页",
+    "Requests that need data visualization and reporting.",
+    "Briefs matching scenario: finance.",
+    "Use when the user asks for 数据可视化报告."
+  ],
+  "avoid_for": [
+    "Requests unrelated to this template category or scenario.",
+    "Cases where the user explicitly asks for a different medium, layout, or visual style."
+  ],
+  "layout_rules": [
+    "KPI 卡片网格: 3-5 个最重要指标, 每个卡片显示数值 + 同比变化 + 微型趋势线。",
+    "头部: 报告标题 + 时间区间 + 数据来源说明。",
+    "主图表区: 至少 2 个图表 (柱状 / 折线 / 饼 / 散点), 使用 Chart.js 或 ECharts (jsdelivr CDN 引入), 数据从用户输入解析得到。",
+    "数据表格: 用户原始数据节选, 使用 `<table>` + 现代化样式 (zebra stripe, hover, sticky header)。",
+    "洞察块: 3-5 条文字洞察, 用 emoji 开头, 像产品周报。"
+  ],
+  "style_rules": [
+    "配色克制专业: 主色 1 + 中性色阶, 图表用调色板。",
+    "头部: 报告标题 + 时间区间 + 数据来源说明。",
+    "KPI 卡片网格: 3-5 个最重要指标, 每个卡片显示数值 + 同比变化 + 微型趋势线。",
+    "主图表区: 至少 2 个图表 (柱状 / 折线 / 饼 / 散点), 使用 Chart.js 或 ECharts (jsdelivr CDN 引入), 数据从用户输入解析得到。",
+    "数据表格: 用户原始数据节选, 使用 `<table>` + 现代化样式 (zebra stripe, hover, sticky header)。"
+  ],
+  "content_rules": [
+    "头部: 报告标题 + 时间区间 + 数据来源说明。",
+    "主图表区: 至少 2 个图表 (柱状 / 折线 / 饼 / 散点), 使用 Chart.js 或 ECharts (jsdelivr CDN 引入), 数据从用户输入解析得到。",
+    "数据表格: 用户原始数据节选, 使用 `<table>` + 现代化样式 (zebra stripe, hover, sticky header)。",
+    "**必须解析用户提供的实际数据**, 不要捏造。"
+  ],
+  "quality_checks": [
+    "Use the reference HTML as a style and structure guide, not as final placeholder content.",
+    "Preserve user-provided facts, numbers, dates, and claims.",
+    "Return one complete standalone HTML file with no markdown wrapper.",
+    "Keep visible text readable and avoid overlapping UI or content blocks."
+  ]
+}

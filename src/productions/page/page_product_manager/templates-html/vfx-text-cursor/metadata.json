@@ -1,0 +1,69 @@
+{
+  "id": "vfx-text-cursor",
+  "name": "VFX Text Cursor",
+  "description": "光标拖光 + 彩色像散射线 + 定向光斑, 适合视频片头逐字揭示金句",
+  "usage": "【模板: VFX 文字光标 (Text Cursor)】 光标拖光 + 彩色像散射线 + 定向光斑, 适合视频片头逐字揭示金句",
+  "tags": [
+    "vfx",
+    "text",
+    "cursor",
+    "chromatic",
+    "reveal",
+    "frame",
+    "category:video",
+    "scenario:video",
+    "aspect:1920×1080 (16:9)"
+  ],
+  "trigger_terms": [
+    "vfx-text-cursor",
+    "VFX 文字光标",
+    "VFX Text Cursor",
+    "光标拖光 + 彩色像散射线 + 定向光斑, 适合视频片头逐字揭示金句",
+    "video",
+    "1920×1080 (16:9)",
+    "vfx",
+    "text",
+    "cursor",
+    "chromatic",
+    "reveal",
+    "frame",
+    "category:video",
+    "scenario:video",
+    "aspect:1920×1080 (16:9)",
+    "VFX 光标 · 开场金句",
+    "逐字揭示 + chromatic 拖光"
+  ],
+  "best_for": [
+    "光标拖光 + 彩色像散射线 + 定向光斑, 适合视频片头逐字揭示金句",
+    "Requests that need video frames and motion-oriented visual scenes.",
+    "Briefs matching scenario: video.",
+    "Use when the user asks for VFX 文字光标."
+  ],
+  "avoid_for": [
+    "Requests unrelated to this template category or scenario.",
+    "Cases where the user explicitly asks for a different medium, layout, or visual style."
+  ],
+  "layout_rules": [
+    "光标本身: 16px 宽矩形, 颜色 = accent (取 1: hot pink `#ff3b6f` / cyan `#00d4ff` / amber `#ffb547`), 闪烁 `@keyframes` 1.0s 周期; 后面拖一条 60-120px 的 motion blur trail (径向渐变到透明)。",
+    "顶部 caption (uppercase letterspace 0.18em, 11px, opacity 0.5): \"FRAME 01 · OPENING\"。",
+    "动效用 `@keyframes` + JS 计时器 (`setTimeout` 逐字), 可被 `prefers-reduced-motion` 关闭 (直接显示所有字)。"
+  ],
+  "style_rules": [
+    "一句金句 (中英不限), 居中, 字号 6-8vw, weight 700, 字体 `Inter Tight` / `Source Sans 3` / `Noto Sans SC`。",
+    "已揭示文字默认白色 `#f5f5f7`, opacity 1; 即将揭示位置加 chromatic ghost: 一份 `text-shadow: 2px 0 #ff3b6f, -2px 0 #00d4ff` 在 reveal 瞬间, 200ms 内收敛回正常。",
+    "光标本身: 16px 宽矩形, 颜色 = accent (取 1: hot pink `#ff3b6f` / cyan `#00d4ff` / amber `#ffb547`), 闪烁 `@keyframes` 1.0s 周期; 后面拖一条 60-120px 的 motion blur trail (径向渐变到透明)。",
+    "字体: 西文 `Inter Tight` Bold; 中文 `Noto Sans SC` Bold; 严禁衬线。",
+    "动效用 `@keyframes` + JS 计时器 (`setTimeout` 逐字), 可被 `prefers-reduced-motion` 关闭 (直接显示所有字)。"
+  ],
+  "content_rules": [
+    "**绝不**: 多色彩虹 chromatic (只用 1 个 hot pink + cyan 这种二元像散, 不要 R/G/B 全色)。",
+    "必须用用户提供的金句; 不要捏造。",
+    "单文件 HTML, 不要外链字体以外的资源。"
+  ],
+  "quality_checks": [
+    "Use the reference HTML as a style and structure guide, not as final placeholder content.",
+    "Preserve user-provided facts, numbers, dates, and claims.",
+    "Return one complete standalone HTML file with no markdown wrapper.",
+    "Keep visible text readable and avoid overlapping UI or content blocks."
+  ]
+}

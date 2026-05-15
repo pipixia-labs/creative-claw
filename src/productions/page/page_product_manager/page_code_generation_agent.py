@@ -9,6 +9,7 @@ from google.adk.events import Event
 from typing_extensions import override
 
 from src.agents.experts.base import CreativeExpert
+from src.logger import logger
 from src.productions.page.page_product_manager.templates import select_page_template_match
 from src.runtime.code_artifacts import generate_code_artifact
 
@@ -30,6 +31,7 @@ class PageCodeGenerationAgent(CreativeExpert):
         context_files: list[str] | None = None,
         constraints: list[str] | None = None,
         template_id: str = "",
+        allow_auto_template: bool = True,
     ) -> dict[str, Any]:
         """Generate one content-first page artifact file through the shared code runtime."""
         clean_prompt = str(prompt or "").strip()
@@ -51,6 +53,7 @@ class PageCodeGenerationAgent(CreativeExpert):
             prompt=build_page_code_generation_prompt(
                 clean_prompt,
                 template_id=str(template_id or "").strip(),
+                allow_auto_template=allow_auto_template,
             ),
             language=str(language or "html").strip() or "html",
             output_path=str(output_path or "").strip(),
@@ -74,6 +77,7 @@ class PageCodeGenerationAgent(CreativeExpert):
             context_files=_as_string_list(current_parameters.get("context_files")),
             constraints=_as_string_list(current_parameters.get("constraints")),
             template_id=str(current_parameters.get("template_id", "")).strip(),
+            allow_auto_template=_as_bool(current_parameters.get("allow_auto_template"), default=True),
         )
         yield self.format_event(
             current_output.get("message", ""),
@@ -84,9 +88,46 @@ class PageCodeGenerationAgent(CreativeExpert):
         )
 
 
-def build_page_code_generation_prompt(user_prompt: str, template_id: str = "") -> str:
+def build_page_code_generation_prompt(
+    user_prompt: str,
+    template_id: str = "",
+    *,
+    allow_auto_template: bool = True,
+) -> str:
     """Return a content-first HTML page generation brief."""
-    template_match = select_page_template_match(user_prompt, template_id=template_id)
+    clean_template_id = str(template_id or "").strip()
+    template_match = (
+        select_page_template_match(user_prompt, template_id=clean_template_id)
+        if clean_template_id or allow_auto_template
+        else None
+    )
+    selected_template = template_match.template if template_match is not None else None
+    if selected_template is None:
+        template_prompt_block = "\n".join(
+            [
+                "No built-in Page template was selected.",
+                "Generate freely from the user brief while following the Page artifact rules above.",
+                "Do not mention template selection or the absence of a template in the generated page.",
+            ]
+        )
+        template_score = 0
+        template_reasons = (
+            list(template_match.reasons)
+            if template_match is not None
+            else ["Template auto-selection was disabled by the Page pipeline."]
+        )
+    else:
+        template_prompt_block = selected_template.to_prompt_block()
+        template_score = template_match.score if template_match is not None else 0
+        template_reasons = list(template_match.reasons) if template_match is not None else []
+    logger.info(
+        "Page code generation template selection: use_template={} template_id={} score={} allow_auto_template={} reasons={}",
+        selected_template is not None,
+        selected_template.id if selected_template is not None else "",
+        template_score,
+        allow_auto_template,
+        template_reasons,
+    )
     return "\n".join(
         [
             "# Creative Claw Page Artifact Mode",
@@ -151,9 +192,9 @@ def build_page_code_generation_prompt(user_prompt: str, template_id: str = "") -
             "- Template-specific or skill-specific style rules override these defaults.",
             "",
             "## Selected Built-In Page Template",
-            "Use this selected template as the page's structural and visual direction. Explicit user requirements, real source content, and safety constraints still take priority.",
+            "When a built-in Page template is selected, use it as the page's structural and visual direction. Explicit user requirements, real source content, and safety constraints still take priority.",
             "Do not mention the template name, template id, or selection logic in the generated page.",
-            template_match.template.to_prompt_block(),
+            template_prompt_block,
             "",
             "## Quality Check",
             "- Before finalizing, silently check: content completeness, reading order, image/copy alignment, platform fit, and local-file safety.",
@@ -184,7 +225,7 @@ def build_page_code_generation_constraints(extra_constraints: list[str]) -> list
         "Do not use file:// URLs when html_relative_src is available.",
         "Do not invent local absolute paths or file:// URLs.",
         "Do not rely on external network assets or CDN resources unless explicitly approved.",
-        "Use the selected built-in Page template as structural and visual guidance unless explicit user requirements override it.",
+        "When a built-in Page template is selected, use it as structural and visual guidance unless explicit user requirements override it.",
         "Treat visual quality rules as defaults that can be overridden by a selected skill or explicit user style brief.",
     ]
     return defaults + [str(item) for item in extra_constraints if str(item).strip()]
@@ -217,6 +258,21 @@ def _as_string_list(value: Any) -> list[str]:
     if isinstance(value, list):
         return [str(item) for item in value if str(item).strip()]
     return [str(value)] if str(value).strip() else []
+
+
+def _as_bool(value: Any, *, default: bool) -> bool:
+    """Normalize a JSON-like boolean value."""
+    if value is None:
+        return default
+    if isinstance(value, bool):
+        return value
+    if isinstance(value, str):
+        normalized = value.strip().lower()
+        if normalized in {"false", "0", "no", "off"}:
+            return False
+        if normalized in {"true", "1", "yes", "on"}:
+            return True
+    return bool(value)
 
 
 __all__ = [

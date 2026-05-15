@@ -1,0 +1,65 @@
+{
+  "id": "deck-replit",
+  "name": "Replit Slides Deck",
+  "description": "Replit Slides 八套主题 (helix/holm/vance/bevel/world/atlas/bluehouse)",
+  "usage": "【模板: Replit Slides Style Deck】 Replit Slides 八套主题 (helix/holm/vance/bevel/world/atlas/bluehouse)",
+  "tags": [
+    "replit",
+    "themed",
+    "memo",
+    "category:slides",
+    "scenario:product",
+    "aspect:16:9"
+  ],
+  "trigger_terms": [
+    "deck-replit",
+    "Replit Slides 风 Deck",
+    "Replit Slides Deck",
+    "Replit Slides 八套主题 (helix/holm/vance/bevel/world/atlas/bluehouse)",
+    "slides",
+    "product",
+    "16:9",
+    "deck",
+    "replit",
+    "themed",
+    "memo",
+    "category:slides",
+    "scenario:product",
+    "aspect:16:9",
+    "Replit Slides · World Mint",
+    "Replit Slides 八套主题之一"
+  ],
+  "best_for": [
+    "Replit Slides 八套主题 (helix/holm/vance/bevel/world/atlas/bluehouse)",
+    "Requests that need presentation and deck-style storytelling.",
+    "Briefs matching scenario: product.",
+    "Use when the user asks for Replit Slides 风 Deck."
+  ],
+  "avoid_for": [
+    "Requests unrelated to this template category or scenario.",
+    "Cases where the user explicitly asks for a different medium, layout, or visual style."
+  ],
+  "layout_rules": [
+    "【模板: Replit Slides Style Deck】",
+    "【意图】Replit Slides 风的单文件 horizontal-swipe deck, 选 1 套主题不混用。",
+    "【布局】"
+  ],
+  "style_rules": [
+    "每套主题有完整调色板 + 字体 + accent, 不要混用",
+    "【模板: Replit Slides Style Deck】",
+    "【设计细节】"
+  ],
+  "content_rules": [
+    "Cover + agenda + N 个 content + 收尾 (N 由【用户内容】长度决定, 完整覆盖每个要点; 短内容 6-10 起步, 长内容应更多)",
+    "每套主题有完整调色板 + 字体 + accent, 不要混用",
+    "Pick one theme: helix / holm / vance / bevel / world-dark / world-mint / atlas / bluehouse",
+    "【模板: Replit Slides Style Deck】",
+    "【意图】Replit Slides 风的单文件 horizontal-swipe deck, 选 1 套主题不混用。"
+  ],
+  "quality_checks": [
+    "Use the reference HTML as a style and structure guide, not as final placeholder content.",
+    "Preserve user-provided facts, numbers, dates, and claims.",
+    "Return one complete standalone HTML file with no markdown wrapper.",
+    "Keep visible text readable and avoid overlapping UI or content blocks."
+  ]
+}

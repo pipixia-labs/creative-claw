@@ -1,0 +1,64 @@
+{
+  "id": "deck-simple",
+  "name": "Simple Deck",
+  "description": "通用 horizontal-swipe HTML deck, 不要 magazine 调",
+  "usage": "【模板: Simple Deck】 通用 horizontal-swipe HTML deck, 不要 magazine 调",
+  "tags": [
+    "deck",
+    "simple",
+    "swipe",
+    "category:slides",
+    "scenario:product",
+    "aspect:16:9"
+  ],
+  "trigger_terms": [
+    "deck-simple",
+    "通用 Simple Deck",
+    "Simple Deck",
+    "通用 horizontal-swipe HTML deck, 不要 magazine 调",
+    "slides",
+    "product",
+    "16:9",
+    "deck",
+    "simple",
+    "swipe",
+    "category:slides",
+    "scenario:product",
+    "aspect:16:9"
+  ],
+  "best_for": [
+    "通用 horizontal-swipe HTML deck, 不要 magazine 调",
+    "Requests that need presentation and deck-style storytelling.",
+    "Briefs matching scenario: product.",
+    "Use when the user asks for 通用 Simple Deck."
+  ],
+  "avoid_for": [
+    "Requests unrelated to this template category or scenario.",
+    "Cases where the user explicitly asks for a different medium, layout, or visual style."
+  ],
+  "layout_rules": [
+    "【模板: Simple Deck】",
+    "【意图】干净通用的 horizontal-swipe deck (pitch / overview / study)。",
+    "【布局】"
+  ],
+  "style_rules": [
+    "【设计细节】",
+    "Cover + N 个 content 页 + 收尾 (N 由【用户内容】长度决定, 完整覆盖每个要点; 短内容 6-10 起步, 长内容应更多)",
+    "每页一个核心信息 + 1 张图 / 1 个图表",
+    "顶部 progress bar",
+    "键盘 ← / → 切换 + hash 同步"
+  ],
+  "content_rules": [
+    "Cover + N 个 content 页 + 收尾 (N 由【用户内容】长度决定, 完整覆盖每个要点; 短内容 6-10 起步, 长内容应更多)",
+    "每页一个核心信息 + 1 张图 / 1 个图表",
+    "顶部 progress bar",
+    "键盘 ← / → 切换 + hash 同步",
+    "【模板: Simple Deck】"
+  ],
+  "quality_checks": [
+    "Use the reference HTML as a style and structure guide, not as final placeholder content.",
+    "Preserve user-provided facts, numbers, dates, and claims.",
+    "Return one complete standalone HTML file with no markdown wrapper.",
+    "Keep visible text readable and avoid overlapping UI or content blocks."
+  ]
+}

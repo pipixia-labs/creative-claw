@@ -1,0 +1,68 @@
+{
+  "id": "web-proto-brutalist",
+  "name": "Brutalist Prototype",
+  "description": "Swiss industrial-print 风: 单字 grotesque、巨数字、ASCII 装饰",
+  "usage": "【模板: Brutalist 网页原型】 Swiss industrial-print 风: 单字 grotesque、巨数字、ASCII 装饰",
+  "tags": [
+    "brutalist",
+    "swiss",
+    "industrial",
+    "hairline",
+    "category:prototype",
+    "scenario:design",
+    "aspect:桌面 1440"
+  ],
+  "trigger_terms": [
+    "web-proto-brutalist",
+    "Brutalist 原型",
+    "Brutalist Prototype",
+    "Swiss industrial-print 风: 单字 grotesque、巨数字、ASCII 装饰",
+    "prototype",
+    "design",
+    "桌面 1440",
+    "web",
+    "proto",
+    "brutalist",
+    "swiss",
+    "industrial",
+    "hairline",
+    "category:prototype",
+    "scenario:design",
+    "aspect:桌面 1440"
+  ],
+  "best_for": [
+    "Swiss industrial-print 风: 单字 grotesque、巨数字、ASCII 装饰",
+    "Requests that need web pages and product prototypes.",
+    "Briefs matching scenario: design.",
+    "Use when the user asks for Brutalist 原型."
+  ],
+  "avoid_for": [
+    "Requests unrelated to this template category or scenario.",
+    "Cases where the user explicitly asks for a different medium, layout, or visual style."
+  ],
+  "layout_rules": [
+    "Newsprint canvas + hairline grid dividers",
+    "Sections 用极简数字编号",
+    "【布局】"
+  ],
+  "style_rules": [
+    "Newsprint canvas + hairline grid dividers",
+    "Monolithic black grotesque 标题, viewport-bleeding 巨数字",
+    "Hazard-red accent + ASCII 装饰 (┌─┘ 等)",
+    "Sections 用极简数字编号",
+    "【模板: Brutalist 网页原型】"
+  ],
+  "content_rules": [
+    "Monolithic black grotesque 标题, viewport-bleeding 巨数字",
+    "Newsprint canvas + hairline grid dividers",
+    "Hazard-red accent + ASCII 装饰 (┌─┘ 等)",
+    "Sections 用极简数字编号",
+    "【模板: Brutalist 网页原型】"
+  ],
+  "quality_checks": [
+    "Use the reference HTML as a style and structure guide, not as final placeholder content.",
+    "Preserve user-provided facts, numbers, dates, and claims.",
+    "Return one complete standalone HTML file with no markdown wrapper.",
+    "Keep visible text readable and avoid overlapping UI or content blocks."
+  ]
+}

@@ -1,0 +1,68 @@
+{
+  "id": "resume-modern",
+  "name": "Modern Resume",
+  "description": "现代极简简历, A4 单页, 适合打印或导出 PDF",
+  "usage": "【模板: 现代极简简历】 现代极简简历, A4 单页, 适合打印或导出 PDF",
+  "tags": [
+    "resume",
+    "cv",
+    "简历",
+    "category:resume",
+    "scenario:personal",
+    "aspect:A4 (210×297mm)"
+  ],
+  "trigger_terms": [
+    "resume-modern",
+    "极简简历",
+    "Modern Resume",
+    "现代极简简历, A4 单页, 适合打印或导出 PDF",
+    "resume",
+    "personal",
+    "A4 (210×297mm)",
+    "modern",
+    "cv",
+    "简历",
+    "category:resume",
+    "scenario:personal",
+    "aspect:A4 (210×297mm)",
+    "极简简历 · 前端工程师",
+    "A4 单页, 可打印 / 导出 PDF"
+  ],
+  "best_for": [
+    "现代极简简历, A4 单页, 适合打印或导出 PDF",
+    "Requests that need resume pages.",
+    "Briefs matching scenario: personal.",
+    "Use when the user asks for 极简简历."
+  ],
+  "avoid_for": [
+    "Requests unrelated to this template category or scenario.",
+    "Cases where the user explicitly asks for a different medium, layout, or visual style."
+  ],
+  "layout_rules": [
+    "容器宽度模拟 A4: `w-[210mm] min-h-[297mm] mx-auto`, 内边距 16-20mm。",
+    "顶部姓名巨大 (text-4xl), 底下一行 contact (邮箱 / 电话 / 城市 / GitHub / LinkedIn), 中间用细竖线分隔。",
+    "主体两栏可选: 左 60% 主线（经历/项目/教育）, 右 40% 副线（技能/语言/获奖）。",
+    "章节标题: small caps 风格, 上方一条短 accent 线 (w-8 h-0.5)。",
+    "经历每条: 公司 + 职位 + 时间区间 (右对齐), 下方 1-3 条 bullet 用动词开头。"
+  ],
+  "style_rules": [
+    "不使用花哨颜色, 黑白灰 + 1 个 accent (深蓝 / 墨绿)。",
+    "添加 @media print 样式, 隐藏不必要的元素, 颜色保留。",
+    "容器宽度模拟 A4: `w-[210mm] min-h-[297mm] mx-auto`, 内边距 16-20mm。",
+    "顶部姓名巨大 (text-4xl), 底下一行 contact (邮箱 / 电话 / 城市 / GitHub / LinkedIn), 中间用细竖线分隔。",
+    "主体两栏可选: 左 60% 主线（经历/项目/教育）, 右 40% 副线（技能/语言/获奖）。"
+  ],
+  "content_rules": [
+    "章节标题: small caps 风格, 上方一条短 accent 线 (w-8 h-0.5)。",
+    "容器宽度模拟 A4: `w-[210mm] min-h-[297mm] mx-auto`, 内边距 16-20mm。",
+    "顶部姓名巨大 (text-4xl), 底下一行 contact (邮箱 / 电话 / 城市 / GitHub / LinkedIn), 中间用细竖线分隔。",
+    "主体两栏可选: 左 60% 主线（经历/项目/教育）, 右 40% 副线（技能/语言/获奖）。",
+    "经历每条: 公司 + 职位 + 时间区间 (右对齐), 下方 1-3 条 bullet 用动词开头。"
+  ],
+  "quality_checks": [
+    "Use the reference HTML as a style and structure guide, not as final placeholder content.",
+    "Preserve user-provided facts, numbers, dates, and claims.",
+    "Return one complete standalone HTML file with no markdown wrapper.",
+    "Keep visible text readable and avoid overlapping UI or content blocks."
+  ]
+}

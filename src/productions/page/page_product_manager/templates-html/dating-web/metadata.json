@@ -1,0 +1,67 @@
+{
+  "id": "dating-web",
+  "name": "Dating / Community Dashboard",
+  "description": "消费感配对仪表板: 信号 ticker + KPI + 30 天柱状 + 趋势",
+  "usage": "【模板: 社区 / 配对 Dashboard】 消费感配对仪表板: 信号 ticker + KPI + 30 天柱状 + 趋势",
+  "tags": [
+    "dating",
+    "community",
+    "consumer",
+    "category:dashboard",
+    "scenario:personal",
+    "aspect:桌面 1440"
+  ],
+  "trigger_terms": [
+    "dating-web",
+    "社区 / 配对数据墙",
+    "Dating / Community Dashboard",
+    "消费感配对仪表板: 信号 ticker + KPI + 30 天柱状 + 趋势",
+    "dashboard",
+    "personal",
+    "桌面 1440",
+    "dating",
+    "web",
+    "community",
+    "consumer",
+    "category:dashboard",
+    "scenario:personal",
+    "aspect:桌面 1440"
+  ],
+  "best_for": [
+    "消费感配对仪表板: 信号 ticker + KPI + 30 天柱状 + 趋势",
+    "Requests that need dashboard and operational views.",
+    "Briefs matching scenario: personal.",
+    "Use when the user asks for 社区 / 配对数据墙."
+  ],
+  "avoid_for": [
+    "Requests unrelated to this template category or scenario.",
+    "Cases where the user explicitly asks for a different medium, layout, or visual style."
+  ],
+  "layout_rules": [
+    "【布局】",
+    "Left rail 导航",
+    "Ticker bar 实时信号",
+    "Headline KPIs",
+    "30-day mutual-matches 柱状图"
+  ],
+  "style_rules": [
+    "Left rail 导航",
+    "Ticker bar 实时信号",
+    "Headline KPIs",
+    "30-day mutual-matches 柱状图",
+    "Match-rate 趋势 block"
+  ],
+  "content_rules": [
+    "【意图】消费产品感的数据墙, editorial typography + 克制的高亮色。",
+    "Left rail 导航",
+    "Ticker bar 实时信号",
+    "Headline KPIs",
+    "30-day mutual-matches 柱状图"
+  ],
+  "quality_checks": [
+    "Use the reference HTML as a style and structure guide, not as final placeholder content.",
+    "Preserve user-provided facts, numbers, dates, and claims.",
+    "Return one complete standalone HTML file with no markdown wrapper.",
+    "Keep visible text readable and avoid overlapping UI or content blocks."
+  ]
+}

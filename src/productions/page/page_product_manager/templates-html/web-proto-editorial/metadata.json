@@ -1,0 +1,68 @@
+{
+  "id": "web-proto-editorial",
+  "name": "Editorial Prototype",
+  "description": "Editorial-minimalist: 暖色单色 canvas + serif display + grotesque body",
+  "usage": "【模板: Editorial 网页原型】 Editorial-minimalist: 暖色单色 canvas + serif display + grotesque body",
+  "tags": [
+    "editorial",
+    "minimalist",
+    "serif",
+    "category:prototype",
+    "scenario:design",
+    "aspect:桌面 1440"
+  ],
+  "trigger_terms": [
+    "web-proto-editorial",
+    "Editorial 原型",
+    "Editorial Prototype",
+    "Editorial-minimalist: 暖色单色 canvas + serif display + grotesque body",
+    "prototype",
+    "design",
+    "桌面 1440",
+    "web",
+    "proto",
+    "editorial",
+    "minimalist",
+    "serif",
+    "category:prototype",
+    "scenario:design",
+    "aspect:桌面 1440"
+  ],
+  "best_for": [
+    "Editorial-minimalist: 暖色单色 canvas + serif display + grotesque body",
+    "Requests that need web pages and product prototypes.",
+    "Briefs matching scenario: design.",
+    "Use when the user asks for Editorial 原型."
+  ],
+  "avoid_for": [
+    "Requests unrelated to this template category or scenario.",
+    "Cases where the user explicitly asks for a different medium, layout, or visual style."
+  ],
+  "layout_rules": [
+    "Warm monochrome canvas",
+    "【布局】",
+    "Serif display + grotesque body + mono meta",
+    "1px hairline borders, 极柔和 chip",
+    "Macro-whitespace, ambient micro-motion"
+  ],
+  "style_rules": [
+    "Macro-whitespace, ambient micro-motion",
+    "【意图】杂志感 minimalist, 大量留白 + 微动效。",
+    "Warm monochrome canvas",
+    "Serif display + grotesque body + mono meta",
+    "1px hairline borders, 极柔和 chip"
+  ],
+  "content_rules": [
+    "Warm monochrome canvas",
+    "Serif display + grotesque body + mono meta",
+    "1px hairline borders, 极柔和 chip",
+    "Macro-whitespace, ambient micro-motion",
+    "【模板: Editorial 网页原型】"
+  ],
+  "quality_checks": [
+    "Use the reference HTML as a style and structure guide, not as final placeholder content.",
+    "Preserve user-provided facts, numbers, dates, and claims.",
+    "Return one complete standalone HTML file with no markdown wrapper.",
+    "Keep visible text readable and avoid overlapping UI or content blocks."
+  ]
+}

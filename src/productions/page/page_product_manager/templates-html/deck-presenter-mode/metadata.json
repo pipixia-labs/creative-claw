@@ -1,0 +1,68 @@
+{
+  "id": "deck-presenter-mode",
+  "name": "Presenter Mode Deck",
+  "description": "tokyo-night 默认主题, T 切换 5 主题, S 打开提词器 popup",
+  "usage": "【模板: Presenter Mode Deck】 tokyo-night 默认主题, T 切换 5 主题, S 打开提词器 popup",
+  "tags": [
+    "presenter",
+    "notes",
+    "提词",
+    "teleprompter",
+    "category:slides",
+    "scenario:engineering",
+    "aspect:16:9"
+  ],
+  "trigger_terms": [
+    "deck-presenter-mode",
+    "演讲者模式 Deck",
+    "Presenter Mode Deck",
+    "tokyo-night 默认主题, T 切换 5 主题, S 打开提词器 popup",
+    "slides",
+    "engineering",
+    "16:9",
+    "deck",
+    "presenter",
+    "mode",
+    "notes",
+    "提词",
+    "teleprompter",
+    "category:slides",
+    "scenario:engineering",
+    "aspect:16:9"
+  ],
+  "best_for": [
+    "tokyo-night 默认主题, T 切换 5 主题, S 打开提词器 popup",
+    "Requests that need presentation and deck-style storytelling.",
+    "Briefs matching scenario: engineering.",
+    "Use when the user asks for 演讲者模式 Deck."
+  ],
+  "avoid_for": [
+    "Requests unrelated to this template category or scenario.",
+    "Cases where the user explicitly asks for a different medium, layout, or visual style."
+  ],
+  "layout_rules": [
+    "【模板: Presenter Mode Deck】",
+    "【意图】怕忘词的演讲者专用 deck, 含逐字稿 notes 与 popup teleprompter。",
+    "【布局】"
+  ],
+  "style_rules": [
+    "【设计细节】",
+    "每页 + `<aside class=\"notes\">` 150-300 字稿",
+    "右下小 toolbar: T 切主题 / S 打开 popup",
+    "Popup: CURRENT / NEXT / SCRIPT / TIMER 四张磁吸卡",
+    "默认 tokyo-night; 共 5 套主题 (含 light)"
+  ],
+  "content_rules": [
+    "每页 + `<aside class=\"notes\">` 150-300 字稿",
+    "右下小 toolbar: T 切主题 / S 打开 popup",
+    "Popup: CURRENT / NEXT / SCRIPT / TIMER 四张磁吸卡",
+    "默认 tokyo-night; 共 5 套主题 (含 light)",
+    "【模板: Presenter Mode Deck】"
+  ],
+  "quality_checks": [
+    "Use the reference HTML as a style and structure guide, not as final placeholder content.",
+    "Preserve user-provided facts, numbers, dates, and claims.",
+    "Return one complete standalone HTML file with no markdown wrapper.",
+    "Keep visible text readable and avoid overlapping UI or content blocks."
+  ]
+}

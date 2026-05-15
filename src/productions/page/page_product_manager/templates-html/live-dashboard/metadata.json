@@ -1,0 +1,65 @@
+{
+  "id": "live-dashboard",
+  "name": "Live Team Dashboard",
+  "description": "Notion 风团队仪表板, KPI + 7 日 sparkline + activity feed + 任务表",
+  "usage": "【模板: Live Team Dashboard】 Notion 风团队仪表板, KPI + 7 日 sparkline + activity feed + 任务表",
+  "tags": [
+    "notion",
+    "team",
+    "live",
+    "dashboard",
+    "category:dashboard",
+    "scenario:operations",
+    "aspect:桌面长页"
+  ],
+  "trigger_terms": [
+    "live-dashboard",
+    "Notion 风团队仪表板",
+    "Live Team Dashboard",
+    "Notion 风团队仪表板, KPI + 7 日 sparkline + activity feed + 任务表",
+    "dashboard",
+    "operations",
+    "桌面长页",
+    "live",
+    "notion",
+    "team",
+    "category:dashboard",
+    "scenario:operations",
+    "aspect:桌面长页"
+  ],
+  "best_for": [
+    "Notion 风团队仪表板, KPI + 7 日 sparkline + activity feed + 任务表",
+    "Requests that need dashboard and operational views.",
+    "Briefs matching scenario: operations.",
+    "Use when the user asks for Notion 风团队仪表板."
+  ],
+  "avoid_for": [
+    "Requests unrelated to this template category or scenario.",
+    "Cases where the user explicitly asks for a different medium, layout, or visual style."
+  ],
+  "layout_rules": [
+    "KPI 卡片网格",
+    "【布局】",
+    "Header (团队 + 时间窗)",
+    "7 天 sparkline 趋势",
+    "Real-time activity feed (avatar + 动作 + 时间)"
+  ],
+  "style_rules": [
+    "Notion-callout / toggle / 数据库表配色风格",
+    "【设计细节】",
+    "Header (团队 + 时间窗)",
+    "KPI 卡片网格",
+    "7 天 sparkline 趋势"
+  ],
+  "content_rules": [
+    "Real-time activity feed (avatar + 动作 + 时间)",
+    "Notion-callout / toggle / 数据库表配色风格",
+    "【意图】Notion 风的团队动态总览, 即使没有数据源也用 seed 数据兜底。"
+  ],
+  "quality_checks": [
+    "Use the reference HTML as a style and structure guide, not as final placeholder content.",
+    "Preserve user-provided facts, numbers, dates, and claims.",
+    "Return one complete standalone HTML file with no markdown wrapper.",
+    "Keep visible text readable and avoid overlapping UI or content blocks."
+  ]
+}

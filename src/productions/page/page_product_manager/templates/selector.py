@@ -7,7 +7,7 @@ from src.productions.page.page_product_manager.templates.models import (
     PageTemplateMatch,
 )
 
-DEFAULT_PAGE_TEMPLATE_ID = "wechat_editorial_article"
+DEFAULT_PAGE_TEMPLATE_ID = ""
 
 
 def select_page_template(
@@ -49,11 +49,12 @@ def select_page_template(
             best_adjusted_score = adjusted_score
 
     if best_match is None or best_match.score <= 0:
-        default_template = template_by_id.get(DEFAULT_PAGE_TEMPLATE_ID, templates[0])
         return PageTemplateMatch(
-            template=default_template,
+            template=None,
             score=0,
-            reasons=("Fallback to editorial article template for an underspecified Page brief.",),
+            reasons=(
+                "No built-in Page template matched the brief strongly enough; use free-form HTML generation.",
+            ),
         )
 
     return best_match
@@ -74,7 +75,7 @@ def _score_template(text: str, template: PageTemplate) -> tuple[int, list[str]]:
     for tag in template.tags:
         normalized_tag = _normalize(tag)
         tag_value = normalized_tag.split(":", maxsplit=1)[-1]
-        if tag_value and tag_value in text:
+        if len(tag_value) >= 2 and tag_value in text:
             score += 3
             reasons.append(f"Matched tag: {tag}")
 

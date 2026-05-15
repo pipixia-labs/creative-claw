@@ -1,0 +1,76 @@
+{
+  "id": "doc-kami-parchment",
+  "name": "Kami Parchment Document",
+  "description": "暖羊皮纸底 (#f5f4ed) + 墨蓝单色 accent (#1B365D) + 单一衬线字体, 编辑级排印",
+  "usage": "【模板: Kami 羊皮纸文档】 暖羊皮纸底 (#f5f4ed) + 墨蓝单色 accent (#1B365D) + 单一衬线字体, 编辑级排印",
+  "tags": [
+    "kami",
+    "parchment",
+    "serif",
+    "editorial",
+    "report",
+    "letter",
+    "one-pager",
+    "category:doc",
+    "scenario:personal",
+    "aspect:A4 / Letter 长页"
+  ],
+  "trigger_terms": [
+    "doc-kami-parchment",
+    "Kami 羊皮纸文档",
+    "Kami Parchment Document",
+    "暖羊皮纸底 (#f5f4ed) + 墨蓝单色 accent (#1B365D) + 单一衬线字体, 编辑级排印",
+    "doc",
+    "personal",
+    "A4 / Letter 长页",
+    "kami",
+    "parchment",
+    "serif",
+    "editorial",
+    "report",
+    "letter",
+    "one-pager",
+    "category:doc",
+    "scenario:personal",
+    "aspect:A4 / Letter 长页",
+    "Kami 羊皮纸 · One-Pager",
+    "暖羊皮纸 + 墨蓝单色 + 单一衬线"
+  ],
+  "best_for": [
+    "暖羊皮纸底 (#f5f4ed) + 墨蓝单色 accent (#1B365D) + 单一衬线字体, 编辑级排印",
+    "Requests that need doc pages.",
+    "Briefs matching scenario: personal.",
+    "Use when the user asks for Kami 羊皮纸文档."
+  ],
+  "avoid_for": [
+    "Requests unrelated to this template category or scenario.",
+    "Cases where the user explicitly asks for a different medium, layout, or visual style."
+  ],
+  "layout_rules": [
+    "**画布**: 暖羊皮纸 `#f5f4ed` (永远不用纯白 `#fff`)。次级背景 `#efeee5`。",
+    "**Long Doc** — 封面页 (大标题 + 副标 + 作者 + 日期) → 目录 (kicker + page no.) → 章节 (folio 顶角 + section rule + body) → 注释脚注 + 文末 colophon。",
+    "**Portfolio** — 项目 hero (大标题 + sub) + 1 张全幅图 (用 CSS 块绘制占位) + 项目描述 + 角色 / 时间 / stack 元数据 row。",
+    "**Resume** — 顶部姓名 (大字) + tagline 一行 + contact row + 主要 section: experience (公司 / 时间 / 职位 / bullets) + skills + education。",
+    "**Slides** — keynote 风, 页数由【用户内容】决定 (短内容 6 页起步, 长内容应更多), 每页满铺羊皮纸, 大标题 + lede + 角标 page no., 简洁到只有\"被印出来\"的感觉。"
+  ],
+  "style_rules": [
+    "**画布**: 暖羊皮纸 `#f5f4ed` (永远不用纯白 `#fff`)。次级背景 `#efeee5`。",
+    "**字体**: 一种语言一种衬线, 全文不混用:",
+    "英文: `Charter` (fallback: `Source Serif Pro`, `Iowan Old Style`)",
+    "**绝不**: drop-shadow / blur / 圆角 ≥ 8px / 渐变 / 霓虹色 / rgba (用 solid hex)。",
+    "**细节**: tag 用 solid hex 背景方块 (因为 WeasyPrint 不渲染 rgba 好); 单线几何 icon; 边缘 1px hairline `#d4d1c5` rule, 长度受控不到边。"
+  ],
+  "content_rules": [
+    "Body 400, Heading 500 (不要 700/800/900)。",
+    "**行高**: 标题 1.1–1.3, 紧凑正文 1.4–1.45, 阅读型正文 1.5–1.55。",
+    "**One-Pager** — 顶 logotype (Charter italic) + 标题 + lede + 3 列要点 + 底脚 metadata。",
+    "**Long Doc** — 封面页 (大标题 + 副标 + 作者 + 日期) → 目录 (kicker + page no.) → 章节 (folio 顶角 + section rule + body) → 注释脚注 + 文末 colophon。",
+    "**Portfolio** — 项目 hero (大标题 + sub) + 1 张全幅图 (用 CSS 块绘制占位) + 项目描述 + 角色 / 时间 / stack 元数据 row。"
+  ],
+  "quality_checks": [
+    "Use the reference HTML as a style and structure guide, not as final placeholder content.",
+    "Preserve user-provided facts, numbers, dates, and claims.",
+    "Return one complete standalone HTML file with no markdown wrapper.",
+    "Keep visible text readable and avoid overlapping UI or content blocks."
+  ]
+}

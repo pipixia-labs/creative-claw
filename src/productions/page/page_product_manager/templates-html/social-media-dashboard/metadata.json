@@ -1,0 +1,72 @@
+{
+  "id": "social-media-dashboard",
+  "name": "Social Media Dashboard",
+  "description": "平台切换 + 粉丝/互动 KPI + 增长曲线 + Top post + 热门话题",
+  "usage": "【模板: 社媒创作者仪表板】 平台切换 + 粉丝/互动 KPI + 增长曲线 + Top post + 热门话题",
+  "tags": [
+    "social",
+    "creator",
+    "analytics",
+    "x",
+    "linkedin",
+    "tiktok",
+    "category:dashboard",
+    "scenario:creator",
+    "aspect:桌面 1440"
+  ],
+  "trigger_terms": [
+    "social-media-dashboard",
+    "社媒创作者仪表板",
+    "Social Media Dashboard",
+    "平台切换 + 粉丝/互动 KPI + 增长曲线 + Top post + 热门话题",
+    "dashboard",
+    "creator",
+    "桌面 1440",
+    "social",
+    "media",
+    "analytics",
+    "x",
+    "linkedin",
+    "tiktok",
+    "category:dashboard",
+    "scenario:creator",
+    "aspect:桌面 1440"
+  ],
+  "best_for": [
+    "平台切换 + 粉丝/互动 KPI + 增长曲线 + Top post + 热门话题",
+    "Requests that need dashboard and operational views.",
+    "Briefs matching scenario: creator.",
+    "Use when the user asks for 社媒创作者仪表板."
+  ],
+  "avoid_for": [
+    "Requests unrelated to this template category or scenario.",
+    "Cases where the user explicitly asks for a different medium, layout, or visual style."
+  ],
+  "layout_rules": [
+    "KPI 卡片 (followers / engagement / likes / reposts)",
+    "【布局】",
+    "顶部平台 switcher (X / LinkedIn / YouTube / Instagram / TikTok)",
+    "Follower-growth chart",
+    "Top post this week 预览"
+  ],
+  "style_rules": [
+    "顶部平台 switcher (X / LinkedIn / YouTube / Instagram / TikTok)",
+    "KPI 卡片 (followers / engagement / likes / reposts)",
+    "Follower-growth chart",
+    "Top post this week 预览",
+    "Side: trending topics / top comments"
+  ],
+  "content_rules": [
+    "【意图】面向博主 / 创作者的社媒数据看板。",
+    "顶部平台 switcher (X / LinkedIn / YouTube / Instagram / TikTok)",
+    "KPI 卡片 (followers / engagement / likes / reposts)",
+    "Follower-growth chart",
+    "Top post this week 预览"
+  ],
+  "quality_checks": [
+    "Use the reference HTML as a style and structure guide, not as final placeholder content.",
+    "Preserve user-provided facts, numbers, dates, and claims.",
+    "Return one complete standalone HTML file with no markdown wrapper.",
+    "Keep visible text readable and avoid overlapping UI or content blocks."
+  ]
+}

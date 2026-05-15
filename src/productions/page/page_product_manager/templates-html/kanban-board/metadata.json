@@ -1,0 +1,69 @@
+{
+  "id": "kanban-board",
+  "name": "Kanban Board",
+  "description": "To do / In progress / In review / Done 四列, 卡片 + 头像 + 泳道",
+  "usage": "【模板: Kanban 看板】 To do / In progress / In review / Done 四列, 卡片 + 头像 + 泳道",
+  "tags": [
+    "kanban",
+    "trello",
+    "sprint",
+    "看板",
+    "category:dashboard",
+    "scenario:operations",
+    "aspect:桌面 1440"
+  ],
+  "trigger_terms": [
+    "kanban-board",
+    "看板 / Kanban",
+    "Kanban Board",
+    "To do / In progress / In review / Done 四列, 卡片 + 头像 + 泳道",
+    "dashboard",
+    "operations",
+    "桌面 1440",
+    "kanban",
+    "board",
+    "trello",
+    "sprint",
+    "看板",
+    "category:dashboard",
+    "scenario:operations",
+    "aspect:桌面 1440"
+  ],
+  "best_for": [
+    "To do / In progress / In review / Done 四列, 卡片 + 头像 + 泳道",
+    "Requests that need dashboard and operational views.",
+    "Briefs matching scenario: operations.",
+    "Use when the user asks for 看板 / Kanban."
+  ],
+  "avoid_for": [
+    "Requests unrelated to this template category or scenario.",
+    "Cases where the user explicitly asks for a different medium, layout, or visual style."
+  ],
+  "layout_rules": [
+    "卡片含: 标题 / labels / due / avatar / 评论数",
+    "【布局】",
+    "顶部 filter bar (assignee / label / search)",
+    "4 列: To do / In progress / In review / Done",
+    "可选 swimlanes (按 epic / assignee 分组)"
+  ],
+  "style_rules": [
+    "【设计细节】",
+    "顶部 filter bar (assignee / label / search)",
+    "4 列: To do / In progress / In review / Done",
+    "卡片含: 标题 / labels / due / avatar / 评论数",
+    "可选 swimlanes (按 epic / assignee 分组)"
+  ],
+  "content_rules": [
+    "卡片含: 标题 / labels / due / avatar / 评论数",
+    "顶部 filter bar (assignee / label / search)",
+    "4 列: To do / In progress / In review / Done",
+    "可选 swimlanes (按 epic / assignee 分组)",
+    "不需要真 drag, 但视觉上要像可拖"
+  ],
+  "quality_checks": [
+    "Use the reference HTML as a style and structure guide, not as final placeholder content.",
+    "Preserve user-provided facts, numbers, dates, and claims.",
+    "Return one complete standalone HTML file with no markdown wrapper.",
+    "Keep visible text readable and avoid overlapping UI or content blocks."
+  ]
+}

@@ -22,6 +22,7 @@ from pydantic import PrivateAttr
 from conf.llm import build_llm
 from conf.path import PROJECT_PATH
 from src.agents.experts.base import CreativeExpert
+from src.logger import logger
 from src.productions.page.page_product_manager.page_code_generation_agent import (
     PageCodeGenerationAgent,
 )
@@ -142,7 +143,7 @@ Own content-first HTML page tasks end to end. This product line is for posters, 
 - Select and read the best matching skill yourself. If no private skill fits, proceed with a simple content-first page workflow and record that assumption.
 
 # Built-in page templates
-- Final HTML generation has built-in tagged templates for common Page outputs, including Xiaohongshu long images, WeChat editorial articles, product launch posters, SaaS one-pagers, visual reports, social quote cards, event agendas, and product detail stories.
+- Final HTML generation has built-in tagged templates loaded from the Page `templates-html` directory, including data reports, social cards, landing pages, posters, documents, dashboards, decks, and frame-style pages.
 - Let `invoke_page_code_generation` select a template automatically from the generation brief by default.
 - If the user explicitly asks for a known template style, pass its `template_id` to `invoke_page_code_generation`.
 
@@ -373,6 +374,7 @@ Always call `register_page_delivery` before finishing. It must contain a user-fa
         context_files: list[str] | str | None = None,
         constraints: list[str] | str | None = None,
         template_id: str = "",
+        allow_auto_template: bool = True,
     ) -> dict[str, Any]:
         """Invoke the PageProductManager-private code generation agent."""
         current_output = await self._page_code_generation_agent.run_generation(
@@ -383,6 +385,7 @@ Always call `register_page_delivery` before finishing. It must contain a user-fa
             context_files=_coerce_string_list(context_files),
             constraints=_coerce_string_list(constraints),
             template_id=str(template_id or "").strip(),
+            allow_auto_template=allow_auto_template,
         )
         if current_output.get("output_files"):
             current_output = {
@@ -853,25 +856,46 @@ class _PageTemplateSelectionAgent(CreativeExpert):
             str(request.get("task") or ""),
             template_id=explicit_template_id,
         )
+        selected_template = match.template
+        use_template = selected_template is not None
+        template_id = selected_template.id if selected_template is not None else ""
+        selection_mode = "explicit" if explicit_template_id and use_template else "automatic"
+        if not use_template:
+            selection_mode = "freeform"
         payload = {
             "status": "success",
-            "template_id": match.template.id,
-            "template": match.template.to_dict(),
+            "use_template": use_template,
+            "template_id": template_id,
+            "template": selected_template.to_dict() if selected_template is not None else {},
             "score": match.score,
             "reasons": list(match.reasons),
             "explicit_template_id": explicit_template_id,
-            "selection_mode": "explicit" if explicit_template_id else "automatic",
+            "selection_mode": selection_mode,
         }
+        logger.info(
+            "Page template selection: use_template={} mode={} template_id={} score={} explicit_template_id={} reasons={}",
+            use_template,
+            selection_mode,
+            template_id,
+            match.score,
+            explicit_template_id,
+            list(match.reasons),
+        )
+        progress_message = (
+            f"Selected Page template: {template_id}."
+            if use_template
+            else "No suitable Page template selected; using free-form HTML generation."
+        )
         _append_page_progress(
             state,
             stage="template_selection",
             status="success",
-            message=f"Selected Page template: {match.template.id}.",
+            message=progress_message,
         )
         state[PAGE_PRODUCT_TEMPLATE_SELECTION_STATE_KEY] = payload
         state["current_output"] = payload
         yield self.format_event(
-            f"Selected Page template: {match.template.id}.",
+            progress_message,
             _state_delta(
                 state,
                 PAGE_PRODUCT_TEMPLATE_SELECTION_STATE_KEY,
@@ -1137,6 +1161,7 @@ class _PageHtmlGenerationAgent(CreativeExpert):
                 context_files=[],
                 constraints=[],
                 template_id=str(selection.get("template_id") or "").strip(),
+                allow_auto_template=bool(selection.get("use_template")),
             )
 
         if current_output.get("output_files"):
@@ -1353,9 +1378,28 @@ def _build_page_draft_markdown(
     """Build the first Page Markdown draft from the request and template choice."""
     task = str(request.get("task") or "").strip()
     output = dict(request.get("output") or {})
-    template_id = str(selection.get("template_id") or "").strip() or "default"
+    use_template = bool(selection.get("use_template"))
+    template_id = str(selection.get("template_id") or "").strip()
     template = dict(selection.get("template") or {})
     template_name = str(template.get("name") or template_id).strip()
+    template_lines = (
+        [
+            f"- Template ID: {template_id}",
+            f"- Template name: {template_name}",
+            f"- Selection reasons: {', '.join(selection.get('reasons') or [])}",
+        ]
+        if use_template and template_id
+        else [
+            "- No built-in template selected.",
+            f"- Selection reasons: {', '.join(selection.get('reasons') or [])}",
+            "- Generate freely from the source request and Page artifact rules.",
+        ]
+    )
+    handoff_template_rule = (
+        "- Use the selected template as structural and visual guidance."
+        if use_template and template_id
+        else "- No template guidance is required; generate a custom layout that fits the content."
+    )
     return "\n".join(
         [
             "# Page Draft",
@@ -1367,9 +1411,7 @@ def _build_page_draft_markdown(
             repr(output),
             "",
             "## Selected Template",
-            f"- Template ID: {template_id}",
-            f"- Template name: {template_name}",
-            f"- Selection reasons: {', '.join(selection.get('reasons') or [])}",
+            *template_lines,
             "",
             "## Content Scope",
             "- Preserve all user-provided facts, numbers, claims, and dates.",
@@ -1378,13 +1420,13 @@ def _build_page_draft_markdown(
             "",
             "## Material Plan",
             "- Use provided workspace-relative assets when present.",
-            "- Generate only the image assets required for a first usable version.",
+            "- Generate image assets only when the user explicitly requests a new image, illustration, or hero visual.",
             "- If no generated image is needed, use CSS/SVG/data visualization for the first usable version.",
             "",
             "## HTML Generation Handoff",
             "- Generate one complete standalone HTML file.",
-            "- Use the selected template as structural and visual guidance.",
-            "- When the final brief lists local material sources, use those absolute file URLs for images.",
+            handoff_template_rule,
+            "- When the final brief lists local material sources, prefer HTML-relative image paths.",
             "- Make desktop preview and mobile long-image reading both usable.",
         ]
     )
@@ -1484,32 +1526,68 @@ def _page_task_requests_generated_visual(
         return False
 
     task = str(request.get("task") or "").lower()
-    visual_terms = (
-        "配图",
-        "插图",
-        "图片",
-        "主视觉",
-        "海报",
-        "长图",
-        "图文并茂",
-        "小红书",
-        "朋友圈",
-        "poster",
+    negative_terms = (
+        "不要配图",
+        "不用配图",
+        "无需配图",
+        "不需要配图",
+        "不要图片",
+        "不用图片",
+        "无需图片",
+        "不需要图片",
+        "不要插图",
+        "不用插图",
+        "无需插图",
+        "不需要插图",
+        "不要生成图片",
+        "不用生成图片",
+        "不生成图片",
+        "without images",
+        "no images",
+        "no image generation",
+    )
+    if any(term in task for term in negative_terms):
+        return False
+
+    explicit_visual_terms = (
+        "生成配图",
+        "生成图片",
+        "生成插图",
+        "生成主视觉",
+        "需要配图",
+        "需要图片",
+        "需要插图",
+        "需要主视觉",
+        "加一张图",
+        "加图片",
+        "加插图",
+        "配一张图",
+        "主视觉插图",
         "hero image",
+        "generate image",
+        "generate an image",
+        "create image",
+        "create an image",
         "illustration",
-        "social card",
         "product visual",
     )
-    if any(term in task for term in visual_terms):
+    if any(term in task for term in explicit_visual_terms):
         return True
 
-    template_id = str(selection.get("template_id") or "").strip()
-    return template_id in {"poster_product_launch", "xhs_knowledge_long_image", "product_detail_story"}
+    return False
 
 
 def _default_page_image_aspect_ratio(template_id: str) -> str:
     """Return a conservative generated-image aspect ratio for a Page template."""
-    if template_id in {"poster_product_launch", "xhs_knowledge_long_image", "product_detail_story"}:
+    if template_id in {
+        "poster-hero",
+        "card-xiaohongshu",
+        "magazine-poster",
+        "deck-xhs-post",
+        "deck-xhs-pastel",
+        "deck-xhs-white",
+        "social-carousel",
+    }:
         return "4:5"
     return "16:9"
 
@@ -1730,6 +1808,7 @@ def _build_page_final_draft_markdown(
     html_output_path: str = "",
 ) -> str:
     """Build the final HTML generation brief from pipeline state."""
+    use_template = bool(selection.get("use_template"))
     template_id = str(selection.get("template_id") or "").strip()
     material_records = list(materials.get("materials") or [])
     generated_assets = list(materials.get("generated_assets") or [])
@@ -1771,7 +1850,8 @@ def _build_page_final_draft_markdown(
             str(request.get("task") or "").strip(),
             "",
             "## Selected Template",
-            f"- Template ID: {template_id or 'default'}",
+            f"- Use template: {use_template}",
+            f"- Template ID: {template_id if use_template and template_id else 'none'}",
             f"- Selection mode: {selection.get('selection_mode') or 'automatic'}",
             f"- Final HTML output path: {html_output_path or 'auto'}",
             "",

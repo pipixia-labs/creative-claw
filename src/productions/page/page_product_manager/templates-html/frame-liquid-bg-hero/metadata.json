@@ -1,0 +1,73 @@
+{
+  "id": "frame-liquid-bg-hero",
+  "name": "Liquid Background Hero",
+  "description": "WebGL 风流体置换背景 + 顶部叠加金句, 适合视频片头 / landing hero / 海报",
+  "usage": "【模板: 流体背景 Hero】 WebGL 风流体置换背景 + 顶部叠加金句, 适合视频片头 / landing hero / 海报",
+  "tags": [
+    "liquid",
+    "fluid",
+    "background",
+    "hero",
+    "html-in-canvas",
+    "vfx",
+    "category:poster",
+    "scenario:video",
+    "aspect:1920×1080 (16:9) 或 1080×1920 (9:16)"
+  ],
+  "trigger_terms": [
+    "frame-liquid-bg-hero",
+    "流体背景 Hero 帧",
+    "Liquid Background Hero",
+    "WebGL 风流体置换背景 + 顶部叠加金句, 适合视频片头 / landing hero / 海报",
+    "poster",
+    "video",
+    "1920×1080 (16:9) 或 1080×1920 (9:16)",
+    "frame",
+    "liquid",
+    "bg",
+    "hero",
+    "fluid",
+    "background",
+    "html-in-canvas",
+    "vfx",
+    "category:poster",
+    "scenario:video",
+    "aspect:1920×1080 (16:9) 或 1080×1920 (9:16)",
+    "流体背景 Hero · 金句",
+    "Aurora Violet 流体"
+  ],
+  "best_for": [
+    "WebGL 风流体置换背景 + 顶部叠加金句, 适合视频片头 / landing hero / 海报",
+    "Requests that need poster and hero visual compositions.",
+    "Briefs matching scenario: video.",
+    "Use when the user asks for 流体背景 Hero 帧."
+  ],
+  "avoid_for": [
+    "Requests unrelated to this template category or scenario.",
+    "Cases where the user explicitly asks for a different medium, layout, or visual style."
+  ],
+  "layout_rules": [
+    "每个椭圆套 `@keyframes` 平移 + scale + hue-rotate, 周期 8-14s, 错峰; 整个画面叠 `mix-blend-mode: screen` 或 `overlay`。",
+    "80 行 inline JS, 用 `requestAnimationFrame` 画 metaballs 或 simplex noise field。",
+    "严禁外链图片; 全部 CSS + SVG + 可选 canvas。"
+  ],
+  "style_rules": [
+    "3-5 个大椭圆 `radial-gradient(...)`, 颜色取自调色板。",
+    "性能允许时启用, `prefers-reduced-motion` 时降回静态截图。",
+    "居中或左下: 一句巨型金句 (5-7vw, 衬线或粗 sans), 字体: `Source Serif Pro` / `Inter Tight` / `Manrope Black`。",
+    "文字色用 paper white `#fafaf8` 或 ink, 取决于背景明暗; 加 `mix-blend-mode: difference` 让它在任何流体颜色上都可读。",
+    "严禁: 多色彩虹 (>4 个色相)、PowerPoint 渐变、霓虹荧光叠加。"
+  ],
+  "content_rules": [
+    "底部可选 CTA chip 或 hairline + 元数据 row。",
+    "必须用用户提供的金句 / 标题; 如果用户输入是数据 → 提炼一句 ≤ 18 字的金句。",
+    "【流体背景 — 3 种实现, 按用户偏好选】",
+    "【调色 — 4 选 1, 不要彩虹】"
+  ],
+  "quality_checks": [
+    "Use the reference HTML as a style and structure guide, not as final placeholder content.",
+    "Preserve user-provided facts, numbers, dates, and claims.",
+    "Return one complete standalone HTML file with no markdown wrapper.",
+    "Keep visible text readable and avoid overlapping UI or content blocks."
+  ]
+}

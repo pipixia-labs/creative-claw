@@ -1,0 +1,71 @@
+{
+  "id": "deck-graphify-dark",
+  "name": "Graphify Dark Deck",
+  "description": "深夜渐变 + 漂浮 orbs + SVG 力导向图谱 + JetBrains Mono",
+  "usage": "【模板: Graphify Dark Graph Deck】 深夜渐变 + 漂浮 orbs + SVG 力导向图谱 + JetBrains Mono",
+  "tags": [
+    "graph",
+    "dev tool",
+    "ai",
+    "cli",
+    "category:slides",
+    "scenario:engineering",
+    "aspect:16:9"
+  ],
+  "trigger_terms": [
+    "deck-graphify-dark",
+    "暗底图谱 Deck",
+    "Graphify Dark Deck",
+    "深夜渐变 + 漂浮 orbs + SVG 力导向图谱 + JetBrains Mono",
+    "slides",
+    "engineering",
+    "16:9",
+    "deck",
+    "graphify",
+    "dark",
+    "graph",
+    "dev tool",
+    "ai",
+    "cli",
+    "category:slides",
+    "scenario:engineering",
+    "aspect:16:9"
+  ],
+  "best_for": [
+    "深夜渐变 + 漂浮 orbs + SVG 力导向图谱 + JetBrains Mono",
+    "Requests that need presentation and deck-style storytelling.",
+    "Briefs matching scenario: engineering.",
+    "Use when the user asks for 暗底图谱 Deck."
+  ],
+  "avoid_for": [
+    "Requests unrelated to this template category or scenario.",
+    "Cases where the user explicitly asks for a different medium, layout, or visual style."
+  ],
+  "layout_rules": [
+    "Section 页: 彩虹渐变标题",
+    "Glassmorphism 卡片页",
+    "【模板: Graphify Dark Graph Deck】",
+    "【意图】AI-native / 知识图谱 / dev-tool launch deck。",
+    "【布局】"
+  ],
+  "style_rules": [
+    "Cover: #06060c→#0e1020 渐变 + 浮动 blur orbs + SVG 力导向 graph",
+    "Section 页: 彩虹渐变标题",
+    "代码 / CLI 页: JetBrains Mono 高亮",
+    "Glassmorphism 卡片页",
+    "【模板: Graphify Dark Graph Deck】"
+  ],
+  "content_rules": [
+    "Section 页: 彩虹渐变标题",
+    "Cover: #06060c→#0e1020 渐变 + 浮动 blur orbs + SVG 力导向 graph",
+    "代码 / CLI 页: JetBrains Mono 高亮",
+    "Glassmorphism 卡片页",
+    "【模板: Graphify Dark Graph Deck】"
+  ],
+  "quality_checks": [
+    "Use the reference HTML as a style and structure guide, not as final placeholder content.",
+    "Preserve user-provided facts, numbers, dates, and claims.",
+    "Return one complete standalone HTML file with no markdown wrapper.",
+    "Keep visible text readable and avoid overlapping UI or content blocks."
+  ]
+}

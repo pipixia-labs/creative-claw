@@ -1,0 +1,69 @@
+{
+  "id": "docs-page",
+  "name": "Docs Page",
+  "description": "三栏文档页: 侧导航 + 正文 + 右 TOC",
+  "usage": "【模板: 技术文档页】 三栏文档页: 侧导航 + 正文 + 右 TOC",
+  "tags": [
+    "docs",
+    "api",
+    "tutorial",
+    "guide",
+    "category:doc",
+    "scenario:engineering",
+    "aspect:桌面 1440"
+  ],
+  "trigger_terms": [
+    "docs-page",
+    "技术文档页",
+    "Docs Page",
+    "三栏文档页: 侧导航 + 正文 + 右 TOC",
+    "doc",
+    "engineering",
+    "桌面 1440",
+    "docs",
+    "page",
+    "api",
+    "tutorial",
+    "guide",
+    "category:doc",
+    "scenario:engineering",
+    "aspect:桌面 1440"
+  ],
+  "best_for": [
+    "三栏文档页: 侧导航 + 正文 + 右 TOC",
+    "Requests that need doc pages.",
+    "Briefs matching scenario: engineering.",
+    "Use when the user asks for 技术文档页."
+  ],
+  "avoid_for": [
+    "Requests unrelated to this template category or scenario.",
+    "Cases where the user explicitly asks for a different medium, layout, or visual style."
+  ],
+  "layout_rules": [
+    "Inline-start nav (sections + sticky)",
+    "【布局】",
+    "Article body (含代码块, callouts, 表格)",
+    "Inline-end TOC (sticky, scroll-spy)",
+    "顶栏 search + version + 主题切换"
+  ],
+  "style_rules": [
+    "【设计细节】",
+    "Inline-start nav (sections + sticky)",
+    "Article body (含代码块, callouts, 表格)",
+    "Inline-end TOC (sticky, scroll-spy)",
+    "顶栏 search + version + 主题切换"
+  ],
+  "content_rules": [
+    "Inline-start nav (sections + sticky)",
+    "Article body (含代码块, callouts, 表格)",
+    "Inline-end TOC (sticky, scroll-spy)",
+    "顶栏 search + version + 主题切换",
+    "代码块: 圆角 + dark + 语言标签 + 复制按钮"
+  ],
+  "quality_checks": [
+    "Use the reference HTML as a style and structure guide, not as final placeholder content.",
+    "Preserve user-provided facts, numbers, dates, and claims.",
+    "Return one complete standalone HTML file with no markdown wrapper.",
+    "Keep visible text readable and avoid overlapping UI or content blocks."
+  ]
+}

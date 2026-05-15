@@ -1,0 +1,69 @@
+{
+  "id": "frame-data-chart-nyt",
+  "name": "NYT-Style Data Chart Frame",
+  "description": "NYT-newsroom 排版 + 错峰揭示动画 + 编辑级图表 (折线/柱/范围带)",
+  "usage": "【模板: NYT 风数据图表帧】 NYT-newsroom 排版 + 错峰揭示动画 + 编辑级图表 (折线/柱/范围带)",
+  "tags": [
+    "data",
+    "chart",
+    "nyt",
+    "editorial",
+    "frame",
+    "category:video",
+    "scenario:video",
+    "aspect:1920×1080 (16:9)"
+  ],
+  "trigger_terms": [
+    "frame-data-chart-nyt",
+    "NYT 风数据图表帧",
+    "NYT-Style Data Chart Frame",
+    "NYT-newsroom 排版 + 错峰揭示动画 + 编辑级图表 (折线/柱/范围带)",
+    "video",
+    "1920×1080 (16:9)",
+    "frame",
+    "data",
+    "chart",
+    "nyt",
+    "editorial",
+    "category:video",
+    "scenario:video",
+    "aspect:1920×1080 (16:9)",
+    "NYT 风折线图 · 全球用户量",
+    "编辑级图表 + 错峰揭示"
+  ],
+  "best_for": [
+    "NYT-newsroom 排版 + 错峰揭示动画 + 编辑级图表 (折线/柱/范围带)",
+    "Requests that need video frames and motion-oriented visual scenes.",
+    "Briefs matching scenario: video.",
+    "Use when the user asks for NYT 风数据图表帧."
+  ],
+  "avoid_for": [
+    "Requests unrelated to this template category or scenario.",
+    "Cases where the user explicitly asks for a different medium, layout, or visual style."
+  ],
+  "layout_rules": [
+    "**图表区** (占画布 55-65%):",
+    "严禁 grid 全屏铺线、阴影、3D 立体柱; 严禁 emoji。",
+    "【意图】把一段数据 (CSV / JSON / 一句结论) 做成《纽约时报》专栏感的单帧/动画图表, 适合视频片段或推特卡。Inspired by hyperframes data-chart。",
+    "【画布】1920×1080, 暖白底 `#f7f5ee` 或墨黑底 `#0e0e0e` 二选一; 文字色和背景相反。",
+    "【布局】"
+  ],
+  "style_rules": [
+    "**顶部 kicker** (11px uppercase letterspace 0.14em, 颜色 = accent 红 `#a91d1d` 或 mint `#5fb38a`): 数据来源 + 类目, 如 \"GLOBAL · WEEKLY ACTIVE USERS · 2018–2026\"。",
+    "**错峰揭示动画**: 标题 fade-in (0s), kicker (200ms), 折线 stroke-dashoffset 1.2s ease-out (400ms), 数据标签依次 100ms 间隔。可被 `prefers-reduced-motion` 关闭。",
+    "字体: 标题 `Source Serif Pro` 或 `Cheltenham` (无则用 `Playfair Display`); body `IBM Plex Sans` 或 `Inter`; 数据标签 `IBM Plex Mono`。"
+  ],
+  "content_rules": [
+    "**顶部 kicker** (11px uppercase letterspace 0.14em, 颜色 = accent 红 `#a91d1d` 或 mint `#5fb38a`): 数据来源 + 类目, 如 \"GLOBAL · WEEKLY ACTIVE USERS · 2018–2026\"。",
+    "**大字标题** (Cheltenham / Playfair / Source Serif Pro, 5.6vw, italic 副标可选): 一句结论。**结论必须从用户数据中提炼**, 不是描述图。",
+    "折线: 1-2 条线, 主线 ink 实心 2.5px, 次线 dashed 1.5px; 数据点用 6px 实心圆; 关键点旁标注 `2024 · 412M` 黑色 mono 小字。",
+    "**底部 source + footnote** (10px mono, opacity 0.6): \"Source: 用户数据 · Chart by html-anything\"。",
+    "**错峰揭示动画**: 标题 fade-in (0s), kicker (200ms), 折线 stroke-dashoffset 1.2s ease-out (400ms), 数据标签依次 100ms 间隔。可被 `prefers-reduced-motion` 关闭。"
+  ],
+  "quality_checks": [
+    "Use the reference HTML as a style and structure guide, not as final placeholder content.",
+    "Preserve user-provided facts, numbers, dates, and claims.",
+    "Return one complete standalone HTML file with no markdown wrapper.",
+    "Keep visible text readable and avoid overlapping UI or content blocks."
+  ]
+}

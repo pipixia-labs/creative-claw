@@ -1,0 +1,66 @@
+{
+  "id": "weekly-update",
+  "name": "Weekly Update Deck",
+  "description": "6-8 页横向滑动周报: 已发布 / 进行中 / 阻塞 / 指标 / 求助",
+  "usage": "【模板: 团队周报 Deck】 6-8 页横向滑动周报: 已发布 / 进行中 / 阻塞 / 指标 / 求助",
+  "tags": [
+    "weekly",
+    "周报",
+    "status",
+    "category:slides",
+    "scenario:operations",
+    "aspect:16:9 ×8"
+  ],
+  "trigger_terms": [
+    "weekly-update",
+    "团队周报 Deck",
+    "Weekly Update Deck",
+    "6-8 页横向滑动周报: 已发布 / 进行中 / 阻塞 / 指标 / 求助",
+    "slides",
+    "operations",
+    "16:9 ×8",
+    "weekly",
+    "update",
+    "周报",
+    "status",
+    "category:slides",
+    "scenario:operations",
+    "aspect:16:9 ×8"
+  ],
+  "best_for": [
+    "6-8 页横向滑动周报: 已发布 / 进行中 / 阻塞 / 指标 / 求助",
+    "Requests that need presentation and deck-style storytelling.",
+    "Briefs matching scenario: operations.",
+    "Use when the user asks for 团队周报 Deck."
+  ],
+  "avoid_for": [
+    "Requests unrelated to this template category or scenario.",
+    "Cases where the user explicitly asks for a different medium, layout, or visual style."
+  ],
+  "layout_rules": [
+    "Metrics (KPI 卡片网格 + 周对比)",
+    "【模板: 团队周报 Deck】",
+    "【意图】6-8 页 horizontal-swipe slides, 周报固定结构。",
+    "【布局】"
+  ],
+  "style_rules": [
+    "【设计细节】",
+    "Cover (周次 + 团队 + 一句话主题)",
+    "Shipped (列表 + owner)",
+    "In flight (进度条)",
+    "Blocked (红色 callout)"
+  ],
+  "content_rules": [
+    "Cover (周次 + 团队 + 一句话主题)",
+    "Shipped (列表 + owner)",
+    "In flight (进度条)",
+    "Blocked (红色 callout)",
+    "Metrics (KPI 卡片网格 + 周对比)"
+  ],
+  "quality_checks": [
+    "Use the reference HTML as a style and structure guide, not as final placeholder content.",
+    "Preserve user-provided facts, numbers, dates, and claims.",
+    "Return one complete standalone HTML file with no markdown wrapper.",
+    "Keep visible text readable and avoid overlapping UI or content blocks."
+  ]
+}

@@ -1,0 +1,62 @@
+{
+  "id": "saas-landing",
+  "name": "SaaS Landing",
+  "description": "单页 SaaS 落地页, 含 hero/features/social-proof/pricing/CTA",
+  "usage": "【模板: SaaS Landing】 单页 SaaS 落地页, 含 hero/features/social-proof/pricing/CTA",
+  "tags": [
+    "saas",
+    "landing",
+    "marketing",
+    "category:prototype",
+    "scenario:marketing",
+    "aspect:桌面 1440"
+  ],
+  "trigger_terms": [
+    "saas-landing",
+    "SaaS Landing",
+    "单页 SaaS 落地页, 含 hero/features/social-proof/pricing/CTA",
+    "prototype",
+    "marketing",
+    "桌面 1440",
+    "saas",
+    "landing",
+    "category:prototype",
+    "scenario:marketing",
+    "aspect:桌面 1440"
+  ],
+  "best_for": [
+    "单页 SaaS 落地页, 含 hero/features/social-proof/pricing/CTA",
+    "Requests that need web pages and product prototypes.",
+    "Briefs matching scenario: marketing.",
+    "Use when the user asks for SaaS Landing."
+  ],
+  "avoid_for": [
+    "Requests unrelated to this template category or scenario.",
+    "Cases where the user explicitly asks for a different medium, layout, or visual style."
+  ],
+  "layout_rules": [
+    "Hero (大标题 + 副标 + 双 CTA + 可视化占位)",
+    "现代 SaaS 风: 大字号, 柔和渐变, glassmorphism 卡片, 滚动入场动画",
+    "【意图】完整的 SaaS 产品落地页, 把用户内容映射到标准 sections。",
+    "【布局】"
+  ],
+  "style_rules": [
+    "现代 SaaS 风: 大字号, 柔和渐变, glassmorphism 卡片, 滚动入场动画",
+    "【设计细节】",
+    "Top nav (logo + 导航 + sign-in + 主 CTA)",
+    "Hero (大标题 + 副标 + 双 CTA + 可视化占位)",
+    "Logo wall (社会认证)"
+  ],
+  "content_rules": [
+    "Top nav (logo + 导航 + sign-in + 主 CTA)",
+    "Hero (大标题 + 副标 + 双 CTA + 可视化占位)",
+    "Features (3-6 个特性卡, icon + 标题 + 描述)",
+    "How it works (3 步流程, 数字 + 标题 + 描述)"
+  ],
+  "quality_checks": [
+    "Use the reference HTML as a style and structure guide, not as final placeholder content.",
+    "Preserve user-provided facts, numbers, dates, and claims.",
+    "Return one complete standalone HTML file with no markdown wrapper.",
+    "Keep visible text readable and avoid overlapping UI or content blocks."
+  ]
+}

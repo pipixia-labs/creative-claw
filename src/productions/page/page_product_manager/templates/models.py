@@ -32,7 +32,7 @@ class PageTemplate:
             raise ValueError(f"PageTemplate {self.id!r} must have a name.")
         if not self.usage.strip():
             raise ValueError(f"PageTemplate {self.id!r} must have usage guidance.")
-        if "<!DOCTYPE html>" not in self.template_html:
+        if "<!doctype html>" not in self.template_html.lower():
             raise ValueError(f"PageTemplate {self.id!r} must include a complete HTML template.")
         required_sequences = {
             "tags": self.tags,
@@ -102,14 +102,16 @@ class PageTemplate:
 class PageTemplateMatch:
     """Selection result for one Page template."""
 
-    template: PageTemplate
+    template: PageTemplate | None
     score: int
     reasons: tuple[str, ...]
 
     def to_dict(self) -> dict[str, object]:
         """Return a JSON-friendly match summary."""
         return {
-            "template": self.template.to_dict(),
+            "use_template": self.template is not None,
+            "template_id": self.template.id if self.template is not None else "",
+            "template": self.template.to_dict() if self.template is not None else {},
             "score": self.score,
             "reasons": list(self.reasons),
         }

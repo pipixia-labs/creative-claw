@@ -1,0 +1,68 @@
+{
+  "id": "social-reddit-card",
+  "name": "Reddit Post Card",
+  "description": "拟真 Reddit 帖子卡 + 上下投票 + 评论数, 适合视频叠加 / 故事分享",
+  "usage": "【模板: Reddit 帖子卡】 拟真 Reddit 帖子卡 + 上下投票 + 评论数, 适合视频叠加 / 故事分享",
+  "tags": [
+    "reddit",
+    "social",
+    "card",
+    "overlay",
+    "story",
+    "category:card",
+    "scenario:marketing",
+    "aspect:1280×720 或 800×600"
+  ],
+  "trigger_terms": [
+    "social-reddit-card",
+    "Reddit 帖子卡",
+    "Reddit Post Card",
+    "拟真 Reddit 帖子卡 + 上下投票 + 评论数, 适合视频叠加 / 故事分享",
+    "card",
+    "marketing",
+    "1280×720 或 800×600",
+    "social",
+    "reddit",
+    "overlay",
+    "story",
+    "category:card",
+    "scenario:marketing",
+    "aspect:1280×720 或 800×600",
+    "Reddit 帖子 · r/programming",
+    "Reddit dark mode + vote rail"
+  ],
+  "best_for": [
+    "拟真 Reddit 帖子卡 + 上下投票 + 评论数, 适合视频叠加 / 故事分享",
+    "Requests that need social card and shareable visual content.",
+    "Briefs matching scenario: marketing.",
+    "Use when the user asks for Reddit 帖子卡."
+  ],
+  "avoid_for": [
+    "Requests unrelated to this template category or scenario.",
+    "Cases where the user explicitly asks for a different medium, layout, or visual style."
+  ],
+  "layout_rules": [
+    "【意图】把一段故事 / 提问 / 段子, 渲染成 Reddit 帖子卡片, 用于视频叠加、社媒故事分享。Inspired by hyperframes reddit-post。",
+    "【画布】1280×720 (视频叠加) 或 800×600 (单卡分享); 背景透明或暗色 `#0b1416`。",
+    "【卡片结构】"
+  ],
+  "style_rules": [
+    "票数 (Inter, 17px, weight 700, 居中, 颜色: 0 灰 / 正橙 / 负蓝); 大数字用 `12.3k` 格式。",
+    "内容: 16px body 或 引用块或 1 张图 (CSS 渐变占位)。",
+    "数字: 同主字体。",
+    "票数颜色: 正 = `#ff4500`, 负 = `#7193ff`, 0 = `#878a8c`。",
+    "标题点击区可加微妙背景 hover。"
+  ],
+  "content_rules": [
+    "**标题** (Inter / IBM Plex Sans, 22-28px, weight 500, dark text)。",
+    "内容: 16px body 或 引用块或 1 张图 (CSS 渐变占位)。",
+    "标题点击区可加微妙背景 hover。",
+    "必须用用户提供的内容; 自动生成合理的 subreddit / username / 票数。"
+  ],
+  "quality_checks": [
+    "Use the reference HTML as a style and structure guide, not as final placeholder content.",
+    "Preserve user-provided facts, numbers, dates, and claims.",
+    "Return one complete standalone HTML file with no markdown wrapper.",
+    "Keep visible text readable and avoid overlapping UI or content blocks."
+  ]
+}

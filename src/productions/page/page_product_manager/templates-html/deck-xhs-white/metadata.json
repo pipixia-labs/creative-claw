@@ -1,0 +1,67 @@
+{
+  "id": "deck-xhs-white",
+  "name": "White Editorial Deck",
+  "description": "纯白 + 顶部彩虹 bar + 渐变文字 + 马卡龙软卡片 + 黑底 pill",
+  "usage": "【模板: 白底杂志风 Deck】 纯白 + 顶部彩虹 bar + 渐变文字 + 马卡龙软卡片 + 黑底 pill",
+  "tags": [
+    "editorial",
+    "rainbow",
+    "macaron",
+    "category:slides",
+    "scenario:marketing",
+    "aspect:16:9 / 3:4"
+  ],
+  "trigger_terms": [
+    "deck-xhs-white",
+    "白底杂志风 Deck",
+    "White Editorial Deck",
+    "纯白 + 顶部彩虹 bar + 渐变文字 + 马卡龙软卡片 + 黑底 pill",
+    "slides",
+    "marketing",
+    "16:9 / 3:4",
+    "deck",
+    "xhs",
+    "white",
+    "editorial",
+    "rainbow",
+    "macaron",
+    "category:slides",
+    "scenario:marketing",
+    "aspect:16:9 / 3:4"
+  ],
+  "best_for": [
+    "纯白 + 顶部彩虹 bar + 渐变文字 + 马卡龙软卡片 + 黑底 pill",
+    "Requests that need presentation and deck-style storytelling.",
+    "Briefs matching scenario: marketing.",
+    "Use when the user asks for 白底杂志风 Deck."
+  ],
+  "avoid_for": [
+    "Requests unrelated to this template category or scenario.",
+    "Cases where the user explicitly asks for a different medium, layout, or visual style."
+  ],
+  "layout_rules": [
+    "马卡龙软卡片组 (粉 / 紫 / 蓝 / 绿 / 橙)",
+    "【模板: 白底杂志风 Deck】",
+    "【布局】"
+  ],
+  "style_rules": [
+    "纯白背景 + 顶部 10 色彩虹 bar",
+    "80-110px display 标题 + 紫→蓝→绿→橙→粉渐变文字",
+    "马卡龙软卡片组 (粉 / 紫 / 蓝 / 绿 / 橙)",
+    "黑底白字 .focus pill + 引用大块",
+    "【模板: 白底杂志风 Deck】"
+  ],
+  "content_rules": [
+    "80-110px display 标题 + 紫→蓝→绿→橙→粉渐变文字",
+    "纯白背景 + 顶部 10 色彩虹 bar",
+    "马卡龙软卡片组 (粉 / 紫 / 蓝 / 绿 / 橙)",
+    "黑底白字 .focus pill + 引用大块",
+    "【模板: 白底杂志风 Deck】"
+  ],
+  "quality_checks": [
+    "Use the reference HTML as a style and structure guide, not as final placeholder content.",
+    "Preserve user-provided facts, numbers, dates, and claims.",
+    "Return one complete standalone HTML file with no markdown wrapper.",
+    "Keep visible text readable and avoid overlapping UI or content blocks."
+  ]
+}

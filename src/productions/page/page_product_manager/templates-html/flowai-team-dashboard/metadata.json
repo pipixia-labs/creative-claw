@@ -1,0 +1,66 @@
+{
+  "id": "flowai-team-dashboard",
+  "name": "FlowAI Team Dashboard",
+  "description": "三个 tab 的团队管理后台: 成员、详情、活动日志, 含图表 + CSV 导出",
+  "usage": "【模板: FlowAI 团队管理 Dashboard】 三个 tab 的团队管理后台: 成员、详情、活动日志, 含图表 + CSV 导出",
+  "tags": [
+    "flowai",
+    "team",
+    "members",
+    "category:dashboard",
+    "scenario:operations",
+    "aspect:桌面 1440"
+  ],
+  "trigger_terms": [
+    "flowai-team-dashboard",
+    "FlowAI 团队管理",
+    "FlowAI Team Dashboard",
+    "三个 tab 的团队管理后台: 成员、详情、活动日志, 含图表 + CSV 导出",
+    "dashboard",
+    "operations",
+    "桌面 1440",
+    "flowai",
+    "team",
+    "members",
+    "category:dashboard",
+    "scenario:operations",
+    "aspect:桌面 1440"
+  ],
+  "best_for": [
+    "三个 tab 的团队管理后台: 成员、详情、活动日志, 含图表 + CSV 导出",
+    "Requests that need dashboard and operational views.",
+    "Briefs matching scenario: operations.",
+    "Use when the user asks for FlowAI 团队管理."
+  ],
+  "avoid_for": [
+    "Requests unrelated to this template category or scenario.",
+    "Cases where the user explicitly asks for a different medium, layout, or visual style."
+  ],
+  "layout_rules": [
+    "【布局】",
+    "Tabs: Team Members / Team Details / Activity Log",
+    "KPI stat row",
+    "Member table (avatar + 角色 + 状态)",
+    "Role distribution bar chart"
+  ],
+  "style_rules": [
+    "【设计细节】",
+    "Tabs: Team Members / Team Details / Activity Log",
+    "KPI stat row",
+    "Member table (avatar + 角色 + 状态)",
+    "Role distribution bar chart"
+  ],
+  "content_rules": [
+    "Tabs: Team Members / Team Details / Activity Log",
+    "KPI stat row",
+    "Member table (avatar + 角色 + 状态)",
+    "Role distribution bar chart",
+    "Online presence + activity sparklines"
+  ],
+  "quality_checks": [
+    "Use the reference HTML as a style and structure guide, not as final placeholder content.",
+    "Preserve user-provided facts, numbers, dates, and claims.",
+    "Return one complete standalone HTML file with no markdown wrapper.",
+    "Keep visible text readable and avoid overlapping UI or content blocks."
+  ]
+}

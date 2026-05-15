@@ -1,0 +1,64 @@
+{
+  "id": "hr-onboarding",
+  "name": "HR Onboarding",
+  "description": "首周日程 + buddy + 学习路径 + 设备 + 完成标准",
+  "usage": "【模板: 新员工入职】 首周日程 + buddy + 学习路径 + 设备 + 完成标准",
+  "tags": [
+    "onboarding",
+    "入职",
+    "first week",
+    "category:doc",
+    "scenario:hr",
+    "aspect:长页面"
+  ],
+  "trigger_terms": [
+    "hr-onboarding",
+    "新员工入职页",
+    "HR Onboarding",
+    "首周日程 + buddy + 学习路径 + 设备 + 完成标准",
+    "doc",
+    "hr",
+    "长页面",
+    "onboarding",
+    "入职",
+    "first week",
+    "category:doc",
+    "scenario:hr",
+    "aspect:长页面"
+  ],
+  "best_for": [
+    "首周日程 + buddy + 学习路径 + 设备 + 完成标准",
+    "Requests that need doc pages.",
+    "Briefs matching scenario: hr.",
+    "Use when the user asks for 新员工入职页."
+  ],
+  "avoid_for": [
+    "Requests unrelated to this template category or scenario.",
+    "Cases where the user explicitly asks for a different medium, layout, or visual style."
+  ],
+  "layout_rules": [
+    "Welcome hero (姓名 + 入职日 + 团队)",
+    "Manager + Buddy 卡片",
+    "【布局】"
+  ],
+  "style_rules": [
+    "Welcome hero (姓名 + 入职日 + 团队)",
+    "First-week schedule (5 天 timeline)",
+    "Manager + Buddy 卡片",
+    "Learning track 列表",
+    "Equipment checklist"
+  ],
+  "content_rules": [
+    "Welcome hero (姓名 + 入职日 + 团队)",
+    "First-week schedule (5 天 timeline)",
+    "Manager + Buddy 卡片",
+    "Learning track 列表",
+    "Equipment checklist"
+  ],
+  "quality_checks": [
+    "Use the reference HTML as a style and structure guide, not as final placeholder content.",
+    "Preserve user-provided facts, numbers, dates, and claims.",
+    "Return one complete standalone HTML file with no markdown wrapper.",
+    "Keep visible text readable and avoid overlapping UI or content blocks."
+  ]
+}

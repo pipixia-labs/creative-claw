@@ -1,0 +1,68 @@
+{
+  "id": "deck-hermes-cyber",
+  "name": "Hermes Cyber Terminal Deck",
+  "description": "黑底 + CRT 网格扫描线 + $ 命令行标题 + 薄荷绿大字 + 三档 tag",
+  "usage": "【模板: Hermes Cyber Terminal Deck】 黑底 + CRT 网格扫描线 + $ 命令行标题 + 薄荷绿大字 + 三档 tag",
+  "tags": [
+    "cyber",
+    "terminal",
+    "review",
+    "cli",
+    "category:slides",
+    "scenario:engineering",
+    "aspect:16:9"
+  ],
+  "trigger_terms": [
+    "deck-hermes-cyber",
+    "Cyber Terminal Deck",
+    "Hermes Cyber Terminal Deck",
+    "黑底 + CRT 网格扫描线 + $ 命令行标题 + 薄荷绿大字 + 三档 tag",
+    "slides",
+    "engineering",
+    "16:9",
+    "deck",
+    "hermes",
+    "cyber",
+    "terminal",
+    "review",
+    "cli",
+    "category:slides",
+    "scenario:engineering",
+    "aspect:16:9"
+  ],
+  "best_for": [
+    "黑底 + CRT 网格扫描线 + $ 命令行标题 + 薄荷绿大字 + 三档 tag",
+    "Requests that need presentation and deck-style storytelling.",
+    "Briefs matching scenario: engineering.",
+    "Use when the user asks for Cyber Terminal Deck."
+  ],
+  "avoid_for": [
+    "Requests unrelated to this template category or scenario.",
+    "Cases where the user explicitly asks for a different medium, layout, or visual style."
+  ],
+  "layout_rules": [
+    "【模板: Hermes Cyber Terminal Deck】",
+    "【意图】CLI / agent / dev tool 测评 deck (含 trace, diff, benchmark)。",
+    "【布局】"
+  ],
+  "style_rules": [
+    "#0a0c10 黑底 + 56px 赛博网格 + CRT 暗角",
+    "窗口红绿灯 chrome + `$ prompt` 标题",
+    "薄荷绿 #7ed3a4 大字 + JetBrains Mono",
+    "Stroke-only 柱状图 + blinking 光标",
+    "琥珀 / 绿 / 红 三档 tag"
+  ],
+  "content_rules": [
+    "窗口红绿灯 chrome + `$ prompt` 标题",
+    "#0a0c10 黑底 + 56px 赛博网格 + CRT 暗角",
+    "薄荷绿 #7ed3a4 大字 + JetBrains Mono",
+    "Stroke-only 柱状图 + blinking 光标",
+    "琥珀 / 绿 / 红 三档 tag"
+  ],
+  "quality_checks": [
+    "Use the reference HTML as a style and structure guide, not as final placeholder content.",
+    "Preserve user-provided facts, numbers, dates, and claims.",
+    "Return one complete standalone HTML file with no markdown wrapper.",
+    "Keep visible text readable and avoid overlapping UI or content blocks."
+  ]
+}

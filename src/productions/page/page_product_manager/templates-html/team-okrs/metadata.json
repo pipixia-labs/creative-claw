@@ -1,0 +1,70 @@
+{
+  "id": "team-okrs",
+  "name": "Team OKRs",
+  "description": "季度 banner + 3 个目标 + KR 进度条 + owner + 状态 pill",
+  "usage": "【模板: Team OKRs】 季度 banner + 3 个目标 + KR 进度条 + owner + 状态 pill",
+  "tags": [
+    "okr",
+    "objectives",
+    "key results",
+    "目标",
+    "category:dashboard",
+    "scenario:product",
+    "aspect:桌面 1440"
+  ],
+  "trigger_terms": [
+    "team-okrs",
+    "团队 OKR 追踪",
+    "Team OKRs",
+    "季度 banner + 3 个目标 + KR 进度条 + owner + 状态 pill",
+    "dashboard",
+    "product",
+    "桌面 1440",
+    "team",
+    "okrs",
+    "okr",
+    "objectives",
+    "key results",
+    "目标",
+    "category:dashboard",
+    "scenario:product",
+    "aspect:桌面 1440"
+  ],
+  "best_for": [
+    "季度 banner + 3 个目标 + KR 进度条 + owner + 状态 pill",
+    "Requests that need dashboard and operational views.",
+    "Briefs matching scenario: product.",
+    "Use when the user asks for 团队 OKR 追踪."
+  ],
+  "avoid_for": [
+    "Requests unrelated to this template category or scenario.",
+    "Cases where the user explicitly asks for a different medium, layout, or visual style."
+  ],
+  "layout_rules": [
+    "【布局】",
+    "Quarter banner (Q? + 主题)",
+    "3 个 objectives 列, 每个含一组 KR",
+    "每个 KR 一条进度条 + 数值 + owner avatar + 状态 pill",
+    "右侧 'this quarter at a glance' 摘要"
+  ],
+  "style_rules": [
+    "Quarter banner (Q? + 主题)",
+    "3 个 objectives 列, 每个含一组 KR",
+    "每个 KR 一条进度条 + 数值 + owner avatar + 状态 pill",
+    "右侧 'this quarter at a glance' 摘要",
+    "【模板: Team OKRs】"
+  ],
+  "content_rules": [
+    "Quarter banner (Q? + 主题)",
+    "3 个 objectives 列, 每个含一组 KR",
+    "每个 KR 一条进度条 + 数值 + owner avatar + 状态 pill",
+    "右侧 'this quarter at a glance' 摘要",
+    "【模板: Team OKRs】"
+  ],
+  "quality_checks": [
+    "Use the reference HTML as a style and structure guide, not as final placeholder content.",
+    "Preserve user-provided facts, numbers, dates, and claims.",
+    "Return one complete standalone HTML file with no markdown wrapper.",
+    "Keep visible text readable and avoid overlapping UI or content blocks."
+  ]
+}

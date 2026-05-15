@@ -1,0 +1,66 @@
+{
+  "id": "deck-tech-sharing",
+  "name": "Tech Sharing Deck",
+  "description": "GitHub-dark + JetBrains Mono + 终端代码块, 含 agenda + Q&A",
+  "usage": "【模板: Tech Sharing Deck】 GitHub-dark + JetBrains Mono + 终端代码块, 含 agenda + Q&A",
+  "tags": [
+    "tech talk",
+    "conference",
+    "engineering",
+    "category:slides",
+    "scenario:engineering",
+    "aspect:16:9"
+  ],
+  "trigger_terms": [
+    "deck-tech-sharing",
+    "技术分享 Deck",
+    "Tech Sharing Deck",
+    "GitHub-dark + JetBrains Mono + 终端代码块, 含 agenda + Q&A",
+    "slides",
+    "engineering",
+    "16:9",
+    "deck",
+    "tech",
+    "sharing",
+    "tech talk",
+    "conference",
+    "category:slides",
+    "scenario:engineering",
+    "aspect:16:9"
+  ],
+  "best_for": [
+    "GitHub-dark + JetBrains Mono + 终端代码块, 含 agenda + Q&A",
+    "Requests that need presentation and deck-style storytelling.",
+    "Briefs matching scenario: engineering.",
+    "Use when the user asks for 技术分享 Deck."
+  ],
+  "avoid_for": [
+    "Requests unrelated to this template category or scenario.",
+    "Cases where the user explicitly asks for a different medium, layout, or visual style."
+  ],
+  "layout_rules": [
+    "【模板: Tech Sharing Deck】",
+    "【意图】工程内部分享 / 会议 talk 的 deck。",
+    "【布局】"
+  ],
+  "style_rules": [
+    "GitHub-dark 配色 + JetBrains Mono",
+    "【设计细节】",
+    "Cover (议题 + 讲者 + handle)",
+    "Agenda 页",
+    "正文页若干 (代码块 + 关键观点)"
+  ],
+  "content_rules": [
+    "Cover (议题 + 讲者 + handle)",
+    "Agenda 页",
+    "正文页若干 (代码块 + 关键观点)",
+    "Demo 页 (terminal 截图)",
+    "Q&A 页"
+  ],
+  "quality_checks": [
+    "Use the reference HTML as a style and structure guide, not as final placeholder content.",
+    "Preserve user-provided facts, numbers, dates, and claims.",
+    "Return one complete standalone HTML file with no markdown wrapper.",
+    "Keep visible text readable and avoid overlapping UI or content blocks."
+  ]
+}

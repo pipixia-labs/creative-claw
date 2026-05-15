@@ -1,0 +1,68 @@
+{
+  "id": "web-proto-soft",
+  "name": "Apple-tier Soft Prototype",
+  "description": "Apple 调: 银/奶 canvas + 双层斜面卡片 + button-in-button + spring",
+  "usage": "【模板: Apple Soft 原型】 Apple 调: 银/奶 canvas + 双层斜面卡片 + button-in-button + spring",
+  "tags": [
+    "apple",
+    "soft",
+    "squircle",
+    "spring",
+    "category:prototype",
+    "scenario:design",
+    "aspect:桌面 1440"
+  ],
+  "trigger_terms": [
+    "web-proto-soft",
+    "Apple Soft 原型",
+    "Apple-tier Soft Prototype",
+    "Apple 调: 银/奶 canvas + 双层斜面卡片 + button-in-button + spring",
+    "prototype",
+    "design",
+    "桌面 1440",
+    "web",
+    "proto",
+    "soft",
+    "apple",
+    "squircle",
+    "spring",
+    "category:prototype",
+    "scenario:design",
+    "aspect:桌面 1440"
+  ],
+  "best_for": [
+    "Apple 调: 银/奶 canvas + 双层斜面卡片 + button-in-button + spring",
+    "Requests that need web pages and product prototypes.",
+    "Briefs matching scenario: design.",
+    "Use when the user asks for Apple Soft 原型."
+  ],
+  "avoid_for": [
+    "Requests unrelated to this template category or scenario.",
+    "Cases where the user explicitly asks for a different medium, layout, or visual style."
+  ],
+  "layout_rules": [
+    "Silver / cream canvas + ambient mesh background",
+    "Double-bezel 卡片 (内外两层圆角 + 高光)",
+    "【布局】"
+  ],
+  "style_rules": [
+    "Spring motion (微反弹的 hover)",
+    "【意图】Apple-tier 软质感, squircle + spring motion + ambient mesh。",
+    "Silver / cream canvas + ambient mesh background",
+    "Double-bezel 卡片 (内外两层圆角 + 高光)",
+    "Button-in-button CTA"
+  ],
+  "content_rules": [
+    "Button-in-button CTA",
+    "Silver / cream canvas + ambient mesh background",
+    "Double-bezel 卡片 (内外两层圆角 + 高光)",
+    "Spring motion (微反弹的 hover)",
+    "【模板: Apple Soft 原型】"
+  ],
+  "quality_checks": [
+    "Use the reference HTML as a style and structure guide, not as final placeholder content.",
+    "Preserve user-provided facts, numbers, dates, and claims.",
+    "Return one complete standalone HTML file with no markdown wrapper.",
+    "Keep visible text readable and avoid overlapping UI or content blocks."
+  ]
+}

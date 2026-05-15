@@ -1,0 +1,69 @@
+{
+  "id": "eng-runbook",
+  "name": "Engineering Runbook",
+  "description": "服务概述 + alerts 表 + dashboards + 操作命令 + on-call + 事故清单",
+  "usage": "【模板: Engineering Runbook】 服务概述 + alerts 表 + dashboards + 操作命令 + on-call + 事故清单",
+  "tags": [
+    "runbook",
+    "ops",
+    "oncall",
+    "sre",
+    "category:doc",
+    "scenario:engineering",
+    "aspect:长页面"
+  ],
+  "trigger_terms": [
+    "eng-runbook",
+    "工程 Runbook",
+    "Engineering Runbook",
+    "服务概述 + alerts 表 + dashboards + 操作命令 + on-call + 事故清单",
+    "doc",
+    "engineering",
+    "长页面",
+    "eng",
+    "runbook",
+    "ops",
+    "oncall",
+    "sre",
+    "category:doc",
+    "scenario:engineering",
+    "aspect:长页面"
+  ],
+  "best_for": [
+    "服务概述 + alerts 表 + dashboards + 操作命令 + on-call + 事故清单",
+    "Requests that need doc pages.",
+    "Briefs matching scenario: engineering.",
+    "Use when the user asks for 工程 Runbook."
+  ],
+  "avoid_for": [
+    "Requests unrelated to this template category or scenario.",
+    "Cases where the user explicitly asks for a different medium, layout, or visual style."
+  ],
+  "layout_rules": [
+    "Dashboards links 卡片",
+    "【布局】",
+    "Service overview (拓扑 + 依赖)",
+    "Alerts table (severity / threshold / runbook link)",
+    "Common procedures (mono 代码块, 一键复制)"
+  ],
+  "style_rules": [
+    "Service overview (拓扑 + 依赖)",
+    "Alerts table (severity / threshold / runbook link)",
+    "Dashboards links 卡片",
+    "Common procedures (mono 代码块, 一键复制)",
+    "On-call rotation (本周 + 下周)"
+  ],
+  "content_rules": [
+    "Service overview (拓扑 + 依赖)",
+    "Alerts table (severity / threshold / runbook link)",
+    "Dashboards links 卡片",
+    "Common procedures (mono 代码块, 一键复制)",
+    "On-call rotation (本周 + 下周)"
+  ],
+  "quality_checks": [
+    "Use the reference HTML as a style and structure guide, not as final placeholder content.",
+    "Preserve user-provided facts, numbers, dates, and claims.",
+    "Return one complete standalone HTML file with no markdown wrapper.",
+    "Keep visible text readable and avoid overlapping UI or content blocks."
+  ]
+}

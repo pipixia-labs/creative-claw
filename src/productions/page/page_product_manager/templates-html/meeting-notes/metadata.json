@@ -1,0 +1,69 @@
+{
+  "id": "meeting-notes",
+  "name": "Meeting Notes",
+  "description": "标题 + 出席 + 议程 + 决议 + action items + 下次",
+  "usage": "【模板: 会议纪要】 标题 + 出席 + 议程 + 决议 + action items + 下次",
+  "tags": [
+    "minutes",
+    "meeting",
+    "1:1",
+    "纪要",
+    "category:doc",
+    "scenario:operations",
+    "aspect:长页面"
+  ],
+  "trigger_terms": [
+    "meeting-notes",
+    "会议纪要",
+    "Meeting Notes",
+    "标题 + 出席 + 议程 + 决议 + action items + 下次",
+    "doc",
+    "operations",
+    "长页面",
+    "meeting",
+    "notes",
+    "minutes",
+    "1:1",
+    "纪要",
+    "category:doc",
+    "scenario:operations",
+    "aspect:长页面"
+  ],
+  "best_for": [
+    "标题 + 出席 + 议程 + 决议 + action items + 下次",
+    "Requests that need doc pages.",
+    "Briefs matching scenario: operations.",
+    "Use when the user asks for 会议纪要."
+  ],
+  "avoid_for": [
+    "Requests unrelated to this template category or scenario.",
+    "Cases where the user explicitly asks for a different medium, layout, or visual style."
+  ],
+  "layout_rules": [
+    "Decisions block (圆角卡片)",
+    "【布局】",
+    "Title bar (会议名 + 时间 + 出席 avatars)",
+    "Agenda checklist",
+    "Action items table (Owner / Due / Status)"
+  ],
+  "style_rules": [
+    "Title bar (会议名 + 时间 + 出席 avatars)",
+    "Agenda checklist",
+    "Decisions block (圆角卡片)",
+    "Action items table (Owner / Due / Status)",
+    "Next meeting footer"
+  ],
+  "content_rules": [
+    "Title bar (会议名 + 时间 + 出席 avatars)",
+    "Agenda checklist",
+    "Decisions block (圆角卡片)",
+    "Action items table (Owner / Due / Status)",
+    "Next meeting footer"
+  ],
+  "quality_checks": [
+    "Use the reference HTML as a style and structure guide, not as final placeholder content.",
+    "Preserve user-provided facts, numbers, dates, and claims.",
+    "Return one complete standalone HTML file with no markdown wrapper.",
+    "Keep visible text readable and avoid overlapping UI or content blocks."
+  ]
+}

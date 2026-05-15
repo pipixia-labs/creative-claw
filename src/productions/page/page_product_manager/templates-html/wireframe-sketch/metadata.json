@@ -1,0 +1,66 @@
+{
+  "id": "wireframe-sketch",
+  "name": "Wireframe Sketch",
+  "description": "网格背景 + marker 笔触 + 多 tab + sticky note + scribble 图表",
+  "usage": "【模板: 手绘 Wireframe】 网格背景 + marker 笔触 + 多 tab + sticky note + scribble 图表",
+  "tags": [
+    "wireframe",
+    "lo-fi",
+    "sketch",
+    "草稿",
+    "手绘",
+    "category:prototype",
+    "scenario:design",
+    "aspect:桌面 1440"
+  ],
+  "trigger_terms": [
+    "wireframe-sketch",
+    "手绘线框图",
+    "Wireframe Sketch",
+    "网格背景 + marker 笔触 + 多 tab + sticky note + scribble 图表",
+    "prototype",
+    "design",
+    "桌面 1440",
+    "wireframe",
+    "sketch",
+    "lo-fi",
+    "草稿",
+    "手绘",
+    "category:prototype",
+    "scenario:design",
+    "aspect:桌面 1440"
+  ],
+  "best_for": [
+    "网格背景 + marker 笔触 + 多 tab + sticky note + scribble 图表",
+    "Requests that need web pages and product prototypes.",
+    "Briefs matching scenario: design.",
+    "Use when the user asks for 手绘线框图."
+  ],
+  "avoid_for": [
+    "Requests unrelated to this template category or scenario.",
+    "Cases where the user explicitly asks for a different medium, layout, or visual style."
+  ],
+  "layout_rules": [
+    "【模板: 手绘 Wireframe】",
+    "【意图】白板 / 草稿前阶段的 wireframe 探索。",
+    "【布局】"
+  ],
+  "style_rules": [
+    "Graph-paper 背景",
+    "字体: Caveat / Architects Daughter; 不要规规矩矩的对齐",
+    "【设计细节】"
+  ],
+  "content_rules": [
+    "字体: Caveat / Architects Daughter; 不要规规矩矩的对齐",
+    "Graph-paper 背景",
+    "多 tab labels (variants 标签)",
+    "scribbled chart placeholders + hatched fills",
+    "Sticky-note annotations (黄色, 旋转一点点)"
+  ],
+  "quality_checks": [
+    "Use the reference HTML as a style and structure guide, not as final placeholder content.",
+    "Preserve user-provided facts, numbers, dates, and claims.",
+    "Return one complete standalone HTML file with no markdown wrapper.",
+    "Keep visible text readable and avoid overlapping UI or content blocks."
+  ]
+}

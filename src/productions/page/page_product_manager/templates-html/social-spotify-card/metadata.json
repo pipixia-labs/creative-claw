@@ -1,0 +1,69 @@
+{
+  "id": "social-spotify-card",
+  "name": "Spotify Now-Playing Card",
+  "description": "Spotify Now Playing 风格卡: 专辑封面 + 进度条 + 播放控制, 适配视频叠加 / 个人主页",
+  "usage": "【模板: Spotify Now-Playing 卡】 Spotify Now Playing 风格卡: 专辑封面 + 进度条 + 播放控制, 适配视频叠加 / 个人主页",
+  "tags": [
+    "spotify",
+    "music",
+    "now-playing",
+    "card",
+    "overlay",
+    "category:card",
+    "scenario:personal",
+    "aspect:1280×720 或 600×200"
+  ],
+  "trigger_terms": [
+    "social-spotify-card",
+    "Spotify 正在播放卡",
+    "Spotify Now-Playing Card",
+    "Spotify Now Playing 风格卡: 专辑封面 + 进度条 + 播放控制, 适配视频叠加 / 个人主页",
+    "card",
+    "personal",
+    "1280×720 或 600×200",
+    "social",
+    "spotify",
+    "music",
+    "now-playing",
+    "overlay",
+    "category:card",
+    "scenario:personal",
+    "aspect:1280×720 或 600×200",
+    "Spotify Now Playing · Lo-Fi",
+    "Spotify 经典 dark 卡"
+  ],
+  "best_for": [
+    "Spotify Now Playing 风格卡: 专辑封面 + 进度条 + 播放控制, 适配视频叠加 / 个人主页",
+    "Requests that need social card and shareable visual content.",
+    "Briefs matching scenario: personal.",
+    "Use when the user asks for Spotify 正在播放卡."
+  ],
+  "avoid_for": [
+    "Requests unrelated to this template category or scenario.",
+    "Cases where the user explicitly asks for a different medium, layout, or visual style."
+  ],
+  "layout_rules": [
+    "横版视频叠加: 1280×720, 卡片居中或左下角浮动。",
+    "紧凑横条 widget: 600×200, 可嵌入到任何 hero。",
+    "可选: 右下角小型音波动效 (3 个 bar `@keyframes`)。",
+    "微动效: 音波动效用 `@keyframes`, 可被 `prefers-reduced-motion` 关闭。"
+  ],
+  "style_rules": [
+    "外框: 圆角 12-16px; bg 用专辑封面色提取的暗渐变 (e.g. `linear-gradient(135deg, #1e3264 0%, #0d1f3d 100%)`) 或 Spotify 经典 `#121212`; 边缘有 1px subtle border。",
+    "左侧: **专辑封面** (CSS 渐变 + 大字 monogram 或抽象几何描绘, 不能外链图片), 圆角 6px, 60-200px 方形。",
+    "进度条: 4px 高, 圆角, 灰色背景 + 白色 fill (`width: 38%`); 两端时间戳 `1:24 / 3:42` (mono, 11px, 灰)。",
+    "可选: 右下角小型音波动效 (3 个 bar `@keyframes`)。",
+    "数字: 同主字体, 不用 mono 太多。"
+  ],
+  "content_rules": [
+    "**歌名 / 标题** (Inter / Spotify Circular, 22-28px, weight 700, 白色)。",
+    "若用户输入是文本/标题 → 把 \"标题\" 当歌名, \"副标/作者\" 当艺人, 估算\"时长\" 3:42 默认。",
+    "若用户输入是音乐相关 → 直接对应。"
+  ],
+  "quality_checks": [
+    "Use the reference HTML as a style and structure guide, not as final placeholder content.",
+    "Preserve user-provided facts, numbers, dates, and claims.",
+    "Return one complete standalone HTML file with no markdown wrapper.",
+    "Keep visible text readable and avoid overlapping UI or content blocks."
+  ]
+}

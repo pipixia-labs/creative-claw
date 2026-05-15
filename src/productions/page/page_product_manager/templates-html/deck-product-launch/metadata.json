@@ -1,0 +1,63 @@
+{
+  "id": "deck-product-launch",
+  "name": "Product Launch Deck",
+  "description": "暗 hero + 亮内容, 橙→桃 accent, 特性卡 + 定价 + CTA",
+  "usage": "【模板: Product Launch Keynote】 暗 hero + 亮内容, 橙→桃 accent, 特性卡 + 定价 + CTA",
+  "tags": [
+    "launch",
+    "keynote",
+    "product",
+    "category:slides",
+    "scenario:marketing",
+    "aspect:16:9"
+  ],
+  "trigger_terms": [
+    "deck-product-launch",
+    "产品发布 Keynote",
+    "Product Launch Deck",
+    "暗 hero + 亮内容, 橙→桃 accent, 特性卡 + 定价 + CTA",
+    "slides",
+    "marketing",
+    "16:9",
+    "deck",
+    "product",
+    "launch",
+    "keynote",
+    "category:slides",
+    "scenario:marketing",
+    "aspect:16:9"
+  ],
+  "best_for": [
+    "暗 hero + 亮内容, 橙→桃 accent, 特性卡 + 定价 + CTA",
+    "Requests that need presentation and deck-style storytelling.",
+    "Briefs matching scenario: marketing.",
+    "Use when the user asks for 产品发布 Keynote."
+  ],
+  "avoid_for": [
+    "Requests unrelated to this template category or scenario.",
+    "Cases where the user explicitly asks for a different medium, layout, or visual style."
+  ],
+  "layout_rules": [
+    "Introducing (产品名 + 1 张 hero shot)",
+    "【意图】新产品发布的 Keynote 风 deck。",
+    "【布局】"
+  ],
+  "style_rules": [
+    "Cover (暗背景 + 大字主题)",
+    "accent: 暖橙→桃 渐变",
+    "【设计细节】"
+  ],
+  "content_rules": [
+    "CTA / Available now",
+    "Cover (暗背景 + 大字主题)",
+    "Why we built this (问题)",
+    "Introducing (产品名 + 1 张 hero shot)",
+    "Feature cards (3-6 个)"
+  ],
+  "quality_checks": [
+    "Use the reference HTML as a style and structure guide, not as final placeholder content.",
+    "Preserve user-provided facts, numbers, dates, and claims.",
+    "Return one complete standalone HTML file with no markdown wrapper.",
+    "Keep visible text readable and avoid overlapping UI or content blocks."
+  ]
+}

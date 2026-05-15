@@ -1,0 +1,64 @@
+{
+  "id": "deck-blueprint",
+  "name": "Knowledge Arch Blueprint",
+  "description": "奶油纸 + 锈红 + 蓝图网格 mask + 黑边硬卡片 + pipeline 盒",
+  "usage": "【模板: Knowledge Arch Blueprint Deck】 奶油纸 + 锈红 + 蓝图网格 mask + 黑边硬卡片 + pipeline 盒",
+  "tags": [
+    "blueprint",
+    "architecture",
+    "engineering",
+    "category:slides",
+    "scenario:engineering",
+    "aspect:16:9"
+  ],
+  "trigger_terms": [
+    "deck-blueprint",
+    "蓝图架构 Deck",
+    "Knowledge Arch Blueprint",
+    "奶油纸 + 锈红 + 蓝图网格 mask + 黑边硬卡片 + pipeline 盒",
+    "slides",
+    "engineering",
+    "16:9",
+    "deck",
+    "blueprint",
+    "architecture",
+    "category:slides",
+    "scenario:engineering",
+    "aspect:16:9"
+  ],
+  "best_for": [
+    "奶油纸 + 锈红 + 蓝图网格 mask + 黑边硬卡片 + pipeline 盒",
+    "Requests that need presentation and deck-style storytelling.",
+    "Briefs matching scenario: engineering.",
+    "Use when the user asks for 蓝图架构 Deck."
+  ],
+  "avoid_for": [
+    "Requests unrelated to this template category or scenario.",
+    "Cases where the user explicitly asks for a different medium, layout, or visual style."
+  ],
+  "layout_rules": [
+    "【模板: Knowledge Arch Blueprint Deck】",
+    "【意图】认真的、印刷友好的架构 / pipeline 讲解 deck。",
+    "【布局】"
+  ],
+  "style_rules": [
+    "零渐变零软阴影",
+    "【设计细节】",
+    "奶油 #F0EAE0 底 + 蓝图 48px 网格 mask",
+    "Pipeline 步骤盒 (其中一个抬高)",
+    "右侧锈红 #B5392A insight callout"
+  ],
+  "content_rules": [
+    "奶油 #F0EAE0 底 + 蓝图 48px 网格 mask",
+    "Pipeline 步骤盒 (其中一个抬高)",
+    "右侧锈红 #B5392A insight callout",
+    "Playfair serif 大字 + SVG 虚线反馈环",
+    "零渐变零软阴影"
+  ],
+  "quality_checks": [
+    "Use the reference HTML as a style and structure guide, not as final placeholder content.",
+    "Preserve user-provided facts, numbers, dates, and claims.",
+    "Return one complete standalone HTML file with no markdown wrapper.",
+    "Keep visible text readable and avoid overlapping UI or content blocks."
+  ]
+}

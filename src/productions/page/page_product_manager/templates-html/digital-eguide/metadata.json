@@ -1,0 +1,69 @@
+{
+  "id": "digital-eguide",
+  "name": "Digital E-Guide",
+  "description": "两页跨页电子指南, 封面 + 课程页 + pull-quote + 步骤列表",
+  "usage": "【模板: 电子指南双页预览】 两页跨页电子指南, 封面 + 课程页 + pull-quote + 步骤列表",
+  "tags": [
+    "eguide",
+    "lookbook",
+    "lead magnet",
+    "playbook",
+    "category:article",
+    "scenario:marketing",
+    "aspect:双页预览"
+  ],
+  "trigger_terms": [
+    "digital-eguide",
+    "电子指南",
+    "Digital E-Guide",
+    "两页跨页电子指南, 封面 + 课程页 + pull-quote + 步骤列表",
+    "article",
+    "marketing",
+    "双页预览",
+    "digital",
+    "eguide",
+    "lookbook",
+    "lead magnet",
+    "playbook",
+    "category:article",
+    "scenario:marketing",
+    "aspect:双页预览"
+  ],
+  "best_for": [
+    "两页跨页电子指南, 封面 + 课程页 + pull-quote + 步骤列表",
+    "Requests that need article pages.",
+    "Briefs matching scenario: marketing.",
+    "Use when the user asks for 电子指南."
+  ],
+  "avoid_for": [
+    "Requests unrelated to this template category or scenario.",
+    "Cases where the user explicitly asks for a different medium, layout, or visual style."
+  ],
+  "layout_rules": [
+    "【布局】",
+    "Page 1 封面: display title + 作者 + 'What's inside' 数据 + TOC teaser",
+    "Page 2 内页: lesson body + pull-quote + step list",
+    "lifestyle / creator brand 调子, 柔和米色",
+    "两页 side-by-side 横向, 像翻开的书"
+  ],
+  "style_rules": [
+    "lifestyle / creator brand 调子, 柔和米色",
+    "【设计细节】",
+    "Page 1 封面: display title + 作者 + 'What's inside' 数据 + TOC teaser",
+    "Page 2 内页: lesson body + pull-quote + step list",
+    "两页 side-by-side 横向, 像翻开的书"
+  ],
+  "content_rules": [
+    "Page 1 封面: display title + 作者 + 'What's inside' 数据 + TOC teaser",
+    "Page 2 内页: lesson body + pull-quote + step list",
+    "lifestyle / creator brand 调子, 柔和米色",
+    "两页 side-by-side 横向, 像翻开的书",
+    "【模板: 电子指南双页预览】"
+  ],
+  "quality_checks": [
+    "Use the reference HTML as a style and structure guide, not as final placeholder content.",
+    "Preserve user-provided facts, numbers, dates, and claims.",
+    "Return one complete standalone HTML file with no markdown wrapper.",
+    "Keep visible text readable and avoid overlapping UI or content blocks."
+  ]
+}

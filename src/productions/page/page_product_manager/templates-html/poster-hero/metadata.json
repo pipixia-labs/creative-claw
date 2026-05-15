@@ -1,0 +1,66 @@
+{
+  "id": "poster-hero",
+  "name": "Marketing Poster",
+  "description": "竖版海报 / 朋友圈分享图, 强视觉冲击",
+  "usage": "【模板: 营销海报】 竖版海报 / 朋友圈分享图, 强视觉冲击",
+  "tags": [
+    "poster",
+    "海报",
+    "朋友圈",
+    "category:poster",
+    "scenario:marketing",
+    "aspect:1080×1920 竖版"
+  ],
+  "trigger_terms": [
+    "poster-hero",
+    "营销海报",
+    "Marketing Poster",
+    "竖版海报 / 朋友圈分享图, 强视觉冲击",
+    "poster",
+    "marketing",
+    "1080×1920 竖版",
+    "hero",
+    "海报",
+    "朋友圈",
+    "category:poster",
+    "scenario:marketing",
+    "aspect:1080×1920 竖版",
+    "营销海报 · 产品发布",
+    "9:16 朋友圈分享图"
+  ],
+  "best_for": [
+    "竖版海报 / 朋友圈分享图, 强视觉冲击",
+    "Requests that need poster and hero visual compositions.",
+    "Briefs matching scenario: marketing.",
+    "Use when the user asks for 营销海报."
+  ],
+  "avoid_for": [
+    "Requests unrelated to this template category or scenario.",
+    "Cases where the user explicitly asks for a different medium, layout, or visual style."
+  ],
+  "layout_rules": [
+    "下部信息卡片: 3-5 条核心要点用图标 + 短句。",
+    "容器 `w-[1080px] h-[1920px] mx-auto`, 全屏渐变 / mesh 背景。",
+    "上部 30% 留白 + 一个大 emoji 或抽象几何图形。",
+    "中部主标题占视觉中心 (text-8xl, font-black), 一句话副标题。",
+    "底部右下角放品牌 / 二维码 (用 SVG 占位)。"
+  ],
+  "style_rules": [
+    "容器 `w-[1080px] h-[1920px] mx-auto`, 全屏渐变 / mesh 背景。",
+    "中部主标题占视觉中心 (text-8xl, font-black), 一句话副标题。",
+    "使用大胆的色彩: 渐变背景 (from-violet-500 via-fuchsia-500 to-indigo-500 之类), 文字白色 + 1 个对比色高亮。"
+  ],
+  "content_rules": [
+    "中部主标题占视觉中心 (text-8xl, font-black), 一句话副标题。",
+    "容器 `w-[1080px] h-[1920px] mx-auto`, 全屏渐变 / mesh 背景。",
+    "上部 30% 留白 + 一个大 emoji 或抽象几何图形。",
+    "下部信息卡片: 3-5 条核心要点用图标 + 短句。",
+    "底部右下角放品牌 / 二维码 (用 SVG 占位)。"
+  ],
+  "quality_checks": [
+    "Use the reference HTML as a style and structure guide, not as final placeholder content.",
+    "Preserve user-provided facts, numbers, dates, and claims.",
+    "Return one complete standalone HTML file with no markdown wrapper.",
+    "Keep visible text readable and avoid overlapping UI or content blocks."
+  ]
+}
