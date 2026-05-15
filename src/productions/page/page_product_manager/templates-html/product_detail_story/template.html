@@ -1,0 +1,25 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Product Detail Story Template</title>
+  <style>
+    body { margin: 0; background: #eee9e1; color: #2b211a; font-family: "Noto Sans SC", system-ui, sans-serif; }
+    .page { display: grid; grid-template-columns: .92fr 1.08fr; gap: 48px; align-items: center; max-width: 1180px; margin: 0 auto; padding: 72px 32px; background: #f7f0e7; }
+    .visual { min-height: 560px; border-radius: 34px; background: radial-gradient(circle at 50% 28%, #f5d7b0 0 14%, transparent 15%), linear-gradient(160deg, #e8d7bd, #bda98d); }
+    h1 { margin: 0 0 24px; font-family: "Noto Serif SC", serif; font-size: 76px; line-height: 1; letter-spacing: 0; }
+    p { color: #675646; font-size: 20px; line-height: 1.8; }
+    .specs { display: grid; grid-template-columns: repeat(2, 1fr); gap: 14px; margin-top: 30px; }
+    .spec { border: 1px solid rgba(43,33,26,.12); border-radius: 18px; background: rgba(255,255,255,.46); padding: 20px; }
+    .spec span { display: block; color: #8a7561; font-size: 13px; font-weight: 900; letter-spacing: .06em; text-transform: uppercase; }
+    .spec b { display: block; margin-top: 8px; font-size: 24px; }
+  </style>
+</head>
+<body>
+  <main class="page">
+    <div class="visual" aria-label="Product visual area"></div>
+    <section><h1>这里放商品详情主标题</h1><p>说明产品适合谁、解决什么场景，以及为什么值得继续查看详情。</p><div class="specs"><div class="spec"><span>Material</span><b>真实材质</b></div><div class="spec"><span>Size</span><b>真实规格</b></div><div class="spec"><span>Scene</span><b>使用场景</b></div><div class="spec"><span>Action</span><b>购买 / 咨询</b></div></div></section>
+  </main>
+</body>
+</html>

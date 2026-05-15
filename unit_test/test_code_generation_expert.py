@@ -1,3 +1,4 @@
+import asyncio
 import tempfile
 import unittest
 from pathlib import Path
@@ -25,11 +26,13 @@ def _build_ctx(state: dict) -> SimpleNamespace:
 
 
 class _FakeEvent:
-    def __init__(self, text: str) -> None:
+    def __init__(self, text: str, *, final: bool = True, partial: bool = False) -> None:
         self.content = Content(role="model", parts=[Part(text=text)])
+        self.partial = partial
+        self._final = final
 
     def is_final_response(self) -> bool:
-        return True
+        return self._final
 
 
 class CodeGenerationExpertTests(unittest.IsolatedAsyncioTestCase):
@@ -125,6 +128,42 @@ class CodeGenerationExpertTests(unittest.IsolatedAsyncioTestCase):
         self.assertEqual(result["raw_error_summary"], "empty model response")
         self.assertFalse(output_path.exists())
 
+    async def test_code_generation_tool_writes_non_final_text_fallback(self) -> None:
+        class _NonFinalLlmAgent:
+            def __init__(self, **_kwargs) -> None:
+                pass
+
+            async def run_async(self, ctx):
+                yield _FakeEvent(
+                    "```html\n<!doctype html><html><body>Fallback</body></html>\n```",
+                    final=False,
+                )
+
+        with tempfile.TemporaryDirectory(dir=workspace_root()) as tmp_dir:
+            output_path = Path(tmp_dir) / "fallback.html"
+            relative_output_path = workspace_relative_path(output_path)
+
+            with (
+                patch("src.runtime.code_artifacts.LlmAgent", _NonFinalLlmAgent),
+                patch("src.runtime.code_artifacts.build_llm", return_value="fake-model"),
+                patch(
+                    "src.runtime.code_artifacts.resolve_llm_model_name",
+                    return_value="fake-model",
+                ),
+            ):
+                result = await code_generation_tool(
+                    _build_ctx({"turn_index": 0, "step": 0}),
+                    prompt="Create an operations dashboard.",
+                    language="html",
+                    output_path=relative_output_path,
+                )
+
+            generated_content = output_path.read_text(encoding="utf-8").strip()
+
+        self.assertEqual(result["status"], "success")
+        self.assertEqual(result["output_path"], relative_output_path)
+        self.assertEqual(generated_content, "<!doctype html><html><body>Fallback</body></html>")
+
     async def test_code_generation_tool_reports_retryable_network_errors(self) -> None:
         class _FailingLlmAgent:
             def __init__(self, **_kwargs) -> None:
@@ -157,6 +196,41 @@ class CodeGenerationExpertTests(unittest.IsolatedAsyncioTestCase):
         self.assertEqual(result["error_type"], "network_error")
         self.assertTrue(result["retryable"])
         self.assertIn("TimeoutError", result["raw_error_summary"])
+        self.assertFalse(output_path.exists())
+
+    async def test_code_generation_tool_reports_generation_timeout(self) -> None:
+        class _HangingLlmAgent:
+            def __init__(self, **_kwargs) -> None:
+                pass
+
+            async def run_async(self, ctx):
+                await asyncio.sleep(1)
+                yield _FakeEvent("<!doctype html><html><body>Late</body></html>")
+
+        with tempfile.TemporaryDirectory(dir=workspace_root()) as tmp_dir:
+            output_path = Path(tmp_dir) / "timeout.html"
+            relative_output_path = workspace_relative_path(output_path)
+
+            with (
+                patch("src.runtime.code_artifacts.LlmAgent", _HangingLlmAgent),
+                patch("src.runtime.code_artifacts.build_llm", return_value="fake-model"),
+                patch(
+                    "src.runtime.code_artifacts.resolve_llm_model_name",
+                    return_value="fake-model",
+                ),
+                patch("src.runtime.code_artifacts._CODE_ARTIFACT_TIMEOUT_SECONDS", 0.01),
+            ):
+                result = await code_generation_tool(
+                    _build_ctx({"turn_index": 0, "step": 0}),
+                    prompt="Create an operations dashboard.",
+                    language="html",
+                    output_path=relative_output_path,
+                )
+
+        self.assertEqual(result["status"], "error")
+        self.assertEqual(result["error_type"], "network_error")
+        self.assertTrue(result["retryable"])
+        self.assertIn("timed out after 0.01 seconds", result["raw_error_summary"])
         self.assertFalse(output_path.exists())
 
     async def test_code_generation_expert_requires_prompt(self) -> None:

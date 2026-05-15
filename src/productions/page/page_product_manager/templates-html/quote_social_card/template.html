@@ -1,0 +1,23 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Quote Social Card Template</title>
+  <style>
+    body { margin: 0; display: grid; place-items: center; min-height: 100vh; background: #d8d2c4; font-family: "Noto Serif SC", serif; }
+    .card { position: relative; overflow: hidden; width: min(100vw, 1080px); aspect-ratio: 1 / 1.18; background: #151515; color: #f8f1df; padding: 96px; }
+    .card::before { content: ""; position: absolute; inset: 42px; border: 1px solid rgba(248,241,223,.22); border-radius: 38px; }
+    .mark { color: #e05037; font-size: 180px; line-height: .7; }
+    h1 { position: relative; z-index: 1; margin: 48px 0 0; max-width: 9em; font-size: 104px; line-height: 1; letter-spacing: 0; }
+    p { position: absolute; left: 96px; right: 96px; bottom: 96px; margin: 0; color: rgba(248,241,223,.72); font: 24px/1.75 "Noto Sans SC", system-ui, sans-serif; }
+  </style>
+</head>
+<body>
+  <main class="card">
+    <div class="mark">“</div>
+    <h1>这里放一句真正有力量的金句</h1>
+    <p>这里放出处、品牌线或日期；未知出处不要编造。</p>
+  </main>
+</body>
+</html>

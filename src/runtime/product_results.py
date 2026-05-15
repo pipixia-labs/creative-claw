@@ -9,6 +9,19 @@ _PPT_CONFIRMATION_STATUSES = {
     "awaiting_content_plan_confirmation",
 }
 
+_TERMINAL_PRODUCT_ERROR_STATUSES = {
+    "blocked",
+    "canceled",
+    "cancelled",
+    "error",
+    "failed",
+    "failure",
+    "incomplete",
+    "invalid",
+    "timed_out",
+    "timeout",
+}
+
 
 def slim_product_result(result: dict[str, Any]) -> dict[str, Any]:
     """Return a compact user-facing product result for parent tool responses."""
@@ -43,6 +56,17 @@ def is_completed_product_result(result: Any) -> bool:
         and str(result.get("status") or "").strip().lower() == "success"
         and bool(str(result.get("message") or "").strip())
         and bool(_string_list(result.get("final_file_paths")))
+    )
+
+
+def is_terminal_product_result(result: Any) -> bool:
+    """Return whether a failed product result should end the turn with a user reply."""
+    if not isinstance(result, dict):
+        return False
+    return (
+        str(result.get("product_line") or "").strip() in {"page", "ppt", "design"}
+        and str(result.get("status") or "").strip().lower() in _TERMINAL_PRODUCT_ERROR_STATUSES
+        and bool(str(result.get("message") or "").strip())
     )
 
 
@@ -93,5 +117,6 @@ __all__ = [
     "is_completed_product_result",
     "is_completed_page_product_result",
     "is_product_confirmation_result",
+    "is_terminal_product_result",
     "slim_product_result",
 ]

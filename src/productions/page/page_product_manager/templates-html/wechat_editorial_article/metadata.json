@@ -1,0 +1,14 @@
+{
+  "id": "wechat_editorial_article",
+  "name": "WeChat Editorial Article",
+  "description": "A polished long-form visual article for WeChat-style reading, with editorial pacing and refined typography.",
+  "usage": "Use for WeChat official-account articles, brand essays, thought pieces, release notes, interviews, and long visual reading.",
+  "tags": ["platform:wechat", "format:article", "content:editorial", "tone:calm-premium", "locale:zh"],
+  "trigger_terms": ["公众号", "微信", "wechat", "推文", "长文", "文章", "视觉文章", "专栏", "深度", "导语"],
+  "best_for": ["Narrative articles, thought pieces, announcements, interviews, and polished brand essays.", "Briefs where readability, paragraph rhythm, quotes, and section transitions matter most."],
+  "avoid_for": ["Single-frame campaign posters that need one dominant visual hit.", "Highly interactive app or dashboard interfaces."],
+  "layout_rules": ["Use a centered article column with a 62-68 ch text measure and occasional full-bleed visual bands.", "Start with title, deck, metadata, and a restrained editorial lead-in before body sections.", "Use pull quotes, chapter dividers, side notes, and image captions to create magazine rhythm.", "Avoid nested cards; article sections should feel like editorial layout, not a dashboard."],
+  "style_rules": ["Prefer Noto Serif SC for titles or quotes and Noto Sans SC/system UI for body copy.", "Use near-black text, warm off-white paper, subtle gray borders, and one restrained brand color.", "Keep spacing generous and mature; let typography carry the polish more than decoration.", "Use thin rules, small labels, and quiet callouts for refinement."],
+  "content_rules": ["Preserve the user's final copy order unless rewriting is requested.", "Use concise headings that advance the argument.", "Treat captions and quotes as narrative devices.", "End with a deliberate CTA, note, or closing thought."],
+  "quality_checks": ["The page should be comfortable to read from top to bottom.", "Headings, body, quotes, captions, and CTA must have distinct typographic roles.", "The result should not resemble a SaaS landing page or a dashboard."]
+}

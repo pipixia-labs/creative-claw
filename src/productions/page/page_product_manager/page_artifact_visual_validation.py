@@ -9,7 +9,7 @@ import re
 import shutil
 import subprocess
 import textwrap
-from dataclasses import dataclass
+from dataclasses import asdict, dataclass
 from pathlib import Path
 from typing import Any, Callable
 
@@ -127,7 +127,7 @@ def _run_node_playwright_page_preview(
                 "-e",
                 script,
                 str(path),
-                json.dumps([viewport.__dict__ for viewport in viewports]),
+                json.dumps([asdict(viewport) for viewport in viewports]),
             ],
             cwd=project_root,
             check=False,
@@ -348,10 +348,10 @@ def _node_playwright_script() -> str:
                   overflowText,
                   headingCount: headings.length,
                   firstScreenTextLength,
-                  consoleErrors: unique(consoleErrors).slice(0, 3),
-                  pageErrors: unique(pageErrors).slice(0, 3),
                 };
               });
+              metrics.consoleErrors = unique(consoleErrors).slice(0, 3);
+              metrics.pageErrors = unique(pageErrors).slice(0, 3);
               if (metrics.consoleErrors.length) warnings.push(`${viewport.name} console errors: ${metrics.consoleErrors.join(" | ")}`);
               if (metrics.pageErrors.length) warnings.push(`${viewport.name} page errors: ${metrics.pageErrors.join(" | ")}`);
               const screenshot = await page.screenshot({ fullPage: false });

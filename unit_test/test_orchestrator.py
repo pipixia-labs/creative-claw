@@ -25,6 +25,7 @@ from src.agents.orchestrator.orchestrator_agent import (
     _extract_completed_page_product_tool_result,
     _extract_confirmation_tool_result,
     _extract_question_form_tool_result,
+    _extract_terminal_product_tool_result,
     _format_confirmation_reply,
     _format_question_form_reply,
     _normalize_final_response_paths,
@@ -898,6 +899,78 @@ class OrchestratorCallbackTests(unittest.IsolatedAsyncioTestCase):
         structured = session.state[ORCHESTRATOR_FINAL_RESPONSE_OUTPUT_KEY]
         self.assertEqual(structured["reply_text"], "页面已完成。")
         self.assertEqual(structured["final_file_paths"], ["520_guandan_friendship_poster.html"])
+
+    async def test_run_agent_stops_after_failed_page_product_result(self) -> None:
+        session_service = InMemorySessionService()
+        orchestrator = Orchestrator(
+            session_service=session_service,
+            artifact_service=InMemoryArtifactService(),
+            expert_agents={},
+        )
+        user_id = "user-page-error"
+        session_id = "session-page-error"
+        await session_service.create_session(
+            app_name=SYS_CONFIG.app_name,
+            user_id=user_id,
+            session_id=session_id,
+            state={},
+        )
+        tool_result = {
+            "result_schema_version": "page-product-result-v1",
+            "status": "error",
+            "product_line": "page",
+            "message": "PageProductManager finished without registering a page delivery.",
+            "final_file_paths": [],
+        }
+
+        class _FakeRunner:
+            def __init__(self) -> None:
+                self.continued_after_page_error = False
+
+            async def run_async(self, **_kwargs):
+                event = Event(
+                    author="CreativeClawOrchestrator",
+                    content=Content(
+                        role="user",
+                        parts=[
+                            Part.from_function_response(
+                                name="run_page_product",
+                                response=tool_result,
+                            )
+                        ],
+                    ),
+                )
+                self.extracted_result = _extract_terminal_product_tool_result(event)
+                yield event
+                self.continued_after_page_error = True
+                yield Event(
+                    author="CreativeClawOrchestrator",
+                    content=Content(role="model", parts=[Part(text="should not continue")]),
+                )
+
+        fake_runner = _FakeRunner()
+        orchestrator.runner = fake_runner
+
+        reply = await orchestrator.run_agent_and_log_events(
+            user_id=user_id,
+            session_id=session_id,
+            new_message=Content(role="user", parts=[Part(text="做一个朋友圈海报")]),
+        )
+
+        self.assertFalse(fake_runner.continued_after_page_error)
+        self.assertEqual(fake_runner.extracted_result, tool_result)
+        self.assertEqual(reply, "PageProductManager finished without registering a page delivery.")
+        session = await session_service.get_session(
+            app_name=SYS_CONFIG.app_name,
+            user_id=user_id,
+            session_id=session_id,
+        )
+        structured = session.state[ORCHESTRATOR_FINAL_RESPONSE_OUTPUT_KEY]
+        self.assertEqual(
+            structured["reply_text"],
+            "PageProductManager finished without registering a page delivery.",
+        )
+        self.assertEqual(structured["final_file_paths"], [])
 
     async def test_run_agent_stops_after_completed_ppt_product_result(self) -> None:
         session_service = InMemorySessionService()

@@ -9,6 +9,7 @@ from google.adk.events import Event
 from typing_extensions import override
 
 from src.agents.experts.base import CreativeExpert
+from src.productions.page.page_product_manager.templates import select_page_template_match
 from src.runtime.code_artifacts import generate_code_artifact
 
 
@@ -28,6 +29,7 @@ class PageCodeGenerationAgent(CreativeExpert):
         output_path: str = "",
         context_files: list[str] | None = None,
         constraints: list[str] | None = None,
+        template_id: str = "",
     ) -> dict[str, Any]:
         """Generate one content-first page artifact file through the shared code runtime."""
         clean_prompt = str(prompt or "").strip()
@@ -46,7 +48,10 @@ class PageCodeGenerationAgent(CreativeExpert):
 
         result = await generate_code_artifact(
             runtime_context,
-            prompt=build_page_code_generation_prompt(clean_prompt),
+            prompt=build_page_code_generation_prompt(
+                clean_prompt,
+                template_id=str(template_id or "").strip(),
+            ),
             language=str(language or "html").strip() or "html",
             output_path=str(output_path or "").strip(),
             context_files=context_files or [],
@@ -68,6 +73,7 @@ class PageCodeGenerationAgent(CreativeExpert):
             output_path=str(current_parameters.get("output_path", "")).strip(),
             context_files=_as_string_list(current_parameters.get("context_files")),
             constraints=_as_string_list(current_parameters.get("constraints")),
+            template_id=str(current_parameters.get("template_id", "")).strip(),
         )
         yield self.format_event(
             current_output.get("message", ""),
@@ -78,8 +84,9 @@ class PageCodeGenerationAgent(CreativeExpert):
         )
 
 
-def build_page_code_generation_prompt(user_prompt: str) -> str:
+def build_page_code_generation_prompt(user_prompt: str, template_id: str = "") -> str:
     """Return a content-first HTML page generation brief."""
+    template_match = select_page_template_match(user_prompt, template_id=template_id)
     return "\n".join(
         [
             "# Creative Claw Page Artifact Mode",
@@ -101,6 +108,8 @@ def build_page_code_generation_prompt(user_prompt: str) -> str:
             "- Make headline, opening hook, body sections, CTA, and footer easy to scan.",
             "- Prefer real paragraphs, lists, captions, quote blocks, and callouts over decorative filler cards.",
             "- Do not invent fake data, fake testimonials, fake legal claims, or unsupported performance numbers.",
+            "- If the input includes structured data such as CSV, JSON, or tables, extract grounded insights and render them as charts, tables, or concise callouts.",
+            "- For Chinese/English mixed copy, keep readable spacing between CJK and Latin text.",
             "",
             "## Poster And Long Image Visual Rules",
             "- Decide the target artboard before styling. For poster briefs, prefer a fixed 1080-width artboard such as 1080x1920, 1080x1350, or the exact user-specified size.",
@@ -111,20 +120,40 @@ def build_page_code_generation_prompt(user_prompt: str) -> str:
             "- Avoid generic card stacks, dashboard-like panels, landing-page sections, and visual comparison canvases for final poster delivery.",
             "",
             "## Image And Asset Rules",
-            "- Use provided workspace-relative image paths exactly as given.",
+            "- If the brief lists a non-empty `html_relative_src`, use that relative path exactly for image `src` attributes and CSS `url(...)` references.",
+            "- Do not use `absolute_file_src` when `html_relative_src` is present; `file://` images are blocked in CreativeClaw's HTTP design tab.",
+            "- If a material only has a workspace-relative image path, use that path exactly as given.",
             "- Search-sourced images are references unless explicitly approved for direct final use.",
             "- Put all readable text in HTML/CSS, not baked into generated images, unless the user explicitly asks otherwise.",
             "- Every final image should have alt text and a clear content role.",
             "",
             "## HTML Output Contract",
+            "- Return only the complete standalone HTML file contents. Do not wrap the answer in markdown fences and do not add any explanatory text before or after the file.",
+            "- The document must start with `<!DOCTYPE html>` and end with `</html>`.",
             "- Generate exactly one complete standalone HTML file.",
-            "- Use inline CSS and minimal inline JavaScript only when needed.",
+            "- Prefer inline CSS and minimal inline JavaScript only when needed.",
             "- The file must run locally without a backend or build step.",
-            "- Avoid external network assets unless the prompt explicitly approves them.",
-            "- Avoid local absolute filesystem paths.",
+            "- Do not assume external network access. Use external CDN assets such as Tailwind Play, Google Fonts, jsDelivr scripts, or remote images only when the prompt explicitly approves them.",
+            "- Prefer HTML-relative local asset paths supplied by the brief so the page works in Finder and CreativeClaw's local HTTP preview.",
+            "- Do not invent local absolute paths or `file://` URLs.",
+            "- Do not describe file-writing steps. The Creative Claw runtime writes the returned file contents to the intended output path.",
             "- Keep the page width, spacing, and type scale responsive enough for desktop preview and mobile screenshot capture.",
             "- For long-image style work, make the page vertically continuous with predictable sections and no hidden content.",
             "- Use semantic HTML and readable class names so future edits can target content blocks easily.",
+            "",
+            "## Visual Quality Defaults",
+            "- Use a clear type hierarchy, deliberate grid, safe margins, and readable line lengths.",
+            "- Prefer Noto Sans SC or Noto Serif SC for Chinese copy, and Inter, Manrope, or system UI fonts for English copy.",
+            "- Use one primary color, two neutral colors, and at most one accent color unless the selected skill or user brief requires a stronger style.",
+            "- Avoid pure `#000` and `#fff` unless the visual style specifically needs hard black and white; prefer near-black and near-white tones.",
+            "- Keep contrast strong enough for important text and calls to action.",
+            "- Use motion sparingly and only when it improves comprehension or perceived polish.",
+            "- Template-specific or skill-specific style rules override these defaults.",
+            "",
+            "## Selected Built-In Page Template",
+            "Use this selected template as the page's structural and visual direction. Explicit user requirements, real source content, and safety constraints still take priority.",
+            "Do not mention the template name, template id, or selection logic in the generated page.",
+            template_match.template.to_prompt_block(),
             "",
             "## Quality Check",
             "- Before finalizing, silently check: content completeness, reading order, image/copy alignment, platform fit, and local-file safety.",
@@ -141,15 +170,22 @@ def build_page_code_generation_constraints(extra_constraints: list[str]) -> list
     """Return default page code generation constraints plus caller constraints."""
     defaults = [
         "Return only the complete file contents.",
+        "Do not wrap the answer in markdown fences or add explanatory text before or after the HTML.",
+        "The HTML document must start with <!DOCTYPE html> and end with </html>.",
         "Generate exactly one standalone HTML file.",
         "Optimize for content-first communication: copy, narrative sequence, images, and CTA.",
+        "Do not invent fake data, testimonials, legal claims, prices, metrics, or unsupported performance numbers.",
+        "If user input contains structured data, render grounded insights as charts, tables, or concise callouts.",
         "Use HTML/CSS text for readable copy; do not bake text into images unless explicitly requested.",
         "Support poster and long-image style compositions with responsive width constraints.",
         "For poster requests, generate one finished publishable artboard by default, not a multi-option review board.",
         "For poster artboards, use clear safe margins, type hierarchy, one hero subject, and an explicit CTA or memory point.",
-        "Use workspace-relative asset paths exactly as provided.",
-        "Do not include local absolute filesystem paths.",
-        "Do not rely on external network assets unless explicitly approved.",
+        "Use non-empty html_relative_src material paths exactly when provided.",
+        "Do not use file:// URLs when html_relative_src is available.",
+        "Do not invent local absolute paths or file:// URLs.",
+        "Do not rely on external network assets or CDN resources unless explicitly approved.",
+        "Use the selected built-in Page template as structural and visual guidance unless explicit user requirements override it.",
+        "Treat visual quality rules as defaults that can be overridden by a selected skill or explicit user style brief.",
     ]
     return defaults + [str(item) for item in extra_constraints if str(item).strip()]
 

@@ -1,0 +1,14 @@
+{
+  "id": "product_detail_story",
+  "name": "Product Detail Story",
+  "description": "A product detail or commerce story page that explains desirability, use cases, specs, and buying confidence.",
+  "usage": "Use for commerce detail pages, product storytelling, feature-benefit pages, and buying-decision content.",
+  "tags": ["format:product-detail", "content:commerce", "content:product-story", "tone:premium-retail", "layout:detail"],
+  "trigger_terms": ["商品详情", "详情页", "产品故事", "卖点", "电商", "货架", "product detail", "product page", "sku", "材质", "规格", "使用场景", "痛点"],
+  "best_for": ["Commerce detail pages, product storytelling, feature-benefit pages, and buying-decision content.", "Briefs that need to combine emotional desirability with concrete specs or usage scenarios."],
+  "avoid_for": ["Pure launch posters with no detailed buying context.", "General SaaS landing pages where the product is software workflow rather than a commerce item."],
+  "layout_rules": ["Start with product identity, hero visual area, core promise, and one purchase or inquiry action.", "Follow with use scenarios, feature-benefit pairs, material or spec details, and trust notes.", "Use comparison or spec tables only when the source provides exact facts.", "Alternate visual and copy sections to keep the page from becoming a list of selling points."],
+  "style_rules": ["Use a retail-premium palette with tactile neutrals, one brand color, and careful highlight accents.", "Use close-up inspired framing, generous whitespace, and refined product labels.", "Keep surfaces clean and editorial.", "Use consistent measurement, price, and spec typography when those facts are provided."],
+  "content_rules": ["Convert features into user-facing benefits while preserving the factual basis.", "Do not invent prices, discounts, inventory, materials, certifications, or reviews.", "Make the buying confidence sequence clear: problem, fit, proof, details, action.", "Use captions to explain product visuals or scenarios."],
+  "quality_checks": ["The product and its primary value should be clear in the first screen.", "Specs and claims must be visually distinct from marketing copy.", "The page should feel premium and inspectable."]
+}

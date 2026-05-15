@@ -4,6 +4,7 @@ from src.runtime.product_results import (
     is_completed_product_result,
     is_completed_page_product_result,
     is_product_confirmation_result,
+    is_terminal_product_result,
     slim_product_result,
 )
 
@@ -47,6 +48,33 @@ class ProductResultSlimmingTests(unittest.TestCase):
         )
 
         self.assertFalse(is_completed_page_product_result(result))
+
+    def test_page_error_result_is_terminal_but_not_completed(self) -> None:
+        result = slim_product_result(
+            {
+                "result_schema_version": "page-product-result-v1",
+                "status": "error",
+                "product_line": "page",
+                "message": "PageProductManager finished without registering a page delivery.",
+                "final_file_paths": [],
+            }
+        )
+
+        self.assertFalse(is_completed_product_result(result))
+        self.assertTrue(is_terminal_product_result(result))
+
+    def test_product_in_progress_result_is_not_terminal(self) -> None:
+        result = slim_product_result(
+            {
+                "result_schema_version": "page-product-result-v1",
+                "status": "in_progress",
+                "product_line": "page",
+                "message": "PageProductManager is still working.",
+                "final_file_paths": [],
+            }
+        )
+
+        self.assertFalse(is_terminal_product_result(result))
 
     def test_ppt_confirmation_result_merges_summary_into_message(self) -> None:
         result = slim_product_result(
