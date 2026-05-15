@@ -1423,12 +1423,12 @@ function initializeProgressCard(card) {
   body.id = bodyId;
   toggle.setAttribute("aria-controls", bodyId);
   toggle.addEventListener("click", () => {
-    setProgressExpanded(card, toggle.getAttribute("aria-expanded") !== "true");
+    setProgressExpanded(card, toggle.getAttribute("aria-expanded") !== "true", { keepVisible: true });
   });
   setProgressExpanded(card, false);
 }
 
-function setProgressExpanded(card, expanded) {
+function setProgressExpanded(card, expanded, options = {}) {
   const toggle = card.querySelector(".progress-toggle");
   const body = card.querySelector(".progress-body");
   card.classList.toggle("expanded", expanded);
@@ -1436,6 +1436,36 @@ function setProgressExpanded(card, expanded) {
   card.dataset.expanded = expanded ? "true" : "false";
   toggle.setAttribute("aria-expanded", expanded ? "true" : "false");
   body.hidden = !expanded;
+  if (options.keepVisible) {
+    keepProgressCardVisible(card);
+  }
+}
+
+function keepProgressCardVisible(card) {
+  window.requestAnimationFrame(() => {
+    if (!card.isConnected) {
+      return;
+    }
+
+    const timelineRect = timeline.getBoundingClientRect();
+    const cardRect = card.getBoundingClientRect();
+    const margin = 12;
+    const visibleTop = timelineRect.top + margin;
+    const visibleBottom = timelineRect.bottom - margin;
+    const visibleHeight = Math.max(0, visibleBottom - visibleTop);
+
+    if (cardRect.height > visibleHeight && cardRect.top !== visibleTop) {
+      timeline.scrollTop += cardRect.top - visibleTop;
+      return;
+    }
+    if (cardRect.bottom > visibleBottom) {
+      timeline.scrollTop += cardRect.bottom - visibleBottom;
+      return;
+    }
+    if (cardRect.top < visibleTop) {
+      timeline.scrollTop -= visibleTop - cardRect.top;
+    }
+  });
 }
 
 function summarizeProgressContent(content, fallbackTitle) {
