@@ -17,6 +17,11 @@ from src.productions.ppt.ppt_product_manager import (
 )
 from src.productions.ppt.schemas import DeckContentPlan, DeckPageAsset, DeckPagePlan, SourceUnderstanding
 from src.productions.ppt.routes.html import PPT_HTML_PAGE_GENERATION_EXPERT_NAME
+from src.productions.ppt.routes.svg import (
+    PPT_DESIGN_STRATEGY_EXPERT_NAME,
+    PPT_SVG_DECK_EXECUTOR_EXPERT_NAME,
+    PPT_SVG_EXECUTION_PLAN_STATE_KEY,
+)
 from src.runtime.workspace import (
     build_workspace_file_record,
     resolve_workspace_path,
@@ -101,6 +106,12 @@ class PptProductManagerTests(unittest.IsolatedAsyncioTestCase):
                 "invoke_ppt_expert",
                 "save_ppt_system_selection",
                 "save_ppt_private_skill_html",
+                "save_ppt_design_strategy",
+                "save_ppt_svg_execution_plan",
+                "read_ppt_svg_execution_plan",
+                "save_ppt_svg_page",
+                "check_ppt_svg_quality",
+                "export_ppt_svg_to_pptx",
                 "dispatch_ppt_route",
             },
         )
@@ -114,7 +125,10 @@ class PptProductManagerTests(unittest.IsolatedAsyncioTestCase):
         self.assertIn("hard-coded keyword-to-skill rules", instruction)
         self.assertIn("you run that skill workflow directly as PptProductManager", instruction)
         self.assertIn("PptHtmlPageGenerationExpert", instruction)
+        self.assertIn("PptDesignStrategyExpert", instruction)
+        self.assertIn("PptSvgDeckExecutorExpert", instruction)
         self.assertIn("invoke_ppt_expert", instruction)
+        self.assertIn("export_ppt_svg_to_pptx", instruction)
         self.assertIn("Do not claim PPTX generation succeeded", instruction)
 
     def test_product_manager_registers_html_page_generation_expert(self) -> None:
@@ -125,12 +139,24 @@ class PptProductManagerTests(unittest.IsolatedAsyncioTestCase):
         listed = manager.list_ppt_experts(tool_context)
 
         self.assertIn(PPT_HTML_PAGE_GENERATION_EXPERT_NAME, experts)
+        self.assertIn(PPT_DESIGN_STRATEGY_EXPERT_NAME, experts)
+        self.assertIn(PPT_SVG_DECK_EXECUTOR_EXPERT_NAME, experts)
         self.assertEqual(experts[PPT_HTML_PAGE_GENERATION_EXPERT_NAME].name, PPT_HTML_PAGE_GENERATION_EXPERT_NAME)
         self.assertEqual(
             {tool.__name__ for tool in experts[PPT_HTML_PAGE_GENERATION_EXPERT_NAME].tools},
             {"save_html_route_pages"},
         )
+        self.assertEqual(
+            {tool.__name__ for tool in experts[PPT_DESIGN_STRATEGY_EXPERT_NAME].tools},
+            {"save_ppt_design_strategy", "save_ppt_svg_execution_plan"},
+        )
+        self.assertEqual(
+            {tool.__name__ for tool in experts[PPT_SVG_DECK_EXECUTOR_EXPERT_NAME].tools},
+            {"read_ppt_svg_execution_plan", "save_ppt_svg_page"},
+        )
         self.assertIn(PPT_HTML_PAGE_GENERATION_EXPERT_NAME, listed["experts"])
+        self.assertIn(PPT_DESIGN_STRATEGY_EXPERT_NAME, listed["experts"])
+        self.assertIn(PPT_SVG_DECK_EXECUTOR_EXPERT_NAME, listed["experts"])
         self.assertEqual(tool_context.state["ppt_skill_available_experts"], listed["experts"])
 
     async def test_invoke_ppt_html_page_generation_expert_uses_ppt_state(self) -> None:
@@ -194,12 +220,29 @@ class PptProductManagerTests(unittest.IsolatedAsyncioTestCase):
         self.assertIn("If the user explicitly specifies", content)
         self.assertIn("Do not use local absolute paths", content)
 
+    def test_private_product_ppt_skill_registry_lists_easy_ppt_master(self) -> None:
+        registry = ProductPptSkillRegistry()
+
+        skills = registry.list_skills()
+        skill_names = {skill.name for skill in skills}
+        content = registry.read_skill("easy-ppt-master")
+
+        self.assertIn("easy-ppt-master", skill_names)
+        self.assertIn("Easy PPT Master", content)
+        self.assertIn("native_drawingml_ppt_master_baseline_v1", content)
+        self.assertIn("PptDesignStrategyExpert", content)
+        self.assertIn("PptSvgDeckExecutorExpert", content)
+        self.assertIn("check_ppt_svg_quality", content)
+        self.assertIn("export_ppt_svg_to_pptx", content)
+        self.assertIn("does not use ppt-master's project directory protocol", content)
+
     def test_global_skill_registry_does_not_expose_private_product_ppt_skills(self) -> None:
         global_registry = SkillRegistry()
 
         skill_names = {skill.name for skill in global_registry.list_skills()}
 
         self.assertNotIn("ppt-complete-workflow", skill_names)
+        self.assertNotIn("easy-ppt-master", skill_names)
         self.assertNotIn("product-ppt-skills", skill_names)
 
     def test_private_ppt_skill_tools_list_and_read_skills(self) -> None:
@@ -231,6 +274,68 @@ class PptProductManagerTests(unittest.IsolatedAsyncioTestCase):
         self.assertEqual(result["relative_path"], "SKILL.md")
         self.assertIn("PPT Complete Workflow", result["content"])
 
+    def test_private_skill_delivery_accepts_svg_pptx_export(self) -> None:
+        manager = PptProductManager()
+        requirement = manager.prepare_confirmed_requirement(
+            task="用 easy-ppt-master 做 2 页 PPTX。",
+            inputs=[],
+            output={"format": "pptx", "route": "svg", "slide_count": 2},
+        )
+        content_plan = manager.build_initial_deck_content_plan(requirement)
+        pptx_path = "generated/session/turn_1/ppt_svg_route/deck.pptx"
+        file_record = build_workspace_file_record(
+            pptx_path,
+            description="PPT product SVG route PPTX artifact.",
+            source="ppt_product_manager",
+        )
+
+        private_build = manager._resolve_private_skill_build_from_state(
+            {
+                "ppt_svg_pptx_export": {
+                    "status": "success",
+                    "message": "Exported PPT SVG pages.",
+                    "pptx_path": pptx_path,
+                    "conversion_report": {"ok": True},
+                    "output_files": [file_record],
+                }
+            },
+            skill_name="easy-ppt-master",
+        )
+        result = manager._build_private_skill_delivery_result(
+            requirement=requirement,
+            content_plan=content_plan,
+            system_selection={
+                "system_type": "private_skill",
+                "skill_name": "easy-ppt-master",
+                "output_format": "pptx",
+            },
+            private_build=private_build,
+        )
+
+        self.assertEqual(private_build["artifact_type"], "pptx")
+        self.assertEqual(private_build["source"], "export_ppt_svg_to_pptx")
+        self.assertEqual(result.status, "success")
+        self.assertEqual(result.delivery_manifest.final_pptx, pptx_path)
+        self.assertEqual(result.delivery_manifest.intermediate_artifacts, [])
+        self.assertIn("editable PPTX", " ".join(result.warnings))
+
+    def test_system_selection_confirmation_uses_table_without_narrow_system_selection_column(self) -> None:
+        summary = PptProductManager._format_system_selection_confirmation(
+            {
+                "system_type": "private_skill",
+                "skill_name": "easy-ppt-master",
+                "output_format": "pptx",
+                "reason": "使用 SVG route 生成可编辑 PPTX。",
+            }
+        )
+
+        self.assertIn("### 系统选择", summary)
+        self.assertIn("| 项目 | 当前值 |", summary)
+        self.assertIn("| 制作系统 | 私有 PPT skill `easy-ppt-master` |", summary)
+        self.assertIn("| 输出方式 | pptx |", summary)
+        self.assertIn("| 选择理由 | 使用 SVG route 生成可编辑 PPTX。 |", summary)
+        self.assertNotIn("| 系统选择 |", summary)
+
     def test_route_registry_registers_all_routes(self) -> None:
         manager = PptProductManager()
 
@@ -238,7 +343,7 @@ class PptProductManagerTests(unittest.IsolatedAsyncioTestCase):
 
         self.assertEqual(set(routes), {"html", "svg", "xml"})
         self.assertTrue(routes["html"]["implemented"])
-        self.assertFalse(routes["svg"]["implemented"])
+        self.assertTrue(routes["svg"]["implemented"])
         self.assertFalse(routes["xml"]["implemented"])
 
     def test_content_planning_agent_exposes_material_tools(self) -> None:
@@ -293,6 +398,39 @@ class PptProductManagerTests(unittest.IsolatedAsyncioTestCase):
         )
         self.assertIn("Do not use hard-coded keyword rules", agent.instruction)
         self.assertIn("choose freely", agent.instruction)
+
+    def test_ppt_svg_strategy_tools_save_and_read_execution_plan(self) -> None:
+        manager = PptProductManager()
+        tool_context = SimpleNamespace(state={})
+
+        strategy_result = manager.save_ppt_design_strategy(
+            {
+                "style_name": "clean_svg",
+                "design_direction": "Use editable SVG primitives.",
+                "palette": ["#FFFFFF", "#172033", "#2457D6"],
+            },
+            {
+                "summary": "Use clean SVG route styling.",
+                "decisions": ["Use 16:9"],
+            },
+            tool_context,
+        )
+        plan_result = manager.save_ppt_svg_execution_plan(
+            {
+                "aspect_ratio": "16:9",
+                "canvas_width": 1280,
+                "canvas_height": 720,
+                "accent_color": "#2457D6",
+            },
+            tool_context,
+        )
+        read_result = manager.read_ppt_svg_execution_plan(tool_context)
+
+        self.assertEqual(strategy_result["status"], "success")
+        self.assertEqual(plan_result["status"], "success")
+        self.assertEqual(read_result["status"], "success")
+        self.assertEqual(tool_context.state["ppt_design_strategy"]["style_name"], "clean_svg")
+        self.assertEqual(tool_context.state[PPT_SVG_EXECUTION_PLAN_STATE_KEY]["canvas_width"], 1280)
 
     def test_product_manager_skill_runner_masks_saved_long_html_arguments(self) -> None:
         manager = PptProductManager()
@@ -865,6 +1003,35 @@ Visual:
         self.assertGreater(len(result["delivery_manifest"]["previews"]), 0)
         self.assertEqual(len(Presentation(str(pptx_path)).slides), len(result["deck_content_plan"]["pages"]))
 
+    async def test_run_generates_svg_route_outputs_and_writes_state(self) -> None:
+        manager = PptProductManager()
+        tool_context = SimpleNamespace(state={"sid": "ppt-manager-svg-test", "turn_index": 1, "step": 1})
+
+        result = await manager.run_product_request(
+            task="生成一个 3 页 PPTX 产品介绍，使用 SVG route。",
+            inputs=[],
+            output={"format": "pptx", "route": "svg", "slide_count": 3, "auto_confirm": True},
+            tool_context=tool_context,
+        )
+
+        self.assertEqual(result["status"], "success")
+        self.assertEqual(result["selected_route"], "svg")
+        self.assertEqual(result["phase"], "svg_route_delivery")
+        self.assertEqual(len(result["route_build"]["svg_page_paths"]), len(result["deck_content_plan"]["pages"]))
+        self.assertEqual(result["delivery_manifest"]["intermediate_artifacts"], result["route_build"]["svg_page_paths"])
+        self.assertTrue(result["delivery_manifest"]["final_pptx"].endswith(".pptx"))
+        self.assertEqual(tool_context.state["final_file_paths"], [result["delivery_manifest"]["final_pptx"]])
+        self.assertIn("ppt_design_strategy", tool_context.state)
+        self.assertIn("ppt_svg_execution_plan", tool_context.state)
+
+        pptx_path = resolve_workspace_path(result["delivery_manifest"]["final_pptx"])
+        svg_path = resolve_workspace_path(result["route_build"]["svg_page_paths"][0])
+        quality_path = resolve_workspace_path(result["delivery_manifest"]["quality_report"])
+        self.assertTrue(pptx_path.exists())
+        self.assertTrue(svg_path.exists())
+        self.assertTrue(quality_path.exists())
+        self.assertEqual(len(Presentation(str(pptx_path)).slides), len(result["deck_content_plan"]["pages"]))
+
     async def test_run_can_deliver_private_skill_html_when_selector_chooses_skill(self) -> None:
         manager = PptProductManager()
         tool_context = SimpleNamespace(state={"sid": "ppt-manager-private-skill-test", "turn_index": 1, "step": 1})
@@ -955,6 +1122,7 @@ Visual:
         self.assertEqual(tool_context.state["ppt_workflow_state"]["stage"], "awaiting_requirement_confirmation")
         self.assertNotIn("final_file_paths", tool_context.state)
         self.assertIn("summary_markdown", requirement_result["confirmation_request"])
+        self.assertIn("### 系统选择", requirement_result["confirmation_request"]["summary_markdown"])
         self.assertEqual(resolved_assets, [])
         self.assertEqual(tool_context.state["ppt_workflow_state"]["waiting_since_turn_index"], 1)
 
@@ -978,6 +1146,7 @@ Visual:
         self.assertEqual(plan_result["status"], "awaiting_content_plan_confirmation")
         self.assertEqual(tool_context.state["ppt_workflow_state"]["stage"], "awaiting_content_plan_confirmation")
         self.assertEqual([page["title"] for page in plan_result["deck_content_plan"]["pages"]], ["Cat 猫", "Dog 狗", "Duck 鸭子"])
+        self.assertNotIn("### 系统选择", plan_result["confirmation_request"]["summary_markdown"])
         self.assertEqual(resolved_assets, [])
         self.assertEqual(tool_context.state["ppt_workflow_state"]["waiting_since_turn_index"], 2)
 

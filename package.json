@@ -5,13 +5,15 @@
   "description": "Node runtime tools for Creative Claw production routes.",
   "scripts": {
     "build:webchat-3d": "vite build --config vite.webchat-model3d.config.js",
-    "build:webchat-assets": "npm run build:webchat-tldraw && npm run build:webchat-3d",
+    "build:webchat-pptx-preview": "vite build --config vite.webchat-pptx-preview.config.js",
+    "build:webchat-assets": "npm run build:webchat-tldraw && npm run build:webchat-3d && npm run build:webchat-pptx-preview",
     "build:webchat-tldraw": "vite build --config vite.webchat-tldraw.config.js",
     "install-browsers": "playwright install chromium"
   },
   "dependencies": {
     "@vitejs/plugin-react": "^6.0.1",
     "playwright": "^1.56.1",
+    "pptx-preview": "^1.0.7",
     "pptxgenjs": "^4.0.1",
     "react": "^19.2.6",
     "react-dom": "^19.2.6",

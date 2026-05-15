@@ -37,6 +37,7 @@ from src.productions.ppt.ppt_product_manager import PptProductManager
 from src.runtime.expert_dispatcher import dispatch_expert_call
 from src.runtime.expert_registry import build_expert_contract_summary
 from src.runtime.product_results import (
+    is_completed_product_result,
     is_completed_page_product_result,
     is_product_confirmation_result,
     slim_product_result,
@@ -488,6 +489,14 @@ def _extract_product_confirmation_tool_result(event: Event) -> dict[str, Any] | 
     """Return a slim product result that asks the user for confirmation."""
     for result in _iter_function_response_results(event):
         if is_product_confirmation_result(result):
+            return result
+    return None
+
+
+def _extract_completed_product_tool_result(event: Event) -> dict[str, Any] | None:
+    """Return a completed product result from a tool response event."""
+    for result in _iter_function_response_results(event):
+        if is_completed_product_result(result):
             return result
     return None
 
@@ -1931,14 +1940,14 @@ Expert parameter contracts:
                     final_file_paths=[],
                 )
                 return final_reply
-            completed_page_result = _extract_completed_page_product_tool_result(event)
-            if completed_page_result is not None:
-                final_reply = str(completed_page_result.get("message") or "").strip()
+            completed_product_result = _extract_completed_product_tool_result(event)
+            if completed_product_result is not None:
+                final_reply = str(completed_product_result.get("message") or "").strip()
                 await self._persist_structured_final_response(
                     user_id=user_id,
                     session_id=session_id,
                     reply_text=final_reply,
-                    final_file_paths=list(completed_page_result.get("final_file_paths") or []),
+                    final_file_paths=list(completed_product_result.get("final_file_paths") or []),
                 )
                 return final_reply
             if event.is_final_response() and event.content and event.content.parts:

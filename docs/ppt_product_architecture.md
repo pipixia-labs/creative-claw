@@ -21,6 +21,8 @@ The product manager is responsible for:
 PptProductManager
   ├─ experts
   │   ├─ PptHtmlPageGenerationExpert
+  │   ├─ PptDesignStrategyExpert
+  │   ├─ PptSvgDeckExecutorExpert
   │   ├─ PptRequirementAnalysisAgent
   │   ├─ PptSystemSelectionAgent
   │   └─ PptContentPlanningAgent
@@ -28,11 +30,18 @@ PptProductManager
   ├─ tools
   │   ├─ list_ppt_experts
   │   ├─ invoke_ppt_expert
+  │   ├─ save_ppt_design_strategy
+  │   ├─ save_ppt_svg_execution_plan
+  │   ├─ read_ppt_svg_execution_plan
+  │   ├─ save_ppt_svg_page
+  │   ├─ check_ppt_svg_quality
+  │   ├─ export_ppt_svg_to_pptx
   │   ├─ build_initial_deck_content_plan
   │   └─ dispatch_ppt_route
   │
   └─ routes
-      └─ html route calls PptHtmlPageGenerationExpert
+      ├─ html route calls PptHtmlPageGenerationExpert
+      └─ svg route calls PptDesignStrategyExpert and PptSvgDeckExecutorExpert
 ```
 
 This structure is intentionally product-centered: routes and skills consume experts owned by `PptProductManager`; they do not create independent PPT execution agents for product orchestration.
@@ -50,6 +59,29 @@ Current users:
 
 This expert keeps `save_html_route_pages` as its internal save tool. That tool is not a general product tool because it depends on HTML route state keys.
 
+### PptDesignStrategyExpert
+
+Product-level expert that turns `ConfirmedRequirement`, source understanding, and `DeckContentPlan` into a generic PPT design strategy plus a strict SVG authoring contract for the native DrawingML converter.
+
+It saves:
+
+- `PptDesignConfirmation`
+- `PptDesignStrategy`
+- `PptSvgExecutionPlan`
+
+It does not generate SVG pages or export PPTX.
+
+### PptSvgDeckExecutorExpert
+
+Product-level expert that generates one converter-safe SVG page per planned slide from the saved design strategy and SVG execution plan.
+
+It uses:
+
+- `read_ppt_svg_execution_plan`
+- `save_ppt_svg_page`
+
+It reads the current SVG execution plan before page generation, and saved SVG pages are validated against the native converter subset. It does not perform requirement analysis, design strategy generation, quality checks, or PPTX export.
+
 ### PptRequirementAnalysisAgent
 
 Internal requirement expert that writes `ConfirmedRequirement` JSON.
@@ -63,7 +95,7 @@ Internal selection expert that chooses the delivery system for one PPT request.
 It decides between:
 
 - A private product-ppt skill.
-- A built-in PPT route, currently the HTML route.
+- A built-in PPT route, currently HTML or SVG.
 
 The decision should come from the user task, available skill metadata/content, route implementation status, and explicit user choices. It should not rely on hard-coded keyword routing.
 
@@ -89,7 +121,19 @@ Other PM tools support private skill execution:
 - `read_product_ppt_skill`
 - `read_product_ppt_skill_file`
 - `save_ppt_system_selection`
-- `save_ppt_private_skill_html`
+- `save_ppt_private_skill_html` for HTML private-skill artifacts.
+- `export_ppt_svg_to_pptx` or `dispatch_ppt_route` for PPTX private-skill artifacts that use the SVG route.
+
+SVG route tools are product-level because they are intended for skill-driven orchestration:
+
+- `save_ppt_design_strategy`: validates and stores `PptDesignStrategy`.
+- `save_ppt_svg_execution_plan`: validates and stores the `PptSvgExecutionPlan` authoring contract.
+- `read_ppt_svg_execution_plan`: lets the SVG executor read current route constraints.
+- `save_ppt_svg_page`: validates one generated SVG page against the native converter subset, then saves it into the current generated session route directory.
+- `check_ppt_svg_quality`: validates SVG files against the same native converter subset.
+- `export_ppt_svg_to_pptx`: converts saved SVG pages into native DrawingML slide XML and writes an editable PPTX.
+
+For `check_ppt_svg_quality` and `export_ppt_svg_to_pptx`, a skill can pass an empty `svg_page_paths` list to use SVG pages already saved in session state.
 
 ## Route Boundary
 
@@ -108,6 +152,20 @@ PptProductManager._dispatch_ppt_route
 
 If no page-generation expert or ADK invocation context is available, the HTML route falls back to deterministic HTML page rendering.
 
+The current SVG route flow is:
+
+```text
+PptProductManager._dispatch_ppt_route
+  -> build_svg_route_with_agent
+  -> PptDesignStrategyExpert when ADK context is available
+  -> PptSvgDeckExecutorExpert when ADK context is available
+  -> check_svg_pages_quality
+  -> export_svg_pages_to_pptx via native DrawingML converter
+  -> deliver_svg_route_quality
+```
+
+If no SVG experts or ADK invocation context are available, the SVG route falls back to deterministic design strategy and SVG page rendering. The current exporter parses converter-safe SVG into native DrawingML slide XML, writes media relationships and content types into the PPTX package, and only publishes the requested PPTX after conversion succeeds. The active converter profile is `native_drawingml_ppt_master_baseline_v1`: it supports editable basic shapes, groups, rich `text/tspan`, image resources, `M/L/H/V/C/S/Q/T/A/Z` paths, defs-based linear/radial gradients, simple line/path markers, image-only clipPath, and basic shadow/glow filters.
+
 ## Skill Boundary
 
 Private product-ppt skills are selected and run by `PptProductManager` itself.
@@ -118,8 +176,11 @@ A selected skill may:
 - Use PPT product tools.
 - Call product experts through `invoke_ppt_expert`.
 - Save final HTML artifacts through `save_ppt_private_skill_html`.
+- Export final editable PPTX artifacts through SVG route tools, typically `export_ppt_svg_to_pptx` or `dispatch_ppt_route(route="svg")`.
 
 A selected skill should not require a separate private skill execution agent. The execution flow is led by the skill content while `PptProductManager` provides product tools, experts, and state.
+
+`easy-ppt-master` is the private skill for the ppt-master-style path. It keeps Creative Claw's product workflow and workspace model while using the SVG route's `native_drawingml_ppt_master_baseline_v1` converter profile for editable PPTX delivery.
 
 ## Current Direction
 

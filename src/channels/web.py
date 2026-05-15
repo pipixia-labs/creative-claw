@@ -5,10 +5,13 @@ from __future__ import annotations
 import asyncio
 import base64
 import contextlib
+import hashlib
 import html
 import json
 import mimetypes
 import re
+import shutil
+import subprocess
 import tempfile
 import uuid
 import webbrowser
@@ -35,7 +38,7 @@ from src.productions.design.design_systems import (
 from src.runtime.cancellation import get_cancellation_manager
 from src.runtime.process_sessions import ProcessKillSummary
 from src.runtime import InboundMessage, MessageAttachment
-from src.runtime.workspace import looks_like_image, resolve_workspace_path, workspace_relative_path
+from src.runtime.workspace import generated_root, looks_like_image, resolve_workspace_path, workspace_relative_path
 
 from .base import BaseChannel
 from .events import OutboundMessage
@@ -45,6 +48,8 @@ STATIC_PACKAGE = "src.webchat.static"
 INDEX_FILE = "index.html"
 PPTX_PREVIEW_ERROR_TITLE = "PPTX preview unavailable"
 PDF_PREVIEW_ERROR_TITLE = "PDF preview unavailable"
+PPTX_TO_PDF_TIMEOUT_SECONDS = 90
+PPTX_PREVIEW_CACHE_DIR_NAME = "_preview_cache/pptx_pdf"
 UPLOAD_SIZE_LIMIT = 100 * 1024 * 1024
 UPLOAD_ROOT = Path(tempfile.gettempdir()) / "creative-claw-web-uploads"
 INTERACTIVE_PPT_HTML_KIND = "interactive_ppt_html"
@@ -266,105 +271,92 @@ def _simple_preview_error(title: str, message: str) -> str:
 </html>"""
 
 
-def _pct(value: Any, total: int) -> float:
-    """Convert one EMU coordinate into a slide-relative percentage."""
-    try:
-        numeric = float(value)
-    except (TypeError, ValueError):
-        numeric = 0.0
-    return 0.0 if total <= 0 else max(0.0, numeric / total * 100.0)
+def _find_libreoffice_executable() -> str | None:
+    """Return a LibreOffice executable suitable for headless document conversion."""
+    for executable_name in ("libreoffice", "soffice"):
+        executable = shutil.which(executable_name)
+        if executable:
+            return executable
+
+    macos_soffice = Path("/Applications/LibreOffice.app/Contents/MacOS/soffice")
+    return str(macos_soffice) if macos_soffice.exists() else None
 
 
-def _shape_style(shape: Any, slide_width: int, slide_height: int) -> str:
-    """Build absolute-position CSS for one PPTX shape."""
-    left = _pct(getattr(shape, "left", 0), slide_width)
-    top = _pct(getattr(shape, "top", 0), slide_height)
-    width = _pct(getattr(shape, "width", 0), slide_width)
-    height = _pct(getattr(shape, "height", 0), slide_height)
-    return f"left:{left:.4f}%;top:{top:.4f}%;width:{width:.4f}%;height:{height:.4f}%;"
-
-
-def _pptx_text_html(shape: Any) -> str:
-    """Render text content from one PPTX text shape."""
-    text_frame = getattr(shape, "text_frame", None)
-    if text_frame is None:
-        return ""
-    paragraphs: list[str] = []
-    for paragraph in text_frame.paragraphs:
-        text = "".join(run.text for run in paragraph.runs) or paragraph.text
-        stripped = text.strip()
-        if stripped:
-            paragraphs.append(f"<p>{html.escape(stripped)}</p>")
-    return "".join(paragraphs)
-
-
-def _pptx_table_html(shape: Any) -> str:
-    """Render one PPTX table shape into HTML."""
-    table = getattr(shape, "table", None)
-    if table is None:
-        return ""
-    rows: list[str] = []
-    for row in table.rows:
-        cells = "".join(f"<td>{html.escape(cell.text.strip())}</td>" for cell in row.cells)
-        rows.append(f"<tr>{cells}</tr>")
-    return f"<table>{''.join(rows)}</table>" if rows else ""
-
-
-def _pptx_image_html(shape: Any) -> str:
-    """Render one PPTX picture shape as an embedded image."""
-    image = getattr(shape, "image", None)
-    if image is None:
-        return ""
-    mime_type = getattr(image, "content_type", None) or _guess_content_type(getattr(image, "filename", "image"))
-    encoded = base64.b64encode(image.blob).decode("ascii")
-    alt = html.escape(str(getattr(shape, "name", "") or "slide image"))
-    return f'<img src="data:{html.escape(mime_type)};base64,{encoded}" alt="{alt}">'
-
-
-def _render_pptx_shape(shape: Any, slide_width: int, slide_height: int) -> str:
-    """Render one PPTX shape into positioned HTML."""
-    content = ""
-    if getattr(shape, "has_table", False):
-        content = _pptx_table_html(shape)
-    elif getattr(shape, "has_text_frame", False):
-        content = _pptx_text_html(shape)
-    if not content:
-        content = _pptx_image_html(shape)
-    if not content:
-        return ""
-
-    style = _shape_style(shape, slide_width, slide_height)
-    return f'<div class="shape" style="{style}">{content}</div>'
-
-
-def _render_pptx_preview_html(pptx_path: Path) -> str:
-    """Render a PPTX file into one standalone HTML preview."""
-    try:
-        from pptx import Presentation
-    except ImportError as exc:  # pragma: no cover - dependency is declared by the project.
-        raise RuntimeError("python-pptx is required to preview PPTX files.") from exc
-
-    presentation = Presentation(str(pptx_path))
-    slide_width = int(presentation.slide_width) or 12192000
-    slide_height = int(presentation.slide_height) or 6858000
-    aspect_ratio = f"{slide_width} / {slide_height}"
-    slide_items: list[str] = []
-    for index, slide in enumerate(presentation.slides, start=1):
-        shapes = "".join(
-            rendered
-            for shape in slide.shapes
-            if (rendered := _render_pptx_shape(shape, slide_width, slide_height))
+def _pptx_preview_cache_pdf_path(pptx_path: Path) -> Path:
+    """Return the cache path for a PPTX-to-PDF preview conversion."""
+    stat = pptx_path.stat()
+    cache_key = "\0".join(
+        (
+            str(pptx_path.resolve()),
+            str(stat.st_size),
+            str(stat.st_mtime_ns),
         )
-        empty = '<div class="empty-slide">No visible text or images on this slide.</div>' if not shapes else ""
-        slide_items.append(
-            f"""<section class="slide-wrap">
-  <div class="slide-label">Slide {index}</div>
-  <div class="slide" style="aspect-ratio:{aspect_ratio};">{shapes}{empty}</div>
-</section>"""
-        )
+    )
+    digest = hashlib.sha256(cache_key.encode("utf-8")).hexdigest()[:16]
+    safe_stem = re.sub(r"[^A-Za-z0-9._-]+", "_", pptx_path.stem).strip("._-") or "deck"
+    return generated_root() / PPTX_PREVIEW_CACHE_DIR_NAME / f"{safe_stem}-{digest}.pdf"
 
+
+def _convert_pptx_to_pdf_preview(pptx_path: Path) -> Path:
+    """Convert a PPTX into a cached PDF preview using LibreOffice headless."""
+    cached_pdf_path = _pptx_preview_cache_pdf_path(pptx_path)
+    if cached_pdf_path.exists() and cached_pdf_path.stat().st_size > 0:
+        return cached_pdf_path
+
+    executable = _find_libreoffice_executable()
+    if not executable:
+        raise RuntimeError("LibreOffice executable was not found.")
+
+    cache_dir = cached_pdf_path.parent
+    cache_dir.mkdir(parents=True, exist_ok=True)
+    with tempfile.TemporaryDirectory(prefix="pptx_pdf_preview_", dir=str(cache_dir)) as temp_dir_name:
+        temp_dir = Path(temp_dir_name)
+        profile_dir = temp_dir / "lo-profile"
+        profile_dir.mkdir(parents=True, exist_ok=True)
+        command = [
+            executable,
+            "--headless",
+            "--invisible",
+            "--nologo",
+            "--nodefault",
+            "--nofirststartwizard",
+            f"-env:UserInstallation={profile_dir.resolve().as_uri()}",
+            "--convert-to",
+            "pdf",
+            "--outdir",
+            str(temp_dir),
+            str(pptx_path),
+        ]
+        completed = subprocess.run(
+            command,
+            capture_output=True,
+            check=False,
+            text=True,
+            timeout=PPTX_TO_PDF_TIMEOUT_SECONDS,
+        )
+        if completed.returncode != 0:
+            stderr = (completed.stderr or completed.stdout or "").strip()
+            detail = f" {stderr[:600]}" if stderr else ""
+            raise RuntimeError(
+                f"LibreOffice PPTX-to-PDF conversion failed with code {completed.returncode}.{detail}"
+            )
+
+        converted_pdf_path = temp_dir / f"{pptx_path.stem}.pdf"
+        if not converted_pdf_path.exists():
+            converted_pdf_path = next(temp_dir.glob("*.pdf"), None)
+        if converted_pdf_path is None or not converted_pdf_path.exists() or converted_pdf_path.stat().st_size <= 0:
+            raise RuntimeError("LibreOffice PPTX-to-PDF conversion did not produce a non-empty PDF.")
+
+        converted_pdf_path.replace(cached_pdf_path)
+    return cached_pdf_path
+
+
+def _render_pptx_browser_preview_html(pptx_path: Path) -> str:
+    """Render an HTML shell that previews a PPTX in the browser."""
+    relative_path = workspace_relative_path(pptx_path)
+    pptx_url = f"/workspace/{quote(relative_path)}"
     title = html.escape(pptx_path.name)
-    slides = "\n".join(slide_items) or '<div class="empty-deck">No slides found.</div>'
+    escaped_url = html.escape(pptx_url, quote=True)
     return f"""<!doctype html>
 <html lang="en">
   <head>
@@ -387,74 +379,57 @@ def _render_pptx_preview_html(pptx_path: Path) -> str:
         color: var(--ink);
         font-family: Avenir Next, Segoe UI, sans-serif;
       }}
-      .deck {{
+      .browser-pptx-preview {{
         max-width: 1180px;
         margin: 0 auto;
-        display: grid;
-        gap: 22px;
-      }}
-      .slide-label {{
-        margin-bottom: 8px;
-        color: var(--muted);
-        font-size: 12px;
-        font-weight: 700;
-        letter-spacing: 0.08em;
-        text-transform: uppercase;
-      }}
-      .slide {{
-        position: relative;
-        overflow: hidden;
         width: 100%;
+      }}
+      .pptx-preview-wrapper {{
+        background: transparent !important;
+        max-width: 100%;
+      }}
+      .pptx-preview-message {{
+        min-height: 70vh;
+        display: grid;
+        place-items: center;
         border: 1px solid var(--border);
         border-radius: 16px;
         background: var(--paper);
         box-shadow: 0 18px 46px rgba(35, 42, 36, 0.13);
-      }}
-      .shape {{
-        position: absolute;
-        overflow: hidden;
-        color: var(--ink);
-      }}
-      .shape p {{
-        margin: 0 0 0.35em;
-        font-size: clamp(10px, 1.8vw, 30px);
-        line-height: 1.24;
-        white-space: pre-wrap;
-      }}
-      .shape img {{
-        width: 100%;
-        height: 100%;
-        object-fit: contain;
-        display: block;
-      }}
-      .shape table {{
-        width: 100%;
-        height: 100%;
-        border-collapse: collapse;
-        font-size: clamp(8px, 1.2vw, 18px);
-      }}
-      .shape td {{
-        border: 1px solid rgba(29, 39, 34, 0.16);
-        padding: 0.35em;
-        vertical-align: top;
-      }}
-      .empty-slide,
-      .empty-deck {{
-        height: 100%;
-        display: grid;
-        place-items: center;
         color: var(--muted);
         font-size: 14px;
+        text-align: center;
+        padding: 24px;
       }}
     </style>
   </head>
   <body>
-    <main class="deck">{slides}</main>
+    <main
+      id="pptx-preview-root"
+      class="browser-pptx-preview"
+      data-pptx-url="{escaped_url}"
+    >
+      <div class="pptx-preview-message">Loading PPTX preview...</div>
+    </main>
+    <script defer src="/pptx-preview-assets/creative-claw-pptx-preview.js"></script>
   </body>
 </html>"""
 
 
-def _render_pdf_preview_html(pdf_path: Path) -> str:
+def _render_pptx_preview_html(pptx_path: Path) -> str:
+    """Render a PPTX preview, preferring LibreOffice PDF output for fidelity."""
+    try:
+        pdf_path = _convert_pptx_to_pdf_preview(pptx_path)
+        return _render_pdf_preview_html(pdf_path, title=pptx_path.name, page_label="Slide")
+    except Exception as exc:
+        logger.opt(exception=exc).warning(
+            "Failed to render PPTX via LibreOffice PDF preview; using browser fallback for {}",
+            pptx_path,
+        )
+        return _render_pptx_browser_preview_html(pptx_path)
+
+
+def _render_pdf_preview_html(pdf_path: Path, *, title: str | None = None, page_label: str = "Page") -> str:
     """Render a PDF file into one standalone HTML preview."""
     try:
         import fitz
@@ -462,18 +437,20 @@ def _render_pdf_preview_html(pdf_path: Path) -> str:
         raise RuntimeError("PyMuPDF is required to preview PDF files.") from exc
 
     pages: list[str] = []
+    label_prefix = html.escape(page_label or "Page")
     with fitz.open(pdf_path) as document:
         for index, page in enumerate(document, start=1):
             pixmap = page.get_pixmap(matrix=fitz.Matrix(2, 2), alpha=False)
             encoded = base64.b64encode(pixmap.tobytes("png")).decode("ascii")
+            label = f"{label_prefix} {index}"
             pages.append(
                 f"""<section class="page-wrap">
-  <div class="page-label">Page {index}</div>
-  <img class="page-image" src="data:image/png;base64,{encoded}" alt="Page {index}">
+  <div class="page-label">{label}</div>
+  <img class="page-image" src="data:image/png;base64,{encoded}" alt="{label}">
 </section>"""
             )
 
-    title = html.escape(pdf_path.name)
+    title = html.escape(title or pdf_path.name)
     body = "\n".join(pages) or '<div class="empty-document">No pages found.</div>'
     return f"""<!doctype html>
 <html lang="en">

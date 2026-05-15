@@ -7,6 +7,7 @@ import html as html_lib
 import inspect
 import json
 import re
+import xml.etree.ElementTree as ET
 from pathlib import Path
 from typing import Any
 
@@ -33,6 +34,22 @@ from src.productions.ppt.routes.html import (
     prepare_html_template,
     run_html_page_generation_expert,
 )
+from src.productions.ppt.routes.svg import (
+    PPT_DESIGN_CONFIRMATION_STATE_KEY,
+    PPT_DESIGN_STRATEGY_EXPERT_NAME,
+    PPT_DESIGN_STRATEGY_STATE_KEY,
+    PPT_SVG_DECK_EXECUTOR_EXPERT_NAME,
+    PPT_SVG_EXECUTION_PLAN_STATE_KEY,
+    PPT_SVG_ROUTE_CONTENT_PLAN_KEY,
+    PPT_SVG_ROUTE_GENERATED_PAGES_KEY,
+    PPT_SVG_ROUTE_OUTPUT_DIR_KEY,
+    build_ppt_design_strategy_expert,
+    build_ppt_svg_deck_executor_expert,
+    build_svg_route_with_agent,
+    check_svg_pages_quality,
+    export_svg_pages_to_pptx,
+)
+from src.productions.ppt.routes.svg.native_converter import validate_svg_content
 from src.productions.ppt.routes import PptRouteRegistration, build_default_ppt_route_registry
 from src.productions.ppt.schemas import (
     ConfirmedRequirement,
@@ -40,6 +57,10 @@ from src.productions.ppt.schemas import (
     DeliveryManifest,
     EditabilityRequirement,
     PptProductResult,
+    PptDesignConfirmation,
+    PptDesignStrategy,
+    PptSvgExecutionPlan,
+    PptSvgPageResult,
     QualityReviewResult,
     ReferenceAsset,
     SlideCountPolicy,
@@ -131,6 +152,12 @@ class PptProductManager(LlmAgent):
                 self.invoke_ppt_expert,
                 self.save_ppt_system_selection,
                 self.save_ppt_private_skill_html,
+                self.save_ppt_design_strategy,
+                self.save_ppt_svg_execution_plan,
+                self.read_ppt_svg_execution_plan,
+                self.save_ppt_svg_page,
+                self.check_ppt_svg_quality,
+                self.export_ppt_svg_to_pptx,
                 self.dispatch_ppt_route,
             ]
 
@@ -175,7 +202,7 @@ Own PPT and PowerPoint production end to end. If the requested final deliverable
 
 # Route policy
 - HTML route: currently implemented built-in route; when selected, use no-template free design unless a system HTML template is explicitly selected; export to PPTX with explicit editability caveats.
-- SVG route: later route for high-control SVG pages and SVG-to-PPTX.
+- SVG route: implemented route for design strategy, per-slide converter-safe SVG pages, SVG quality checks, and editable native DrawingML PPTX export.
 - XML route: later route for user-uploaded PPTX templates and native OOXML editing.
 
 # PPT system selection
@@ -191,8 +218,9 @@ Own PPT and PowerPoint production end to end. If the requested final deliverable
 
 # Private skill execution
 - When a private product-ppt skill is selected, you run that skill workflow directly as PptProductManager.
-- Product-level PPT experts are registered by PptProductManager; for example, `PptHtmlPageGenerationExpert` generates editable PPT-friendly HTML slide fragments.
-- Let the selected skill drive the execution order: read its referenced files, call available PPT product tools, call `invoke_ppt_expert` when it needs a registered expert, and save the final artifact with `save_ppt_private_skill_html`.
+- Product-level PPT experts are registered by PptProductManager; for example, `PptHtmlPageGenerationExpert` generates editable PPT-friendly HTML slide fragments, `PptDesignStrategyExpert` prepares generic design strategy, and `PptSvgDeckExecutorExpert` generates SVG pages.
+- Let the selected skill drive the execution order: read its referenced files, call available PPT product tools, call `invoke_ppt_expert` when it needs a registered expert, and save/export the final artifact with the skill-appropriate product tool.
+- SVG route tools are available for skill workflows: save design strategy, save/read SVG execution plan, save SVG pages, check SVG quality, and export SVG pages to PPTX. Saved SVG pages must obey the native converter subset in the SVG execution plan. When `check_ppt_svg_quality` or `export_ppt_svg_to_pptx` should use the pages already saved in state, pass an empty list for `svg_page_paths`.
 - Do not delegate selected private skill execution to a separate private execution agent.
 - Do not invent facts, citations, local absolute paths, unavailable resources, or generated file paths.
 
@@ -215,11 +243,27 @@ Return structured status, current phase, selected route, warnings, next actions,
         """Build PPT product-level experts that routes and skills may call."""
         return {
             PPT_HTML_PAGE_GENERATION_EXPERT_NAME: self.build_html_page_generation_expert(),
+            PPT_DESIGN_STRATEGY_EXPERT_NAME: self.build_design_strategy_expert(),
+            PPT_SVG_DECK_EXECUTOR_EXPERT_NAME: self.build_svg_deck_executor_expert(),
         }
 
     def build_html_page_generation_expert(self) -> LlmAgent:
         """Build the PPT expert that generates editable HTML slide fragments."""
         return build_ppt_html_page_generation_expert()
+
+    def build_design_strategy_expert(self) -> LlmAgent:
+        """Build the PPT expert that prepares design strategy and SVG execution constraints."""
+        return build_ppt_design_strategy_expert(
+            save_design_strategy_tool=self.save_ppt_design_strategy,
+            save_svg_execution_plan_tool=self.save_ppt_svg_execution_plan,
+        )
+
+    def build_svg_deck_executor_expert(self) -> LlmAgent:
+        """Build the PPT expert that generates SVG pages from a content plan."""
+        return build_ppt_svg_deck_executor_expert(
+            read_svg_execution_plan_tool=self.read_ppt_svg_execution_plan,
+            save_svg_page_tool=self.save_ppt_svg_page,
+        )
 
     def _resolve_ppt_expert_agents(
         self,
@@ -273,7 +317,7 @@ Return structured status, current phase, selected route, warnings, next actions,
                 "If the user explicitly asks for an available private skill, choose system_type `private_skill` and its exact folder name.\n"
                 "If the user explicitly asks for a built-in route, choose system_type `built_in_route` and the route when available.\n"
                 "If nothing is explicit, choose freely based on task fit.\n"
-                "Private HTML/web deck skills may produce a final single-file HTML presentation instead of PPTX.\n"
+                "Private skills may produce a final single-file HTML presentation or an editable PPTX, depending on the skill.\n"
                 "When ready, call save_ppt_system_selection with one argument named selection_json.\n"
                 "The JSON must include system_type, route, skill_name, output_format, and reason."
             ),
@@ -775,7 +819,7 @@ Return structured status, current phase, selected route, warnings, next actions,
                             content_plan_builder=content_plan_builder,
                             asset_resolver=asset_resolver,
                         )
-                        output_dir = self._build_route_output_dir(tool_context.state)
+                        output_dir = self._build_route_output_dir(tool_context.state, route=requirement.route)
                         route_build = await self._dispatch_ppt_route(
                             requirement=requirement,
                             content_plan=content_plan,
@@ -788,30 +832,20 @@ Return structured status, current phase, selected route, warnings, next actions,
                         route_succeeded = bool(route_build.pptx_path)
                         output_files = self._record_output_files(
                             tool_context.state,
-                            [
-                                route_build.pptx_path,
-                                route_build.html_deck_path,
-                                route_build.quality_report_path,
-                                route_build.build_log_path,
-                                *route_build.preview_paths,
-                            ],
+                            self._route_build_output_paths(route_build),
                         )
                         delivery_manifest = DeliveryManifest(
                             final_pptx=route_build.pptx_path,
                             previews=route_build.preview_paths,
                             quality_report=route_build.quality_report_path,
                             build_log=route_build.build_log_path,
-                            intermediate_artifacts=[route_build.html_deck_path],
+                            intermediate_artifacts=self._route_build_intermediate_artifacts(route_build),
                             output_files=output_files,
                         )
                         result = PptProductResult(
                             status="success" if route_succeeded else "generation_failed",
-                            phase="html_route_delivery",
-                            message=(
-                                "HTML route MVP generated an HTML deck, PNG previews, and an editable PPTX."
-                                if route_succeeded
-                                else "HTML route generated HTML and previews, but failed to export an editable PPTX. See the build log for conversion findings."
-                            ),
+                            phase=f"{requirement.route}_route_delivery",
+                            message=self._build_route_delivery_message(requirement.route, route_succeeded),
                             selected_route=requirement.route,
                             confirmed_requirement=requirement,
                             deck_content_plan=content_plan,
@@ -833,11 +867,7 @@ Return structured status, current phase, selected route, warnings, next actions,
                                 *list(requirement.source_understanding.extraction_warnings),
                                 *list(tool_context.state.get("ppt_content_planning_warnings") or []),
                             ],
-                            next_actions=(
-                                ["Review the generated PPTX and previews; improve HTML template fidelity next."]
-                                if route_succeeded
-                                else ["Fix the HTML-to-PPTX conversion findings and retry PPTX export."]
-                            ),
+                            next_actions=self._build_route_next_actions(requirement.route, route_succeeded),
                         )
         except Exception as exc:
             result = PptProductResult(
@@ -1237,7 +1267,7 @@ Return structured status, current phase, selected route, warnings, next actions,
             artifact_service=artifact_service,
             asset_resolver=asset_resolver,
         )
-        output_dir = self._build_route_output_dir(tool_context.state)
+        output_dir = self._build_route_output_dir(tool_context.state, route=requirement.route)
         route_build = await self._dispatch_ppt_route(
             requirement=requirement,
             content_plan=resolved_plan,
@@ -1250,20 +1280,14 @@ Return structured status, current phase, selected route, warnings, next actions,
         route_succeeded = bool(route_build.pptx_path)
         output_files = self._record_output_files(
             tool_context.state,
-            [
-                route_build.pptx_path,
-                route_build.html_deck_path,
-                route_build.quality_report_path,
-                route_build.build_log_path,
-                *route_build.preview_paths,
-            ],
+            self._route_build_output_paths(route_build),
         )
         delivery_manifest = DeliveryManifest(
             final_pptx=route_build.pptx_path,
             previews=route_build.preview_paths,
             quality_report=route_build.quality_report_path,
             build_log=route_build.build_log_path,
-            intermediate_artifacts=[route_build.html_deck_path],
+            intermediate_artifacts=self._route_build_intermediate_artifacts(route_build),
             output_files=output_files,
         )
         workflow_state.update(
@@ -1277,12 +1301,8 @@ Return structured status, current phase, selected route, warnings, next actions,
         tool_context.state[PPT_WORKFLOW_STATE_KEY] = workflow_state
         result = PptProductResult(
             status="success" if route_succeeded else "generation_failed",
-            phase="html_route_delivery",
-            message=(
-                "HTML route generated the PPTX after requirement and content-plan confirmation."
-                if route_succeeded
-                else "HTML route generated HTML and previews, but failed to export an editable PPTX after confirmation."
-            ),
+            phase=f"{requirement.route}_route_delivery",
+            message=self._build_route_delivery_message(requirement.route, route_succeeded, after_confirmation=True),
             selected_route=requirement.route,
             confirmed_requirement=requirement,
             deck_content_plan=resolved_plan,
@@ -1304,11 +1324,7 @@ Return structured status, current phase, selected route, warnings, next actions,
                 *list(requirement.source_understanding.extraction_warnings),
                 *list(tool_context.state.get("ppt_content_planning_warnings") or []),
             ],
-            next_actions=(
-                ["Review the generated PPTX and previews."]
-                if route_succeeded
-                else ["Fix the HTML-to-PPTX conversion findings and retry PPTX export."]
-            ),
+            next_actions=self._build_route_next_actions(requirement.route, route_succeeded),
         )
         return self._persist_product_result(tool_context, result)
 
@@ -1650,11 +1666,6 @@ Return structured status, current phase, selected route, warnings, next actions,
         """Build the second user-confirmation result for the content plan."""
         summary_markdown = self._format_content_plan_confirmation(content_plan)
         system_selection = workflow_state.get("system_selection")
-        if isinstance(system_selection, dict) and system_selection:
-            summary_markdown = (
-                f"{summary_markdown}\n\n"
-                f"{self._format_system_selection_confirmation(system_selection)}"
-            )
         message = "请确认 PPT 内容规划。确认后我才会开始搜索或生成图片，并导出 PPTX。"
         if self._is_private_skill_selection(system_selection):
             message = "请确认 PPT 内容规划。确认后我会按选中的私有 PPT skill 生成演示稿。"
@@ -1745,7 +1756,9 @@ Return structured status, current phase, selected route, warnings, next actions,
         else:
             system_text = f"内置路线 `{route}`"
         lines = [
-            "| 系统选择 | 当前值 |",
+            "### 系统选择",
+            "",
+            "| 项目 | 当前值 |",
             "| --- | --- |",
             f"| 制作系统 | {system_text} |",
             f"| 输出方式 | {selection.get('output_format') or 'pptx'} |",
@@ -1939,19 +1952,25 @@ Return structured status, current phase, selected route, warnings, next actions,
                 session_id=child_session.id,
             )
             final_state = final_session.state if final_session is not None else child_state
-            private_build = dict(final_state.get(PPT_PRIVATE_SKILL_BUILD_STATE_KEY) or {})
+            private_build = self._resolve_private_skill_build_from_state(final_state, skill_name=skill_name)
             if not str(private_build.get("output_path") or "").strip():
-                raise ValueError("PptProductManager did not save a private skill HTML artifact.")
+                raise ValueError("PptProductManager did not save a private skill presentation artifact.")
             for key in (
                 PPT_PRIVATE_SKILL_BUILD_STATE_KEY,
+                PPT_SVG_EXECUTION_PLAN_STATE_KEY,
+                PPT_SVG_ROUTE_GENERATED_PAGES_KEY,
                 "generated",
                 "new_files",
                 "files_history",
                 "final_file_paths",
                 "current_output",
+                "ppt_svg_quality_report",
+                "ppt_svg_pptx_export",
+                "ppt_route_build",
             ):
                 if key in final_state:
                     tool_context.state[key] = copy.deepcopy(final_state[key])
+            tool_context.state[PPT_PRIVATE_SKILL_BUILD_STATE_KEY] = copy.deepcopy(private_build)
             if final_state.get("ppt_private_skill_execution_agent_message"):
                 tool_context.state["ppt_private_skill_execution_agent_message"] = str(
                     final_state.get("ppt_private_skill_execution_agent_message")
@@ -2002,8 +2021,15 @@ Return structured status, current phase, selected route, warnings, next actions,
         """Build the product result for a private PPT skill delivery."""
         skill_name = str(system_selection.get("skill_name") or "").strip()
         output_path = str(private_build.get("output_path") or "").strip()
+        pptx_path = str(private_build.get("pptx_path") or "").strip()
+        artifact_type = str(private_build.get("artifact_type") or "").strip() or ("pptx" if pptx_path else "html")
         output_files = list(private_build.get("output_files") or [])
         status = "success" if output_path else "generation_failed"
+        private_skill_warning = (
+            "Private skill delivered an editable PPTX through the SVG native DrawingML route."
+            if artifact_type == "pptx"
+            else "Private skill delivery may produce HTML instead of editable PPTX; no built-in PPTX export was claimed."
+        )
         return PptProductResult(
             status=status,
             phase="private_skill_delivery",
@@ -2017,14 +2043,14 @@ Return structured status, current phase, selected route, warnings, next actions,
             deck_content_plan=content_plan,
             quality_review=QualityReviewResult(status="not_run"),
             delivery_manifest=DeliveryManifest(
-                final_pptx="",
-                intermediate_artifacts=[output_path] if output_path else [],
+                final_pptx=pptx_path,
+                intermediate_artifacts=[] if pptx_path else [output_path] if output_path else [],
                 output_files=output_files,
             ),
             output_files=output_files,
             warnings=[
                 *list(requirement.source_understanding.extraction_warnings),
-                "Private skill delivery may produce HTML instead of editable PPTX; no built-in PPTX export was claimed.",
+                private_skill_warning,
             ],
             next_actions=(
                 ["Review the generated private-skill presentation artifact."]
@@ -2032,6 +2058,56 @@ Return structured status, current phase, selected route, warnings, next actions,
                 else ["Retry with another PPT system or inspect the private skill execution output."]
             ),
         )
+
+    @staticmethod
+    def _resolve_private_skill_build_from_state(
+        state: dict[str, Any],
+        *,
+        skill_name: str,
+    ) -> dict[str, Any]:
+        """Return the final artifact saved by a private PPT skill run."""
+        private_build = dict(state.get(PPT_PRIVATE_SKILL_BUILD_STATE_KEY) or {})
+        if str(private_build.get("output_path") or "").strip():
+            private_build.setdefault("artifact_type", "html")
+            private_build.setdefault("output_format", "html")
+            private_build.setdefault("source", "save_ppt_private_skill_html")
+            return private_build
+
+        svg_export = state.get("ppt_svg_pptx_export") or {}
+        if isinstance(svg_export, dict):
+            pptx_path = str(svg_export.get("pptx_path") or "").strip()
+            if pptx_path:
+                return {
+                    "status": svg_export.get("status") or "success",
+                    "message": svg_export.get("message")
+                    or f"Private PPT skill `{skill_name}` exported SVG pages to PPTX.",
+                    "artifact_type": "pptx",
+                    "output_format": "pptx",
+                    "source": "export_ppt_svg_to_pptx",
+                    "output_path": pptx_path,
+                    "pptx_path": pptx_path,
+                    "output_files": list(svg_export.get("output_files") or []),
+                    "conversion_report": dict(svg_export.get("conversion_report") or {}),
+                }
+
+        route_build = state.get("ppt_route_build") or {}
+        if isinstance(route_build, dict):
+            pptx_path = str(route_build.get("pptx_path") or "").strip()
+            if pptx_path:
+                output_files = list(state.get("new_files") or [])
+                return {
+                    "status": "success",
+                    "message": f"Private PPT skill `{skill_name}` dispatched the SVG route to PPTX.",
+                    "artifact_type": "pptx",
+                    "output_format": "pptx",
+                    "source": "dispatch_ppt_route",
+                    "output_path": pptx_path,
+                    "pptx_path": pptx_path,
+                    "output_files": output_files,
+                    "route_build": dict(route_build),
+                }
+
+        return {}
 
     def _persist_system_selection(
         self,
@@ -2558,6 +2634,212 @@ Return structured status, current phase, selected route, warnings, next actions,
         tool_context.state["current_output"] = result
         return result
 
+    def save_ppt_design_strategy(
+        self,
+        strategy_json: dict[str, Any],
+        confirmation_json: dict[str, Any],
+        tool_context: ToolContext,
+    ) -> dict[str, Any]:
+        """Validate and save the generic PPT design strategy for SVG-capable workflows."""
+        strategy = PptDesignStrategy.model_validate(strategy_json or {})
+        confirmation = PptDesignConfirmation.model_validate(confirmation_json or {})
+        tool_context.state[PPT_DESIGN_STRATEGY_STATE_KEY] = strategy.model_dump(mode="json")
+        tool_context.state[PPT_DESIGN_CONFIRMATION_STATE_KEY] = confirmation.model_dump(mode="json")
+        result = {
+            "status": "success",
+            "message": "PPT design strategy saved.",
+            "design_strategy": strategy.model_dump(mode="json"),
+            "design_confirmation": confirmation.model_dump(mode="json"),
+        }
+        tool_context.state["current_output"] = result
+        return result
+
+    def save_ppt_svg_execution_plan(
+        self,
+        execution_plan_json: dict[str, Any],
+        tool_context: ToolContext,
+    ) -> dict[str, Any]:
+        """Validate and save SVG route execution constraints."""
+        execution_plan = PptSvgExecutionPlan.model_validate(execution_plan_json or {})
+        tool_context.state[PPT_SVG_EXECUTION_PLAN_STATE_KEY] = execution_plan.model_dump(mode="json")
+        result = {
+            "status": "success",
+            "message": "PPT SVG execution plan saved.",
+            "svg_execution_plan": execution_plan.model_dump(mode="json"),
+        }
+        tool_context.state["current_output"] = result
+        return result
+
+    def read_ppt_svg_execution_plan(self, tool_context: ToolContext) -> dict[str, Any]:
+        """Read the saved SVG execution plan for a PPT SVG expert or skill."""
+        execution_plan_payload = tool_context.state.get(PPT_SVG_EXECUTION_PLAN_STATE_KEY) or {}
+        if not execution_plan_payload:
+            return {
+                "status": "error",
+                "message": "No PPT SVG execution plan is saved in session state.",
+            }
+        execution_plan = PptSvgExecutionPlan.model_validate(execution_plan_payload)
+        return {
+            "status": "success",
+            "svg_execution_plan": execution_plan.model_dump(mode="json"),
+        }
+
+    def save_ppt_svg_page(
+        self,
+        slide_number: int,
+        svg_content: str,
+        file_name: str,
+        title: str,
+        page_type: str,
+        page_rhythm: str,
+        tool_context: ToolContext,
+    ) -> dict[str, Any]:
+        """Save one generated SVG slide page into the current PPT route output directory."""
+        try:
+            normalized_slide_number = max(1, int(slide_number))
+        except (TypeError, ValueError):
+            raise ValueError("slide_number must be a positive integer.")
+
+        clean_svg = _strip_svg_code_fence(svg_content)
+        root = ET.fromstring(clean_svg)
+        if str(root.tag or "").rsplit("}", 1)[-1] != "svg":
+            raise ValueError("svg_content must have an <svg> root element.")
+
+        output_dir = self._resolve_svg_route_output_dir(tool_context.state)
+        svg_dir = output_dir / "svg_pages"
+        svg_dir.mkdir(parents=True, exist_ok=True)
+        execution_plan = PptSvgExecutionPlan.model_validate(
+            tool_context.state.get(PPT_SVG_EXECUTION_PLAN_STATE_KEY) or {}
+        )
+        validation_issues = validate_svg_content(
+            clean_svg,
+            execution_plan=execution_plan,
+            svg_dir=svg_dir,
+            path_label=f"slide_{normalized_slide_number:03d}.svg",
+        )
+        validation_errors = [
+            issue
+            for issue in validation_issues
+            if str(issue.get("severity") or "error") == "error"
+        ]
+        if validation_errors:
+            details = "; ".join(str(issue.get("message") or "") for issue in validation_errors[:5])
+            raise ValueError(f"SVG page does not match the native PPTX converter subset: {details}")
+        clean_name = Path(str(file_name or "").strip()).name
+        if not clean_name:
+            clean_name = f"slide_{normalized_slide_number:03d}.svg"
+        if not clean_name.lower().endswith(".svg"):
+            clean_name = f"{Path(clean_name).stem or f'slide_{normalized_slide_number:03d}'}.svg"
+        output_path = svg_dir / clean_name
+        output_path.write_text(clean_svg, encoding="utf-8")
+        relative_path = workspace_relative_path(output_path)
+        page_result = PptSvgPageResult(
+            slide_number=normalized_slide_number,
+            title=str(title or "").strip(),
+            svg_path=relative_path,
+            page_type=str(page_type or "content").strip() or "content",
+            page_rhythm=str(page_rhythm or "body").strip() or "body",
+        )
+        pages = list(tool_context.state.get(PPT_SVG_ROUTE_GENERATED_PAGES_KEY) or [])
+        pages = [
+            page
+            for page in pages
+            if isinstance(page, dict) and int(page.get("slide_number") or 0) != normalized_slide_number
+        ]
+        pages.append(page_result.model_dump(mode="json"))
+        pages.sort(key=lambda item: int(item.get("slide_number") or 0))
+        tool_context.state[PPT_SVG_ROUTE_GENERATED_PAGES_KEY] = pages
+        result = {
+            "status": "success",
+            "message": f"Saved SVG slide {normalized_slide_number} at {relative_path}.",
+            "svg_page": page_result.model_dump(mode="json"),
+        }
+        tool_context.state["current_output"] = result
+        return result
+
+    def check_ppt_svg_quality(
+        self,
+        svg_page_paths: list[str],
+        tool_context: ToolContext,
+    ) -> dict[str, Any]:
+        """Run the SVG route quality checker against saved SVG pages."""
+        execution_plan = PptSvgExecutionPlan.model_validate(
+            tool_context.state.get(PPT_SVG_EXECUTION_PLAN_STATE_KEY) or {}
+        )
+        if not svg_page_paths:
+            svg_page_paths = [
+                str(page.get("svg_path") or "").strip()
+                for page in list(tool_context.state.get(PPT_SVG_ROUTE_GENERATED_PAGES_KEY) or [])
+                if isinstance(page, dict)
+            ]
+        content_plan_payload = (
+            tool_context.state.get("ppt_deck_content_plan")
+            or tool_context.state.get(PPT_SVG_ROUTE_CONTENT_PLAN_KEY)
+            or {}
+        )
+        expected_count = (
+            len(content_plan_payload.get("pages") or [])
+            if isinstance(content_plan_payload, dict)
+            else len(svg_page_paths)
+        )
+        quality_report = check_svg_pages_quality(
+            svg_page_paths=list(svg_page_paths or []),
+            expected_page_count=expected_count,
+            execution_plan=execution_plan,
+        )
+        result = {
+            "status": "success" if quality_report.status in {"pass", "warning"} else "error",
+            "message": f"PPT SVG quality check status: {quality_report.status}.",
+            "quality_report": quality_report.model_dump(mode="json"),
+        }
+        tool_context.state["ppt_svg_quality_report"] = quality_report.model_dump(mode="json")
+        tool_context.state["current_output"] = result
+        return result
+
+    def export_ppt_svg_to_pptx(
+        self,
+        pptx_file_name: str,
+        svg_page_paths: list[str],
+        tool_context: ToolContext,
+    ) -> dict[str, Any]:
+        """Export saved SVG pages into an editable PPTX artifact."""
+        execution_plan = PptSvgExecutionPlan.model_validate(
+            tool_context.state.get(PPT_SVG_EXECUTION_PLAN_STATE_KEY) or {}
+        )
+        if not svg_page_paths:
+            svg_page_paths = [
+                str(page.get("svg_path") or "").strip()
+                for page in list(tool_context.state.get(PPT_SVG_ROUTE_GENERATED_PAGES_KEY) or [])
+                if isinstance(page, dict)
+            ]
+        output_dir = self._resolve_svg_route_output_dir(tool_context.state)
+        clean_name = Path(str(pptx_file_name or "deck.pptx").strip() or "deck.pptx").name
+        if not clean_name.lower().endswith(".pptx"):
+            clean_name = f"{Path(clean_name).stem or 'deck'}.pptx"
+        pptx_path = output_dir / clean_name
+        export_result = export_svg_pages_to_pptx(
+            svg_page_paths=list(svg_page_paths or []),
+            pptx_path=pptx_path,
+            execution_plan=execution_plan,
+        )
+        relative_path = workspace_relative_path(export_result.pptx_path) if export_result.pptx_path.exists() else ""
+        output_files = self._record_output_files(
+            tool_context.state,
+            [relative_path],
+            description="PPT product SVG route PPTX artifact.",
+            final_file_paths=[relative_path] if relative_path else [],
+        )
+        result = {
+            "status": "success" if relative_path else "error",
+            "message": f"Exported PPT SVG pages to {relative_path}." if relative_path else "PPT SVG export did not produce a PPTX.",
+            "pptx_path": relative_path,
+            "conversion_report": export_result.conversion_report,
+            "output_files": output_files,
+        }
+        tool_context.state["ppt_svg_pptx_export"] = result
+        tool_context.state["current_output"] = result
+        return result
+
     def list_registered_routes(self) -> dict[str, dict[str, object]]:
         """Return product-level route registrations without exposing route internals."""
         return {
@@ -2610,7 +2892,7 @@ Return structured status, current phase, selected route, warnings, next actions,
         route_build = await self._dispatch_ppt_route(
             requirement=requirement,
             content_plan=content_plan,
-            output_dir=self._build_route_output_dir(tool_context.state),
+            output_dir=self._build_route_output_dir(tool_context.state, route=requirement.route),
             tool_context=tool_context,
             app_name=str(getattr(getattr(tool_context, "_invocation_context", None), "app_name", "creative_claw")),
             artifact_service=None,
@@ -2619,13 +2901,7 @@ Return structured status, current phase, selected route, warnings, next actions,
         route_succeeded = bool(route_build.pptx_path)
         output_files = self._record_output_files(
             tool_context.state,
-            [
-                route_build.pptx_path,
-                route_build.html_deck_path,
-                route_build.quality_report_path,
-                route_build.build_log_path,
-                *route_build.preview_paths,
-            ],
+            self._route_build_output_paths(route_build),
         )
         payload = {
             "status": "success" if route_succeeded else "generation_failed",
@@ -2670,6 +2946,17 @@ Return structured status, current phase, selected route, warnings, next actions,
                 artifact_service=artifact_service,
                 page_generation_agent=(expert_agents or {}).get(PPT_HTML_PAGE_GENERATION_EXPERT_NAME),
             )
+        if requirement.route == "svg":
+            return await build_svg_route_with_agent(
+                requirement=requirement,
+                content_plan=content_plan,
+                output_dir=output_dir,
+                tool_context=tool_context,
+                app_name=app_name,
+                artifact_service=artifact_service,
+                design_strategy_agent=(expert_agents or {}).get(PPT_DESIGN_STRATEGY_EXPERT_NAME),
+                svg_executor_agent=(expert_agents or {}).get(PPT_SVG_DECK_EXECUTOR_EXPERT_NAME),
+            )
         return registration.handler(
             content_plan,
             output_dir,
@@ -2699,14 +2986,91 @@ Return structured status, current phase, selected route, warnings, next actions,
         )
 
     @staticmethod
-    def _build_route_output_dir(state: dict[str, Any]) -> Path:
+    def _build_route_output_dir(state: dict[str, Any], *, route: str = "html") -> Path:
         """Return a deterministic output directory for the current PPT route run."""
         session_id = str(state.get("sid") or "ppt-session").strip()
         turn_index = int(state.get("turn_index", 0) or 0)
         step = int(state.get("step", 0) or 0)
-        output_dir = generated_session_dir(session_id, turn_index=turn_index) / f"ppt_html_route_step_{step}"
+        clean_route = str(route or "html").strip().lower()
+        if clean_route not in {"html", "svg", "xml"}:
+            clean_route = "html"
+        output_dir = generated_session_dir(session_id, turn_index=turn_index) / f"ppt_{clean_route}_route_step_{step}"
         output_dir.mkdir(parents=True, exist_ok=True)
         return output_dir
+
+    def _resolve_svg_route_output_dir(self, state: dict[str, Any]) -> Path:
+        """Resolve the current SVG route output directory for expert tools."""
+        raw_output_dir = str(state.get(PPT_SVG_ROUTE_OUTPUT_DIR_KEY) or "").strip()
+        if raw_output_dir:
+            output_dir = Path(raw_output_dir)
+            if not output_dir.is_absolute():
+                output_dir = resolve_workspace_path(raw_output_dir)
+            output_dir.mkdir(parents=True, exist_ok=True)
+            state[PPT_SVG_ROUTE_OUTPUT_DIR_KEY] = str(output_dir)
+            return output_dir
+        output_dir = self._build_route_output_dir(state, route="svg")
+        state[PPT_SVG_ROUTE_OUTPUT_DIR_KEY] = str(output_dir)
+        return output_dir
+
+    @staticmethod
+    def _route_build_output_paths(route_build: Any) -> list[str]:
+        """Return all route build artifact paths that should be recorded."""
+        return [
+            str(path or "").strip()
+            for path in [
+                getattr(route_build, "pptx_path", ""),
+                getattr(route_build, "html_deck_path", ""),
+                getattr(route_build, "quality_report_path", ""),
+                getattr(route_build, "build_log_path", ""),
+                *list(getattr(route_build, "preview_paths", []) or []),
+                *list(getattr(route_build, "svg_page_paths", []) or []),
+            ]
+            if str(path or "").strip()
+        ]
+
+    @staticmethod
+    def _route_build_intermediate_artifacts(route_build: Any) -> list[str]:
+        """Return route intermediate artifacts for the delivery manifest."""
+        return [
+            str(path or "").strip()
+            for path in [
+                getattr(route_build, "html_deck_path", ""),
+                *list(getattr(route_build, "svg_page_paths", []) or []),
+            ]
+            if str(path or "").strip()
+        ]
+
+    @staticmethod
+    def _build_route_delivery_message(route: str, route_succeeded: bool, *, after_confirmation: bool = False) -> str:
+        """Build a user-facing delivery message for a route run."""
+        clean_route = str(route or "").strip().lower()
+        if clean_route == "svg":
+            if route_succeeded:
+                return "SVG route generated SVG pages, checked them, and exported an editable PPTX."
+            return "SVG route generated SVG pages, but failed to export an editable PPTX. See the build log for conversion findings."
+        if route_succeeded:
+            return (
+                "HTML route generated the PPTX after requirement and content-plan confirmation."
+                if after_confirmation
+                else "HTML route MVP generated an HTML deck, PNG previews, and an editable PPTX."
+            )
+        return (
+            "HTML route generated HTML and previews, but failed to export an editable PPTX after confirmation."
+            if after_confirmation
+            else "HTML route generated HTML and previews, but failed to export an editable PPTX. See the build log for conversion findings."
+        )
+
+    @staticmethod
+    def _build_route_next_actions(route: str, route_succeeded: bool) -> list[str]:
+        """Build next actions for a completed route run."""
+        clean_route = str(route or "").strip().lower()
+        if route_succeeded:
+            if clean_route == "svg":
+                return ["Review the generated PPTX and SVG page artifacts."]
+            return ["Review the generated PPTX and previews."]
+        if clean_route == "svg":
+            return ["Fix the SVG quality or SVG-to-PPTX conversion findings and retry export."]
+        return ["Fix the HTML-to-PPTX conversion findings and retry PPTX export."]
 
     @staticmethod
     def _build_private_skill_output_dir(state: dict[str, Any]) -> Path:
@@ -2723,7 +3087,7 @@ Return structured status, current phase, selected route, warnings, next actions,
         state: dict[str, Any],
         paths: list[str],
         *,
-        description: str = "PPT product HTML route artifact.",
+        description: str = "PPT product route artifact.",
         final_file_paths: list[str] | None = None,
     ) -> list[dict[str, Any]]:
         """Record PPT product output files in session state."""
@@ -3754,10 +4118,17 @@ def _build_product_manager_skill_run_user_message(
         "selected_skill_content": skill_content,
         "available_experts": available_experts,
         "output_contract": {
-            "tool": "save_ppt_private_skill_html",
-            "file_name": "index.html",
-            "html_content": "complete standalone HTML presentation",
-            "description": "short artifact description",
+            "html_artifact": {
+                "tool": "save_ppt_private_skill_html",
+                "file_name": "index.html",
+                "html_content": "complete standalone HTML presentation",
+                "description": "short artifact description",
+            },
+            "pptx_artifact": {
+                "tool_options": ["export_ppt_svg_to_pptx", "dispatch_ppt_route"],
+                "pptx_file_name": "deck.pptx",
+                "svg_page_paths": "pass [] to use pages saved in session state",
+            },
         },
     }
     return (
@@ -3766,7 +4137,9 @@ def _build_product_manager_skill_run_user_message(
         "Use the confirmed requirement and deck content plan as content truth.\n"
         "Read additional skill files with read_product_ppt_skill_file when the skill references them.\n"
         "Use list_ppt_experts and invoke_ppt_expert when the skill needs a registered expert.\n"
-        "Save the final artifact by calling save_ppt_private_skill_html.\n\n"
+        "For HTML private skills, save the final artifact by calling save_ppt_private_skill_html.\n"
+        "For SVG/PPTX private skills, save SVG pages, run quality checks, then call export_ppt_svg_to_pptx, "
+        "or call dispatch_ppt_route(route='svg') when the built-in SVG route is sufficient.\n\n"
         f"{json.dumps(payload, ensure_ascii=False, indent=2)}"
     )
 
@@ -3869,6 +4242,15 @@ def _strip_html_code_fence(html_content: str) -> str:
     """Remove a single Markdown code fence around generated HTML."""
     content = str(html_content or "").strip()
     match = re.fullmatch(r"```(?:html)?\s*(?P<body>.*?)\s*```", content, flags=re.DOTALL | re.IGNORECASE)
+    if match:
+        content = str(match.group("body") or "").strip()
+    return f"{content}\n" if content else ""
+
+
+def _strip_svg_code_fence(svg_content: str) -> str:
+    """Remove a single Markdown code fence around generated SVG."""
+    content = str(svg_content or "").strip()
+    match = re.fullmatch(r"```(?:svg|xml)?\s*(?P<body>.*?)\s*```", content, flags=re.DOTALL | re.IGNORECASE)
     if match:
         content = str(match.group("body") or "").strip()
     return f"{content}\n" if content else ""

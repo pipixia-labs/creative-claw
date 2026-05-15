@@ -899,6 +899,72 @@ class OrchestratorCallbackTests(unittest.IsolatedAsyncioTestCase):
         self.assertEqual(structured["reply_text"], "页面已完成。")
         self.assertEqual(structured["final_file_paths"], ["520_guandan_friendship_poster.html"])
 
+    async def test_run_agent_stops_after_completed_ppt_product_result(self) -> None:
+        session_service = InMemorySessionService()
+        orchestrator = Orchestrator(
+            session_service=session_service,
+            artifact_service=InMemoryArtifactService(),
+            expert_agents={},
+        )
+        user_id = "user-ppt-complete"
+        session_id = "session-ppt-complete"
+        await session_service.create_session(
+            app_name=SYS_CONFIG.app_name,
+            user_id=user_id,
+            session_id=session_id,
+            state={},
+        )
+        tool_result = {
+            "result_schema_version": "ppt-product-result-v1",
+            "status": "success",
+            "product_line": "ppt",
+            "message": "PPT 已完成。",
+            "final_file_paths": ["generated/session/demo/deck.pptx"],
+        }
+
+        class _FakeRunner:
+            def __init__(self) -> None:
+                self.continued_after_ppt_result = False
+
+            async def run_async(self, **_kwargs):
+                yield Event(
+                    author="CreativeClawOrchestrator",
+                    content=Content(
+                        role="user",
+                        parts=[
+                            Part.from_function_response(
+                                name="continue_ppt_product",
+                                response=tool_result,
+                            )
+                        ],
+                    ),
+                )
+                self.continued_after_ppt_result = True
+                yield Event(
+                    author="CreativeClawOrchestrator",
+                    content=Content(role="model", parts=[Part(text="should not continue")]),
+                )
+
+        fake_runner = _FakeRunner()
+        orchestrator.runner = fake_runner
+
+        reply = await orchestrator.run_agent_and_log_events(
+            user_id=user_id,
+            session_id=session_id,
+            new_message=Content(role="user", parts=[Part(text="确认")]),
+        )
+
+        self.assertFalse(fake_runner.continued_after_ppt_result)
+        self.assertEqual(reply, "PPT 已完成。")
+        session = await session_service.get_session(
+            app_name=SYS_CONFIG.app_name,
+            user_id=user_id,
+            session_id=session_id,
+        )
+        structured = session.state[ORCHESTRATOR_FINAL_RESPONSE_OUTPUT_KEY]
+        self.assertEqual(structured["reply_text"], "PPT 已完成。")
+        self.assertEqual(structured["final_file_paths"], ["generated/session/demo/deck.pptx"])
+
     async def test_run_agent_streams_reply_text_deltas_with_adk_sse(self) -> None:
         session_service = InMemorySessionService()
         orchestrator = Orchestrator(

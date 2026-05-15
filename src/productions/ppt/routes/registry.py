@@ -7,12 +7,13 @@ from dataclasses import dataclass
 from pathlib import Path
 
 from src.productions.ppt.routes.html import build_html_route
-from src.productions.ppt.schemas import DeckContentPlan, HtmlRouteBuildPackage
+from src.productions.ppt.routes.svg import build_svg_route
+from src.productions.ppt.schemas import DeckContentPlan, PptRouteBuildPackage
 
 
 PptRouteHandler = Callable[
     [DeckContentPlan, Path, str, str],
-    HtmlRouteBuildPackage,
+    PptRouteBuildPackage,
 ]
 
 
@@ -41,9 +42,24 @@ def _html_route_handler(
     output_dir: Path,
     aspect_ratio: str,
     template_id: str,
-) -> HtmlRouteBuildPackage:
+) -> PptRouteBuildPackage:
     """Execute the current HTML route implementation."""
     return build_html_route(
+        content_plan=content_plan,
+        output_dir=output_dir,
+        aspect_ratio=aspect_ratio,
+        template_id=template_id,
+    )
+
+
+def _svg_route_handler(
+    content_plan: DeckContentPlan,
+    output_dir: Path,
+    aspect_ratio: str,
+    template_id: str,
+) -> PptRouteBuildPackage:
+    """Execute the current SVG route implementation."""
+    return build_svg_route(
         content_plan=content_plan,
         output_dir=output_dir,
         aspect_ratio=aspect_ratio,
@@ -64,9 +80,9 @@ def build_default_ppt_route_registry() -> dict[str, PptRouteRegistration]:
         "svg": PptRouteRegistration(
             route="svg",
             workflow_name="SvgRouteSequentialAgent",
-            handler=None,
-            implemented=False,
-            description="Deferred SVG route for ppt-master style SVG page generation and PPTX export.",
+            handler=_svg_route_handler,
+            implemented=True,
+            description="SVG route MVP: design strategy, per-slide SVG generation, SVG quality checks, and editable PPTX export.",
         ),
         "xml": PptRouteRegistration(
             route="xml",

@@ -34,16 +34,21 @@ def is_product_confirmation_result(result: Any) -> bool:
     )
 
 
-def is_completed_page_product_result(result: Any) -> bool:
-    """Return whether a Page product result is ready for final delivery."""
+def is_completed_product_result(result: Any) -> bool:
+    """Return whether a product result is ready for final delivery."""
     if not isinstance(result, dict):
         return False
     return (
-        str(result.get("product_line") or "").strip() == "page"
+        str(result.get("product_line") or "").strip() in {"page", "ppt", "design"}
         and str(result.get("status") or "").strip().lower() == "success"
         and bool(str(result.get("message") or "").strip())
         and bool(_string_list(result.get("final_file_paths")))
     )
+
+
+def is_completed_page_product_result(result: Any) -> bool:
+    """Return whether a Page product result is ready for final delivery."""
+    return is_completed_product_result(result) and str(result.get("product_line") or "").strip() == "page"
 
 
 def _build_user_message(payload: dict[str, Any]) -> str:
@@ -85,6 +90,7 @@ def _string_list(value: Any) -> list[str]:
 
 
 __all__ = [
+    "is_completed_product_result",
     "is_completed_page_product_result",
     "is_product_confirmation_result",
     "slim_product_result",

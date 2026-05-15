@@ -355,6 +355,170 @@ class HtmlRouteBuildPackage(BaseModel):
     warnings: list[str] = Field(default_factory=list)
 
 
+class PptDesignConfirmation(BaseModel):
+    """User-facing confirmation summary for a PPT design strategy."""
+
+    summary: str = ""
+    decisions: list[str] = Field(default_factory=list)
+    requires_user_confirmation: bool = False
+    confirmation_prompt: str = ""
+    warnings: list[str] = Field(default_factory=list)
+
+    @field_validator("summary", "confirmation_prompt", mode="before")
+    @classmethod
+    def _strip_text(cls, value: Any) -> str:
+        """Strip design confirmation text fields."""
+        return _clean_string(value)
+
+
+class PptDesignStrategy(BaseModel):
+    """Route-independent design strategy for a PPT deck."""
+
+    style_name: str = "clean_editorial"
+    design_direction: str = ""
+    palette: list[str] = Field(default_factory=lambda: ["#F7F8FB", "#172033", "#2457D6", "#43A6FF"])
+    font_family: str = "Aptos"
+    title_font_family: str = "Aptos Display"
+    icon_style: str = "line"
+    image_strategy: str = "use_ready_assets_or_simple_placeholders"
+    layout_principles: list[str] = Field(default_factory=list)
+    warnings: list[str] = Field(default_factory=list)
+
+    @field_validator(
+        "style_name",
+        "design_direction",
+        "font_family",
+        "title_font_family",
+        "icon_style",
+        "image_strategy",
+        mode="before",
+    )
+    @classmethod
+    def _strip_text(cls, value: Any) -> str:
+        """Strip design strategy text fields."""
+        return _clean_string(value)
+
+
+class PptSvgExecutionPlan(BaseModel):
+    """SVG-route execution constraints derived from the design strategy."""
+
+    aspect_ratio: Literal["16:9", "4:3"] = "16:9"
+    canvas_format: str = "ppt169"
+    canvas_width: int = Field(default=1280, ge=1)
+    canvas_height: int = Field(default=720, ge=1)
+    background_color: str = "#F7F8FB"
+    primary_text_color: str = "#172033"
+    muted_text_color: str = "#667085"
+    accent_color: str = "#2457D6"
+    secondary_accent_color: str = "#43A6FF"
+    font_family: str = "Aptos"
+    font_stack: list[str] = Field(default_factory=lambda: ["Aptos", "Microsoft YaHei", "Arial"])
+    latin_font: str = "Aptos"
+    east_asian_font: str = "Microsoft YaHei"
+    safe_margin: int = Field(default=72, ge=0)
+    page_layouts: dict[str, str] = Field(default_factory=dict)
+    page_rhythm_by_slide: dict[str, str] = Field(default_factory=dict)
+    supported_svg_tags: list[str] = Field(default_factory=list)
+    convertible_svg_tags: list[str] = Field(default_factory=list)
+    forbidden_svg_tags: list[str] = Field(default_factory=list)
+    forbidden_svg_attributes: list[str] = Field(default_factory=list)
+    image_policy: str = "Use local workspace images or data image URIs only; no remote image hrefs."
+    icon_policy: str = "Use native SVG paths or simple primitives; no symbol/use references in the current converter profile."
+    converter_profile: str = "native_drawingml_ppt_master_baseline_v1"
+    pptx_editability_level: Literal["medium", "high"] = "high"
+    quality_constraints: list[str] = Field(default_factory=list)
+    warnings: list[str] = Field(default_factory=list)
+
+    @field_validator(
+        "canvas_format",
+        "background_color",
+        "primary_text_color",
+        "muted_text_color",
+        "accent_color",
+        "secondary_accent_color",
+        "font_family",
+        "latin_font",
+        "east_asian_font",
+        "image_policy",
+        "icon_policy",
+        "converter_profile",
+        mode="before",
+    )
+    @classmethod
+    def _strip_text(cls, value: Any) -> str:
+        """Strip SVG execution plan text fields."""
+        return _clean_string(value)
+
+    @field_validator(
+        "font_stack",
+        "supported_svg_tags",
+        "convertible_svg_tags",
+        "forbidden_svg_tags",
+        "forbidden_svg_attributes",
+        "quality_constraints",
+        "warnings",
+        mode="before",
+    )
+    @classmethod
+    def _strip_string_list(cls, value: Any) -> list[str]:
+        """Normalize string-list SVG execution plan fields."""
+        if value is None:
+            return []
+        if isinstance(value, str):
+            return [_clean_string(value)] if _clean_string(value) else []
+        if isinstance(value, list):
+            return [_clean_string(item) for item in value if _clean_string(item)]
+        return []
+
+
+class PptSvgPageResult(BaseModel):
+    """One generated SVG page artifact."""
+
+    slide_number: int = Field(ge=1)
+    title: str = ""
+    svg_path: str
+    page_type: str = "content"
+    page_rhythm: str = "body"
+    warnings: list[str] = Field(default_factory=list)
+
+    @field_validator("title", "svg_path", "page_type", "page_rhythm", mode="before")
+    @classmethod
+    def _strip_text(cls, value: Any) -> str:
+        """Strip SVG page result text fields."""
+        return _clean_string(value)
+
+
+class PptSvgQualityReport(BaseModel):
+    """Quality report for SVG route artifacts."""
+
+    status: Literal["pass", "warning", "failed"] = "failed"
+    page_count: int = Field(default=0, ge=0)
+    svg_page_paths: list[str] = Field(default_factory=list)
+    checks: dict[str, bool] = Field(default_factory=dict)
+    issues: list[dict[str, Any]] = Field(default_factory=list)
+    warnings: list[str] = Field(default_factory=list)
+
+
+class PptSvgRouteBuildPackage(BaseModel):
+    """Build artifacts produced by the SVG route before delivery review."""
+
+    route: Literal["svg"] = "svg"
+    workflow_name: str = "SvgRouteSequentialAgent"
+    design_confirmation: PptDesignConfirmation = Field(default_factory=PptDesignConfirmation)
+    design_strategy: PptDesignStrategy = Field(default_factory=PptDesignStrategy)
+    svg_execution_plan: PptSvgExecutionPlan = Field(default_factory=PptSvgExecutionPlan)
+    svg_page_paths: list[str] = Field(default_factory=list)
+    html_deck_path: str = ""
+    preview_paths: list[str] = Field(default_factory=list)
+    pptx_path: str
+    quality_report_path: str = ""
+    build_log_path: str = ""
+    warnings: list[str] = Field(default_factory=list)
+
+
+PptRouteBuildPackage = HtmlRouteBuildPackage | PptSvgRouteBuildPackage
+
+
 class PptProductResult(BaseModel):
     """Top-level structured result returned by `run_ppt_product`."""
 
@@ -375,7 +539,7 @@ class PptProductResult(BaseModel):
     selected_route: PptRoute
     confirmed_requirement: ConfirmedRequirement | None = None
     deck_content_plan: DeckContentPlan | None = None
-    route_build: HtmlRouteBuildPackage | None = None
+    route_build: PptRouteBuildPackage | None = None
     quality_review: QualityReviewResult | None = None
     delivery_manifest: DeliveryManifest = Field(default_factory=DeliveryManifest)
     confirmation_request: dict[str, Any] = Field(default_factory=dict)

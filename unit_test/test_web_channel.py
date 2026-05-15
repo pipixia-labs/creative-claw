@@ -3,10 +3,13 @@ import base64
 import contextlib
 import json
 import shutil
+import subprocess
+import tempfile
 import unittest
 import uuid
 import zipfile
 from pathlib import Path
+from unittest.mock import patch
 from urllib.parse import quote
 from urllib.request import urlopen
 
@@ -16,6 +19,7 @@ import websockets
 
 from conf.channel import WebChannelConfig
 from src.channels.events import OutboundMessage
+from src.channels import web as web_channel_module
 from src.channels.web import WebChannel
 from src.runtime import InboundMessage
 from src.runtime.workspace import generated_root, workspace_relative_path
@@ -29,6 +33,91 @@ class WebchatStaticAssetTests(unittest.TestCase):
         self.assertNotIn("grid-template-columns: minmax(0, 3fr) minmax(380px, 2fr);", styles_css)
         self.assertIn("@media (max-width: 1080px)", styles_css)
         self.assertIn("grid-template-columns: 1fr;", styles_css)
+
+    def test_pptx_preview_browser_bundle_is_built(self) -> None:
+        bundle_path = Path("src/webchat/static/pptx-preview-assets/creative-claw-pptx-preview.js")
+        source_path = Path("src/webchat/pptx_preview_app/main.js")
+
+        self.assertTrue(bundle_path.exists())
+        self.assertIn('from "pptx-preview"', source_path.read_text(encoding="utf-8"))
+
+
+class PptxPreviewRenderingTests(unittest.TestCase):
+    def test_pptx_preview_prefers_libreoffice_pdf_conversion(self) -> None:
+        pptx_path = Path("deck.pptx")
+        pdf_path = Path("deck.pdf")
+
+        with (
+            patch.object(web_channel_module, "_convert_pptx_to_pdf_preview", return_value=pdf_path) as convert,
+            patch.object(web_channel_module, "_render_pdf_preview_html", return_value="<html>pdf preview</html>") as render_pdf,
+            patch.object(web_channel_module, "_render_pptx_browser_preview_html") as render_browser_fallback,
+        ):
+            html = web_channel_module._render_pptx_preview_html(pptx_path)
+
+        self.assertEqual(html, "<html>pdf preview</html>")
+        convert.assert_called_once_with(pptx_path)
+        render_pdf.assert_called_once_with(pdf_path, title="deck.pptx", page_label="Slide")
+        render_browser_fallback.assert_not_called()
+
+    def test_pptx_preview_uses_browser_fallback_when_pdf_conversion_is_unavailable(self) -> None:
+        pptx_path = Path("deck.pptx")
+
+        with (
+            patch.object(
+                web_channel_module,
+                "_convert_pptx_to_pdf_preview",
+                side_effect=RuntimeError("LibreOffice missing"),
+            ) as convert,
+            patch.object(
+                web_channel_module,
+                "_render_pptx_browser_preview_html",
+                return_value="<html>browser fallback</html>",
+            ) as render_browser_fallback,
+        ):
+            html = web_channel_module._render_pptx_preview_html(pptx_path)
+
+        self.assertEqual(html, "<html>browser fallback</html>")
+        convert.assert_called_once_with(pptx_path)
+        render_browser_fallback.assert_called_once_with(pptx_path)
+
+    def test_pptx_browser_fallback_shell_loads_workspace_file_and_bundle(self) -> None:
+        generated_file = generated_root() / f"web_channel_{uuid.uuid4().hex[:8]}.pptx"
+        generated_file.write_bytes(b"fake pptx")
+        try:
+            relative_path = workspace_relative_path(generated_file)
+            html = web_channel_module._render_pptx_browser_preview_html(generated_file)
+        finally:
+            with contextlib.suppress(FileNotFoundError):
+                generated_file.unlink()
+
+        self.assertIn("pptx-preview-root", html)
+        self.assertIn("/pptx-preview-assets/creative-claw-pptx-preview.js", html)
+        self.assertIn(f"/workspace/{quote(relative_path)}", html)
+
+    def test_pptx_to_pdf_conversion_uses_cached_output_path(self) -> None:
+        with tempfile.TemporaryDirectory() as temp_dir_name:
+            temp_dir = Path(temp_dir_name)
+            pptx_path = temp_dir / "deck.pptx"
+            cached_pdf_path = temp_dir / "cache" / "deck.pdf"
+            pptx_path.write_bytes(b"pptx bytes")
+
+            def fake_run(command, **_kwargs):
+                output_dir = Path(command[command.index("--outdir") + 1])
+                (output_dir / "deck.pdf").write_bytes(b"%PDF-1.4\n")
+                return subprocess.CompletedProcess(command, 0, stdout="converted", stderr="")
+
+            with (
+                patch.object(web_channel_module, "_find_libreoffice_executable", return_value="/usr/bin/libreoffice"),
+                patch.object(web_channel_module, "_pptx_preview_cache_pdf_path", return_value=cached_pdf_path),
+                patch.object(web_channel_module.subprocess, "run", side_effect=fake_run) as run,
+            ):
+                converted_path = web_channel_module._convert_pptx_to_pdf_preview(pptx_path)
+                cached_path = web_channel_module._convert_pptx_to_pdf_preview(pptx_path)
+
+            self.assertEqual(converted_path, cached_pdf_path)
+            self.assertEqual(cached_path, cached_pdf_path)
+            self.assertEqual(run.call_count, 1)
+            self.assertEqual(cached_pdf_path.read_bytes(), b"%PDF-1.4\n")
 
 
 class WebChannelTests(unittest.IsolatedAsyncioTestCase):
@@ -98,11 +187,18 @@ class WebChannelTests(unittest.IsolatedAsyncioTestCase):
                 with urlopen(preview_url) as response:  # noqa: S310 - local test server
                     return response.status, response.headers.get("Content-Type", ""), response.read().decode("utf-8")
 
-            status, content_type, body = await asyncio.to_thread(fetch_preview)
+            with patch.object(
+                web_channel_module,
+                "_convert_pptx_to_pdf_preview",
+                side_effect=RuntimeError("LibreOffice unavailable in test"),
+            ):
+                status, content_type, body = await asyncio.to_thread(fetch_preview)
             self.assertEqual(status, 200)
             self.assertIn("text/html", content_type)
-            self.assertIn("Quarterly roadmap preview", body)
-            self.assertIn("Slide 1", body)
+            self.assertIn("pptx-preview-root", body)
+            self.assertIn("/pptx-preview-assets/creative-claw-pptx-preview.js", body)
+            self.assertIn(quote(relative_path), body)
+            self.assertNotIn("Quarterly roadmap preview", body)
         finally:
             with contextlib.suppress(FileNotFoundError):
                 generated_file.unlink()

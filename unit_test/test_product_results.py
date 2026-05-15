@@ -1,6 +1,7 @@
 import unittest
 
 from src.runtime.product_results import (
+    is_completed_product_result,
     is_completed_page_product_result,
     is_product_confirmation_result,
     slim_product_result,
@@ -85,6 +86,8 @@ class ProductResultSlimmingTests(unittest.TestCase):
         )
 
         self.assertEqual(result["final_file_paths"], ["generated/deck.pptx"])
+        self.assertTrue(is_completed_product_result(result))
+        self.assertFalse(is_completed_page_product_result(result))
 
 
 if __name__ == "__main__":
