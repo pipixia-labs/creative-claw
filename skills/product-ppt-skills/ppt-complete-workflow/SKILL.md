@@ -19,11 +19,14 @@ Use this private skill when PptProductManager needs a complete PPT-making workfl
 Creative Claw currently has multiple PPT systems:
 
 - Built-in HTML route: creates an HTML deck, preview images, quality report, and editable PPTX. Prefer it when the user needs fast MVP output, reviewable HTML, editable text/shapes, or no user-supplied PPTX template.
+- SVG route: implemented route for high-control visual pages, optional system SVG layout templates, converter-safe SVG generation, and SVG-to-editable-PPTX delivery.
+- Private `pptx` skill: temporary user-uploaded PPTX/POTX template workflow. Prefer it when the user asks to apply, preserve, or edit an uploaded PowerPoint template while the native XML route is still being built.
+- XML route: planned native route for user-uploaded PPTX templates and OOXML editing. Do not choose it as a built-in route until it is implemented.
 - Private complete PPT skill workflow: use this skill as the planning and execution guide when the task needs richer deck thinking, route comparison, narrative shaping, visual-system decisions, or future non-HTML pipelines.
-- SVG route: future option for high-control visual pages and SVG-to-PPTX workflows.
-- XML route: future option for user-uploaded PPTX templates and native OOXML editing.
 
 If the user explicitly specifies a system, route, template workflow, or skill, follow the user's choice when available. If it is not implemented, report that clearly and do not pretend the output was generated.
+
+If the user provides a PowerPoint file as a template, choose the private `pptx` skill unless the user explicitly requests another implemented path. Do not treat a user-uploaded PPTX template as a system SVG template.
 
 If the user does not specify a system, choose freely based on task fit. Record the assumption in the requirement or result summary.
 

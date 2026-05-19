@@ -223,21 +223,19 @@ class PptProductManagerTests(unittest.IsolatedAsyncioTestCase):
         self.assertIn("If the user explicitly specifies", content)
         self.assertIn("Do not use local absolute paths", content)
 
-    def test_private_product_ppt_skill_registry_lists_easy_ppt_master(self) -> None:
+    def test_private_product_ppt_skill_registry_lists_pptx_template_skill(self) -> None:
         registry = ProductPptSkillRegistry()
 
         skills = registry.list_skills()
         skill_names = {skill.name for skill in skills}
-        content = registry.read_skill("easy-ppt-master")
+        content = registry.read_skill("pptx")
+        editing = registry.read_skill_file("pptx", "editing.md")
 
-        self.assertIn("easy-ppt-master", skill_names)
-        self.assertIn("Easy PPT Master", content)
-        self.assertIn("native_drawingml_ppt_master_baseline_v1", content)
-        self.assertIn("PptDesignStrategyExpert", content)
-        self.assertIn("PptSvgDeckExecutorExpert", content)
-        self.assertIn("check_ppt_svg_quality", content)
-        self.assertIn("export_ppt_svg_to_pptx", content)
-        self.assertIn("does not use ppt-master's project directory protocol", content)
+        self.assertIn("pptx", skill_names)
+        self.assertIn("PPTX Skill", content)
+        self.assertIn("uploaded PPTX/POTX template workflows", content)
+        self.assertIn("Edit or create from template", content)
+        self.assertIn("Template-Based Workflow", editing)
 
     def test_svg_route_accepts_explicit_system_layout_template_requirement(self) -> None:
         manager = PptProductManager()
@@ -259,7 +257,6 @@ class PptProductManagerTests(unittest.IsolatedAsyncioTestCase):
         skill_names = {skill.name for skill in global_registry.list_skills()}
 
         self.assertNotIn("ppt-complete-workflow", skill_names)
-        self.assertNotIn("easy-ppt-master", skill_names)
         self.assertNotIn("product-ppt-skills", skill_names)
 
     def test_private_ppt_skill_tools_list_and_read_skills(self) -> None:
@@ -294,7 +291,7 @@ class PptProductManagerTests(unittest.IsolatedAsyncioTestCase):
     def test_private_skill_delivery_accepts_svg_pptx_export(self) -> None:
         manager = PptProductManager()
         requirement = manager.prepare_confirmed_requirement(
-            task="用 easy-ppt-master 做 2 页 PPTX。",
+            task="用 pptx skill 做 2 页 PPTX。",
             inputs=[],
             output={"format": "pptx", "route": "svg", "slide_count": 2},
         )
@@ -316,14 +313,14 @@ class PptProductManagerTests(unittest.IsolatedAsyncioTestCase):
                     "output_files": [file_record],
                 }
             },
-            skill_name="easy-ppt-master",
+            skill_name="pptx",
         )
         result = manager._build_private_skill_delivery_result(
             requirement=requirement,
             content_plan=content_plan,
             system_selection={
                 "system_type": "private_skill",
-                "skill_name": "easy-ppt-master",
+                "skill_name": "pptx",
                 "output_format": "pptx",
             },
             private_build=private_build,
@@ -340,17 +337,17 @@ class PptProductManagerTests(unittest.IsolatedAsyncioTestCase):
         summary = PptProductManager._format_system_selection_confirmation(
             {
                 "system_type": "private_skill",
-                "skill_name": "easy-ppt-master",
+                "skill_name": "pptx",
                 "output_format": "pptx",
-                "reason": "使用 SVG route 生成可编辑 PPTX。",
+                "reason": "使用 PPTX 模板 skill 生成可编辑 PPTX。",
             }
         )
 
         self.assertIn("### 系统选择", summary)
         self.assertIn("| 项目 | 当前值 |", summary)
-        self.assertIn("| 制作系统 | 私有 PPT skill `easy-ppt-master` |", summary)
+        self.assertIn("| 制作系统 | 私有 PPT skill `pptx` |", summary)
         self.assertIn("| 输出方式 | pptx |", summary)
-        self.assertIn("| 选择理由 | 使用 SVG route 生成可编辑 PPTX。 |", summary)
+        self.assertIn("| 选择理由 | 使用 PPTX 模板 skill 生成可编辑 PPTX。 |", summary)
         self.assertNotIn("| 系统选择 |", summary)
 
     def test_route_registry_registers_all_routes(self) -> None:
@@ -1064,7 +1061,22 @@ Visual:
         self.assertTrue(requirement.confirmed_by_user)
         self.assertTrue(requirement.template_requirement.use_template)
         self.assertEqual(requirement.template_requirement.template_source, "user")
+        self.assertEqual(requirement.template_requirement.template_path, "inbox/demo/template.pptx")
         self.assertEqual(requirement.editability_requirement.level, "native")
+
+    def test_default_system_selection_uses_pptx_skill_for_user_templates(self) -> None:
+        manager = PptProductManager()
+        requirement = manager.prepare_confirmed_requirement(
+            task="套用用户上传 PPTX 模板生成汇报。",
+            inputs=[{"name": "template.pptx", "path": "inbox/demo/template.pptx"}],
+            output={"route": "xml"},
+        )
+
+        selection = manager._build_default_system_selection(requirement)
+
+        self.assertEqual(selection["system_type"], "private_skill")
+        self.assertEqual(selection["skill_name"], "pptx")
+        self.assertEqual(selection["output_format"], "pptx")
 
     async def test_run_generates_html_route_outputs_and_writes_state(self) -> None:
         manager = PptProductManager()
@@ -1394,8 +1406,8 @@ Visual:
         tool_context = SimpleNamespace(state={"sid": "ppt-manager-test", "turn_index": 1, "step": 1})
 
         result = await manager.run_product_request(
-            task="套用用户上传 PPTX 模板生成汇报。",
-            inputs=[{"name": "template.pptx", "path": "inbox/demo/template.pptx"}],
+            task="使用 xml route 生成一份增长策略汇报。",
+            inputs=[],
             output={"route": "xml", "auto_confirm": True},
             tool_context=tool_context,
         )

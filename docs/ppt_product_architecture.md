@@ -181,7 +181,9 @@ A selected skill may:
 
 A selected skill should not require a separate private skill execution agent. The execution flow is led by the skill content while `PptProductManager` provides product tools, experts, and state.
 
-`easy-ppt-master` is the private skill for the ppt-master-style path. It keeps Creative Claw's product workflow and workspace model while using the SVG route's `native_drawingml_ppt_master_baseline_v1` converter profile for editable PPTX delivery.
+`pptx` is the private skill for user-uploaded PowerPoint template work while the native XML route is still being built. It is the temporary path for uploaded `.pptx`/`.potx` templates that need layout, master, theme, or OOXML preservation.
+
+Ppt-master-style SVG delivery is now handled by the built-in SVG route itself. The route uses the SVG template registry, `PptDesignStrategyExpert`, `PptSvgDeckExecutorExpert`, and the `native_drawingml_ppt_master_baseline_v1` converter profile for editable PPTX output.
 
 ## Current Direction
 

@@ -316,6 +316,7 @@ Return structured status, current phase, selected route, warnings, next actions,
                 "private skill names/descriptions, and any skill content you read.\n"
                 "If the user explicitly asks for an available private skill, choose system_type `private_skill` and its exact folder name.\n"
                 "If the user explicitly asks for a built-in route, choose system_type `built_in_route` and the route when available.\n"
+                "If the user uploads or references a PowerPoint template and asks to apply or preserve it, prefer the private `pptx` skill when available; do not select the built-in XML route until it is implemented.\n"
                 "If nothing is explicit, choose freely based on task fit.\n"
                 "Private skills may produce a final single-file HTML presentation or an editable PPTX, depending on the skill.\n"
                 "When ready, call save_ppt_system_selection with one argument named selection_json.\n"
@@ -2197,6 +2198,19 @@ Return structured status, current phase, selected route, warnings, next actions,
     def _build_default_system_selection(self, requirement: ConfirmedRequirement) -> dict[str, Any]:
         """Return the conservative fallback system selection."""
         route = requirement.route if requirement.route in self._route_registry else "html"
+        template = requirement.template_requirement
+        if (
+            template.use_template
+            and template.template_source == "user"
+            and any(skill.name == "pptx" for skill in self.skill_registry.list_skills())
+        ):
+            return {
+                "system_type": "private_skill",
+                "route": route,
+                "skill_name": "pptx",
+                "output_format": "pptx",
+                "reason": "User-uploaded PowerPoint templates are handled by the private `pptx` skill until the native XML route is implemented.",
+            }
         return {
             "system_type": "built_in_route",
             "route": route,
@@ -3946,11 +3960,18 @@ Return structured status, current phase, selected route, warnings, next actions,
     ) -> TemplateRequirement:
         """Infer template intent without analyzing the template yet."""
         normalized = task.lower()
-        has_pptx_source = any(Path(item.path or item.name).suffix.lower() in {".pptx", ".pptm"} for item in source_inputs)
+        pptx_template_candidates = [
+            item
+            for item in source_inputs
+            if Path(item.path or item.name).suffix.lower() in {".pptx", ".pptm", ".potx", ".potm"}
+        ]
+        has_pptx_source = bool(pptx_template_candidates)
         asks_template = any(keyword in normalized for keyword in ("template", "模板", "套用"))
         template_id = str(output.get("template_id") or output.get("template") or "").strip()
         template_path = str(output.get("template_path") or "").strip()
-        if route == "xml" or has_pptx_source and asks_template:
+        if not template_path and pptx_template_candidates:
+            template_path = str(pptx_template_candidates[0].path or pptx_template_candidates[0].name).strip()
+        if (route == "xml" and (has_pptx_source or template_path)) or (has_pptx_source and asks_template):
             return TemplateRequirement(
                 use_template=True,
                 template_source="user",
