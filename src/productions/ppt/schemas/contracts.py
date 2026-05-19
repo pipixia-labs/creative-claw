@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+import re
 from typing import Any, Literal
 
 from pydantic import BaseModel, Field, field_validator, model_validator
@@ -418,6 +419,10 @@ class PptSvgExecutionPlan(BaseModel):
     safe_margin: int = Field(default=72, ge=0)
     page_layouts: dict[str, str] = Field(default_factory=dict)
     page_rhythm_by_slide: dict[str, str] = Field(default_factory=dict)
+    typography_ramp: dict[str, int] = Field(default_factory=dict)
+    page_rhythm_guidance: dict[str, str] = Field(default_factory=dict)
+    page_type_layout_guidance: dict[str, str] = Field(default_factory=dict)
+    template_adherence_rules: dict[str, str] = Field(default_factory=dict)
     supported_svg_tags: list[str] = Field(default_factory=list)
     convertible_svg_tags: list[str] = Field(default_factory=list)
     forbidden_svg_tags: list[str] = Field(default_factory=list)
@@ -470,6 +475,40 @@ class PptSvgExecutionPlan(BaseModel):
             return [_clean_string(item) for item in value if _clean_string(item)]
         return []
 
+    @field_validator(
+        "page_rhythm_by_slide",
+        "page_rhythm_guidance",
+        "page_type_layout_guidance",
+        "template_adherence_rules",
+        mode="before",
+    )
+    @classmethod
+    def _strip_string_map(cls, value: Any) -> dict[str, str]:
+        """Normalize string-map SVG execution plan fields."""
+        if not isinstance(value, dict):
+            return {}
+        return {
+            _clean_string(key): _clean_string(item)
+            for key, item in value.items()
+            if _clean_string(key) and _clean_string(item)
+        }
+
+    @field_validator("typography_ramp", mode="before")
+    @classmethod
+    def _normalize_typography_ramp(cls, value: Any) -> dict[str, int]:
+        """Normalize typography ramp values to integer pixel sizes."""
+        if not isinstance(value, dict):
+            return {}
+        normalized: dict[str, int] = {}
+        for key, item in value.items():
+            clean_key = _clean_string(key)
+            if not clean_key:
+                continue
+            match = re.match(r"^\s*(\d+)", str(item or ""))
+            if match:
+                normalized[clean_key] = int(match.group(1))
+        return normalized
+
 
 class PptSvgPageResult(BaseModel):
     """One generated SVG page artifact."""
@@ -478,7 +517,7 @@ class PptSvgPageResult(BaseModel):
     title: str = ""
     svg_path: str
     page_type: str = "content"
-    page_rhythm: str = "body"
+    page_rhythm: str = "dense"
     warnings: list[str] = Field(default_factory=list)
 
     @field_validator("title", "svg_path", "page_type", "page_rhythm", mode="before")
@@ -513,6 +552,7 @@ class PptSvgRouteBuildPackage(BaseModel):
     pptx_path: str
     quality_report_path: str = ""
     build_log_path: str = ""
+    svg_layout_template_selection: dict[str, Any] = Field(default_factory=dict)
     warnings: list[str] = Field(default_factory=list)
 
 

@@ -2660,7 +2660,12 @@ Return structured status, current phase, selected route, warnings, next actions,
         tool_context: ToolContext,
     ) -> dict[str, Any]:
         """Validate and save SVG route execution constraints."""
-        execution_plan = PptSvgExecutionPlan.model_validate(execution_plan_json or {})
+        current_payload = tool_context.state.get(PPT_SVG_EXECUTION_PLAN_STATE_KEY) or {}
+        merged_payload = _merge_svg_execution_plan_payload(
+            current_payload=current_payload,
+            incoming_payload=execution_plan_json or {},
+        )
+        execution_plan = PptSvgExecutionPlan.model_validate(merged_payload)
         tool_context.state[PPT_SVG_EXECUTION_PLAN_STATE_KEY] = execution_plan.model_dump(mode="json")
         result = {
             "status": "success",
@@ -2738,7 +2743,7 @@ Return structured status, current phase, selected route, warnings, next actions,
             title=str(title or "").strip(),
             svg_path=relative_path,
             page_type=str(page_type or "content").strip() or "content",
-            page_rhythm=str(page_rhythm or "body").strip() or "body",
+            page_rhythm=str(page_rhythm or "dense").strip() or "dense",
         )
         pages = list(tool_context.state.get(PPT_SVG_ROUTE_GENERATED_PAGES_KEY) or [])
         pages = [
@@ -3965,8 +3970,19 @@ Return structured status, current phase, selected route, warnings, next actions,
                 template_source="none",
                 notes="HTML route uses no-template free design when no template is explicitly selected.",
             )
+        if route == "svg" and template_id:
+            return TemplateRequirement(
+                use_template=True,
+                template_source="system",
+                template_id=template_id,
+                notes="SVG route uses the explicitly selected system SVG layout template.",
+            )
         if route == "svg":
-            return TemplateRequirement(use_template=False, template_source="none", notes="SVG route can later opt into system SVG templates.")
+            return TemplateRequirement(
+                use_template=False,
+                template_source="none",
+                notes="SVG route may automatically select a system SVG layout template when there is a strong task match.",
+            )
         return TemplateRequirement()
 
     @staticmethod
@@ -4254,6 +4270,46 @@ def _strip_svg_code_fence(svg_content: str) -> str:
     if match:
         content = str(match.group("body") or "").strip()
     return f"{content}\n" if content else ""
+
+
+_SVG_EXECUTION_PLAN_PRESERVE_FIELDS = {
+    "page_layouts",
+    "page_rhythm_by_slide",
+    "typography_ramp",
+    "page_rhythm_guidance",
+    "page_type_layout_guidance",
+    "template_adherence_rules",
+    "supported_svg_tags",
+    "convertible_svg_tags",
+    "forbidden_svg_tags",
+    "forbidden_svg_attributes",
+    "quality_constraints",
+}
+
+
+def _merge_svg_execution_plan_payload(
+    *,
+    current_payload: Any,
+    incoming_payload: Any,
+) -> dict[str, Any]:
+    """Merge an agent-provided SVG execution plan with the current route lock."""
+    current = copy.deepcopy(current_payload) if isinstance(current_payload, dict) else {}
+    incoming = copy.deepcopy(incoming_payload) if isinstance(incoming_payload, dict) else {}
+    merged = {**current, **incoming}
+    for field_name in _SVG_EXECUTION_PLAN_PRESERVE_FIELDS:
+        current_value = current.get(field_name)
+        incoming_value = incoming.get(field_name)
+        if _is_empty_svg_plan_value(incoming_value) and not _is_empty_svg_plan_value(current_value):
+            merged[field_name] = current_value
+            continue
+        if isinstance(current_value, dict) and isinstance(incoming_value, dict) and current_value:
+            merged[field_name] = {**current_value, **incoming_value}
+    return merged
+
+
+def _is_empty_svg_plan_value(value: Any) -> bool:
+    """Return whether a plan field value should not wipe an existing lock field."""
+    return value is None or value == "" or value == [] or value == {}
 
 
 def _extract_page_bullet_texts(page: DeckPagePlan) -> list[str]:

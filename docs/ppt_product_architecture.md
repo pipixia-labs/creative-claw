@@ -157,6 +157,7 @@ The current SVG route flow is:
 ```text
 PptProductManager._dispatch_ppt_route
   -> build_svg_route_with_agent
+  -> optional system SVG layout template auto-selection
   -> PptDesignStrategyExpert when ADK context is available
   -> PptSvgDeckExecutorExpert when ADK context is available
   -> check_svg_pages_quality
@@ -164,7 +165,7 @@ PptProductManager._dispatch_ppt_route
   -> deliver_svg_route_quality
 ```
 
-If no SVG experts or ADK invocation context are available, the SVG route falls back to deterministic design strategy and SVG page rendering. The current exporter parses converter-safe SVG into native DrawingML slide XML, writes media relationships and content types into the PPTX package, and only publishes the requested PPTX after conversion succeeds. The active converter profile is `native_drawingml_ppt_master_baseline_v1`: it supports editable basic shapes, groups, rich `text/tspan`, image resources, `M/L/H/V/C/S/Q/T/A/Z` paths, defs-based linear/radial gradients, simple line/path markers, image-only clipPath, and basic shadow/glow filters.
+If no SVG experts or ADK invocation context are available, the SVG route falls back to deterministic design strategy and SVG page rendering. The route can now auto-select a bundled ppt-master layout template from `src/productions/ppt/templates/svg/layouts` for strong task matches, or use an explicit system `template_id`. The selected template is design guidance and page-type structure; generated pages must still satisfy the native converter subset. The current exporter parses converter-safe SVG into native DrawingML slide XML, writes media relationships and content types into the PPTX package, and only publishes the requested PPTX after conversion succeeds. The active converter profile is `native_drawingml_ppt_master_baseline_v1`: it supports editable basic shapes, groups, rich `text/tspan`, image resources, `M/L/H/V/C/S/Q/T/A/Z` paths, defs-based linear/radial gradients, simple line/path markers, image-only clipPath, and basic shadow/glow filters.
 
 ## Skill Boundary
 

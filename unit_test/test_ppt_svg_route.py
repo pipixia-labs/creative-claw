@@ -1,5 +1,6 @@
 import json
 import tempfile
+import tomllib
 import unittest
 import zipfile
 from pathlib import Path
@@ -13,6 +14,7 @@ from src.productions.ppt.routes.svg import (
     PPT_SVG_ROUTE_GENERATED_PAGES_KEY,
     SVG_DELIVERY_STAGE,
     SVG_ROUTE_STAGE_SEQUENCE,
+    build_default_svg_design_strategy,
     build_ppt_design_strategy_expert,
     build_ppt_svg_deck_executor_expert,
     build_svg_route,
@@ -20,11 +22,236 @@ from src.productions.ppt.routes.svg import (
     export_svg_pages_to_pptx,
     prepare_svg_route_paths,
 )
-from src.productions.ppt.schemas import PptSvgExecutionPlan
+from src.productions.ppt.routes.svg import route as svg_route
+from src.productions.ppt.schemas import ConfirmedRequirement, PptSvgExecutionPlan
+from src.productions.ppt.schemas import DeckContentPlan, DeckPagePlan
+from src.productions.ppt.templates.svg import (
+    list_svg_layout_templates,
+    load_svg_layout_template_package,
+    select_svg_layout_template_match,
+)
 from src.runtime.workspace import resolve_workspace_path, workspace_root
 
 
 class PptSvgRouteTests(unittest.TestCase):
+    def test_svg_layout_templates_are_included_in_package_data(self) -> None:
+        pyproject_path = Path(__file__).resolve().parents[1] / "pyproject.toml"
+        pyproject = tomllib.loads(pyproject_path.read_text(encoding="utf-8"))
+        include_patterns = pyproject["tool"]["poetry"]["include"]
+
+        self.assertIn("src/productions/ppt/templates/svg/**/*", include_patterns)
+
+    def test_svg_layout_template_registry_loads_ppt_master_layouts(self) -> None:
+        templates = list_svg_layout_templates()
+        template = load_svg_layout_template_package("academic_defense")
+
+        self.assertGreaterEqual(len(templates), 21)
+        self.assertEqual(template.template_id, "academic_defense")
+        self.assertIn("Academic Defense", template.label)
+        self.assertIn("cover", template.page_svgs)
+        self.assertIn("content", template.page_svgs)
+        self.assertTrue(template.design_spec_path.exists())
+        self.assertGreaterEqual(len(template.palette), 1)
+
+    def test_svg_layout_template_selector_matches_task_and_explicit_template(self) -> None:
+        auto_match = select_svg_layout_template_match(task="做一个毕业论文答辩 PPT，走 svg route。")
+        explicit_match = select_svg_layout_template_match(task="做一个普通汇报。", template_id="mckinsey")
+        weak_match = select_svg_layout_template_match(task="做一个普通产品介绍 PPT。")
+
+        self.assertTrue(auto_match.use_template)
+        self.assertEqual(auto_match.template_id, "academic_defense")
+        self.assertGreaterEqual(auto_match.score, 35)
+        self.assertTrue(explicit_match.use_template)
+        self.assertTrue(explicit_match.explicit)
+        self.assertEqual(explicit_match.template_id, "mckinsey")
+        self.assertFalse(weak_match.use_template)
+
+    def test_svg_layout_template_selector_covers_core_scenarios(self) -> None:
+        cases = {
+            "给董事会做一份麦肯锡风格的五年战略咨询汇报": "mckinsey",
+            "做一个 Google 风格的技术分享和数据展示 PPT": "google_style",
+            "做一个党建红色政府工作报告 PPT": "government_red",
+            "做一个智慧城市数字政府治理方案汇报": "government_blue",
+            "做一个医院病例研究和医学科研汇报": "medical_university",
+        }
+
+        for task, expected_template_id in cases.items():
+            with self.subTest(task=task):
+                match = select_svg_layout_template_match(task=task)
+                self.assertTrue(match.use_template)
+                self.assertEqual(match.template_id, expected_template_id)
+
+    def test_svg_layout_template_selector_reports_unknown_explicit_template(self) -> None:
+        match = select_svg_layout_template_match(task="做一个普通汇报。", template_id="missing_template")
+
+        self.assertFalse(match.use_template)
+        self.assertTrue(match.explicit)
+        self.assertEqual(match.template_id, "missing_template")
+        self.assertIn("Unknown SVG layout template", match.fallback_reason)
+
+    def test_svg_layout_template_selector_requires_primary_task_signal(self) -> None:
+        requirement = ConfirmedRequirement(
+            route="svg",
+            request_brief="做一个普通产品介绍 PPT。",
+            topic="产品介绍",
+            aspect_ratio="16:9",
+        )
+        content_plan = DeckContentPlan(
+            title="毕业论文答辩",
+            core_narrative="研究背景、论文方法和学术答辩结构都很完整。",
+            pages=[
+                DeckPagePlan(
+                    slide_number=1,
+                    page_type="content",
+                    title="论文研究背景",
+                    purpose="Explain the academic research context.",
+                    key_takeaway="研究问题具有明确学术价值。",
+                )
+            ],
+        )
+
+        match = select_svg_layout_template_match(
+            requirement=requirement,
+            content_plan=content_plan,
+        )
+
+        self.assertFalse(match.use_template)
+        self.assertIn("primary task signal", match.fallback_reason)
+
+    def test_svg_route_build_log_records_auto_selected_layout_template(self) -> None:
+        content_plan = DeckContentPlan(
+            title="毕业论文答辩",
+            core_narrative="用于学术论文答辩，说明研究背景、方法和结论。",
+            pages=[
+                DeckPagePlan(
+                    slide_number=1,
+                    page_type="cover",
+                    title="毕业论文答辩",
+                    purpose="Open the academic defense.",
+                    key_takeaway="研究主题和答辩人信息清晰呈现。",
+                ),
+                DeckPagePlan(
+                    slide_number=2,
+                    page_type="content",
+                    title="研究背景",
+                    purpose="Explain the research context.",
+                    key_takeaway="研究问题具有明确价值。",
+                ),
+            ],
+        )
+
+        with tempfile.TemporaryDirectory(dir=workspace_root()) as tmpdir:
+            route_build = build_svg_route(
+                content_plan=content_plan,
+                output_dir=Path(tmpdir),
+                aspect_ratio="16:9",
+            )
+
+            build_log = json.loads(resolve_workspace_path(route_build.build_log_path).read_text(encoding="utf-8"))
+            quality_report = json.loads(resolve_workspace_path(route_build.quality_report_path).read_text(encoding="utf-8"))
+
+            self.assertTrue(route_build.svg_layout_template_selection["use_template"])
+            self.assertEqual(route_build.svg_layout_template_selection["template_id"], "academic_defense")
+            self.assertEqual(build_log["svg_layout_template_selection"]["template_id"], "academic_defense")
+            self.assertEqual(quality_report["svg_layout_template_selection"]["template_id"], "academic_defense")
+
+    def test_svg_route_skips_layout_template_for_4_3_requests(self) -> None:
+        content_plan = DeckContentPlan(
+            title="毕业论文答辩",
+            core_narrative="用于学术论文答辩，说明研究背景、方法和结论。",
+            pages=[
+                DeckPagePlan(
+                    slide_number=1,
+                    page_type="content",
+                    title="研究背景",
+                    purpose="Explain the research context.",
+                    key_takeaway="研究问题具有明确价值。",
+                ),
+                DeckPagePlan(
+                    slide_number=2,
+                    page_type="content",
+                    title="研究方法",
+                    purpose="Explain the research method.",
+                    key_takeaway="方法设计体现可控创意生成。",
+                ),
+            ],
+        )
+
+        with tempfile.TemporaryDirectory(dir=workspace_root()) as tmpdir:
+            route_build = build_svg_route(
+                content_plan=content_plan,
+                output_dir=Path(tmpdir),
+                aspect_ratio="4:3",
+            )
+
+            selection = route_build.svg_layout_template_selection
+            self.assertFalse(selection["use_template"])
+            self.assertEqual(selection["template_id"], "academic_defense")
+            self.assertIn("16:9", selection["fallback_reason"])
+
+    def test_svg_execution_plan_adds_rhythm_and_page_type_guidance(self) -> None:
+        content_plan = DeckContentPlan(
+            title="战略增长汇报",
+            core_narrative="用于董事会战略讨论，突出增长路径和关键选择。",
+            pages=[
+                DeckPagePlan(
+                    slide_number=1,
+                    page_type="cover",
+                    title="战略增长汇报",
+                    purpose="Open the strategy deck.",
+                    key_takeaway="明确增长主题和汇报对象。",
+                ),
+                DeckPagePlan(
+                    slide_number=2,
+                    page_type="comparison",
+                    title="两条增长路径对比",
+                    purpose="Compare strategic options.",
+                    key_takeaway="不同路径的资源要求和收益结构不同。",
+                ),
+                DeckPagePlan(
+                    slide_number=3,
+                    page_type="quote",
+                    title="核心判断",
+                    purpose="Emphasize one executive message.",
+                    key_takeaway="增长质量比增长速度更重要。",
+                ),
+            ],
+        )
+        requirement = ConfirmedRequirement(
+            route="svg",
+            request_brief="给董事会做一份麦肯锡风格的五年战略咨询汇报",
+            topic=content_plan.title,
+            aspect_ratio="16:9",
+        )
+        template_match = select_svg_layout_template_match(
+            requirement=requirement,
+            content_plan=content_plan,
+        )
+
+        design_stage = build_default_svg_design_strategy(
+            requirement=requirement,
+            content_plan=content_plan,
+            template_match=template_match,
+        )
+        execution_plan = design_stage.execution_plan
+        page_generation_plan = svg_route._svg_page_generation_plan(
+            content_plan=content_plan,
+            design_stage=design_stage,
+        )
+
+        self.assertEqual(execution_plan.page_rhythm_by_slide["P01"], "anchor")
+        self.assertEqual(execution_plan.page_rhythm_by_slide["P02"], "dense")
+        self.assertEqual(execution_plan.page_rhythm_by_slide["P03"], "breathing")
+        self.assertGreaterEqual(execution_plan.typography_ramp["cover_title"], 60)
+        self.assertIn("comparison", execution_plan.page_type_layout_guidance)
+        self.assertIn("breathing", execution_plan.page_rhythm_guidance)
+        self.assertTrue(template_match.use_template)
+        self.assertEqual(page_generation_plan[0]["template_reference"]["reference_page_type"], "cover")
+        self.assertEqual(page_generation_plan[1]["template_reference"]["reference_page_type"], "content")
+        self.assertIn("03_content.svg", page_generation_plan[1]["template_reference"]["template_file"])
+        self.assertTrue(page_generation_plan[1]["template_reference"]["svg_excerpt"])
+        self.assertEqual(page_generation_plan[2]["page_rhythm"], "breathing")
+
     def test_svg_route_builds_svg_pages_quality_report_and_editable_pptx(self) -> None:
         manager = PptProductManager()
         requirement = manager.prepare_confirmed_requirement(

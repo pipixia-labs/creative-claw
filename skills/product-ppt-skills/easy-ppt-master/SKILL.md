@@ -20,6 +20,8 @@ ConfirmedRequirement
 
 It does not use ppt-master's project directory protocol, `project_manager.py`, `finalize_svg.py`, `svg_to_pptx.py`, animation export, narration, or template-copy workflow. Creative Claw's `PptProductManager` owns workspace paths, session state, output recording, and delivery.
 
+Creative Claw now bundles ppt-master layout templates under the PPT product SVG template registry. The SVG route may auto-select one for strong task matches, or honor an explicit system `template_id`. These templates guide design strategy and page structure; the executor must still generate converter-safe SVG pages.
+
 ## When To Use
 
 Use this skill when:
@@ -82,6 +84,8 @@ Use the provided `ConfirmedRequirement` and `DeckContentPlan` as content truth. 
 Call `list_ppt_experts` and verify `PptDesignStrategyExpert` and `PptSvgDeckExecutorExpert` are available.
 
 ### Step 2: Build Design Strategy
+
+Before invoking the design expert, let the SVG route resolve any explicit or automatic system SVG layout template selection. If a template is selected, include its design specification and page-type structure as guidance.
 
 Call:
 

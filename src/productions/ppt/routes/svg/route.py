@@ -43,6 +43,10 @@ from src.productions.ppt.schemas import (
     PptSvgQualityReport,
     PptSvgRouteBuildPackage,
 )
+from src.productions.ppt.templates.svg import (
+    SvgLayoutTemplateMatch,
+    select_svg_layout_template_match,
+)
 from src.runtime.tool_context_artifact_service import ToolContextArtifactService
 from src.runtime.workspace import resolve_workspace_path, workspace_relative_path
 
@@ -57,6 +61,7 @@ PPT_SVG_ROUTE_GENERATED_PAGES_KEY = "ppt_svg_route_generated_pages"
 PPT_SVG_DESIGN_AGENT_MESSAGE_KEY = "ppt_design_strategy_agent_message"
 PPT_SVG_EXECUTOR_AGENT_MESSAGE_KEY = "ppt_svg_deck_executor_agent_message"
 PPT_SVG_ROUTE_WARNINGS_KEY = "ppt_svg_route_warnings"
+PPT_SVG_LAYOUT_TEMPLATE_SELECTION_KEY = "ppt_svg_layout_template_selection"
 SVG_ROUTE_STAGE_SEQUENCE = (
     "design_strategy",
     "svg_page_generation",
@@ -67,6 +72,55 @@ SVG_DELIVERY_STAGE = "quality_delivery"
 _SVG_NS = "http://www.w3.org/2000/svg"
 _SUPPORTED_ASPECT_RATIOS = {"16:9", "4:3"}
 _UNSUPPORTED_SVG_TAGS = set(FORBIDDEN_SVG_TAGS)
+_CONTENT_LIKE_PAGE_TYPES = (
+    "chapter_content",
+    "content",
+    "activity",
+    "quote",
+    "stat",
+    "kpi_grid",
+    "comparison",
+    "timeline",
+    "roadmap",
+    "process",
+    "image_grid",
+    "code",
+    "appendix",
+    "disclaimer",
+)
+_BASE_PAGE_TYPE_LAYOUT_GUIDANCE = {
+    "cover": "Use a strong opening composition: dominant title, clear subtitle or context, sparse support text, and a stable brand/decorative frame.",
+    "toc": "Use a structured agenda composition with short numbered items and enough spacing for scanning.",
+    "chapter_start": "Use a section-divider composition with one chapter title, a short framing line, and strong template/chrome continuity.",
+    "chapter_content": "Use a content slide with a clear title lane, one takeaway, and two to four grouped support points.",
+    "content": "Use a flexible content composition with one core message, grouped supporting points, and restrained visual structure.",
+    "activity": "Use an interaction-oriented composition with clear task framing, simple steps, and ample whitespace for participation.",
+    "quote": "Use a low-density quote composition with one large quote, source/context text, and deliberate whitespace.",
+    "stat": "Use a low-density data-emphasis composition with one large number, one interpretation line, and minimal support.",
+    "kpi_grid": "Use a dense KPI composition with consistent metric blocks, short labels, and no more than six prominent numbers.",
+    "comparison": "Use a dense comparison composition with two or three clearly separated sides and matched hierarchy.",
+    "timeline": "Use a dense chronological composition with ordered milestones, clear connectors, and short labels.",
+    "roadmap": "Use a dense staged-roadmap composition with phases, dependencies, and a clear current/next emphasis.",
+    "process": "Use a dense process composition with numbered steps, directional flow, and concise step labels.",
+    "image_grid": "Use a visual-grid composition with consistent image frames and short captions.",
+    "code": "Use a developer-oriented composition with readable code area, explanation lane, and strict font hierarchy.",
+    "ending": "Use a closing composition with one final message, optional next step, and template-consistent footer/contact area.",
+    "appendix": "Use a dense reference composition with compact hierarchy and restrained decoration.",
+    "disclaimer": "Use a formal low-emphasis composition with readable legal text and minimal decoration.",
+}
+_PAGE_RHYTHM_GUIDANCE = {
+    "anchor": "Structural slide. Preserve the selected template's page frame, title placement, footer/header rhythm, and decorative hierarchy strongly.",
+    "dense": "Information-heavy slide. Use organized multi-column, step, comparison, or compact card-like structures only when content density requires them.",
+    "breathing": "Low-density impact slide. Avoid multi-card grids; favor one dominant message, large whitespace, naked text blocks, dividers, or one visual focus.",
+}
+_TEMPLATE_ADHERENCE_RULES = {
+    "cover": "Inherit background treatment, dominant title position, accent geometry, and opening-page hierarchy from the cover reference.",
+    "toc": "Inherit agenda title placement, numbering/list style, header/footer rhythm, and spacing discipline from the TOC reference.",
+    "chapter_start": "Inherit section numbering, large title placement, decorative elements, and transition-page rhythm from the chapter reference.",
+    "chapter_content": "Inherit the content reference's header/footer, margins, typography scale, and accent system; reorganize the content area freely.",
+    "content": "Inherit the content reference's header/footer, margins, typography scale, and accent system; reorganize the content area freely.",
+    "ending": "Inherit closing-page background, final-message placement, footer/contact rhythm, and decorative hierarchy from the ending reference.",
+}
 
 
 @dataclass(frozen=True)
@@ -87,6 +141,7 @@ class SvgDesignStrategyResult:
     confirmation: PptDesignConfirmation
     strategy: PptDesignStrategy
     execution_plan: PptSvgExecutionPlan
+    template_selection: dict[str, Any] = field(default_factory=dict)
     generation_mode: str = "deterministic_strategy"
     warnings: list[str] = field(default_factory=list)
     stage: str = "design_strategy"
@@ -139,9 +194,15 @@ def build_svg_route(
         template_requirement={"template_id": template_id, "template_source": "system" if template_id else "none"},
     )
     paths = prepare_svg_route_paths(output_dir)
+    template_match = _select_svg_layout_template_for_route(
+        requirement=requirement,
+        content_plan=content_plan,
+        template_id=template_id,
+    )
     design_stage = build_default_svg_design_strategy(
         requirement=requirement,
         content_plan=content_plan,
+        template_match=template_match,
     )
     page_stage = generate_svg_pages(
         content_plan=content_plan,
@@ -187,9 +248,16 @@ async def build_svg_route_with_agent(
 ) -> PptSvgRouteBuildPackage:
     """Generate SVG route artifacts, using PM-managed experts when available."""
     paths = prepare_svg_route_paths(output_dir)
+    template_match = _select_svg_layout_template_for_route(
+        requirement=requirement,
+        content_plan=content_plan,
+    )
+    if tool_context is not None:
+        tool_context.state[PPT_SVG_LAYOUT_TEMPLATE_SELECTION_KEY] = template_match.to_dict()
     design_stage = await build_svg_design_strategy_with_agent(
         requirement=requirement,
         content_plan=content_plan,
+        template_match=template_match,
         paths=paths,
         tool_context=tool_context,
         app_name=app_name,
@@ -250,6 +318,7 @@ def build_default_svg_design_strategy(
     *,
     requirement: ConfirmedRequirement,
     content_plan: DeckContentPlan,
+    template_match: SvgLayoutTemplateMatch | None = None,
 ) -> SvgDesignStrategyResult:
     """Build a deterministic SVG design strategy from current PPT facts."""
     aspect_ratio = _normalize_aspect_ratio(requirement.aspect_ratio)
@@ -271,18 +340,43 @@ def build_default_svg_design_strategy(
         direction = "Clean editorial slides with a strong title lane and editable vector structure."
         icon_style = "line"
 
+    selected_template = template_match.template if template_match is not None and template_match.use_template else None
+    page_layouts = _default_page_layouts()
+    font_family = "Aptos"
+    title_font_family = "Aptos Display"
+    if selected_template is not None:
+        template_palette = _template_palette(selected_template.palette, fallback=palette)
+        palette = template_palette
+        style_name = f"template_{selected_template.template_id}"
+        direction = (
+            f"Use system SVG layout template `{selected_template.template_id}` "
+            f"({selected_template.label}) as the visual and structural direction. "
+            f"{selected_template.summary}"
+        ).strip()
+        if selected_template.font_family:
+            font_family = selected_template.font_family
+            title_font_family = selected_template.font_family
+        page_layouts = _template_page_layouts(selected_template.template_id)
+
     strategy = PptDesignStrategy(
         style_name=style_name,
         design_direction=direction,
         palette=palette,
-        font_family="Aptos",
-        title_font_family="Aptos Display",
+        font_family=font_family,
+        title_font_family=title_font_family,
         icon_style=icon_style,
         image_strategy="Use ready content-plan assets when available; otherwise render simple editable placeholders.",
         layout_principles=[
             "Use one clear message per slide.",
             "Keep title, takeaway, and support points as editable text.",
             "Use only simple SVG shapes that can be converted into PowerPoint objects.",
+            "Apply page rhythm deliberately: anchor pages preserve structure, dense pages organize information, and breathing pages avoid grid-like layouts.",
+            "Use the page type layout guidance to choose composition before writing SVG; do not use fixed slot filling in this iteration.",
+            *(
+                [f"Follow the selected `{selected_template.template_id}` SVG layout template's header, footer, spacing, and page-type rhythm."]
+                if selected_template is not None
+                else []
+            ),
         ],
     )
     confirmation = PptDesignConfirmation(
@@ -306,18 +400,16 @@ def build_default_svg_design_strategy(
         accent_color=palette[2],
         secondary_accent_color=palette[3],
         font_family=strategy.font_family,
-        font_stack=[strategy.font_family, "Microsoft YaHei", "Arial"],
-        latin_font=strategy.font_family,
+        font_stack=_font_stack(strategy.font_family),
+        latin_font=_first_font_name(strategy.font_family),
         east_asian_font="Microsoft YaHei",
         safe_margin=72 if aspect_ratio == "16:9" else 64,
-        page_layouts={
-            "cover": "large_title_with_accent_panel",
-            "toc": "numbered_agenda",
-            "chapter_start": "section_anchor",
-            "chapter_content": "title_takeaway_blocks",
-            "content": "title_takeaway_blocks",
-            "ending": "closing_summary",
-        },
+        page_layouts=page_layouts,
+        page_rhythm_by_slide=_page_rhythm_by_slide(content_plan),
+        typography_ramp=_typography_ramp(aspect_ratio),
+        page_rhythm_guidance=dict(_PAGE_RHYTHM_GUIDANCE),
+        page_type_layout_guidance=_page_type_layout_guidance(),
+        template_adherence_rules=_template_adherence_rules(),
         quality_constraints=[
             "Use only the native DrawingML converter SVG subset.",
             "No style/class/foreignObject/mask/script/symbol/use/textPath/animate features.",
@@ -326,6 +418,13 @@ def build_default_svg_design_strategy(
             "Prefer rect, line, circle, ellipse, polygon, polyline, path, text/tspan, and local or data images.",
             "Use HEX colors, opacity attributes, and optional defs-based linear/radial gradients.",
             "Use markers only on line/path, clipPath only on image, and drop-shadow/glow filters only through defs.",
+            "Respect typography_ramp for cover titles, page titles, body, annotation, and footer text.",
+            "Respect page_rhythm_by_slide and page_type_layout_guidance before choosing layout density.",
+            *(
+                [f"Selected SVG layout template `{selected_template.template_id}` is guidance; generated pages must still satisfy the native converter subset."]
+                if selected_template is not None
+                else []
+            ),
         ],
         supported_svg_tags=sorted(SUPPORTED_SVG_TAGS),
         convertible_svg_tags=sorted(CONVERTIBLE_VISUAL_TAGS),
@@ -338,6 +437,7 @@ def build_default_svg_design_strategy(
         confirmation=confirmation,
         strategy=strategy,
         execution_plan=execution_plan,
+        template_selection=template_match.to_dict(include_prompt_context=True) if template_match is not None else {},
     )
 
 
@@ -345,6 +445,7 @@ async def build_svg_design_strategy_with_agent(
     *,
     requirement: ConfirmedRequirement,
     content_plan: DeckContentPlan,
+    template_match: SvgLayoutTemplateMatch | None,
     paths: SvgRoutePaths,
     tool_context: ToolContext | None,
     app_name: str,
@@ -352,7 +453,11 @@ async def build_svg_design_strategy_with_agent(
     design_strategy_agent: BaseAgent | None,
 ) -> SvgDesignStrategyResult:
     """Resolve design strategy through an ADK expert, falling back deterministically."""
-    fallback = build_default_svg_design_strategy(requirement=requirement, content_plan=content_plan)
+    fallback = build_default_svg_design_strategy(
+        requirement=requirement,
+        content_plan=content_plan,
+        template_match=template_match,
+    )
     if tool_context is None or not hasattr(tool_context, "_invocation_context") or design_strategy_agent is None:
         _persist_svg_design_to_state(tool_context, fallback)
         return fallback
@@ -378,6 +483,7 @@ async def build_svg_design_strategy_with_agent(
             confirmation=fallback.confirmation,
             strategy=fallback.strategy,
             execution_plan=fallback.execution_plan,
+            template_selection=fallback.template_selection,
             generation_mode=fallback.generation_mode,
             warnings=[warning, *fallback.warnings],
         )
@@ -468,15 +574,24 @@ def render_svg_slide(
     section_label = html.escape(page.chapter or content_plan.title)
     visual_label = html.escape(_first_visual_label(page))
     rhythm = _page_rhythm(page)
+    ramp = plan.typography_ramp or _typography_ramp(plan.aspect_ratio)
 
-    title_size = 58 if page.page_type in {"cover", "chapter_start"} else 42
-    title_y = 128 if page.page_type in {"cover", "chapter_start"} else 92
-    body_start_y = 302 if page.page_type in {"cover", "chapter_start"} else 244
+    title_size = ramp.get("cover_title", 68) if rhythm == "anchor" else ramp.get("page_title", 40)
+    if page.page_type == "chapter_start":
+        title_size = ramp.get("section_title", 54)
+    if rhythm == "breathing":
+        title_size = max(title_size, ramp.get("section_title", 54))
+        body_lines = body_lines[:2]
+    title_y = 128 if rhythm == "anchor" else 92
+    body_start_y = 302 if rhythm == "anchor" else 244
+    body_font_size = ramp.get("body", 22)
+    subtitle_size = ramp.get("subtitle", 27)
+    footer_size = ramp.get("footer", 13)
     accent_x = width - 330
     accent_y = 98
     accent_w = 210
     accent_h = 168
-    if page.page_type in {"cover", "chapter_start"}:
+    if rhythm == "anchor":
         accent_x = width - 380
         accent_y = 110
         accent_w = 260
@@ -494,7 +609,7 @@ def render_svg_slide(
                         x=margin + 38,
                         y=y,
                         max_chars=58,
-                        font_size=25,
+                        font_size=body_font_size,
                         fill=plan.primary_text_color,
                         font_family=plan.font_family,
                     ),
@@ -509,11 +624,11 @@ def render_svg_slide(
   <rect x="{accent_x + 26}" y="{accent_y + 30}" width="{accent_w - 52}" height="{max(48, accent_h - 60)}" rx="18" fill="#FFFFFF" opacity="0.72" />
   <text x="{margin}" y="58" font-family="{plan.font_family}" font-size="18" fill="{plan.accent_color}" font-weight="700">{section_label}</text>
   {_svg_text(text=page.title, x=margin, y=title_y, max_chars=28, font_size=title_size, fill=plan.primary_text_color, font_family=plan.font_family, font_weight="800", data_width=780)}
-  {_svg_text(text=page.key_takeaway, x=margin, y=title_y + 106, max_chars=44, font_size=27, fill=plan.muted_text_color, font_family=plan.font_family, data_width=820)}
+  {_svg_text(text=page.key_takeaway, x=margin, y=title_y + 106, max_chars=44, font_size=subtitle_size, fill=plan.muted_text_color, font_family=plan.font_family, data_width=820)}
   {"".join(body_svg)}
   <text x="{accent_x + 52}" y="{accent_y + 82}" font-family="{plan.font_family}" font-size="20" fill="{plan.accent_color}" font-weight="700">Visual</text>
   {_svg_text(text=visual_label, x=accent_x + 52, y=accent_y + 126, max_chars=20, font_size=22, fill=plan.primary_text_color, font_family=plan.font_family, data_width=accent_w - 82)}
-  <text x="{width - margin}" y="{height - 48}" text-anchor="end" font-family="{plan.font_family}" font-size="17" fill="{plan.muted_text_color}">{page.slide_number:02d}</text>
+  <text x="{width - margin}" y="{height - 48}" text-anchor="end" font-family="{plan.font_family}" font-size="{footer_size}" fill="{plan.muted_text_color}">{page.slide_number:02d}</text>
 </svg>
 """
 
@@ -692,6 +807,9 @@ def deliver_svg_route_quality(
     quality_payload["route_stages"] = list(SVG_ROUTE_STAGE_SEQUENCE)
     quality_payload["delivery_stage"] = SVG_DELIVERY_STAGE
     quality_payload["pptx_conversion"] = pptx_output.conversion_report
+    quality_payload["svg_layout_template_selection"] = _public_template_selection(
+        design_stage.template_selection
+    )
     paths.quality_report_path.write_text(
         json.dumps(quality_payload, ensure_ascii=False, indent=2),
         encoding="utf-8",
@@ -708,6 +826,7 @@ def deliver_svg_route_quality(
         "svg_page_paths": [page.svg_path for page in page_generation.svg_pages],
         "pptx_path": workspace_relative_path(pptx_output.pptx_path) if pptx_output.pptx_path.exists() else "",
         "quality_status": quality_report.status,
+        "svg_layout_template_selection": _public_template_selection(design_stage.template_selection),
         "pptx_conversion": pptx_output.conversion_report,
     }
     paths.build_log_path.write_text(json.dumps(build_log, ensure_ascii=False, indent=2), encoding="utf-8")
@@ -741,7 +860,8 @@ def build_ppt_design_strategy_expert(
             "and a strict SVG execution plan for a deck.\n"
             "Do not generate SVG pages or PPTX files.\n"
             "Keep decisions practical: canvas, palette, font stack, page rhythm, icon/image strategy, "
-            "supported SVG tags, forbidden SVG features, and PPTX editability constraints.\n"
+            "page type layout guidance, template adherence rules, supported SVG tags, forbidden SVG features, "
+            "and PPTX editability constraints.\n"
             "The SVG execution plan is an authoring contract for a native DrawingML converter, similar in spirit "
             "to a spec lock: generated SVG must use only the converter subset and must avoid CSS, class/style, "
             "foreignObject, mask, script, symbol/use, textPath, animation, remote images, and rgba(). "
@@ -770,6 +890,8 @@ def build_ppt_svg_deck_executor_expert(
             "Generate one complete SVG file per slide from DeckContentPlan and the saved SVG execution plan.\n"
             "Before generating each slide, call read_ppt_svg_execution_plan and follow the latest plan exactly.\n"
             "Then call save_ppt_svg_page exactly once for that planned slide, in slide order.\n"
+            "Apply the slide's page rhythm: anchor preserves template/chrome structure, dense organizes information, "
+            "and breathing avoids multi-card grids in favor of one dominant message.\n"
             "Use only the native DrawingML converter subset listed in the execution plan, including simple defs-based "
             "gradients, markers, clipPath on images, and drop-shadow/glow filters when needed. Use local/data images only.\n"
             "Do not use style/class, foreignObject, mask, script, symbol/use, textPath, SVG animation, remote images, "
@@ -815,6 +937,7 @@ async def _run_svg_design_strategy_agent(
             PPT_DESIGN_CONFIRMATION_STATE_KEY: fallback.confirmation.model_dump(mode="json"),
             PPT_DESIGN_STRATEGY_STATE_KEY: fallback.strategy.model_dump(mode="json"),
             PPT_SVG_EXECUTION_PLAN_STATE_KEY: fallback.execution_plan.model_dump(mode="json"),
+            PPT_SVG_LAYOUT_TEMPLATE_SELECTION_KEY: fallback.template_selection,
             PPT_SVG_ROUTE_OUTPUT_DIR_KEY: str(paths.output_dir),
         }
     )
@@ -860,6 +983,7 @@ async def _run_svg_design_strategy_agent(
             PPT_DESIGN_CONFIRMATION_STATE_KEY,
             PPT_DESIGN_STRATEGY_STATE_KEY,
             PPT_SVG_EXECUTION_PLAN_STATE_KEY,
+            PPT_SVG_LAYOUT_TEMPLATE_SELECTION_KEY,
             PPT_SVG_DESIGN_AGENT_MESSAGE_KEY,
         ):
             if key in final_state:
@@ -868,6 +992,9 @@ async def _run_svg_design_strategy_agent(
             confirmation=confirmation,
             strategy=strategy,
             execution_plan=execution_plan,
+            template_selection=copy.deepcopy(
+                final_state.get(PPT_SVG_LAYOUT_TEMPLATE_SELECTION_KEY) or fallback.template_selection
+            ),
             generation_mode="llm_agent_design_strategy",
         )
     finally:
@@ -908,6 +1035,7 @@ async def _run_svg_deck_executor_agent(
             PPT_DESIGN_CONFIRMATION_STATE_KEY: design_stage.confirmation.model_dump(mode="json"),
             PPT_DESIGN_STRATEGY_STATE_KEY: design_stage.strategy.model_dump(mode="json"),
             PPT_SVG_EXECUTION_PLAN_STATE_KEY: design_stage.execution_plan.model_dump(mode="json"),
+            PPT_SVG_LAYOUT_TEMPLATE_SELECTION_KEY: design_stage.template_selection,
             PPT_SVG_ROUTE_OUTPUT_DIR_KEY: str(paths.output_dir),
             PPT_SVG_ROUTE_GENERATED_PAGES_KEY: [],
         }
@@ -979,6 +1107,7 @@ def _build_svg_route_package(
         pptx_path=workspace_relative_path(pptx_stage.pptx_path) if pptx_stage.pptx_path.exists() else "",
         quality_report_path=workspace_relative_path(quality_stage.quality_report_path),
         build_log_path=workspace_relative_path(quality_stage.build_log_path),
+        svg_layout_template_selection=_public_template_selection(design_stage.template_selection),
         warnings=quality_stage.warnings,
     )
 
@@ -996,6 +1125,7 @@ def _build_svg_design_strategy_user_message(
         "fallback_design_confirmation_json": fallback.confirmation.model_dump(mode="json"),
         "fallback_design_strategy_json": fallback.strategy.model_dump(mode="json"),
         "fallback_svg_execution_plan_json": fallback.execution_plan.model_dump(mode="json"),
+        "selected_svg_layout_template_json": fallback.template_selection,
         "route_capabilities": {
             "route": "svg",
             "supported_svg_subset": sorted(SUPPORTED_SVG_TAGS),
@@ -1005,6 +1135,7 @@ def _build_svg_design_strategy_user_message(
             "pptx_export": "strict native DrawingML PPTX conversion; unsupported visual SVG fails before output replacement",
             "image_policy": "local workspace image hrefs or data image URIs only",
             "color_policy": "HEX colors plus opacity attributes; defs-based linear/radial gradients are supported; no CSS or rgba()",
+            "rhythm_policy": "Use anchor, dense, and breathing page rhythms to vary layout density without slot filling.",
         },
     }
     return (
@@ -1026,6 +1157,11 @@ def _build_svg_executor_user_message(
         "deck_content_plan_json": content_plan.model_dump(mode="json"),
         "design_strategy_json": design_stage.strategy.model_dump(mode="json"),
         "svg_execution_plan_json": design_stage.execution_plan.model_dump(mode="json"),
+        "selected_svg_layout_template_json": design_stage.template_selection,
+        "page_generation_plan": _svg_page_generation_plan(
+            content_plan=content_plan,
+            design_stage=design_stage,
+        ),
         "output_contract": {
             "tool": "save_ppt_svg_page",
             "call_count": len(content_plan.pages),
@@ -1035,9 +1171,57 @@ def _build_svg_executor_user_message(
     return (
         "Generate SVG pages for this PPT deck.\n"
         "For each slide in order: call read_ppt_svg_execution_plan, generate one converter-safe SVG, "
-        "then call save_ppt_svg_page once for that slide.\n\n"
+        "then call save_ppt_svg_page once for that slide.\n"
+        "Use page_generation_plan for page-level rhythm, layout strategy, and the nearest selected template reference. "
+        "Do not perform slot filling; compose a complete SVG for each slide while preserving the template's visual discipline.\n\n"
         f"{json.dumps(payload, ensure_ascii=False, indent=2)}"
     )
+
+
+def _svg_page_generation_plan(
+    *,
+    content_plan: DeckContentPlan,
+    design_stage: SvgDesignStrategyResult,
+) -> list[dict[str, object]]:
+    """Build page-level generation guidance for the SVG executor prompt."""
+    execution_plan = design_stage.execution_plan
+    template_selection = design_stage.template_selection if isinstance(design_stage.template_selection, dict) else {}
+    template_payload = template_selection.get("template") if isinstance(template_selection.get("template"), dict) else {}
+    page_svg_excerpts = template_payload.get("page_svg_excerpts") if isinstance(template_payload.get("page_svg_excerpts"), dict) else {}
+    template_id = str(template_selection.get("template_id") or template_payload.get("template_id") or "")
+    use_template = bool(template_selection.get("use_template"))
+
+    plan: list[dict[str, object]] = []
+    for page in content_plan.pages:
+        rhythm = _page_rhythm(page)
+        reference_key = _template_reference_key(page.page_type)
+        template_reference: dict[str, object] = {
+            "use_template": use_template,
+            "template_id": template_id,
+            "reference_page_type": reference_key,
+            "template_file": execution_plan.page_layouts.get(page.page_type)
+            or execution_plan.page_layouts.get(reference_key)
+            or "",
+            "adherence_rule": execution_plan.template_adherence_rules.get(page.page_type)
+            or execution_plan.template_adherence_rules.get(reference_key)
+            or "",
+        }
+        if use_template:
+            template_reference["svg_excerpt"] = str(page_svg_excerpts.get(reference_key) or "")[:1200]
+        plan.append(
+            {
+                "slide_number": page.slide_number,
+                "page_type": page.page_type,
+                "page_rhythm": rhythm,
+                "page_title": page.title,
+                "layout_strategy": execution_plan.page_type_layout_guidance.get(page.page_type)
+                or _BASE_PAGE_TYPE_LAYOUT_GUIDANCE.get(page.page_type, _BASE_PAGE_TYPE_LAYOUT_GUIDANCE["content"]),
+                "rhythm_discipline": execution_plan.page_rhythm_guidance.get(rhythm)
+                or _PAGE_RHYTHM_GUIDANCE.get(rhythm, ""),
+                "template_reference": template_reference,
+            }
+        )
+    return plan
 
 
 def _persist_svg_design_to_state(
@@ -1050,6 +1234,7 @@ def _persist_svg_design_to_state(
     tool_context.state[PPT_DESIGN_CONFIRMATION_STATE_KEY] = design_stage.confirmation.model_dump(mode="json")
     tool_context.state[PPT_DESIGN_STRATEGY_STATE_KEY] = design_stage.strategy.model_dump(mode="json")
     tool_context.state[PPT_SVG_EXECUTION_PLAN_STATE_KEY] = design_stage.execution_plan.model_dump(mode="json")
+    tool_context.state[PPT_SVG_LAYOUT_TEMPLATE_SELECTION_KEY] = design_stage.template_selection
 
 
 def _normalize_svg_page_results(
@@ -1141,13 +1326,168 @@ def _first_visual_label(page: DeckPagePlan) -> str:
     return page.asset_intent or "Supporting visual"
 
 
+def _select_svg_layout_template_for_route(
+    *,
+    requirement: ConfirmedRequirement,
+    content_plan: DeckContentPlan,
+    template_id: str = "",
+) -> SvgLayoutTemplateMatch:
+    """Select an SVG layout template, preserving safe no-template fallback."""
+    match = select_svg_layout_template_match(
+        requirement=requirement,
+        content_plan=content_plan,
+        template_id=template_id,
+    )
+    if match.use_template and _normalize_aspect_ratio(requirement.aspect_ratio) != "16:9":
+        return SvgLayoutTemplateMatch(
+            use_template=False,
+            template_id=match.template_id,
+            score=match.score,
+            reasons=(*match.reasons, "Selected ppt-master SVG layout templates currently support 16:9 only."),
+            explicit=match.explicit,
+            fallback_reason="SVG layout template skipped because the requested aspect ratio is not 16:9.",
+        )
+    return match
+
+
+def _template_palette(colors: tuple[str, ...], *, fallback: list[str]) -> list[str]:
+    """Build the route palette from a template color inventory."""
+    deduped = _dedupe_preserve_order(list(colors))
+    if not deduped:
+        return fallback
+    white = next((color for color in deduped if color.upper() == "#FFFFFF"), "#FFFFFF")
+    non_white = [color for color in deduped if color.upper() != "#FFFFFF"]
+    return _dedupe_preserve_order([white, *non_white, *fallback])[:5]
+
+
+def _default_page_layouts() -> dict[str, str]:
+    """Return baseline layout labels for every supported SVG page type."""
+    layouts = {
+        "cover": "large_title_with_accent_panel",
+        "toc": "numbered_agenda",
+        "chapter_start": "section_anchor",
+        "chapter_content": "title_takeaway_blocks",
+        "content": "title_takeaway_blocks",
+        "ending": "closing_summary",
+    }
+    layouts.update(
+        {
+            page_type: f"{page_type}_composition"
+            for page_type in _CONTENT_LIKE_PAGE_TYPES
+            if page_type not in layouts
+        }
+    )
+    return layouts
+
+
+def _template_page_layouts(template_id: str) -> dict[str, str]:
+    """Return page type to template SVG file mapping for an SVG layout template."""
+    layouts = {
+        "cover": f"template:{template_id}/01_cover.svg",
+        "toc": f"template:{template_id}/02_toc.svg",
+        "chapter_start": f"template:{template_id}/02_chapter.svg",
+        "chapter_content": f"template:{template_id}/03_content.svg",
+        "content": f"template:{template_id}/03_content.svg",
+        "ending": f"template:{template_id}/04_ending.svg",
+    }
+    layouts.update(
+        {
+            page_type: f"template:{template_id}/03_content.svg"
+            for page_type in _CONTENT_LIKE_PAGE_TYPES
+            if page_type not in layouts
+        }
+    )
+    return layouts
+
+
+def _page_rhythm_by_slide(content_plan: DeckContentPlan) -> dict[str, str]:
+    """Return a stable PNN-to-rhythm map for the execution plan."""
+    return {
+        f"P{page.slide_number:02d}": _page_rhythm(page)
+        for page in content_plan.pages
+    }
+
+
+def _typography_ramp(aspect_ratio: str) -> dict[str, int]:
+    """Return conservative SVG typography sizes for the selected canvas."""
+    if _normalize_aspect_ratio(aspect_ratio) == "4:3":
+        return {
+            "cover_title": 56,
+            "section_title": 46,
+            "page_title": 34,
+            "subtitle": 24,
+            "body": 20,
+            "annotation": 14,
+            "footer": 12,
+        }
+    return {
+        "cover_title": 68,
+        "section_title": 54,
+        "page_title": 40,
+        "subtitle": 27,
+        "body": 22,
+        "annotation": 15,
+        "footer": 13,
+    }
+
+
+def _page_type_layout_guidance() -> dict[str, str]:
+    """Return per-page-type composition guidance for SVG generation."""
+    return dict(_BASE_PAGE_TYPE_LAYOUT_GUIDANCE)
+
+
+def _template_adherence_rules() -> dict[str, str]:
+    """Return template adherence rules used when a layout template is selected."""
+    rules = dict(_TEMPLATE_ADHERENCE_RULES)
+    for page_type in _CONTENT_LIKE_PAGE_TYPES:
+        rules.setdefault(page_type, _TEMPLATE_ADHERENCE_RULES["content"])
+    return rules
+
+
+def _template_reference_key(page_type: str) -> str:
+    """Map one deck page type to the nearest template reference SVG type."""
+    clean = str(page_type or "").strip()
+    if clean in {"cover", "toc", "ending"}:
+        return clean
+    if clean == "chapter_start":
+        return "chapter"
+    return "content"
+
+
+def _font_stack(font_family: str) -> list[str]:
+    """Convert a CSS font-family string into a compact execution-plan stack."""
+    fonts = [
+        part.strip().strip("\"'")
+        for part in str(font_family or "").split(",")
+        if part.strip()
+    ]
+    return _dedupe_preserve_order([*fonts, "Microsoft YaHei", "Arial"])
+
+
+def _first_font_name(font_family: str) -> str:
+    """Return the first concrete font name from a CSS font-family string."""
+    return _font_stack(font_family)[0]
+
+
+def _public_template_selection(selection: dict[str, Any]) -> dict[str, Any]:
+    """Drop large prompt-only excerpts from template selection logs."""
+    if not isinstance(selection, dict):
+        return {}
+    public_selection = copy.deepcopy(selection)
+    template = public_selection.get("template")
+    if isinstance(template, dict):
+        template.pop("design_spec_excerpt", None)
+        template.pop("page_svg_excerpts", None)
+    return public_selection
+
+
 def _page_rhythm(page: DeckPagePlan) -> str:
-    """Return a simple rhythm label for one page."""
-    if page.page_type in {"cover", "chapter_start"}:
+    """Return the page rhythm used to control layout density."""
+    if page.page_type in {"cover", "toc", "chapter_start", "ending"}:
         return "anchor"
-    if page.page_type in {"ending", "quote", "stat"}:
-        return "closure"
-    return "body"
+    if page.page_type in {"quote", "stat"}:
+        return "breathing"
+    return "dense"
 
 
 def _canvas_size(aspect_ratio: str) -> tuple[int, int]:

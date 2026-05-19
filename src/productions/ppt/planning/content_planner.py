@@ -55,6 +55,10 @@ class PptContentPlanner:
                 "Use `source_understanding` only for user-provided documents and assets, not for the task text itself.\n"
                 "Always call read_ppt_markdown_sources first so source Markdown is read before planning.\n"
                 "Then call save_ppt_deck_content_plan_markdown with one Markdown string.\n"
+                "Choose page_type deliberately. Do not overuse `content` or `chapter_content`: use `comparison` for tradeoffs, "
+                "`process` for workflows or methods, `timeline` or `roadmap` for phases and milestones, `stat` for one major number, "
+                "`quote` for one memorable judgment, `image_grid` for visual collections, and `code` for developer examples. "
+                "Charts and icon-specific page types are not required in the current SVG route.\n"
                 "When `template_requirement.template_source` is `none`, do not force cover, toc, chapter_start, "
                 "or ending slides. Treat those page types as template requirements only. "
                 "Use them only when the user or selected template explicitly requires them.\n"
@@ -601,10 +605,17 @@ class PptContentPlanner:
             chapter = chapters[index % len(chapters)]
             point = key_points[index % len(key_points)]
             support = key_points[(index + 1) % len(key_points)]
+            page_type = _select_content_page_type(
+                requirement=requirement,
+                point=point,
+                support=support,
+                index=index,
+                default="chapter_content",
+            )
             pages.append(
                 _build_page(
                     slide_number=slide_number,
-                    page_type="chapter_content",
+                    page_type=page_type,
                     title=_compact_title(point, fallback=f"Key Point {index + 1}"),
                     purpose=f"Develop the {chapter.title} part of the story.",
                     chapter=chapter.title,
@@ -615,7 +626,7 @@ class PptContentPlanner:
                         {"title": "Implication", "body": _build_implication(point)},
                     ],
                     asset_intent=_asset_intent(requirement, understanding),
-                    asset_source_preference=_asset_source_preference_for_page("chapter_content", source_preference),
+                    asset_source_preference=_asset_source_preference_for_page(page_type, source_preference),
                 )
             )
 
@@ -676,6 +687,8 @@ def _build_content_planning_user_message(requirement: ConfirmedRequirement) -> s
             "`slide_count_policy`, and `style_requirement` as hard planning constraints.",
             "Use `source_understanding` only for user-provided documents and assets.",
             "Do not invent a generic business communication deck unless the request is actually business communication.",
+            "Choose richer page types when the content calls for them: comparison, process, timeline, roadmap, stat, quote, image_grid, or code. "
+            "Use content/chapter_content only for ordinary explanatory slides. Do not plan chart-specific pages for this iteration.",
             "Before saving, make sure the deck title, chapters, slide titles, and body content clearly match "
             "`request_brief`, `topic`, and `audience`.",
             "Call read_ppt_markdown_sources first, then call save_ppt_deck_content_plan_markdown with the final Markdown plan.",
@@ -795,6 +808,56 @@ def _exact_requested_slide_count(requirement: ConfirmedRequirement) -> int | Non
     return None
 
 
+def _select_content_page_type(
+    *,
+    requirement: ConfirmedRequirement,
+    point: str,
+    support: str,
+    index: int,
+    default: str,
+) -> str:
+    """Select a richer non-anchor page type for a planning point."""
+    local_text = " ".join([point, support]).lower()
+    local_page_type = _classify_content_page_type(local_text, index=index)
+    if local_page_type:
+        return local_page_type
+
+    requirement_text = " ".join(
+        [
+            requirement.request_brief,
+            requirement.topic,
+            requirement.scenario,
+        ]
+    ).lower()
+    return _classify_content_page_type(requirement_text, index=index) or default
+
+
+def _classify_content_page_type(text: str, *, index: int) -> str | None:
+    """Classify page type from a single text scope."""
+    if _contains_any(text, ("对比", "比较", "差异", "取舍", "优劣", "vs", "versus", "compare", "comparison", "tradeoff")):
+        return "comparison"
+    if _contains_any(text, ("时间线", "里程碑", "年度", "季度", "阶段", "timeline", "milestone")):
+        return "timeline"
+    if _contains_any(text, ("路线图", "规划", "演进", "roadmap")):
+        return "roadmap"
+    if _contains_any(text, ("流程", "步骤", "方法", "机制", "路径", "workflow", "process", "method")):
+        return "process"
+    if re.search(r"\d+(?:\.\d+)?\s*(?:%|倍|x|万|亿|[kmb])", text, re.IGNORECASE):
+        return "stat"
+    if _contains_any(text, ("引用", "观点", "判断", "quote", "principle")) and index > 0:
+        return "quote"
+    if _contains_any(text, ("代码", "api", "sdk", "cli", "python", "javascript", "typescript")):
+        return "code"
+    if _contains_any(text, ("图片组", "案例集", "作品集", "照片", "image grid", "gallery")):
+        return "image_grid"
+    return None
+
+
+def _contains_any(text: str, terms: tuple[str, ...]) -> bool:
+    """Return whether normalized text contains any term."""
+    return any(term in text for term in terms)
+
+
 def _build_direct_fallback_pages(
     *,
     requirement: ConfirmedRequirement,
@@ -813,10 +876,17 @@ def _build_direct_fallback_pages(
         support = public_points[(index + 1) % len(public_points)]
         chapter = chapters[index % len(chapters)] if chapters else DeckChapter(title=requirement.topic)
         title = _direct_slide_title(requirement, point=point, index=index)
+        page_type = _select_content_page_type(
+            requirement=requirement,
+            point=point,
+            support=support,
+            index=index,
+            default="content",
+        )
         pages.append(
             _build_page(
                 slide_number=slide_number,
-                page_type="content",
+                page_type=page_type,
                 title=title,
                 purpose=f"Explain {title} for {requirement.audience or 'the audience'}.",
                 chapter=chapter.title,
@@ -826,7 +896,7 @@ def _build_direct_fallback_pages(
                     {"title": "辅助理解", "body": support},
                 ],
                 asset_intent=_asset_intent(requirement, understanding),
-                asset_source_preference=_asset_source_preference_for_page("content", source_preference),
+                asset_source_preference=_asset_source_preference_for_page(page_type, source_preference),
             )
         )
     return pages
@@ -1395,7 +1465,18 @@ def _asset_source_preference_for_page(page_type: str, source_preference: str) ->
     """Limit generated visuals to pages where they add value."""
     if source_preference != "ai":
         return source_preference
-    if page_type in {"cover", "chapter_start", "chapter_content", "content", "activity"}:
+    if page_type in {
+        "cover",
+        "chapter_start",
+        "chapter_content",
+        "content",
+        "activity",
+        "comparison",
+        "timeline",
+        "roadmap",
+        "process",
+        "image_grid",
+    }:
         return "ai"
     return "placeholder"
 

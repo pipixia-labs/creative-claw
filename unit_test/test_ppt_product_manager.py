@@ -10,7 +10,10 @@ from PIL import Image
 from pptx import Presentation
 from pptx.enum.shapes import MSO_SHAPE_TYPE
 
-from src.productions.ppt.planning.content_planner import _build_content_planning_user_message
+from src.productions.ppt.planning.content_planner import (
+    _build_content_planning_user_message,
+    _select_content_page_type,
+)
 from src.productions.ppt.ppt_product_manager import (
     PptProductManager,
     ProductPptSkillRegistry,
@@ -236,6 +239,20 @@ class PptProductManagerTests(unittest.IsolatedAsyncioTestCase):
         self.assertIn("export_ppt_svg_to_pptx", content)
         self.assertIn("does not use ppt-master's project directory protocol", content)
 
+    def test_svg_route_accepts_explicit_system_layout_template_requirement(self) -> None:
+        manager = PptProductManager()
+
+        requirement = manager.prepare_confirmed_requirement(
+            task="做一个战略咨询汇报 PPT，走 svg route，用 mckinsey 模板。",
+            inputs=[],
+            output={"format": "pptx", "route": "svg", "template_id": "mckinsey"},
+        )
+
+        self.assertEqual(requirement.route, "svg")
+        self.assertTrue(requirement.template_requirement.use_template)
+        self.assertEqual(requirement.template_requirement.template_source, "system")
+        self.assertEqual(requirement.template_requirement.template_id, "mckinsey")
+
     def test_global_skill_registry_does_not_expose_private_product_ppt_skills(self) -> None:
         global_registry = SkillRegistry()
 
@@ -361,6 +378,8 @@ class PptProductManagerTests(unittest.IsolatedAsyncioTestCase):
         )
         self.assertIn("do not force cover, toc, chapter_start", agent.instruction)
         self.assertIn("template requirements only", agent.instruction)
+        self.assertIn("Do not overuse `content`", agent.instruction)
+        self.assertIn("`comparison` for tradeoffs", agent.instruction)
 
     def test_requirement_analysis_agent_saves_confirmed_requirement_json(self) -> None:
         manager = PptProductManager()
@@ -431,6 +450,81 @@ class PptProductManagerTests(unittest.IsolatedAsyncioTestCase):
         self.assertEqual(read_result["status"], "success")
         self.assertEqual(tool_context.state["ppt_design_strategy"]["style_name"], "clean_svg")
         self.assertEqual(tool_context.state[PPT_SVG_EXECUTION_PLAN_STATE_KEY]["canvas_width"], 1280)
+
+    def test_save_ppt_svg_execution_plan_preserves_route_guidance_fields(self) -> None:
+        manager = PptProductManager()
+        tool_context = SimpleNamespace(
+            state={
+                PPT_SVG_EXECUTION_PLAN_STATE_KEY: {
+                    "aspect_ratio": "16:9",
+                    "canvas_width": 1280,
+                    "canvas_height": 720,
+                    "page_rhythm_by_slide": {"P01": "anchor", "P02": "dense"},
+                    "typography_ramp": {"page_title": 40, "body": 22},
+                    "page_type_layout_guidance": {"comparison": "Use matched comparison lanes."},
+                    "template_adherence_rules": {"content": "Preserve template header and footer."},
+                    "quality_constraints": ["Respect page rhythm."],
+                }
+            }
+        )
+
+        result = manager.save_ppt_svg_execution_plan(
+            {
+                "aspect_ratio": "16:9",
+                "canvas_width": 1280,
+                "canvas_height": 720,
+                "accent_color": "#FF0000",
+                "page_rhythm_by_slide": {},
+            },
+            tool_context,
+        )
+        saved_plan = tool_context.state[PPT_SVG_EXECUTION_PLAN_STATE_KEY]
+
+        self.assertEqual(result["status"], "success")
+        self.assertEqual(saved_plan["accent_color"], "#FF0000")
+        self.assertEqual(saved_plan["page_rhythm_by_slide"]["P02"], "dense")
+        self.assertEqual(saved_plan["typography_ramp"]["body"], 22)
+        self.assertIn("comparison", saved_plan["page_type_layout_guidance"])
+        self.assertEqual(saved_plan["template_adherence_rules"]["content"], "Preserve template header and footer.")
+
+    def test_content_planning_page_type_heuristics_use_richer_svg_types(self) -> None:
+        manager = PptProductManager()
+        requirement = manager.prepare_confirmed_requirement(
+            task="做一个 SVG route PPT，对比两个方案并说明实施流程和关键指标。",
+            inputs=[],
+            output={"format": "pptx", "route": "svg"},
+        )
+
+        self.assertEqual(
+            _select_content_page_type(
+                requirement=requirement,
+                point="方案 A 和方案 B 的成本收益对比",
+                support="资源投入和风险差异明显",
+                index=0,
+                default="content",
+            ),
+            "comparison",
+        )
+        self.assertEqual(
+            _select_content_page_type(
+                requirement=requirement,
+                point="实施流程分为需求确认、试点、推广三个步骤",
+                support="每一步都有明确交付物",
+                index=1,
+                default="content",
+            ),
+            "process",
+        )
+        self.assertEqual(
+            _select_content_page_type(
+                requirement=requirement,
+                point="核心指标提升 35%",
+                support="效果已经超过目标",
+                index=2,
+                default="content",
+            ),
+            "stat",
+        )
 
     def test_product_manager_skill_runner_masks_saved_long_html_arguments(self) -> None:
         manager = PptProductManager()

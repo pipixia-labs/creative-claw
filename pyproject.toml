@@ -17,6 +17,7 @@ include = [
     "src/productions/design/frames/**/*",
     "src/productions/design/design_product_manager/schemas/*.json",
     "src/productions/page/page_product_manager/templates-html/**/*",
+    "src/productions/ppt/templates/svg/**/*",
 ]
 
 [tool.poetry.dependencies]
