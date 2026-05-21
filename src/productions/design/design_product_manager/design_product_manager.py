@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 import copy
+import json
 from pathlib import Path
 from typing import Any
 
@@ -155,6 +156,7 @@ Own design product tasks end to end. You are not a thin wrapper around the orche
 - Use `invoke_design_expert` when the task needs a specialized design operation.
 - Allowed private experts: ImageGenerationAgent, CodeGenerationExpert, ImageUnderstandingAgent, AnythingToMD, SearchAgent.
 - Use `invoke_design_code_generation` for final HTML, dashboards, landing pages, app screens, interactive prototypes, and other code-backed design artifacts.
+- If `# Inputs` is a JSON object, its keys are friendly aliases and its values contain the exact workspace-relative paths. Use the path values for `input_path`, `input_paths`, and `context_files`; do not pass alias keys such as `product_image` as file paths.
 - Use CodeGenerationExpert only for supporting non-final code snippets or auxiliary code files when the design-specific generator is not appropriate.
 - Use ImageUnderstandingAgent for uploaded reference images, screenshots, visual style analysis, OCR, and reverse-prompt extraction.
 - Use ImageGenerationAgent only when the design needs new bitmap assets such as hero images, poster visuals, illustrations, or backgrounds.
@@ -215,7 +217,7 @@ Always call `register_design_delivery` before finishing. It must contain a user-
         self,
         *,
         task: str,
-        inputs: list[Any] | None = None,
+        inputs: Any | None = None,
         output: dict[str, Any] | None = None,
         tool_context: ToolContext | None = None,
         expert_agents: dict[str, BaseAgent] | None = None,
@@ -231,6 +233,7 @@ Always call `register_design_delivery` before finishing. It must contain a user-
             return _error_result("DesignProductManager requires a non-empty task.")
         if not hasattr(tool_context, "_invocation_context"):
             return _error_result("DesignProductManager requires an ADK invocation context.")
+        normalized_inputs = _normalize_design_inputs(inputs)
 
         append_orchestration_step_event(
             tool_context.state,
@@ -305,7 +308,7 @@ Always call `register_design_delivery` before finishing. It must contain a user-
         child_state = _copy_state(tool_context.state)
         child_state[DESIGN_PRODUCT_REQUEST_STATE_KEY] = {
             "task": clean_task,
-            "inputs": list(inputs or []),
+            "inputs": copy.deepcopy(normalized_inputs),
             "output": dict(output or {}),
         }
         child_state[DESIGN_PRODUCT_EXPERTS_STATE_KEY] = build_design_expert_listing(
@@ -328,7 +331,7 @@ Always call `register_design_delivery` before finishing. It must contain a user-
                         Part(
                             text=_build_design_product_user_message(
                                 task=clean_task,
-                                inputs=list(inputs or []),
+                                inputs=normalized_inputs,
                                 output=dict(output or {}),
                             )
                         )
@@ -409,7 +412,10 @@ Always call `register_design_delivery` before finishing. It must contain a user-
 
         invocation = await dispatch_expert_call(
             agent_name=clean_agent_name,
-            prompt=str(prompt or "").strip(),
+            prompt=_resolve_design_input_aliases_in_prompt(
+                str(prompt or "").strip(),
+                tool_context.state,
+            ),
             tool_context=tool_context,
             expert_agents=design_expert_agents,
             app_name=self._app_name,
@@ -446,7 +452,10 @@ Always call `register_design_delivery` before finishing. It must contain a user-
             prompt=clean_prompt,
             language=str(language or "html").strip() or "html",
             output_path=str(output_path or "").strip(),
-            context_files=_coerce_string_list(context_files),
+            context_files=_resolve_design_input_aliases_in_file_refs(
+                _coerce_string_list(context_files),
+                tool_context.state,
+            ),
             constraints=clean_constraints,
         )
         if current_output.get("output_files"):
@@ -621,7 +630,7 @@ Always call `register_design_delivery` before finishing. It must contain a user-
 def _build_design_product_user_message(
     *,
     task: str,
-    inputs: list[Any],
+    inputs: Any,
     output: dict[str, Any],
 ) -> str:
     """Build the explicit user message for a design product run."""
@@ -633,7 +642,11 @@ def _build_design_product_user_message(
             task,
             "",
             "# Inputs",
-            repr(inputs),
+            _format_design_inputs_for_prompt(inputs),
+            "",
+            "# Input usage rules",
+            "- If inputs are shown as a JSON object, the keys are friendly aliases and the values are the exact workspace-relative paths or asset metadata.",
+            "- Use the path values for expert `input_path` / `input_paths` and code-generation `context_files`; do not pass alias keys as file paths.",
             "",
             "# Output request",
             repr(output),
@@ -642,6 +655,150 @@ def _build_design_product_user_message(
             "Always call register_design_delivery before your final response.",
         ]
     )
+
+
+def _normalize_design_inputs(inputs: Any | None) -> Any:
+    """Preserve design input shape while making scalar inputs explicit."""
+    if inputs is None:
+        return []
+    if isinstance(inputs, dict):
+        return copy.deepcopy(dict(inputs))
+    if isinstance(inputs, list):
+        return copy.deepcopy(inputs)
+    if isinstance(inputs, (tuple, set)):
+        return copy.deepcopy(list(inputs))
+    return [copy.deepcopy(inputs)]
+
+
+def _format_design_inputs_for_prompt(inputs: Any) -> str:
+    """Render design inputs without losing alias-to-path mappings."""
+    try:
+        return json.dumps(inputs, ensure_ascii=False, indent=2)
+    except TypeError:
+        return repr(inputs)
+
+
+_DESIGN_FILE_REFERENCE_KEYS = {
+    "context_files",
+    "file_path",
+    "file_paths",
+    "image_path",
+    "image_paths",
+    "input_path",
+    "input_paths",
+    "reference_path",
+    "reference_paths",
+    "video_path",
+    "video_paths",
+}
+
+
+def _resolve_design_input_aliases_in_prompt(prompt: str, state: Any) -> str:
+    """Replace design input aliases in structured expert prompts with real paths."""
+    alias_map = _design_input_alias_map(state)
+    if not alias_map:
+        return prompt
+
+    stripped_prompt = _strip_json_code_fence(prompt)
+    if not stripped_prompt:
+        return prompt
+    try:
+        payload = json.loads(stripped_prompt)
+    except json.JSONDecodeError:
+        return prompt
+    if not isinstance(payload, dict):
+        return prompt
+
+    resolved_payload = _resolve_design_input_aliases_in_payload(payload, alias_map)
+    return json.dumps(resolved_payload, ensure_ascii=False)
+
+
+def _resolve_design_input_aliases_in_payload(value: Any, alias_map: dict[str, str], key: str = "") -> Any:
+    """Resolve aliases only for known file-reference fields."""
+    if isinstance(value, dict):
+        return {
+            item_key: _resolve_design_input_aliases_in_payload(
+                item_value,
+                alias_map,
+                key=str(item_key),
+            )
+            for item_key, item_value in value.items()
+        }
+    if isinstance(value, list):
+        return [
+            _resolve_design_input_aliases_in_payload(item, alias_map, key=key)
+            for item in value
+        ]
+    if isinstance(value, str) and key in _DESIGN_FILE_REFERENCE_KEYS:
+        return alias_map.get(value.strip(), value)
+    return value
+
+
+def _resolve_design_input_aliases_in_file_refs(paths: list[str], state: Any) -> list[str]:
+    """Resolve design input aliases in a list of explicit file references."""
+    alias_map = _design_input_alias_map(state)
+    if not alias_map:
+        return paths
+    return [alias_map.get(str(path).strip(), path) for path in paths]
+
+
+def _design_input_alias_map(state: Any) -> dict[str, str]:
+    """Return alias-to-workspace-path mappings from the current design request."""
+    request = state.get(DESIGN_PRODUCT_REQUEST_STATE_KEY) if hasattr(state, "get") else None
+    if not isinstance(request, dict):
+        return {}
+
+    raw_inputs = request.get("inputs")
+    aliases: dict[str, str] = {}
+    if isinstance(raw_inputs, dict):
+        for raw_alias, raw_value in raw_inputs.items():
+            alias = str(raw_alias or "").strip()
+            path = _extract_design_input_path(raw_value)
+            if alias and path:
+                aliases[alias] = path
+        return aliases
+
+    if isinstance(raw_inputs, list):
+        for item in raw_inputs:
+            if not isinstance(item, dict):
+                continue
+            path = _extract_design_input_path(item)
+            if not path:
+                continue
+            for key in ("alias", "id", "key", "name", "role"):
+                alias = str(item.get(key) or "").strip()
+                if alias:
+                    aliases[alias] = path
+        return aliases
+
+    return aliases
+
+
+def _extract_design_input_path(value: Any) -> str:
+    """Extract a workspace-relative path from one design input value."""
+    if isinstance(value, str):
+        return value.strip()
+    if not isinstance(value, dict):
+        return ""
+    for key in ("path", "input_path", "file_path", "workspace_path"):
+        path = str(value.get(key) or "").strip()
+        if path:
+            return path
+    return ""
+
+
+def _strip_json_code_fence(text: str) -> str:
+    """Remove a surrounding JSON markdown code fence when present."""
+    stripped = str(text or "").strip()
+    if not stripped.startswith("```"):
+        return stripped
+
+    lines = stripped.splitlines()
+    if lines and lines[0].startswith("```"):
+        lines = lines[1:]
+    if lines and lines[-1].strip() == "```":
+        lines = lines[:-1]
+    return "\n".join(lines).strip()
 
 
 def _error_result(message: str) -> dict[str, Any]:

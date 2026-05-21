@@ -22,6 +22,9 @@ from src.productions.design.design_product_manager import (
     parse_form_answers,
     validate_question_form_schema,
 )
+from src.productions.design.design_product_manager.design_product_manager import (
+    DESIGN_PRODUCT_REQUEST_STATE_KEY,
+)
 from src.productions.design.design_product_manager.brief_form import (
     DESIGN_BRIEF_FORM_PENDING_TASK_STATE_KEY,
     DESIGN_BRIEF_FORM_STATE_KEY,
@@ -70,6 +73,8 @@ class DesignProductManagerTests(unittest.TestCase):
         self.assertIn("CodeGenerationExpert", manager.instruction)
         self.assertIn("default and preferred producer", manager.instruction)
         self.assertIn("ImageGenerationAgent output is normally an intermediate asset", manager.instruction)
+        self.assertIn("friendly aliases", manager.instruction)
+        self.assertIn("do not pass alias keys", manager.instruction)
         self.assertIn("Do not use `save_design_artifact` to create the main final HTML", manager.instruction)
         self.assertIn("register_design_delivery", manager.instruction)
         self.assertIn("HTML is the tool, not the medium", manager.instruction)
@@ -475,6 +480,44 @@ class DesignProductManagerTests(unittest.TestCase):
         )
         self.assertEqual(tool_context.state["design_product_generation"], expected_tool_result)
 
+    def test_invoke_design_expert_resolves_input_aliases(self) -> None:
+        manager = DesignProductManager()
+        manager._expert_agents = {"ImageUnderstandingAgent": object()}
+        tool_context = SimpleNamespace(
+            state={
+                DESIGN_PRODUCT_REQUEST_STATE_KEY: {
+                    "inputs": {
+                        "product_image": "generated/product-bear.png",
+                    }
+                }
+            }
+        )
+        expected_tool_result = {
+            "agent_name": "ImageUnderstandingAgent",
+            "status": "success",
+            "message": "analyzed",
+            "output_files": [],
+        }
+        mocked_dispatch = AsyncMock(
+            return_value=SimpleNamespace(tool_result=expected_tool_result)
+        )
+
+        with patch(
+            "src.productions.design.design_product_manager.design_product_manager.dispatch_expert_call",
+            new=mocked_dispatch,
+        ):
+            result = asyncio.run(
+                manager.invoke_design_expert(
+                    agent_name="ImageUnderstandingAgent",
+                    prompt='{"input_path":"product_image","mode":"all"}',
+                    tool_context=tool_context,
+                )
+            )
+
+        self.assertEqual(result, expected_tool_result)
+        forwarded_prompt = json.loads(mocked_dispatch.await_args.kwargs["prompt"])
+        self.assertEqual(forwarded_prompt["input_path"], "generated/product-bear.png")
+
     def test_invoke_design_code_generation_uses_private_agent(self) -> None:
         manager = DesignProductManager()
         tool_context = SimpleNamespace(
@@ -523,6 +566,45 @@ class DesignProductManagerTests(unittest.TestCase):
         )
         self.assertEqual(tool_context.state["design_product_generation"]["language"], "html")
         self.assertEqual(tool_context.state["new_files"][0]["source"], "design_code_generation_agent")
+
+    def test_invoke_design_code_generation_resolves_context_file_aliases(self) -> None:
+        manager = DesignProductManager()
+        tool_context = SimpleNamespace(
+            state={
+                DESIGN_PRODUCT_REQUEST_STATE_KEY: {
+                    "inputs": {
+                        "product_image": "generated/product-bear.png",
+                    }
+                }
+            }
+        )
+        expected_output = {
+            "status": "success",
+            "message": "Generated html code at generated/design-canvas.html.",
+            "output_path": "generated/design-canvas.html",
+            "output_files": [],
+            "language": "html",
+            "error_type": "",
+            "retryable": False,
+            "raw_error_summary": "",
+            "warnings": [],
+        }
+        mocked_generation = AsyncMock(return_value=expected_output)
+
+        with patch.object(DesignCodeGenerationAgent, "run_generation", new=mocked_generation):
+            result = asyncio.run(
+                manager.invoke_design_code_generation(
+                    prompt="Build a product page.",
+                    context_files=["product_image"],
+                    tool_context=tool_context,
+                )
+            )
+
+        self.assertEqual(result["status"], "success")
+        self.assertEqual(
+            mocked_generation.await_args.kwargs["context_files"],
+            ["generated/product-bear.png"],
+        )
 
     def test_invoke_design_code_generation_injects_selected_design_system_state(self) -> None:
         manager = DesignProductManager()
@@ -705,6 +787,94 @@ class DesignProductManagerTests(unittest.TestCase):
             "设计一个 AI 产品落地页。",
         )
         self.assertEqual(tool_context.state["final_file_paths"], [])
+
+    def test_run_product_request_preserves_dict_inputs_for_child_runner(self) -> None:
+        manager = DesignProductManager()
+        result_payload = {
+            "result_schema_version": DESIGN_PRODUCT_RESULT_SCHEMA_VERSION,
+            "status": "success",
+            "product_line": "design",
+            "message": "设计产物已完成。",
+            "final_file_paths": [],
+            "progress": [],
+            "active_skill": {},
+            "experts": [],
+            "expert_history": [],
+            "last_expert_result": {},
+            "code_generation_history": [],
+            "last_code_generation_result": {},
+            "generation": {},
+            "validation": [],
+            "output_files": [],
+        }
+        tool_context = SimpleNamespace(
+            state=State({"channel": "cli"}, {}),
+            _invocation_context=SimpleNamespace(user_id="user-1"),
+        )
+        captured = {}
+
+        class _FakeChildRunner:
+            def __init__(self, *, app_name, session_service) -> None:
+                self.app_name = app_name
+                self.session_service = session_service
+
+            async def run_async(self, *, user_id, session_id, new_message):
+                captured["message"] = new_message.parts[0].text
+                session = await self.session_service.get_session(
+                    app_name=self.app_name,
+                    user_id=user_id,
+                    session_id=session_id,
+                )
+                captured["request_inputs"] = session.state[DESIGN_PRODUCT_REQUEST_STATE_KEY]["inputs"]
+                await self.session_service.append_event(
+                    session,
+                    Event(
+                        author="unit_test",
+                        actions=EventActions(
+                            state_delta={
+                                "design_product_result": result_payload,
+                                "final_response": result_payload["message"],
+                                "final_file_paths": [],
+                            }
+                        ),
+                    ),
+                )
+                if False:
+                    yield Event(author="unit_test")
+
+            async def close(self) -> None:
+                pass
+
+        def _fake_build_child_runner(**kwargs):
+            return _FakeChildRunner(
+                app_name=kwargs["app_name"],
+                session_service=kwargs["session_service"],
+            )
+
+        inputs = {
+            "product_image": "generated/product-bear.png",
+            "model_glb": {
+                "path": "generated/product-bear.glb",
+                "kind": "3d_model",
+            },
+        }
+        with patch(
+            "src.productions.design.design_product_manager.design_product_manager._build_child_runner",
+            side_effect=_fake_build_child_runner,
+        ):
+            result = asyncio.run(
+                manager.run_product_request(
+                    task="设计一个产品售卖网页。",
+                    inputs=inputs,
+                    tool_context=tool_context,
+                )
+            )
+
+        self.assertEqual(result["status"], "success")
+        self.assertEqual(captured["request_inputs"], inputs)
+        self.assertIn('"product_image": "generated/product-bear.png"', captured["message"])
+        self.assertIn('"path": "generated/product-bear.glb"', captured["message"])
+        self.assertNotIn("['product_image'", captured["message"])
 
     def test_submitted_web_form_answers_clear_pending_brief_form_state(self) -> None:
         manager = DesignProductManager()

@@ -146,6 +146,8 @@ class OrchestratorTests(unittest.TestCase):
         self.assertIn("run_ppt_product", instruction)
         self.assertIn("PPT workflow routing hints", instruction)
         self.assertIn("prefer `run_ppt_product`", instruction)
+        self.assertIn("Do not default `output.route`", instruction)
+        self.assertIn("pass it through `inputs`", instruction)
         self.assertIn("run_page_product", instruction)
         self.assertIn("Page workflow routing hints", instruction)
         self.assertIn("content-first Page", instruction)
@@ -1307,6 +1309,88 @@ class OrchestratorCallbackTests(unittest.IsolatedAsyncioTestCase):
             session_id=orchestrator.sid,
         )
         self.assertEqual(session.state["final_file_paths"], [relative_path])
+
+    async def test_run_until_done_synthesizes_final_response_when_expert_output_exists(self) -> None:
+        session_service = InMemorySessionService()
+        artifact_service = InMemoryArtifactService()
+        orchestrator = Orchestrator(
+            session_service=session_service,
+            artifact_service=artifact_service,
+            expert_agents={},
+        )
+        orchestrator.uid = "user-1"
+        orchestrator.sid = "session-1"
+
+        with tempfile.TemporaryDirectory(dir=workspace_root()) as tmpdir:
+            image_path = Path(tmpdir) / "bear.png"
+            image_path.write_bytes(b"fake-image")
+            file_record = build_workspace_file_record(
+                image_path,
+                description="generated toy bear image",
+                source="expert",
+            )
+            relative_path = workspace_relative_path(image_path)
+
+            await session_service.create_session(
+                app_name=SYS_CONFIG.app_name,
+                user_id=orchestrator.uid,
+                session_id=orchestrator.sid,
+                state={
+                    "orchestration_events": [],
+                    "new_files": [file_record],
+                    "generated": [file_record],
+                    "generated_history": [],
+                    "uploaded": [],
+                    "uploaded_history": [],
+                    "files_history": [[file_record]],
+                    "current_output": {
+                        "status": "success",
+                        "message": (
+                            "ImageGenerationAgent has completed 1 image generation tasks: "
+                            "image generation task1 success, output file: bear.png"
+                        ),
+                        "output_files": [file_record],
+                    },
+                    "last_expert_result": {
+                        "agent_name": "ImageGenerationAgent",
+                        "status": "success",
+                        "message": (
+                            "ImageGenerationAgent has completed 1 image generation tasks: "
+                            "image generation task1 success, output file: bear.png"
+                        ),
+                        "output_files": [file_record],
+                    },
+                    "last_output_message": (
+                        "ImageGenerationAgent has completed 1 image generation tasks: "
+                        "image generation task1 success, output file: bear.png"
+                    ),
+                },
+            )
+
+            with patch.object(
+                orchestrator,
+                "run_agent_and_log_events",
+                new=AsyncMock(return_value=""),
+            ):
+                result = await orchestrator.run_until_done()
+
+        self.assertEqual(result["final_response"], "已完成，生成的文件见附件。")
+        self.assertEqual(result["final_file_paths"], [relative_path])
+
+        session = await session_service.get_session(
+            app_name=SYS_CONFIG.app_name,
+            user_id=orchestrator.uid,
+            session_id=orchestrator.sid,
+        )
+        self.assertEqual(session.state["final_response"], "已完成，生成的文件见附件。")
+        self.assertEqual(session.state["final_file_paths"], [relative_path])
+        self.assertEqual(
+            session.state[ORCHESTRATOR_FINAL_RESPONSE_OUTPUT_KEY],
+            {
+                "reply_text": "已完成，生成的文件见附件。",
+                "final_file_paths": [relative_path],
+            },
+        )
 
     async def test_run_until_done_requires_structured_final_response(self) -> None:
         session_service = InMemorySessionService()

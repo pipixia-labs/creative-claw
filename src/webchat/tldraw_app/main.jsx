@@ -76,16 +76,18 @@ function CreativeClawContextMenu({ onSubmitSketch, ...props }) {
       return;
     }
     try {
+      const referencedArtifact = selectedArtifactReference(editor);
+      if (referencedArtifact) {
+        await onSubmitSketch({
+          artifact: referencedArtifact,
+        });
+        return;
+      }
+
       const imageBlob = await exportSelectedShapesAsPng(editor);
       await onSubmitSketch({
         imageBlob,
         imageName: buildSketchFileName("selection.png"),
-      });
-      addToast({
-        id: "creative-claw-selection-attached",
-        title: "已添加到对话",
-        description: "选区已作为图片附件添加。",
-        severity: "success",
       });
     } catch (error) {
       addToast({
@@ -112,6 +114,42 @@ function CreativeClawContextMenu({ onSubmitSketch, ...props }) {
       <DefaultContextMenuContent />
     </DefaultContextMenu>
   );
+}
+
+function selectedArtifactReference(editor) {
+  const selectedIds = editor.getSelectedShapeIds();
+  if (selectedIds.length !== 1) {
+    return null;
+  }
+
+  const shape = editor.getShape(selectedIds[0]);
+  if (!shape || shape.type !== "image") {
+    return null;
+  }
+
+  const path = String(shape.meta?.creativeClawArtifactPath || "").trim();
+  if (!path) {
+    return null;
+  }
+
+  const asset = shape.props?.assetId && typeof editor.getAsset === "function" ? editor.getAsset(shape.props.assetId) : null;
+  return {
+    path,
+    url: String(shape.meta?.creativeClawArtifactUrl || shape.props?.url || "").trim(),
+    name: artifactNameFromPath(path, asset?.props?.name || shape.props?.altText || ""),
+    mimeType: String(asset?.props?.mimeType || "image/png"),
+  };
+}
+
+function artifactNameFromPath(path, fallbackName) {
+  const fallback = String(fallbackName || "").trim();
+  if (fallback) {
+    return fallback;
+  }
+  return String(path || "")
+    .split("/")
+    .filter(Boolean)
+    .pop() || "artifact";
 }
 
 function CreativeClawToolbar() {

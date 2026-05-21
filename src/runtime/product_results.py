@@ -16,8 +16,11 @@ _TERMINAL_PRODUCT_ERROR_STATUSES = {
     "error",
     "failed",
     "failure",
+    "generation_failed",
     "incomplete",
     "invalid",
+    "needs_clarification",
+    "route_not_implemented",
     "timed_out",
     "timeout",
 }

@@ -7,6 +7,7 @@ import html as html_lib
 import inspect
 import json
 import re
+import shutil
 import xml.etree.ElementTree as ET
 from pathlib import Path
 from typing import Any
@@ -78,7 +79,9 @@ from src.runtime.workspace import (
     resolve_workspace_path,
     stage_attachment_into_workspace,
     workspace_relative_path,
+    workspace_root,
 )
+from src.tools.builtin_tools import BuiltinToolbox
 
 PPT_CONFIRMED_REQUIREMENT_STATE_KEY = "ppt_confirmed_requirement"
 PPT_PRODUCT_RESULT_STATE_KEY = "ppt_product_result"
@@ -99,6 +102,20 @@ PPT_PRIVATE_SKILL_BUILD_STATE_KEY = "ppt_private_skill_build"
 PPT_PRIVATE_SKILL_MASKED_HTML_COUNT_STATE_KEY = "ppt_private_skill_masked_html_content_count"
 PPT_PRIVATE_SKILL_HTML_CONTENT_MASK_THRESHOLD = 8000
 PPT_PRIVATE_SKILL_HTML_SAVE_TOOL_NAME = "save_ppt_private_skill_html"
+PPT_PRIVATE_SKILL_FORWARD_STATE_KEYS = (
+    PPT_PRIVATE_SKILL_BUILD_STATE_KEY,
+    PPT_SVG_EXECUTION_PLAN_STATE_KEY,
+    PPT_SVG_ROUTE_GENERATED_PAGES_KEY,
+    "generated",
+    "new_files",
+    "files_history",
+    "final_file_paths",
+    "current_output",
+    "ppt_svg_quality_report",
+    "ppt_svg_pptx_export",
+    "ppt_route_build",
+)
+WorkspacePptxSnapshot = dict[str, tuple[int, int]]
 
 
 class PptProductManager(LlmAgent):
@@ -108,6 +125,7 @@ class PptProductManager(LlmAgent):
     _content_planner: PptContentPlanner = PrivateAttr()
     _route_registry: dict[str, PptRouteRegistration] = PrivateAttr(default_factory=dict)
     _skill_registry: ProductPptSkillRegistry = PrivateAttr()
+    _toolbox: BuiltinToolbox = PrivateAttr()
     _product_expert_agents: dict[str, BaseAgent] = PrivateAttr(default_factory=dict)
     _skill_runtime_expert_agents: dict[str, BaseAgent] = PrivateAttr(default_factory=dict)
     _skill_runtime_app_name: str = PrivateAttr(default="creative_claw")
@@ -142,16 +160,27 @@ class PptProductManager(LlmAgent):
             project_root=self.project_root,
             skills_dir=skills_dir,
         )
+        self._toolbox = BuiltinToolbox()
         self._product_expert_agents = self.build_product_expert_agents()
         if provided_tools is None:
             self.tools = [
                 self.list_product_ppt_skills,
                 self.read_product_ppt_skill,
                 self.read_product_ppt_skill_file,
+                self.list_session_files,
+                self.list_dir,
+                self.glob,
+                self.grep,
+                self.read_file,
+                self.write_file,
+                self.edit_file,
+                self.exec_command,
+                self.process_session,
                 self.list_ppt_experts,
                 self.invoke_ppt_expert,
                 self.save_ppt_system_selection,
                 self.save_ppt_private_skill_html,
+                self.save_ppt_private_skill_pptx,
                 self.save_ppt_design_strategy,
                 self.save_ppt_svg_execution_plan,
                 self.read_ppt_svg_execution_plan,
@@ -213,14 +242,22 @@ Own PPT and PowerPoint production end to end. If the requested final deliverable
 - Do not ask the orchestrator to read PPT private skills for you.
 - Before committing to a delivery system, run a PPT system-selection step. Base the decision on the user's actual task, available private skill names/descriptions/content, and registered built-in routes.
 - If the user explicitly names a PPT system, route, skill, template workflow, or output method, follow that choice when it is available and report clearly when it is not implemented.
-- If the user does not specify the PPT system, freely choose between the private PPT skill workflow and the built-in HTML route based on task fit. This selection policy is intentionally flexible for later testing and optimization.
+- If the user does not specify the PPT system and uploaded input includes PPTX/PPTM/POTX/POTM, choose the private `pptx` skill when available, use route `xml`, and produce an editable `.pptx` by modifying or creating from that PowerPoint input.
+- If the user does not specify the PPT system and there is no PowerPoint input, choose between the built-in HTML route and the built-in SVG route based on task fit.
 - Do not rely on hard-coded keyword-to-skill rules. Inspect the available private skills and choose from their actual metadata and content.
 
 # Private skill execution
 - When a private product-ppt skill is selected, you run that skill workflow directly as PptProductManager.
 - Product-level PPT experts are registered by PptProductManager; for example, `PptHtmlPageGenerationExpert` generates editable PPT-friendly HTML slide fragments, `PptDesignStrategyExpert` prepares generic design strategy, and `PptSvgDeckExecutorExpert` generates SVG pages.
-- Let the selected skill drive the execution order: read its referenced files, call available PPT product tools, call `invoke_ppt_expert` when it needs a registered expert, and save/export the final artifact with the skill-appropriate product tool.
+- Let the selected skill drive the execution order: read its referenced files, inspect session files, call workspace file/search/command tools, call available PPT product tools, call `invoke_ppt_expert` when it needs a registered expert, and save/export the final artifact with the skill-appropriate product tool.
+- General workspace tools are available to private skills: list session files, list/glob/grep/read/write/edit files, run commands, and inspect background command sessions. Paths are workspace-relative unless a tool returns otherwise.
+- Selected private skill resources are staged into the runtime workspace before execution. Prefer the staged skill path from state when running bundled scripts.
 - SVG route tools are available for skill workflows: save design strategy, save/read SVG execution plan, save SVG pages, check SVG quality, and export SVG pages to PPTX. Saved SVG pages must obey the native converter subset in the SVG execution plan. When `check_ppt_svg_quality` or `export_ppt_svg_to_pptx` should use the pages already saved in state, pass an empty list for `svg_page_paths`.
+- PPTX private skills must register the final `.pptx` with `save_ppt_private_skill_pptx` immediately after the file is generated and verified. Do not wait for optional rendering, visual QA, or expert checks before registering the deliverable. Do not call `save_ppt_private_skill_html` for a PPTX/template workflow unless the selected skill explicitly asks for an HTML artifact.
+- When the user uploaded or referenced a PPTX/POTX template and the selected private skill is `pptx`, follow a template-based PPTX workflow: locate the uploaded template, analyze thumbnails/text/XML as preparation, choose reusable slides or layouts for the `DeckContentPlan`, create or edit a new `.pptx`, verify the file exists, then call `save_ppt_private_skill_pptx`.
+- Template analysis artifacts such as thumbnails, Markdown extraction, XML inspection, or layout notes are not final deliverables. Do not stop after `thumbnail.py`, `markitdown`, or template inspection when a PPTX deliverable is requested.
+- Optional QA, screenshot rendering, or expert checks may add warnings, but they must not block delivery after a valid `.pptx` has been registered.
+- If a template-based PPTX workflow cannot produce a deck, return a concrete blocker such as missing template path, template parse failure, command failure, missing dependency, write failure, or unsupported template structure.
 - Do not delegate selected private skill execution to a separate private execution agent.
 - Do not invent facts, citations, local absolute paths, unavailable resources, or generated file paths.
 
@@ -289,8 +326,8 @@ Return structured status, current phase, selected route, warnings, next actions,
                 "Always call save_ppt_confirmed_requirement_json with one argument named requirement_json.\n"
                 "The JSON must include route, request_brief, topic, audience, scenario, slide_count_policy, language, aspect_ratio, output_format, template_requirement, style_requirement, editability_requirement, and confirmed_by_user.\n"
                 "Creative Claw has multiple PPT systems: private product-ppt skills and the built-in HTML route.\n"
-                "If the user explicitly names a route, skill, template workflow, or PPT system, preserve that choice in the normalized requirement when the schema can represent it.\n"
-                "If the user does not specify the system, keep route normalization conservative; the separate PPT system-selection agent chooses the delivery system from task fit.\n"
+                "Route choice policy: user-specified route/system wins; otherwise, if source_inputs include PPTX/PPTM/POTX/POTM, set route `xml` for a template-based PPTX workflow; otherwise keep the conservative fallback route and let the separate PPT system-selection agent choose HTML or SVG from task fit.\n"
+                "Do not infer routes from keyword matching. Natural-language words like template, svg, html, or xml are not enough unless the user is explicitly choosing the system or route.\n"
                 "If the user says 受众为/受众设置为, write that value to audience. If the user says 场景为/场景设置为, write that value to scenario.\n"
                 "For Chinese group meeting requests, scenario should be `组会`.\n"
                 "Do not invent source file paths or generated artifacts."
@@ -316,8 +353,7 @@ Return structured status, current phase, selected route, warnings, next actions,
                 "private skill names/descriptions, and any skill content you read.\n"
                 "If the user explicitly asks for an available private skill, choose system_type `private_skill` and its exact folder name.\n"
                 "If the user explicitly asks for a built-in route, choose system_type `built_in_route` and the route when available.\n"
-                "If the user uploads or references a PowerPoint template and asks to apply or preserve it, prefer the private `pptx` skill when available; do not select the built-in XML route until it is implemented.\n"
-                "If nothing is explicit, choose freely based on task fit.\n"
+                "Route choice policy: user-specified route/system wins; otherwise, if source_inputs include PPTX/PPTM/POTX/POTM, choose the private `pptx` skill when available, route `xml`, and output_format `pptx`; otherwise choose built-in `html` or `svg` from task fit.\n"
                 "Private skills may produce a final single-file HTML presentation or an editable PPTX, depending on the skill.\n"
                 "When ready, call save_ppt_system_selection with one argument named selection_json.\n"
                 "The JSON must include system_type, route, skill_name, output_format, and reason."
@@ -1508,8 +1544,9 @@ Return structured status, current phase, selected route, warnings, next actions,
         ):
             update["aspect_ratio"] = aspect_ratio
 
-        route, route_confirmed = self._select_route(clean_response, output)
-        if route_confirmed:
+        explicit_route = self._select_explicit_route(output)
+        if explicit_route is not None:
+            route, route_confirmed = explicit_route
             update["route"] = route
             update["confirmed_by_user"] = True
             update["template_requirement"] = self._infer_template_requirement(
@@ -1857,9 +1894,11 @@ Return structured status, current phase, selected route, warnings, next actions,
         )
         skill_name = str(selection.get("skill_name") or "").strip()
         skill_content = self.skill_registry.read_skill(skill_name)
+        skill_runtime_path = self._stage_private_skill_runtime_files(skill_name, tool_context.state)
         tool_context.state[PPT_PRODUCT_ACTIVE_SKILL_STATE_KEY] = {
             "name": skill_name,
             "content": skill_content,
+            "runtime_path": skill_runtime_path,
         }
 
         if not hasattr(tool_context, "_invocation_context"):
@@ -1868,6 +1907,12 @@ Return structured status, current phase, selected route, warnings, next actions,
                 "message": "PptProductManager skill runner skipped because no ADK invocation context was available.",
                 "source": "deterministic_fallback",
             }
+            if not _private_skill_allows_html_fallback(requirement, selection):
+                return _build_private_skill_failure(
+                    skill_name=skill_name,
+                    message=tool_context.state["ppt_private_skill_execution_output"]["message"],
+                    output_format=str(selection.get("output_format") or requirement.output_format or "pptx"),
+                )
             return self.save_ppt_private_skill_html(
                 file_name="index.html",
                 html_content=self._build_private_skill_fallback_html(
@@ -1894,6 +1939,7 @@ Return structured status, current phase, selected route, warnings, next actions,
             invocation_context=invocation_context,
         )
         child_state = _copy_state(tool_context.state)
+        self._ensure_private_skill_source_files_visible(child_state, requirement)
         child_state["ppt_product_manager_skill_run_base"] = {
             "confirmed_requirement": requirement.model_dump(mode="json"),
             "deck_content_plan": content_plan.model_dump(mode="json"),
@@ -1901,6 +1947,7 @@ Return structured status, current phase, selected route, warnings, next actions,
             "active_skill": {
                 "name": skill_name,
                 "content": skill_content,
+                "runtime_path": skill_runtime_path,
             },
             "available_experts": sorted((expert_agents or {}).keys()),
         }
@@ -1911,6 +1958,7 @@ Return structured status, current phase, selected route, warnings, next actions,
             "active_skill": {
                 "name": skill_name,
                 "content": skill_content,
+                "runtime_path": skill_runtime_path,
             },
         }
 
@@ -1922,7 +1970,11 @@ Return structured status, current phase, selected route, warnings, next actions,
         self._skill_runtime_expert_agents = dict(expert_agents or {})
         self._skill_runtime_app_name = app_name
         self._skill_runtime_artifact_service = artifact_service
+        final_state: dict[str, Any] | None = None
+        child_session: Any | None = None
+        pptx_snapshot: WorkspacePptxSnapshot | None = None
         try:
+            pptx_snapshot = _snapshot_workspace_pptx_files()
             child_session = await child_session_service.create_session(
                 app_name=app_name,
                 user_id=invocation_context.user_id,
@@ -1953,33 +2005,18 @@ Return structured status, current phase, selected route, warnings, next actions,
                 session_id=child_session.id,
             )
             final_state = final_session.state if final_session is not None else child_state
-            private_build = self._resolve_private_skill_build_from_state(final_state, skill_name=skill_name)
+            private_build = self._resolve_or_recover_private_skill_build(
+                final_state,
+                skill_name=skill_name,
+                before_snapshot=pptx_snapshot,
+            )
             if not str(private_build.get("output_path") or "").strip():
                 raise ValueError("PptProductManager did not save a private skill presentation artifact.")
-            for key in (
-                PPT_PRIVATE_SKILL_BUILD_STATE_KEY,
-                PPT_SVG_EXECUTION_PLAN_STATE_KEY,
-                PPT_SVG_ROUTE_GENERATED_PAGES_KEY,
-                "generated",
-                "new_files",
-                "files_history",
-                "final_file_paths",
-                "current_output",
-                "ppt_svg_quality_report",
-                "ppt_svg_pptx_export",
-                "ppt_route_build",
-            ):
-                if key in final_state:
-                    tool_context.state[key] = copy.deepcopy(final_state[key])
-            tool_context.state[PPT_PRIVATE_SKILL_BUILD_STATE_KEY] = copy.deepcopy(private_build)
-            if final_state.get("ppt_private_skill_execution_agent_message"):
-                tool_context.state["ppt_private_skill_execution_agent_message"] = str(
-                    final_state.get("ppt_private_skill_execution_agent_message")
-                )
-            if final_state.get("ppt_skill_last_expert_result"):
-                tool_context.state["ppt_skill_last_expert_result"] = copy.deepcopy(
-                    final_state["ppt_skill_last_expert_result"]
-                )
+            self._copy_private_skill_execution_state(
+                parent_state=tool_context.state,
+                child_state=final_state,
+                private_build=private_build,
+            )
             tool_context.state["ppt_private_skill_execution_output"] = {
                 "status": "success",
                 "message": "PptProductManager ran the selected private skill and saved the artifact.",
@@ -1987,11 +2024,60 @@ Return structured status, current phase, selected route, warnings, next actions,
             }
             return private_build
         except Exception as exc:
+            if final_state is None and child_session is not None:
+                try:
+                    final_session = await child_session_service.get_session(
+                        app_name=app_name,
+                        user_id=child_session.user_id,
+                        session_id=child_session.id,
+                    )
+                    final_state = final_session.state if final_session is not None else child_state
+                except Exception:
+                    final_state = child_state
+            if isinstance(final_state, dict):
+                private_build = self._resolve_or_recover_private_skill_build(
+                    final_state,
+                    skill_name=skill_name,
+                    before_snapshot=pptx_snapshot,
+                )
+                if str(private_build.get("output_path") or "").strip():
+                    private_build = copy.deepcopy(private_build)
+                    warning = (
+                        "PptProductManager recovered a generated private-skill PPTX after "
+                        f"a later execution error: {type(exc).__name__}: {exc}"
+                    )
+                    private_build["execution_warning"] = warning
+                    self._copy_private_skill_execution_state(
+                        parent_state=tool_context.state,
+                        child_state=final_state,
+                        private_build=private_build,
+                    )
+                    tool_context.state["ppt_private_skill_execution_output"] = {
+                        "status": "success_with_warning",
+                        "message": warning,
+                        "source": "ppt_product_manager_recovery",
+                    }
+                    tool_context.state["ppt_private_skill_execution_warning"] = warning
+                    return private_build
+            if isinstance(final_state, dict):
+                for key in (
+                    "ppt_private_skill_execution_agent_message",
+                    "ppt_skill_last_expert_result",
+                    "active_product_ppt_skill_file",
+                ):
+                    if key in final_state:
+                        tool_context.state[key] = copy.deepcopy(final_state[key])
             tool_context.state["ppt_private_skill_execution_output"] = {
                 "status": "fallback",
                 "message": f"PptProductManager private skill fallback: {type(exc).__name__}: {exc}",
                 "source": "deterministic_fallback",
             }
+            if not _private_skill_allows_html_fallback(requirement, selection):
+                return _build_private_skill_failure(
+                    skill_name=skill_name,
+                    message=tool_context.state["ppt_private_skill_execution_output"]["message"],
+                    output_format=str(selection.get("output_format") or requirement.output_format or "pptx"),
+                )
             return self.save_ppt_private_skill_html(
                 file_name="index.html",
                 html_content=self._build_private_skill_fallback_html(
@@ -2011,6 +2097,47 @@ Return structured status, current phase, selected route, warnings, next actions,
             ) = previous_runtime
             await child_runner.close()
 
+    @classmethod
+    def _resolve_or_recover_private_skill_build(
+        cls,
+        state: dict[str, Any],
+        *,
+        skill_name: str,
+        before_snapshot: WorkspacePptxSnapshot | None,
+    ) -> dict[str, Any]:
+        """Resolve a registered private-skill artifact or recover a generated PPTX."""
+        private_build = cls._resolve_private_skill_build_from_state(state, skill_name=skill_name)
+        if str(private_build.get("output_path") or "").strip():
+            return private_build
+        if before_snapshot is None:
+            return private_build
+        recovered_build = cls._recover_unregistered_private_skill_pptx(
+            state,
+            skill_name=skill_name,
+            before_snapshot=before_snapshot,
+        )
+        return recovered_build or private_build
+
+    @staticmethod
+    def _copy_private_skill_execution_state(
+        *,
+        parent_state: Any,
+        child_state: dict[str, Any],
+        private_build: dict[str, Any],
+    ) -> None:
+        """Copy the private-skill delivery state from the child run to the parent run."""
+        for key in PPT_PRIVATE_SKILL_FORWARD_STATE_KEYS:
+            if key in child_state:
+                parent_state[key] = copy.deepcopy(child_state[key])
+        parent_state[PPT_PRIVATE_SKILL_BUILD_STATE_KEY] = copy.deepcopy(private_build)
+        for key in (
+            "ppt_private_skill_execution_agent_message",
+            "ppt_skill_last_expert_result",
+            "active_product_ppt_skill_file",
+        ):
+            if key in child_state:
+                parent_state[key] = copy.deepcopy(child_state[key])
+
     def _build_private_skill_delivery_result(
         self,
         *,
@@ -2026,6 +2153,7 @@ Return structured status, current phase, selected route, warnings, next actions,
         artifact_type = str(private_build.get("artifact_type") or "").strip() or ("pptx" if pptx_path else "html")
         output_files = list(private_build.get("output_files") or [])
         status = "success" if output_path else "generation_failed"
+        execution_warning = str(private_build.get("execution_warning") or "").strip()
         private_skill_warning = (
             "Private skill delivered an editable PPTX through the SVG native DrawingML route."
             if artifact_type == "pptx"
@@ -2052,6 +2180,7 @@ Return structured status, current phase, selected route, warnings, next actions,
             warnings=[
                 *list(requirement.source_understanding.extraction_warnings),
                 private_skill_warning,
+                *([execution_warning] if execution_warning else []),
             ],
             next_actions=(
                 ["Review the generated private-skill presentation artifact."]
@@ -2069,9 +2198,18 @@ Return structured status, current phase, selected route, warnings, next actions,
         """Return the final artifact saved by a private PPT skill run."""
         private_build = dict(state.get(PPT_PRIVATE_SKILL_BUILD_STATE_KEY) or {})
         if str(private_build.get("output_path") or "").strip():
-            private_build.setdefault("artifact_type", "html")
-            private_build.setdefault("output_format", "html")
-            private_build.setdefault("source", "save_ppt_private_skill_html")
+            output_path = str(private_build.get("output_path") or "").strip()
+            is_pptx = output_path.lower().endswith(".pptx") or str(
+                private_build.get("output_format") or ""
+            ).strip().lower() == "pptx"
+            private_build.setdefault("artifact_type", "pptx" if is_pptx else "html")
+            private_build.setdefault("output_format", "pptx" if is_pptx else "html")
+            private_build.setdefault(
+                "source",
+                "save_ppt_private_skill_pptx" if is_pptx else "save_ppt_private_skill_html",
+            )
+            if is_pptx:
+                private_build.setdefault("pptx_path", output_path)
             return private_build
 
         svg_export = state.get("ppt_svg_pptx_export") or {}
@@ -2109,6 +2247,44 @@ Return structured status, current phase, selected route, warnings, next actions,
                 }
 
         return {}
+
+    @classmethod
+    def _recover_unregistered_private_skill_pptx(
+        cls,
+        state: dict[str, Any],
+        *,
+        skill_name: str,
+        before_snapshot: WorkspacePptxSnapshot,
+    ) -> dict[str, Any]:
+        """Register a PPTX generated by a private skill that forgot the save tool."""
+        source_path = _select_new_or_modified_workspace_pptx(state, before_snapshot=before_snapshot)
+        if source_path is None:
+            return {}
+
+        output_dir = cls._build_private_skill_output_dir(state)
+        output_path = _copy_pptx_to_private_skill_output(source_path, output_dir)
+        relative_path = workspace_relative_path(output_path)
+        output_files = cls._record_output_files(
+            state,
+            [relative_path],
+            description=f"Private PPT skill `{skill_name}` recovered PPTX artifact.",
+            final_file_paths=[relative_path],
+        )
+        result = {
+            "status": "success",
+            "message": f"Private PPT skill `{skill_name}` generated a PPTX artifact.",
+            "artifact_type": "pptx",
+            "output_format": "pptx",
+            "source": "private_skill_pptx_recovery",
+            "skill_name": str(skill_name or "").strip(),
+            "output_path": relative_path,
+            "pptx_path": relative_path,
+            "output_files": output_files,
+            "recovered_from_path": workspace_relative_path(source_path),
+        }
+        state[PPT_PRIVATE_SKILL_BUILD_STATE_KEY] = result
+        state["current_output"] = result
+        return result
 
     def _persist_system_selection(
         self,
@@ -2200,7 +2376,8 @@ Return structured status, current phase, selected route, warnings, next actions,
         route = requirement.route if requirement.route in self._route_registry else "html"
         template = requirement.template_requirement
         if (
-            template.use_template
+            route == "xml"
+            and template.use_template
             and template.template_source == "user"
             and any(skill.name == "pptx" for skill in self.skill_registry.list_skills())
         ):
@@ -2438,6 +2615,167 @@ Return structured status, current phase, selected route, warnings, next actions,
             **payload,
         }
 
+    def list_session_files(
+        self,
+        section: str = "all",
+        tool_context: ToolContext | None = None,
+    ) -> dict[str, Any]:
+        """List workspace file records already tracked in the current PPT session."""
+        if tool_context is None:
+            return {
+                "status": "error",
+                "message": "list_session_files requires tool_context.",
+            }
+        normalized_section = str(section or "all").strip().lower() or "all"
+        state = tool_context.state
+        current_uploaded = list(state.get("uploaded") or state.get("input_files") or [])
+        uploaded_history = list(state.get("uploaded_history") or [])
+        uploaded = current_uploaded or _latest_uploaded_files_from_history(uploaded_history)
+        generated = list(state.get("generated") or [])
+        generated_history = list(state.get("generated_history") or [])
+        files_history = list(state.get("files_history") or [])
+        latest_output_files = _latest_generated_files_from_state(state)
+        payload_by_section = {
+            "uploaded": {"uploaded": uploaded},
+            "uploaded_history": {"uploaded_history": uploaded_history},
+            "generated": {"generated": generated},
+            "generated_history": {"generated_history": generated_history},
+            "input": {"input_files": uploaded},
+            "new": {"new_files": list(state.get("new_files") or [])},
+            "latest_output": {"latest_output_files": latest_output_files},
+            "history": {"files_history": files_history},
+            "all": {
+                "uploaded": uploaded,
+                "uploaded_history": uploaded_history,
+                "generated": generated,
+                "generated_history": generated_history,
+                "input_files": uploaded,
+                "new_files": list(state.get("new_files") or []),
+                "latest_output_files": latest_output_files,
+                "files_history": files_history,
+            },
+        }
+        if normalized_section not in payload_by_section:
+            allowed = ", ".join(payload_by_section)
+            return {
+                "status": "error",
+                "message": f"Unsupported section `{section}`. Allowed: {allowed}",
+            }
+        return {
+            "status": "success",
+            "section": normalized_section,
+            **payload_by_section[normalized_section],
+        }
+
+    def list_dir(self, path: str = ".", tool_context: ToolContext | None = None) -> str:
+        """List one workspace directory for a private PPT skill run."""
+        return self._toolbox.list_dir(path)
+
+    def glob(
+        self,
+        pattern: str,
+        path: str = ".",
+        max_results: int = 200,
+        entry_type: str = "files",
+        tool_context: ToolContext | None = None,
+    ) -> str:
+        """Find workspace files or directories matching a glob pattern."""
+        return self._toolbox.glob(
+            pattern,
+            path=path,
+            max_results=max_results,
+            entry_type=entry_type,
+        )
+
+    def grep(
+        self,
+        pattern: str,
+        path: str = ".",
+        glob_pattern: str | None = None,
+        case_insensitive: bool = False,
+        fixed_strings: bool = False,
+        output_mode: str = "files_with_matches",
+        context_before: int = 0,
+        context_after: int = 0,
+        max_results: int = 100,
+        tool_context: ToolContext | None = None,
+    ) -> str:
+        """Search workspace text files for a private PPT skill run."""
+        return self._toolbox.grep(
+            pattern,
+            path=path,
+            glob_pattern=glob_pattern,
+            case_insensitive=case_insensitive,
+            fixed_strings=fixed_strings,
+            output_mode=output_mode,
+            context_before=context_before,
+            context_after=context_after,
+            max_results=max_results,
+        )
+
+    def read_file(self, path: str, tool_context: ToolContext | None = None) -> str:
+        """Read one UTF-8 text file inside the runtime workspace."""
+        return self._toolbox.read_file(path)
+
+    def write_file(
+        self,
+        path: str,
+        content: str,
+        tool_context: ToolContext | None = None,
+    ) -> str:
+        """Write one UTF-8 text file inside the runtime workspace."""
+        return self._toolbox.write_file(path, content)
+
+    def edit_file(
+        self,
+        path: str,
+        old_text: str,
+        new_text: str,
+        tool_context: ToolContext | None = None,
+    ) -> str:
+        """Replace one exact text occurrence inside a workspace file."""
+        return self._toolbox.edit_file(path, old_text, new_text)
+
+    def exec_command(
+        self,
+        command: str,
+        working_dir: str | None = None,
+        timeout: int = 60,
+        background: bool = False,
+        yield_ms: int = 1000,
+        tool_context: ToolContext | None = None,
+    ) -> str:
+        """Run one workspace-scoped shell command for a private PPT skill."""
+        return self._toolbox.exec_command(
+            command,
+            working_dir=working_dir,
+            timeout=timeout,
+            background=background,
+            yield_ms=yield_ms,
+            scope_key=self._resolve_tool_context_session_id(tool_context),
+        )
+
+    def process_session(
+        self,
+        action: str = "list",
+        session_id: str | None = None,
+        input_text: str = "",
+        timeout_ms: int = 0,
+        offset: int = 0,
+        limit: int = 200,
+        tool_context: ToolContext | None = None,
+    ) -> str:
+        """Inspect or manage background command sessions for a private PPT skill."""
+        return self._toolbox.process_session(
+            action=action,
+            session_id=session_id,
+            input_text=input_text,
+            timeout_ms=timeout_ms,
+            offset=offset,
+            limit=limit,
+            scope_key=self._resolve_tool_context_session_id(tool_context),
+        )
+
     def list_ppt_experts(self, tool_context: ToolContext) -> dict[str, Any]:
         """List expert agents available to the current PPT skill run."""
         available_experts = self._skill_runtime_expert_agents or self._product_expert_agents
@@ -2491,14 +2829,26 @@ Return structured status, current phase, selected route, warnings, next actions,
                 artifact_service=artifact_service,
             )
 
-        invocation = await dispatch_expert_call(
-            agent_name=clean_agent_name,
-            prompt=str(prompt or ""),
-            tool_context=tool_context,
-            expert_agents=available_experts,
-            app_name=app_name,
-            artifact_service=artifact_service,
-        )
+        try:
+            invocation = await dispatch_expert_call(
+                agent_name=clean_agent_name,
+                prompt=str(prompt or ""),
+                tool_context=tool_context,
+                expert_agents=available_experts,
+                app_name=app_name,
+                artifact_service=artifact_service,
+            )
+        except Exception as exc:
+            payload = {
+                "status": "error",
+                "agent_name": clean_agent_name,
+                "message": f"{type(exc).__name__}: {exc}",
+                "current_output": {},
+                "tool_result": {},
+                "output_files": [],
+            }
+            tool_context.state["ppt_skill_last_expert_result"] = payload
+            return payload
         current_output = copy.deepcopy(invocation.current_output)
         if not isinstance(current_output, dict):
             current_output = {}
@@ -2641,7 +2991,65 @@ Return structured status, current phase, selected route, warnings, next actions,
         result = {
             "status": "success",
             "message": f"Saved private PPT skill HTML deck at {relative_path}.",
+            "artifact_type": "html",
+            "output_format": "html",
+            "source": "save_ppt_private_skill_html",
             "output_path": relative_path,
+            "output_files": output_files,
+        }
+        tool_context.state[PPT_PRIVATE_SKILL_BUILD_STATE_KEY] = result
+        tool_context.state["current_output"] = result
+        return result
+
+    def save_ppt_private_skill_pptx(
+        self,
+        pptx_path: str,
+        description: str,
+        tool_context: ToolContext,
+    ) -> dict[str, Any]:
+        """Register one private-skill PPTX artifact as the final PPT delivery."""
+        clean_path = str(pptx_path or "").strip()
+        if not clean_path:
+            return {
+                "status": "error",
+                "message": "save_ppt_private_skill_pptx requires pptx_path.",
+            }
+        if not clean_path.lower().endswith(".pptx"):
+            return {
+                "status": "error",
+                "message": "save_ppt_private_skill_pptx only accepts .pptx files.",
+            }
+        try:
+            resolved_path = resolve_workspace_path(clean_path)
+        except Exception as exc:
+            return {
+                "status": "error",
+                "message": f"PPTX path must stay inside the runtime workspace: {exc}",
+            }
+        if not resolved_path.is_file():
+            return {
+                "status": "error",
+                "message": f"PPTX file does not exist: {clean_path}",
+            }
+
+        relative_path = workspace_relative_path(resolved_path)
+        output_files = self._record_output_files(
+            tool_context.state,
+            [relative_path],
+            description=(
+                str(description or "").strip()
+                or "PPT product private skill PPTX artifact."
+            ),
+            final_file_paths=[relative_path],
+        )
+        result = {
+            "status": "success",
+            "message": f"Registered private PPT skill PPTX at {relative_path}.",
+            "artifact_type": "pptx",
+            "output_format": "pptx",
+            "source": "save_ppt_private_skill_pptx",
+            "output_path": relative_path,
+            "pptx_path": relative_path,
             "output_files": output_files,
         }
         tool_context.state[PPT_PRIVATE_SKILL_BUILD_STATE_KEY] = result
@@ -2995,13 +3403,13 @@ Return structured status, current phase, selected route, warnings, next actions,
             phase=f"{requirement.route}_route_dispatch",
             message=(
                 f"The {requirement.route.upper()} route is acknowledged as {workflow_name} "
-                "but not implemented yet. The current MVP supports the HTML route first."
+                "but not implemented yet. Use an implemented built-in route or a matching private PPT skill."
             ),
             selected_route=requirement.route,
             confirmed_requirement=requirement,
             delivery_manifest=DeliveryManifest(),
-            warnings=[f"{requirement.route.upper()} route is deferred after HTML route MVP."],
-            next_actions=["Use the HTML route now, or implement the requested route next."],
+            warnings=[f"{requirement.route.upper()} route is registered but not available through built-in dispatch."],
+            next_actions=["Use an implemented route or a matching private PPT skill for this request."],
         )
 
     @staticmethod
@@ -3102,6 +3510,44 @@ Return structured status, current phase, selected route, warnings, next actions,
         return output_dir
 
     @staticmethod
+    def _resolve_tool_context_session_id(tool_context: ToolContext | None) -> str:
+        """Safely extract one session id from a tool context-like object."""
+        if tool_context is None:
+            return ""
+        session = getattr(tool_context, "session", None)
+        session_id = str(getattr(session, "id", "") or "").strip()
+        if session_id:
+            return session_id
+        state = getattr(tool_context, "state", {}) or {}
+        return str(state.get("sid") or "").strip()
+
+    def _stage_private_skill_runtime_files(self, skill_name: str, state: dict[str, Any]) -> str:
+        """Copy one private product-ppt skill folder into the runtime workspace."""
+        skill_root = self._resolve_private_skill_root(skill_name)
+        output_dir = self._build_private_skill_output_dir(state)
+        runtime_root = output_dir / "skill_runtime" / Path(skill_name).name
+        if runtime_root.exists():
+            shutil.rmtree(runtime_root)
+        runtime_root.parent.mkdir(parents=True, exist_ok=True)
+        shutil.copytree(
+            skill_root,
+            runtime_root,
+            ignore=shutil.ignore_patterns("__pycache__", "*.pyc", ".DS_Store"),
+        )
+        relative_path = workspace_relative_path(runtime_root)
+        state["ppt_private_skill_output_dir"] = workspace_relative_path(output_dir)
+        state["ppt_private_skill_runtime_path"] = relative_path
+        return relative_path
+
+    def _resolve_private_skill_root(self, skill_name: str) -> Path:
+        """Return the project-local root directory for one private product-ppt skill."""
+        clean_name = str(skill_name or "").strip()
+        for skill in self.skill_registry.list_skills():
+            if skill.name == clean_name:
+                return skill.path.parent.resolve()
+        raise ValueError(f"Product PPT skill '{clean_name}' not found.")
+
+    @staticmethod
     def _record_output_files(
         state: dict[str, Any],
         paths: list[str],
@@ -3191,6 +3637,81 @@ Return structured status, current phase, selected route, warnings, next actions,
                 "path": workspace_relative_path(staged_path),
             }
         )
+
+    @classmethod
+    def _ensure_private_skill_source_files_visible(
+        cls,
+        state: dict[str, Any],
+        requirement: ConfirmedRequirement,
+    ) -> list[dict[str, Any]]:
+        """Expose confirmed source/template files as current inputs for child skill runs."""
+        existing_paths: set[str] = set()
+
+        def _normalize_existing_path(path: Any) -> str:
+            raw_path = str(path or "").strip()
+            if not raw_path:
+                return ""
+            try:
+                return workspace_relative_path(raw_path)
+            except Exception:
+                return raw_path
+
+        def _collect(file_group: Any) -> None:
+            if not isinstance(file_group, list):
+                return
+            for file_info in file_group:
+                if not isinstance(file_info, dict):
+                    continue
+                normalized_path = _normalize_existing_path(file_info.get("path"))
+                if normalized_path:
+                    existing_paths.add(normalized_path)
+
+        _collect(state.get("uploaded"))
+        _collect(state.get("input_files"))
+        for entry in list(state.get("uploaded_history") or []):
+            if isinstance(entry, dict):
+                _collect(entry.get("files"))
+
+        source_inputs = list(requirement.source_inputs or [])
+        template_path = str(requirement.template_requirement.template_path or "").strip()
+        if template_path and not any(str(item.path or "").strip() == template_path for item in source_inputs):
+            source_inputs.append(
+                SourceInput(
+                    name=Path(template_path).name,
+                    path=template_path,
+                    role="template",
+                    description="User PowerPoint template.",
+                )
+            )
+
+        appended_records: list[dict[str, Any]] = []
+        for source_input in source_inputs:
+            source_path = str(source_input.path or "").strip()
+            if not source_path or cls._looks_like_url(source_path):
+                continue
+            normalized_path = _normalize_existing_path(source_path)
+            if not normalized_path or normalized_path in existing_paths:
+                continue
+            try:
+                file_record = build_workspace_file_record(
+                    normalized_path,
+                    description=source_input.description or "Confirmed PPT source input.",
+                    source="confirmed_requirement",
+                    name=source_input.name or Path(normalized_path).name,
+                    turn=cls._coerce_optional_int(state.get("turn_index")),
+                    step=cls._coerce_optional_int(state.get("step")),
+                )
+            except Exception:
+                continue
+            appended_records.append(file_record)
+            existing_paths.add(str(file_record.get("path") or normalized_path))
+
+        if not appended_records:
+            return []
+
+        state["uploaded"] = [*list(state.get("uploaded") or []), *appended_records]
+        state["input_files"] = [*list(state.get("input_files") or []), *appended_records]
+        return appended_records
 
     @staticmethod
     def _coerce_optional_int(value: Any) -> int | None:
@@ -3556,10 +4077,15 @@ Return structured status, current phase, selected route, warnings, next actions,
             raise ValueError("task is required")
 
         output_options = dict(output or {})
-        route, route_confirmed = self._select_route(clean_task, output_options)
         raw_inputs = self._normalize_raw_inputs(inputs)
         source_inputs = self._normalize_source_inputs(raw_inputs)
         reference_assets = self._normalize_reference_assets(raw_inputs)
+        explicit_route = self._select_explicit_route(output_options)
+        if explicit_route is not None:
+            route, route_confirmed = explicit_route
+        else:
+            route = self._select_default_route_for_inputs(source_inputs)
+            route_confirmed = False
         slide_policy = self._infer_slide_count_policy(clean_task, output_options)
         source_understanding = source_understanding or SourceUnderstanding(
             document_type=self._infer_document_type(source_inputs),
@@ -3597,22 +4123,25 @@ Return structured status, current phase, selected route, warnings, next actions,
         )
 
     @staticmethod
-    def _select_route(task: str, output: dict[str, Any]) -> tuple[str, bool]:
-        """Select the requested route while keeping HTML as the first MVP route."""
+    def _select_explicit_route(output: dict[str, Any]) -> tuple[str, bool] | None:
+        """Return a structured user-selected route when output options specify one."""
         raw_route = str(output.get("route") or output.get("ppt_route") or "").strip().lower()
         if raw_route in {"html", "svg", "xml"}:
             return raw_route, True
+        return None
 
-        normalized = task.lower()
-        route_patterns = {
-            "xml": ("xml route", "xml路线", "原生模板", "套用模板", "上传pptx模板", "editable template"),
-            "svg": ("svg route", "svg路线", "ppt-master", "drawingml"),
-            "html": ("html route", "html路线", "html deck", "网页演示"),
-        }
-        for route, patterns in route_patterns.items():
-            if any(pattern in normalized for pattern in patterns):
-                return route, True
-        return "html", False
+    @staticmethod
+    def _select_default_route_for_inputs(source_inputs: list[SourceInput]) -> str:
+        """Select the default route from structured inputs, without task keyword matching."""
+        return "xml" if PptProductManager._has_powerpoint_source(source_inputs) else "html"
+
+    @staticmethod
+    def _has_powerpoint_source(source_inputs: list[SourceInput]) -> bool:
+        """Return whether source inputs include a PowerPoint file usable as a template/source deck."""
+        return any(
+            Path(item.path or item.name).suffix.lower() in {".pptx", ".pptm", ".potx", ".potm"}
+            for item in source_inputs
+        )
 
     @staticmethod
     def _select_output_text(output: dict[str, Any], keys: tuple[str, ...]) -> str:
@@ -3959,19 +4488,17 @@ Return structured status, current phase, selected route, warnings, next actions,
         output: dict[str, Any],
     ) -> TemplateRequirement:
         """Infer template intent without analyzing the template yet."""
-        normalized = task.lower()
         pptx_template_candidates = [
             item
             for item in source_inputs
             if Path(item.path or item.name).suffix.lower() in {".pptx", ".pptm", ".potx", ".potm"}
         ]
         has_pptx_source = bool(pptx_template_candidates)
-        asks_template = any(keyword in normalized for keyword in ("template", "模板", "套用"))
         template_id = str(output.get("template_id") or output.get("template") or "").strip()
         template_path = str(output.get("template_path") or "").strip()
         if not template_path and pptx_template_candidates:
             template_path = str(pptx_template_candidates[0].path or pptx_template_candidates[0].name).strip()
-        if (route == "xml" and (has_pptx_source or template_path)) or (has_pptx_source and asks_template):
+        if route == "xml" and (has_pptx_source or template_path):
             return TemplateRequirement(
                 use_template=True,
                 template_source="user",
@@ -4079,6 +4606,230 @@ Return structured status, current phase, selected route, warnings, next actions,
         return EditabilityRequirement(level=level, must_preserve_template=route == "xml", notes=notes)
 
 
+def _latest_generated_files_from_state(state: dict[str, Any]) -> list[dict[str, Any]]:
+    """Return the latest generated file batch from current-turn or historical PPT state."""
+    final_files = _file_records_for_paths(list(state.get("final_file_paths") or []), state=state)
+    if final_files:
+        return final_files
+    new_files = [
+        file_info
+        for file_info in list(state.get("new_files") or [])
+        if isinstance(file_info, dict) and str(file_info.get("source", "")).strip() != "channel"
+    ]
+    if new_files:
+        return new_files
+    generated = list(state.get("generated") or [])
+    if generated:
+        return generated
+    for entry in reversed(list(state.get("generated_history") or [])):
+        if isinstance(entry, dict):
+            files = list(entry.get("files") or [])
+            if files:
+                return files
+    for file_group in reversed(list(state.get("files_history") or state.get("artifacts_history") or [])):
+        if isinstance(file_group, list) and file_group:
+            return [
+                file_info
+                for file_info in file_group
+                if isinstance(file_info, dict) and str(file_info.get("source", "")).strip() != "channel"
+            ]
+    return []
+
+
+def _file_records_for_paths(paths: list[str], *, state: dict[str, Any]) -> list[dict[str, Any]]:
+    """Return session file records matching explicit workspace-relative paths."""
+    if not paths:
+        return []
+    records_by_path: dict[str, dict[str, Any]] = {}
+
+    def _normalize_path(path: str) -> str:
+        try:
+            return workspace_relative_path(path)
+        except Exception:
+            return str(path or "").strip()
+
+    def _index(file_group: list[dict[str, Any]]) -> None:
+        for file_info in file_group:
+            if not isinstance(file_info, dict):
+                continue
+            path = str(file_info.get("path", "") or "").strip()
+            if path:
+                records_by_path.setdefault(_normalize_path(path), file_info)
+
+    _index(list(state.get("new_files") or []))
+    _index(list(state.get("generated") or []))
+    _index(list(state.get("uploaded") or state.get("input_files") or []))
+    for file_group in list(state.get("files_history") or state.get("artifacts_history") or []):
+        if isinstance(file_group, list):
+            _index(list(file_group))
+    for entry in list(state.get("generated_history") or []):
+        if isinstance(entry, dict):
+            _index(list(entry.get("files") or []))
+
+    matched: list[dict[str, Any]] = []
+    seen_paths: set[str] = set()
+    for path in paths:
+        if not isinstance(path, str):
+            continue
+        normalized_path = _normalize_path(path)
+        if not normalized_path or normalized_path in seen_paths:
+            continue
+        record = records_by_path.get(normalized_path)
+        if record:
+            matched.append(record)
+            seen_paths.add(normalized_path)
+    return matched
+
+
+def _snapshot_workspace_pptx_files() -> WorkspacePptxSnapshot:
+    """Return a lightweight fingerprint map for PPTX files currently in the workspace."""
+    snapshot: WorkspacePptxSnapshot = {}
+    for path in workspace_root().rglob("*.pptx"):
+        if not path.is_file():
+            continue
+        try:
+            stat = path.stat()
+            snapshot[workspace_relative_path(path)] = (stat.st_mtime_ns, stat.st_size)
+        except OSError:
+            continue
+    return snapshot
+
+
+def _select_new_or_modified_workspace_pptx(
+    state: dict[str, Any],
+    *,
+    before_snapshot: WorkspacePptxSnapshot,
+) -> Path | None:
+    """Return the best PPTX created or modified by the private-skill run."""
+    excluded_paths = _uploaded_workspace_paths(state)
+    workspace = workspace_root()
+    output_dir = PptProductManager._build_private_skill_output_dir(state)
+    session_dir = generated_session_dir(
+        str(state.get("sid") or "default"),
+        turn_index=int(state.get("turn_index", 0) or 0),
+    )
+    candidates: list[tuple[int, int, int, str, Path]] = []
+    for path in workspace.rglob("*.pptx"):
+        if not path.is_file():
+            continue
+        try:
+            relative_path = workspace_relative_path(path)
+            stat = path.stat()
+        except OSError:
+            continue
+        if relative_path in excluded_paths or relative_path.startswith("inbox/"):
+            continue
+        if before_snapshot.get(relative_path) == (stat.st_mtime_ns, stat.st_size):
+            continue
+        priority = 3
+        if path.is_relative_to(output_dir):
+            priority = 0
+        elif path.is_relative_to(session_dir):
+            priority = 1
+        elif relative_path.startswith("generated/"):
+            priority = 2
+        candidates.append((priority, -stat.st_mtime_ns, -stat.st_size, relative_path, path))
+    if not candidates:
+        return None
+    candidates.sort()
+    return candidates[0][4]
+
+
+def _uploaded_workspace_paths(state: dict[str, Any]) -> set[str]:
+    """Collect uploaded/input workspace paths that should not be treated as generated PPTX."""
+    paths: set[str] = set()
+
+    def _collect(file_group: list[dict[str, Any]]) -> None:
+        for file_info in file_group:
+            if not isinstance(file_info, dict):
+                continue
+            path = str(file_info.get("path") or "").strip()
+            if path:
+                try:
+                    paths.add(workspace_relative_path(path))
+                except Exception:
+                    paths.add(path)
+
+    _collect(list(state.get("uploaded") or []))
+    _collect(list(state.get("input_files") or []))
+    for entry in list(state.get("uploaded_history") or []):
+        if isinstance(entry, dict):
+            _collect(list(entry.get("files") or []))
+    return paths
+
+
+def _latest_uploaded_files_from_history(uploaded_history: list[Any]) -> list[dict[str, Any]]:
+    """Return the latest non-empty uploaded file batch recorded in session history."""
+    for entry in reversed(uploaded_history):
+        if not isinstance(entry, dict):
+            continue
+        files = [file_info for file_info in list(entry.get("files") or []) if isinstance(file_info, dict)]
+        if files:
+            return files
+    return []
+
+
+def _copy_pptx_to_private_skill_output(source_path: Path, output_dir: Path) -> Path:
+    """Copy one recovered PPTX into the canonical private-skill output directory."""
+    source = resolve_workspace_path(source_path)
+    output_dir.mkdir(parents=True, exist_ok=True)
+    if source.is_relative_to(output_dir):
+        return source
+
+    destination = output_dir / source.name
+    if destination.exists():
+        stem = destination.stem
+        suffix = destination.suffix
+        index = 2
+        while True:
+            candidate = output_dir / f"{stem}_{index}{suffix}"
+            if not candidate.exists():
+                destination = candidate
+                break
+            index += 1
+    shutil.copy2(source, destination)
+    return destination
+
+
+def _private_skill_allows_html_fallback(
+    requirement: ConfirmedRequirement,
+    system_selection: dict[str, Any],
+) -> bool:
+    """Return whether a private skill may use deterministic HTML fallback."""
+    output_format = str(system_selection.get("output_format") or "").strip().lower()
+    skill_name = str(system_selection.get("skill_name") or "").strip().lower()
+    if output_format == "html":
+        return True
+    if output_format == "pptx":
+        return False
+    if skill_name == "pptx":
+        return False
+    if requirement.template_requirement.use_template and requirement.template_requirement.template_source == "user":
+        return False
+    return requirement.output_format.lower() != "pptx"
+
+
+def _build_private_skill_failure(
+    *,
+    skill_name: str,
+    message: str,
+    output_format: str = "pptx",
+) -> dict[str, Any]:
+    """Build a private-skill failure payload without writing a fallback artifact."""
+    clean_format = str(output_format or "pptx").strip().lower() or "pptx"
+    return {
+        "status": "error",
+        "message": message,
+        "artifact_type": clean_format,
+        "output_format": clean_format,
+        "source": "private_skill_execution_failure",
+        "skill_name": str(skill_name or "").strip(),
+        "output_path": "",
+        "pptx_path": "",
+        "output_files": [],
+    }
+
+
 def _build_requirement_analysis_user_message(
     *,
     mode: str,
@@ -4129,6 +4880,12 @@ def _build_system_selection_user_message(
             "output_format": "pptx | html | other single-file format",
             "reason": "short decision rationale grounded in the task and available systems",
         },
+        "route_choice_policy": [
+            "User-specified route/system wins when available.",
+            "If source_inputs include PPTX/PPTM/POTX/POTM and the user did not specify another route, choose private skill `pptx`, route `xml`, output_format `pptx`.",
+            "If there is no PowerPoint input and no explicit route, choose built-in `html` or `svg` from task fit.",
+            "Do not use keyword matching as the decision mechanism.",
+        ],
     }
     return (
         "Choose the PPT delivery system for this request.\n"
@@ -4154,6 +4911,39 @@ def _build_product_manager_skill_run_user_message(
         "system_selection": system_selection,
         "selected_skill_content": skill_content,
         "available_experts": available_experts,
+        "workspace_tool_contract": {
+            "paths": (
+                "Use workspace-relative paths. Prefer confirmed_requirement_json.source_inputs and "
+                "template_requirement.template_path for uploaded templates/documents. "
+                "list_session_files(section='uploaded') returns current uploaded files or the latest "
+                "uploaded-history files when the run happens after user confirmation."
+            ),
+            "skill_runtime_path": "The selected skill folder is staged in state.active_product_ppt_skill.runtime_path and state.ppt_private_skill_runtime_path.",
+            "skill_output_dir": "Write final private-skill artifacts under state.ppt_private_skill_output_dir when possible.",
+            "tools": [
+                "list_session_files",
+                "list_dir",
+                "glob",
+                "grep",
+                "read_file",
+                "write_file",
+                "edit_file",
+                "exec_command",
+                "process_session",
+            ],
+        },
+        "user_template_pptx_workflow_checklist": [
+            "Locate the PPTX/POTX template from confirmed_requirement_json.source_inputs or template_requirement.template_path first.",
+            "If the template path is not obvious, call list_session_files(section='uploaded'), then fall back to uploaded_history or all.",
+            "Analyze the template with thumbnail/text/XML inspection as preparation only.",
+            "Map DeckContentPlan pages to reusable template slides or layouts.",
+            "Create, edit, duplicate, delete, reorder, or pack slides into a new .pptx.",
+            "Write the generated deck under ppt_private_skill_output_dir when possible.",
+            "Verify the .pptx file exists before finishing.",
+            "Call save_ppt_private_skill_pptx with the generated .pptx path immediately after verification, before optional previews, visual QA, or expert checks.",
+            "Treat optional QA/expert failures as warnings after the .pptx is registered; do not let them block delivery.",
+            "If blocked, report the concrete blocker instead of returning an empty artifact.",
+        ],
         "output_contract": {
             "html_artifact": {
                 "tool": "save_ppt_private_skill_html",
@@ -4162,7 +4952,7 @@ def _build_product_manager_skill_run_user_message(
                 "description": "short artifact description",
             },
             "pptx_artifact": {
-                "tool_options": ["export_ppt_svg_to_pptx", "dispatch_ppt_route"],
+                "tool_options": ["save_ppt_private_skill_pptx", "export_ppt_svg_to_pptx", "dispatch_ppt_route"],
                 "pptx_file_name": "deck.pptx",
                 "svg_page_paths": "pass [] to use pages saved in session state",
             },
@@ -4173,9 +4963,19 @@ def _build_product_manager_skill_run_user_message(
         "Let the selected skill content drive the workflow, layout choices, resources, and optional expert/tool use.\n"
         "Use the confirmed requirement and deck content plan as content truth.\n"
         "Read additional skill files with read_product_ppt_skill_file when the skill references them.\n"
-        "Use list_ppt_experts and invoke_ppt_expert when the skill needs a registered expert.\n"
+        "Use confirmed_requirement_json.source_inputs and template_requirement.template_path first for uploaded template/source paths. "
+        "Use list_session_files as a fallback or cross-check, then use workspace file/search/command tools for skill execution.\n"
+        "Use the staged skill runtime path when running bundled scripts; keep command working directories and output files inside the workspace.\n"
+        "Write the final private-skill deliverable under state.ppt_private_skill_output_dir when possible.\n"
+        "Use list_ppt_experts and invoke_ppt_expert when the skill needs a registered expert; for experts that require structured parameters, pass a JSON object string in the prompt field.\n"
+        "When the user uploaded or referenced a PPTX/POTX template and the selected skill is pptx, follow the user_template_pptx_workflow_checklist in the payload. "
+        "Template thumbnails, Markdown extraction, XML inspection, and layout notes are analysis artifacts only, not final deliverables. "
+        "Do not stop after thumbnail.py, markitdown, or template inspection when the requested deliverable is PPTX.\n"
+        "For PPTX/template private skills, generate a real .pptx in the workspace, verify that it exists, and immediately register it with save_ppt_private_skill_pptx before any optional preview rendering, QA, or expert review.\n"
+        "After a PPTX is registered, optional QA or expert failures may be recorded as warnings but must not block delivery.\n"
+        "If a PPTX/template private skill is blocked, return a concrete blocker such as missing template path, template parse failure, command failure, missing dependency, write failure, or unsupported template structure.\n"
         "For HTML private skills, save the final artifact by calling save_ppt_private_skill_html.\n"
-        "For SVG/PPTX private skills, save SVG pages, run quality checks, then call export_ppt_svg_to_pptx, "
+        "For SVG private skills, save SVG pages, run quality checks, then call export_ppt_svg_to_pptx, "
         "or call dispatch_ppt_route(route='svg') when the built-in SVG route is sufficient.\n\n"
         f"{json.dumps(payload, ensure_ascii=False, indent=2)}"
     )

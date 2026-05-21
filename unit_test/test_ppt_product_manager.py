@@ -18,6 +18,10 @@ from src.productions.ppt.ppt_product_manager import (
     PptProductManager,
     ProductPptSkillRegistry,
 )
+from src.productions.ppt.ppt_product_manager.ppt_product_manager import (
+    _build_product_manager_skill_run_user_message,
+    _snapshot_workspace_pptx_files,
+)
 from src.productions.ppt.schemas import DeckContentPlan, DeckPageAsset, DeckPagePlan, SourceUnderstanding
 from src.productions.ppt.routes.html import PPT_HTML_PAGE_GENERATION_EXPERT_NAME
 from src.productions.ppt.routes.svg import (
@@ -59,6 +63,11 @@ def _page(slide_number: int, page_type: str) -> DeckPagePlan:
         key_takeaway="Audience remembers the core point.",
         asset_intent="Use a simple supporting visual.",
     )
+
+
+class _DictState(dict):
+    def to_dict(self) -> dict:
+        return dict(self)
 
 
 async def _fake_source_converter(source_input, parameters: dict) -> dict:
@@ -105,10 +114,20 @@ class PptProductManagerTests(unittest.IsolatedAsyncioTestCase):
                 "list_product_ppt_skills",
                 "read_product_ppt_skill",
                 "read_product_ppt_skill_file",
+                "list_session_files",
+                "list_dir",
+                "glob",
+                "grep",
+                "read_file",
+                "write_file",
+                "edit_file",
+                "exec_command",
+                "process_session",
                 "list_ppt_experts",
                 "invoke_ppt_expert",
                 "save_ppt_system_selection",
                 "save_ppt_private_skill_html",
+                "save_ppt_private_skill_pptx",
                 "save_ppt_design_strategy",
                 "save_ppt_svg_execution_plan",
                 "read_ppt_svg_execution_plan",
@@ -124,7 +143,8 @@ class PptProductManagerTests(unittest.IsolatedAsyncioTestCase):
         self.assertIn("PPT system selection", instruction)
         self.assertIn("skills/product-ppt-skills", instruction)
         self.assertIn("built-in HTML route", instruction)
-        self.assertIn("freely choose", instruction)
+        self.assertIn("uploaded input includes PPTX/PPTM/POTX/POTM", instruction)
+        self.assertIn("choose between the built-in HTML route and the built-in SVG route", instruction)
         self.assertIn("hard-coded keyword-to-skill rules", instruction)
         self.assertIn("you run that skill workflow directly as PptProductManager", instruction)
         self.assertIn("PptHtmlPageGenerationExpert", instruction)
@@ -132,7 +152,109 @@ class PptProductManagerTests(unittest.IsolatedAsyncioTestCase):
         self.assertIn("PptSvgDeckExecutorExpert", instruction)
         self.assertIn("invoke_ppt_expert", instruction)
         self.assertIn("export_ppt_svg_to_pptx", instruction)
+        self.assertIn("template-based PPTX workflow", instruction)
+        self.assertIn("immediately after the file is generated and verified", instruction)
+        self.assertIn("must not block delivery", instruction)
+        self.assertIn("Template analysis artifacts", instruction)
+        self.assertIn("Do not stop after `thumbnail.py`", instruction)
+        self.assertIn("return a concrete blocker", instruction)
         self.assertIn("Do not claim PPTX generation succeeded", instruction)
+
+    def test_private_pptx_template_skill_prompt_enforces_delivery_checklist(self) -> None:
+        manager = PptProductManager()
+        requirement = manager.prepare_confirmed_requirement(
+            task="用这个模板做一个毕业答辩 PPT。",
+            inputs=[{"name": "template.pptx", "path": "inbox/demo/template.pptx"}],
+            output={"format": "pptx", "route": "xml"},
+        )
+        content_plan = manager.build_initial_deck_content_plan(requirement)
+
+        user_message = _build_product_manager_skill_run_user_message(
+            requirement=requirement,
+            content_plan=content_plan,
+            system_selection={
+                "system_type": "private_skill",
+                "route": "xml",
+                "skill_name": "pptx",
+                "output_format": "pptx",
+                "reason": "Use pptx skill for uploaded template.",
+            },
+            skill_content="# PPTX Skill\nTemplate-Based Workflow",
+            available_experts=[],
+        )
+
+        self.assertIn("user_template_pptx_workflow_checklist", user_message)
+        self.assertIn("confirmed_requirement_json.source_inputs", user_message)
+        self.assertIn("template_requirement.template_path", user_message)
+        self.assertIn("list_session_files(section='uploaded')", user_message)
+        self.assertIn("uploaded_history", user_message)
+        self.assertIn("ppt_private_skill_output_dir", user_message)
+        self.assertIn("Template thumbnails", user_message)
+        self.assertIn("not final deliverables", user_message)
+        self.assertIn("Do not stop after thumbnail.py", user_message)
+        self.assertIn("generate a real .pptx", user_message)
+        self.assertIn("immediately register it with save_ppt_private_skill_pptx", user_message)
+        self.assertIn("optional QA or expert failures", user_message)
+        self.assertIn("save_ppt_private_skill_pptx", user_message)
+        self.assertIn("concrete blocker", user_message)
+
+    def test_list_session_files_uploaded_falls_back_to_latest_history(self) -> None:
+        manager = PptProductManager()
+        source_dir = workspace_root() / "inbox" / "ppt_product_manager_tests"
+        source_dir.mkdir(parents=True, exist_ok=True)
+        template_path = source_dir / "history-template.pptx"
+        template_path.write_bytes(b"pptx")
+        file_record = build_workspace_file_record(
+            template_path,
+            description="Uploaded template.",
+            source="channel",
+            name="history-template.pptx",
+            turn=1,
+        )
+        tool_context = SimpleNamespace(
+            state={
+                "uploaded": [],
+                "input_files": [],
+                "uploaded_history": [
+                    {"turn": 0, "files": []},
+                    {"turn": 1, "files": [file_record]},
+                ],
+            }
+        )
+
+        uploaded_result = manager.list_session_files(section="uploaded", tool_context=tool_context)
+        input_result = manager.list_session_files(section="input", tool_context=tool_context)
+
+        self.assertEqual(uploaded_result["uploaded"], [file_record])
+        self.assertEqual(input_result["input_files"], [file_record])
+
+    def test_private_skill_source_inputs_are_visible_as_uploaded_files(self) -> None:
+        manager = PptProductManager()
+        source_dir = workspace_root() / "inbox" / "ppt_product_manager_tests"
+        source_dir.mkdir(parents=True, exist_ok=True)
+        template_path = source_dir / "confirmed-template.pptx"
+        template_path.write_bytes(b"pptx")
+        relative_template_path = workspace_relative_path(template_path)
+        requirement = manager.prepare_confirmed_requirement(
+            task="用这个模板做一个 PPT。",
+            inputs=[{"name": "confirmed-template.pptx", "path": relative_template_path}],
+            output={"format": "pptx", "route": "xml"},
+        )
+        state = {
+            "uploaded": [],
+            "input_files": [],
+            "uploaded_history": [],
+            "turn_index": 2,
+            "step": 3,
+        }
+
+        appended = manager._ensure_private_skill_source_files_visible(state, requirement)
+
+        self.assertEqual(len(appended), 1)
+        self.assertEqual(appended[0]["path"], relative_template_path)
+        self.assertEqual(state["uploaded"][0]["path"], relative_template_path)
+        self.assertEqual(state["input_files"][0]["path"], relative_template_path)
+        self.assertEqual(state["uploaded"][0]["source"], "confirmed_requirement")
 
     def test_product_manager_registers_html_page_generation_expert(self) -> None:
         manager = PptProductManager()
@@ -207,6 +329,27 @@ class PptProductManagerTests(unittest.IsolatedAsyncioTestCase):
             tool_context.state["ppt_skill_last_expert_result"]["agent_name"],
             PPT_HTML_PAGE_GENERATION_EXPERT_NAME,
         )
+
+    async def test_invoke_ppt_expert_returns_error_payload_for_bad_parameters(self) -> None:
+        manager = PptProductManager()
+        manager._skill_runtime_expert_agents = {
+            "ImageUnderstandingAgent": SimpleNamespace(name="ImageUnderstandingAgent")
+        }
+        tool_context = SimpleNamespace(
+            state=_DictState({"sid": "ppt-expert-error-test", "turn_index": 1, "step": 1}),
+            _invocation_context=SimpleNamespace(app_name="creative_claw", user_id="test-user"),
+        )
+
+        result = await manager.invoke_ppt_expert(
+            "ImageUnderstandingAgent",
+            "Visually inspect these rendered PPT slides.",
+            tool_context,
+        )
+
+        self.assertEqual(result["status"], "error")
+        self.assertEqual(result["agent_name"], "ImageUnderstandingAgent")
+        self.assertIn("requires structured invoke_agent parameters", result["message"])
+        self.assertEqual(tool_context.state["ppt_skill_last_expert_result"], result)
 
     def test_private_product_ppt_skill_registry_lists_complete_workflow(self) -> None:
         registry = ProductPptSkillRegistry()
@@ -287,6 +430,84 @@ class PptProductManagerTests(unittest.IsolatedAsyncioTestCase):
         self.assertEqual(result["name"], "ppt-complete-workflow")
         self.assertEqual(result["relative_path"], "SKILL.md")
         self.assertIn("PPT Complete Workflow", result["content"])
+
+    def test_private_ppt_skill_workspace_tools_use_runtime_workspace(self) -> None:
+        manager = PptProductManager()
+        tool_context = SimpleNamespace(state={"sid": "ppt-private-tools-test"})
+        path = "generated/ppt-private-tools-test/notes.txt"
+
+        write_result = manager.write_file(path, "alpha\nbeta\n", tool_context)
+        read_result = manager.read_file(path, tool_context)
+        grep_result = manager.grep(
+            "beta",
+            path="generated/ppt-private-tools-test",
+            output_mode="content",
+            tool_context=tool_context,
+        )
+        glob_result = manager.glob(
+            "*.txt",
+            path="generated/ppt-private-tools-test",
+            tool_context=tool_context,
+        )
+        exec_result = manager.exec_command("printf ppt-tool-ok", timeout=10, tool_context=tool_context)
+
+        self.assertIn("Successfully wrote", write_result)
+        self.assertEqual(read_result, "alpha\nbeta\n")
+        self.assertIn("beta", grep_result)
+        self.assertIn("notes.txt", glob_result)
+        self.assertEqual(exec_result, "ppt-tool-ok")
+
+    def test_save_ppt_private_skill_pptx_registers_final_artifact(self) -> None:
+        manager = PptProductManager()
+        tool_context = SimpleNamespace(state={"sid": "ppt-private-pptx-test", "turn_index": 1, "step": 2})
+        pptx_path = resolve_workspace_path("generated/ppt-private-pptx-test/final.pptx")
+        pptx_path.parent.mkdir(parents=True, exist_ok=True)
+        deck = Presentation()
+        deck.slides.add_slide(deck.slide_layouts[0])
+        deck.save(pptx_path)
+
+        result = manager.save_ppt_private_skill_pptx(
+            pptx_path=workspace_relative_path(pptx_path),
+            description="Private PPTX generated by test.",
+            tool_context=tool_context,
+        )
+
+        self.assertEqual(result["status"], "success")
+        self.assertEqual(result["artifact_type"], "pptx")
+        self.assertEqual(result["source"], "save_ppt_private_skill_pptx")
+        self.assertEqual(result["pptx_path"], workspace_relative_path(pptx_path))
+        self.assertEqual(tool_context.state["final_file_paths"], [workspace_relative_path(pptx_path)])
+        self.assertEqual(tool_context.state["ppt_private_skill_build"]["pptx_path"], workspace_relative_path(pptx_path))
+
+    def test_recover_unregistered_private_skill_pptx_registers_final_artifact(self) -> None:
+        manager = PptProductManager()
+        state = {"sid": "ppt-private-recovery-test", "turn_index": 1, "step": 3}
+        before_snapshot = _snapshot_workspace_pptx_files()
+        source_dir = Path(tempfile.mkdtemp(prefix="work_ai_pptx_recovery_", dir=workspace_root()))
+        source_path = source_dir / "recovered_deck.pptx"
+        deck = Presentation()
+        deck.slides.add_slide(deck.slide_layouts[0])
+        deck.save(source_path)
+
+        result = manager._recover_unregistered_private_skill_pptx(
+            state,
+            skill_name="pptx",
+            before_snapshot=before_snapshot,
+        )
+
+        self.assertEqual(result["status"], "success")
+        self.assertEqual(result["artifact_type"], "pptx")
+        self.assertEqual(result["source"], "private_skill_pptx_recovery")
+        self.assertEqual(result["recovered_from_path"], workspace_relative_path(source_path))
+        self.assertNotEqual(result["pptx_path"], workspace_relative_path(source_path))
+        self.assertTrue(
+            result["pptx_path"].startswith(
+                "generated/ppt-private-recovery-test/turn_1/ppt_private_skill_step_3/"
+            )
+        )
+        self.assertTrue(resolve_workspace_path(result["pptx_path"]).exists())
+        self.assertEqual(state["final_file_paths"], [result["pptx_path"]])
+        self.assertEqual(state["ppt_private_skill_build"]["pptx_path"], result["pptx_path"])
 
     def test_private_skill_delivery_accepts_svg_pptx_export(self) -> None:
         manager = PptProductManager()
@@ -394,6 +615,8 @@ class PptProductManagerTests(unittest.IsolatedAsyncioTestCase):
         self.assertIn("ConfirmedRequirement JSON", agent.instruction)
         self.assertIn("multiple PPT systems", agent.instruction)
         self.assertIn("system-selection agent", agent.instruction)
+        self.assertIn("source_inputs include PPTX/PPTM/POTX/POTM", agent.instruction)
+        self.assertIn("Do not infer routes from keyword matching", agent.instruction)
         self.assertIn("受众为", agent.instruction)
 
     def test_system_selection_agent_chooses_without_keyword_rules(self) -> None:
@@ -413,7 +636,8 @@ class PptProductManagerTests(unittest.IsolatedAsyncioTestCase):
             },
         )
         self.assertIn("Do not use hard-coded keyword rules", agent.instruction)
-        self.assertIn("choose freely", agent.instruction)
+        self.assertIn("source_inputs include PPTX/PPTM/POTX/POTM", agent.instruction)
+        self.assertIn("built-in `html` or `svg`", agent.instruction)
 
     def test_ppt_svg_strategy_tools_save_and_read_execution_plan(self) -> None:
         manager = PptProductManager()
@@ -1064,6 +1288,48 @@ Visual:
         self.assertEqual(requirement.template_requirement.template_path, "inbox/demo/template.pptx")
         self.assertEqual(requirement.editability_requirement.level, "native")
 
+    def test_prepare_confirmed_requirement_defaults_xml_for_powerpoint_input(self) -> None:
+        manager = PptProductManager()
+
+        requirement = manager.prepare_confirmed_requirement(
+            task="用这个模版给我做一个ppt，用于宣传我的花店。",
+            inputs=[{"name": "flower-template.pptx", "path": "inbox/demo/flower-template.pptx"}],
+            output={"format": "pptx"},
+        )
+
+        self.assertEqual(requirement.route, "xml")
+        self.assertFalse(requirement.confirmed_by_user)
+        self.assertTrue(requirement.template_requirement.use_template)
+        self.assertEqual(requirement.template_requirement.template_source, "user")
+        self.assertEqual(requirement.template_requirement.template_path, "inbox/demo/flower-template.pptx")
+        self.assertEqual(requirement.editability_requirement.level, "native")
+
+        selection = manager._build_default_system_selection(requirement)
+
+        self.assertEqual(selection["system_type"], "private_skill")
+        self.assertEqual(selection["route"], "xml")
+        self.assertEqual(selection["skill_name"], "pptx")
+        self.assertEqual(selection["output_format"], "pptx")
+
+    def test_prepare_confirmed_requirement_explicit_route_overrides_powerpoint_input(self) -> None:
+        manager = PptProductManager()
+
+        requirement = manager.prepare_confirmed_requirement(
+            task="用这个模版给我做一个ppt，用于宣传我的花店。",
+            inputs=[{"name": "flower-template.pptx", "path": "inbox/demo/flower-template.pptx"}],
+            output={"format": "pptx", "route": "html"},
+        )
+
+        self.assertEqual(requirement.route, "html")
+        self.assertTrue(requirement.confirmed_by_user)
+        self.assertFalse(requirement.template_requirement.use_template)
+
+        selection = manager._build_default_system_selection(requirement)
+
+        self.assertEqual(selection["system_type"], "built_in_route")
+        self.assertEqual(selection["route"], "html")
+        self.assertEqual(selection["skill_name"], "")
+
     def test_default_system_selection_uses_pptx_skill_for_user_templates(self) -> None:
         manager = PptProductManager()
         requirement = manager.prepare_confirmed_requirement(
@@ -1200,6 +1466,119 @@ Visual:
         html_text = html_path.read_text(encoding="utf-8")
         self.assertIn("AI 是什么", html_text)
         self.assertIn("ppt-complete-workflow", html_text)
+
+    async def test_pptx_private_skill_without_runner_does_not_fallback_to_html(self) -> None:
+        manager = PptProductManager()
+        tool_context = SimpleNamespace(
+            state={"sid": "pptx-private-skill-failure-test", "turn_index": 1, "step": 1}
+        )
+        requirement = manager.prepare_confirmed_requirement(
+            task="用这个模板做一个花店宣传 PPT。",
+            inputs=[{"name": "template.pptx", "path": "inbox/demo/template.pptx"}],
+            output={"format": "pptx", "route": "xml"},
+        )
+        content_plan = manager.build_initial_deck_content_plan(requirement)
+
+        result = await manager.execute_private_ppt_skill(
+            requirement=requirement,
+            content_plan=content_plan,
+            system_selection={
+                "system_type": "private_skill",
+                "route": "xml",
+                "skill_name": "pptx",
+                "output_format": "pptx",
+                "reason": "Use pptx skill for uploaded template.",
+            },
+            tool_context=tool_context,
+            expert_agents={},
+            app_name="creative_claw",
+            artifact_service=None,
+        )
+
+        self.assertEqual(result["status"], "error")
+        self.assertEqual(result["output_path"], "")
+        self.assertEqual(result["output_format"], "pptx")
+        self.assertNotIn("final_file_paths", tool_context.state)
+        self.assertIn("ppt_private_skill_runtime_path", tool_context.state)
+        self.assertTrue(resolve_workspace_path(tool_context.state["ppt_private_skill_runtime_path"]).exists())
+
+    async def test_private_skill_recovers_generated_pptx_after_child_runner_error(self) -> None:
+        manager = PptProductManager()
+        tool_context = SimpleNamespace(
+            state={
+                "sid": "pptx-private-skill-child-error-test",
+                "turn_index": 1,
+                "step": 3,
+            },
+            _invocation_context=SimpleNamespace(
+                app_name="creative_claw",
+                user_id="test-user",
+                plugin_manager=SimpleNamespace(plugins=[]),
+                credential_service=None,
+            ),
+        )
+        requirement = manager.prepare_confirmed_requirement(
+            task="用这个模板做一个品牌故事 PPT。",
+            inputs=[{"name": "template.pptx", "path": "inbox/demo/template.pptx"}],
+            output={"format": "pptx", "route": "xml"},
+        )
+        content_plan = manager.build_initial_deck_content_plan(requirement)
+
+        class _FailingChildRunner:
+            closed = False
+
+            async def run_async(self, **_kwargs):
+                output_dir = resolve_workspace_path(tool_context.state["ppt_private_skill_output_dir"]) / "output"
+                output_dir.mkdir(parents=True, exist_ok=True)
+                with tempfile.NamedTemporaryFile(
+                    prefix="deck_after_error_",
+                    suffix=".pptx",
+                    dir=output_dir,
+                    delete=False,
+                ) as handle:
+                    pptx_name = handle.name
+                Path(pptx_name).unlink()
+                deck = Presentation()
+                deck.slides.add_slide(deck.slide_layouts[0])
+                deck.save(pptx_name)
+                raise ValueError("optional QA failed after PPTX generation")
+                yield None
+
+            async def close(self):
+                self.closed = True
+
+        fake_runner = _FailingChildRunner()
+        with patch(
+            "src.productions.ppt.ppt_product_manager.ppt_product_manager._build_child_runner",
+            return_value=fake_runner,
+        ):
+            result = await manager.execute_private_ppt_skill(
+                requirement=requirement,
+                content_plan=content_plan,
+                system_selection={
+                    "system_type": "private_skill",
+                    "route": "xml",
+                    "skill_name": "pptx",
+                    "output_format": "pptx",
+                    "reason": "Use pptx skill for uploaded template.",
+                },
+                tool_context=tool_context,
+                expert_agents={},
+                app_name="creative_claw",
+                artifact_service=None,
+            )
+
+        self.assertEqual(result["status"], "success")
+        self.assertEqual(result["artifact_type"], "pptx")
+        self.assertEqual(result["source"], "private_skill_pptx_recovery")
+        self.assertIn("optional QA failed", result["execution_warning"])
+        self.assertEqual(tool_context.state["final_file_paths"], [result["pptx_path"]])
+        self.assertEqual(
+            tool_context.state["ppt_private_skill_execution_output"]["status"],
+            "success_with_warning",
+        )
+        self.assertTrue(resolve_workspace_path(result["pptx_path"]).exists())
+        self.assertTrue(fake_runner.closed)
 
     async def test_interactive_workflow_pauses_for_two_confirmations(self) -> None:
         image_path = _write_test_image("interactive_kid_word_asset.png")

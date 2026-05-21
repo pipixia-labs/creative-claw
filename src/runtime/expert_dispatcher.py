@@ -21,6 +21,7 @@ from src.runtime.expert_registry import (
     normalize_expert_output,
     validate_expert_parameters,
 )
+from src.runtime.runtime_trace import trace_runtime_event
 from src.runtime.tool_context_artifact_service import ToolContextArtifactService
 from src.runtime.workspace import (
     build_workspace_file_record,
@@ -447,6 +448,13 @@ async def dispatch_expert_call(
 ) -> ExpertInvocationResult:
     """Run one expert in a child session and merge the result into the parent state."""
     if agent_name not in expert_agents:
+        trace_runtime_event(
+            "expert.error",
+            {
+                "agent_name": agent_name,
+                "error": f"Unknown expert. Available experts: {sorted(expert_agents)}",
+            },
+        )
         raise ValueError(f"invoke_agent got an unknown expert: '{agent_name}'.")
 
     parent_state = tool_context.state.to_dict()
@@ -454,6 +462,20 @@ async def dispatch_expert_call(
         agent_name=agent_name,
         prompt=prompt,
         state=parent_state,
+    )
+    trace_runtime_event(
+        "expert.start",
+        {
+            "agent_name": agent_name,
+            "prompt": prompt,
+            "normalized_parameters": normalized_parameters,
+            "parent_session": {
+                "sid": parent_state.get("sid"),
+                "turn_index": parent_state.get("turn_index"),
+                "step": parent_state.get("step"),
+                "expert_step": parent_state.get("expert_step"),
+            },
+        },
     )
 
     invocation_context = tool_context._invocation_context
@@ -488,6 +510,16 @@ async def dispatch_expert_call(
         current_output=current_output,
     )
     tool_context.state.update(state_delta)
+    trace_runtime_event(
+        "expert.finish",
+        {
+            "agent_name": agent_name,
+            "status": tool_result.get("status"),
+            "message": tool_result.get("message"),
+            "output_files": tool_result.get("output_files"),
+            "tool_result": tool_result,
+        },
+    )
 
     return ExpertInvocationResult(
         agent_name=agent_name,

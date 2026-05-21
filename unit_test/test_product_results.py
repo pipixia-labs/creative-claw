@@ -63,6 +63,22 @@ class ProductResultSlimmingTests(unittest.TestCase):
         self.assertFalse(is_completed_product_result(result))
         self.assertTrue(is_terminal_product_result(result))
 
+    def test_ppt_non_success_terminal_statuses_end_the_turn(self) -> None:
+        for status in ("generation_failed", "route_not_implemented", "needs_clarification"):
+            with self.subTest(status=status):
+                result = slim_product_result(
+                    {
+                        "result_schema_version": "ppt-product-result-v1",
+                        "status": status,
+                        "product_line": "ppt",
+                        "message": "PPT product manager could not deliver a deck yet.",
+                        "final_file_paths": [],
+                    }
+                )
+
+                self.assertFalse(is_completed_product_result(result))
+                self.assertTrue(is_terminal_product_result(result))
+
     def test_product_in_progress_result_is_not_terminal(self) -> None:
         result = slim_product_result(
             {
