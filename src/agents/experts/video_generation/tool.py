@@ -80,6 +80,17 @@ _DASHSCOPE_HTTP_RETRY_DELAY_SECONDS = 1.0
 _resolved_kling_api_base: str | None = None
 
 
+def _format_llm_event_error(event: Any) -> str | None:
+    """Return a readable ADK LLM error message from an event, if present."""
+    error_code = str(getattr(event, "error_code", "") or "").strip()
+    error_message = str(getattr(event, "error_message", "") or "").strip()
+    if not error_code and not error_message:
+        return None
+    if error_code and error_message:
+        return f"{error_code}: {error_message}"
+    return error_code or error_message
+
+
 @dataclass(slots=True)
 class VideoGenerationResult:
     """Normalized result for one provider-specific video generation call."""
@@ -892,6 +903,9 @@ async def prompt_enhancement_tool(ctx: InvocationContext, prompt: str) -> dict[s
     try:
         enhanced_prompt = ""
         async for event in llm.run_async(ctx):
+            if event_error := _format_llm_event_error(event):
+                logger.warning("video prompt enhancement model error: {}", event_error)
+                return {"status": "error", "message": f"Prompt enhancement failed: {event_error}"}
             if not event.content or not event.content.parts:
                 continue
             for part in event.content.parts:

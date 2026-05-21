@@ -71,6 +71,52 @@ class VideoExpertProviderTests(unittest.IsolatedAsyncioTestCase):
         )
         veo_mock.assert_not_called()
 
+    async def test_video_generation_logs_prompt_enhancement_error_and_uses_original_prompt(self) -> None:
+        agent = VideoGenerationAgent(name="VideoGenerationAgent")
+        ctx = _build_ctx({"current_parameters": {"prompt": "draw a cat video"}, "step": 0})
+
+        with (
+            patch(
+                "src.agents.experts.video_generation.video_generation_agent.video_tools.prompt_enhancement_tool",
+                new=AsyncMock(return_value={"status": "error", "message": "Codex request timed out"}),
+            ),
+            patch(
+                "src.agents.experts.video_generation.video_generation_agent.logger.warning",
+            ) as warning_mock,
+            patch(
+                "src.agents.experts.video_generation.video_generation_agent.save_binary_output",
+                return_value=workspace_root() / "generated" / "session_1" / "step1_video_generation_output0.mp4",
+            ),
+            patch(
+                "src.agents.experts.video_generation.video_generation_agent.video_tools.seedance_video_generation_tool",
+                new=AsyncMock(
+                    return_value={
+                        "status": "success",
+                        "message": b"video-data",
+                        "provider": "seedance",
+                        "model_name": "doubao-seedance-2-0-260128",
+                    }
+                ),
+            ) as seedance_mock,
+        ):
+            events = [event async for event in agent._run_async_impl(ctx)]
+
+        self.assertEqual(len(events), 1)
+        seedance_mock.assert_awaited_once_with(
+            "draw a cat video",
+            input_paths=[],
+            mode="prompt",
+            aspect_ratio="16:9",
+            model_name="doubao-seedance-2-0-260128",
+            resolution="720p",
+            duration_seconds=5,
+            generate_audio=None,
+            watermark=False,
+            seed=None,
+        )
+        warning_mock.assert_called_once()
+        self.assertEqual(warning_mock.call_args.args[1], "Codex request timed out")
+
     async def test_video_generation_passes_seedance_2_fast_audio_parameters(self) -> None:
         agent = VideoGenerationAgent(name="VideoGenerationAgent")
         ctx = _build_ctx(
@@ -426,6 +472,28 @@ class VideoGenerationToolTests(unittest.IsolatedAsyncioTestCase):
 
     def tearDown(self) -> None:
         video_tools._resolved_kling_api_base = None
+
+    async def test_prompt_enhancement_tool_returns_llm_error_response(self) -> None:
+        class FakeLlmAgent:
+            def __init__(self, **kwargs) -> None:
+                self.kwargs = kwargs
+
+            async def run_async(self, ctx):
+                yield SimpleNamespace(
+                    error_code="openai_codex_error",
+                    error_message="Request timed out.",
+                    content=None,
+                )
+
+        with (
+            patch("src.agents.experts.video_generation.tool.LlmAgent", FakeLlmAgent),
+            patch("src.agents.experts.video_generation.tool.build_llm", return_value=object()),
+        ):
+            result = await video_tools.prompt_enhancement_tool(_build_ctx({}), "draw a cat video")
+
+        self.assertEqual(result["status"], "error")
+        self.assertIn("openai_codex_error", result["message"])
+        self.assertIn("Request timed out.", result["message"])
 
     async def test_seedance_tool_uses_top_level_ratio_argument(self) -> None:
         create_mock = MagicMock(return_value=SimpleNamespace(id="task-1"))

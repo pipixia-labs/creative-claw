@@ -52,7 +52,10 @@ async def _prepare_prompts(
         if result["status"] == "success":
             normalized_prompts.append(str(result["message"]).strip())
         else:
-            logger.warning("VideoGenerationAgent: prompt enhancement failed, using original prompt")
+            logger.warning(
+                "VideoGenerationAgent: prompt enhancement failed, using original prompt: {}",
+                result.get("message", "unknown error"),
+            )
             normalized_prompts.append(original_prompt)
     return normalized_prompts
 
