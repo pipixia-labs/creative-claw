@@ -19,6 +19,7 @@ from conf.llm import (
     build_llm,
     get_known_provider_models,
     resolve_llm_model_name,
+    resolve_structured_output_mode,
 )
 from conf.openai_codex import OpenAICodexLlm
 from conf.schema import CreativeClawConfig, ProviderConfig
@@ -56,6 +57,7 @@ class AppConfigTests(unittest.TestCase):
                 "https://chatgpt.com/backend-api/codex/responses",
             )
             self.assertEqual(data["providers"]["azure_openai"]["api_version"], "2024-10-21")
+            self.assertEqual(data["llm"]["structured_output_mode"], "auto")
 
     def test_build_default_config_applies_recommended_provider_defaults(self) -> None:
         with tempfile.TemporaryDirectory() as tmp_dir, patch.dict(
@@ -314,6 +316,7 @@ class AppConfigTests(unittest.TestCase):
             )
             self.assertEqual(resolve_llm_model_name(), "deepseek/deepseek-v4-pro")
             self.assertIn("deepseek-v4-pro", DEEPSEEK_V4_MODEL_NAMES)
+            self.assertEqual(resolve_structured_output_mode(), "prompt_json")
 
     def test_build_llm_resolves_deepseek_v4_flash_reference(self) -> None:
         with tempfile.TemporaryDirectory() as tmp_dir, patch.dict(
@@ -341,6 +344,35 @@ class AppConfigTests(unittest.TestCase):
                 "deepseek/deepseek-v4-flash",
             )
             self.assertIn("deepseek-v4-flash", get_known_provider_models("deepseek"))
+
+    def test_structured_output_mode_auto_keeps_native_for_openai(self) -> None:
+        with tempfile.TemporaryDirectory() as tmp_dir, patch.dict(
+            os.environ,
+            {"CREATIVE_CLAW_HOME": tmp_dir},
+            clear=False,
+        ):
+            config = CreativeClawConfig(workspace=str(get_config_path().parent / "workspace"))
+            config.llm.provider = "openai"
+            config.llm.model = "gpt-5.4"
+            save_app_config(config)
+            load_app_config(reload=True)
+
+            self.assertEqual(resolve_structured_output_mode(), "native")
+
+    def test_structured_output_mode_can_force_native(self) -> None:
+        with tempfile.TemporaryDirectory() as tmp_dir, patch.dict(
+            os.environ,
+            {"CREATIVE_CLAW_HOME": tmp_dir},
+            clear=False,
+        ):
+            config = CreativeClawConfig(workspace=str(get_config_path().parent / "workspace"))
+            config.llm.provider = "deepseek"
+            config.llm.model = "deepseek-v4-pro"
+            config.llm.structured_output_mode = "native"
+            save_app_config(config)
+            load_app_config(reload=True)
+
+            self.assertEqual(resolve_structured_output_mode(), "native")
 
     def test_build_llm_returns_gemini_for_gemini_provider(self) -> None:
         with tempfile.TemporaryDirectory() as tmp_dir, patch.dict(

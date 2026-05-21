@@ -19,7 +19,7 @@ from google.adk.models import LlmRequest
 from google.genai.types import Content, Part
 
 from conf.agent import EXPERTS_LIST
-from conf.llm import build_llm, resolve_llm_model_name
+from conf.llm import build_llm, resolve_llm_model_name, resolve_structured_output_mode
 from conf.system import SYS_CONFIG
 from src.agents.experts.video_generation.capabilities import build_video_generation_routing_notes
 from src.agents.orchestrator.final_response import (
@@ -342,6 +342,7 @@ async def orchestrator_before_model_callback(
             "- When the task is complete, return the final structured response with `reply_text` and `final_file_paths`.",
             "- `reply_text` must contain the complete user-facing reply in the user's language.",
             "- `final_file_paths` must contain exact workspace-relative paths from the current session, or be `[]` when no attachments are needed.",
+            "- If schema enforcement is unavailable, emit only a JSON object with `reply_text` and `final_file_paths`; do not wrap it in markdown.",
             "- Use `list_session_files(section=\"latest_output\")` when you need the exact attachment paths to return.",
         ]
     )
@@ -466,8 +467,8 @@ def _build_missing_structured_final_response_fallback(
     try:
         fallback_final_paths = _select_fallback_final_response_paths(state)
     except ValueError:
-        return None
-    if not fallback_final_paths:
+        fallback_final_paths = []
+    if not fallback_final_paths and not str(raw_final_response or "").strip():
         return None
 
     reply_text = _select_missing_structured_final_response_text(
@@ -512,6 +513,53 @@ def _select_missing_structured_final_response_text(
             return normalized
 
     return "已完成，生成的文件见附件。"
+
+
+def _coerce_structured_final_response(payload: Any) -> OrchestratorFinalResponse:
+    """Return a structured final response from dict or JSON-text payloads."""
+    if isinstance(payload, OrchestratorFinalResponse):
+        return payload
+    if isinstance(payload, dict):
+        return OrchestratorFinalResponse.model_validate(payload)
+    if isinstance(payload, str):
+        json_text = _extract_final_response_json(payload)
+        return OrchestratorFinalResponse.model_validate_json(json_text)
+    raise TypeError(f"Unsupported final response payload type: {type(payload).__name__}")
+
+
+def _extract_final_response_json(text: str) -> str:
+    """Extract the first JSON object from a raw model final response."""
+    stripped = _strip_markdown_json_fence(text)
+    if not stripped:
+        raise ValueError("Final response text is empty.")
+
+    decoder = json.JSONDecoder()
+    for index, char in enumerate(stripped):
+        if char != "{":
+            continue
+        try:
+            parsed, end = decoder.raw_decode(stripped[index:])
+        except json.JSONDecodeError:
+            continue
+        if isinstance(parsed, dict):
+            return stripped[index : index + end]
+    raise ValueError("Final response text does not contain a JSON object.")
+
+
+def _strip_markdown_json_fence(text: str) -> str:
+    """Remove a surrounding markdown code fence from JSON-like model output."""
+    stripped = text.strip()
+    if not stripped.startswith("```"):
+        return stripped
+
+    lines = stripped.splitlines()
+    if not lines:
+        return stripped
+    if lines[0].strip().startswith("```"):
+        lines = lines[1:]
+    if lines and lines[-1].strip() == "```":
+        lines = lines[:-1]
+    return "\n".join(lines).strip()
 
 
 def _looks_like_internal_execution_message(message: str) -> bool:
@@ -750,16 +798,21 @@ class Orchestrator:
         self.design_product_manager = DesignProductManager()
 
         model_name = resolve_llm_model_name(llm_model or SYS_CONFIG.llm_model)
-        logger.info("OrchestratorAgent: using llm: {}", model_name)
+        self.structured_output_mode = resolve_structured_output_mode(llm_model or SYS_CONFIG.llm_model)
+        self.uses_native_structured_output = self.structured_output_mode == "native"
+        logger.info(
+            "OrchestratorAgent: using llm: {}, structured_output_mode={}",
+            model_name,
+            self.structured_output_mode,
+        )
 
-        self.agent = LlmAgent(
-            name="CreativeClawOrchestrator",
-            model=build_llm(llm_model or SYS_CONFIG.llm_model),
-            instruction=self._build_instruction(),
-            before_model_callback=orchestrator_before_model_callback,
-            output_schema=OrchestratorFinalResponse,
-            output_key=ORCHESTRATOR_FINAL_RESPONSE_OUTPUT_KEY,
-            tools=[
+        agent_kwargs: dict[str, Any] = {
+            "name": "CreativeClawOrchestrator",
+            "model": build_llm(llm_model or SYS_CONFIG.llm_model),
+            "instruction": self._build_instruction(),
+            "before_model_callback": orchestrator_before_model_callback,
+            "output_key": ORCHESTRATOR_FINAL_RESPONSE_OUTPUT_KEY,
+            "tools": [
                 self.list_skills,
                 self.read_skill,
                 self.list_dir,
@@ -794,7 +847,10 @@ class Orchestrator:
                 self.run_design_product,
                 self.invoke_agent,
             ],
-        )
+        }
+        if self.uses_native_structured_output:
+            agent_kwargs["output_schema"] = OrchestratorFinalResponse
+        self.agent = LlmAgent(**agent_kwargs)
         self.app = App(
             name=self.app_name,
             root_agent=self.agent,
@@ -819,6 +875,16 @@ class Orchestrator:
         skills_summary = self.skill_registry.build_summary()
         expert_contracts = build_expert_contract_summary()
         video_generation_routing_notes = build_video_generation_routing_notes()
+        if self.uses_native_structured_output:
+            final_response_mode_note = (
+                "- Return the final delivery through the structured response fields provided by the runtime."
+            )
+        else:
+            final_response_mode_note = (
+                "- The current model is running in prompt-JSON compatibility mode. "
+                "Your final output must be only a JSON object like "
+                '{"reply_text":"...", "final_file_paths":[]}; do not wrap it in markdown.'
+            )
 
         return f"""
 You are Creative Claw's primary user-facing orchestrator.
@@ -931,8 +997,9 @@ Design workflow routing hints:
 Response Requirements:
 - Put the complete user-facing natural-language reply into `reply_text` in the structured final response.
 - Put any final attachments into `final_file_paths` as exact workspace-relative paths, or return `[]` when no attachments are needed.
+- {final_response_mode_note}
 - The final structured response is the only final delivery for the current user turn.
-- Do not output internal workflow JSON.
+- Do not output internal workflow JSON beyond the required final response object when compatibility mode is active.
 - Do not expose internal bookkeeping such as `current_output`, `workflow_status`, or private planning notes.
 - If the task is unfinished because a tool or expert failed, explain the blocker directly and say what remains.
 
@@ -2128,12 +2195,30 @@ Expert parameter contracts:
         state = current_session.state
         structured_response_payload = state.get(ORCHESTRATOR_FINAL_RESPONSE_OUTPUT_KEY)
         synthesized_structured_response = False
-        if structured_response_payload is None:
+        structured_response: OrchestratorFinalResponse | None = None
+        parse_errors: list[Exception] = []
+        parse_candidates = []
+        if structured_response_payload is not None:
+            parse_candidates.append(structured_response_payload)
+        if raw_final_response:
+            parse_candidates.append(raw_final_response)
+        for candidate in parse_candidates:
+            try:
+                structured_response = _coerce_structured_final_response(candidate)
+                break
+            except Exception as exc:
+                parse_errors.append(exc)
+
+        if structured_response is None:
             structured_response = _build_missing_structured_final_response_fallback(
                 state,
                 raw_final_response=raw_final_response,
             )
             if structured_response is None:
+                if parse_errors:
+                    raise ValueError(
+                        "Invalid structured final response payload stored in session state."
+                    ) from parse_errors[0]
                 raise ValueError(
                     "Missing structured final response in session state. "
                     f"Last observed final text: {raw_final_response!r}"
@@ -2144,13 +2229,6 @@ Expert parameter contracts:
                 self.sid,
                 structured_response.final_file_paths,
             )
-        else:
-            try:
-                structured_response = OrchestratorFinalResponse.model_validate(structured_response_payload)
-            except Exception as exc:
-                raise ValueError(
-                    "Invalid structured final response payload stored in session state."
-                ) from exc
 
         normalized_response = structured_response.reply_text.strip()
         if not normalized_response:

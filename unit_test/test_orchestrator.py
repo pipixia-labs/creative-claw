@@ -22,6 +22,8 @@ from src.agents.orchestrator.final_response import (
 from src.agents.orchestrator.orchestrator_agent import (
     Orchestrator,
     _ReplyTextStreamExtractor,
+    _build_missing_structured_final_response_fallback,
+    _coerce_structured_final_response,
     _extract_completed_page_product_tool_result,
     _extract_confirmation_tool_result,
     _extract_question_form_tool_result,
@@ -168,17 +170,59 @@ class OrchestratorTests(unittest.TestCase):
         self.assertIn("prefer `run_design_product`", instruction)
 
     def test_agent_uses_structured_output_schema(self) -> None:
-        orchestrator = Orchestrator(
-            session_service=InMemorySessionService(),
-            artifact_service=InMemoryArtifactService(),
-            expert_agents={},
-        )
+        with patch(
+            "src.agents.orchestrator.orchestrator_agent.resolve_structured_output_mode",
+            return_value="native",
+        ):
+            orchestrator = Orchestrator(
+                session_service=InMemorySessionService(),
+                artifact_service=InMemoryArtifactService(),
+                expert_agents={},
+            )
 
         self.assertIs(orchestrator.agent.output_schema, OrchestratorFinalResponse)
         self.assertEqual(
             orchestrator.agent.output_key,
             ORCHESTRATOR_FINAL_RESPONSE_OUTPUT_KEY,
         )
+
+    def test_agent_uses_prompt_json_mode_without_native_output_schema(self) -> None:
+        with patch(
+            "src.agents.orchestrator.orchestrator_agent.resolve_structured_output_mode",
+            return_value="prompt_json",
+        ):
+            orchestrator = Orchestrator(
+                session_service=InMemorySessionService(),
+                artifact_service=InMemoryArtifactService(),
+                expert_agents={},
+            )
+
+        self.assertIsNone(orchestrator.agent.output_schema)
+        self.assertEqual(
+            orchestrator.agent.output_key,
+            ORCHESTRATOR_FINAL_RESPONSE_OUTPUT_KEY,
+        )
+        self.assertIn("prompt-JSON compatibility mode", orchestrator.agent.instruction)
+
+    def test_coerce_structured_final_response_accepts_markdown_json(self) -> None:
+        payload = """```json
+{"reply_text":"完成了", "final_file_paths":[]}
+```"""
+
+        response = _coerce_structured_final_response(payload)
+
+        self.assertEqual(response.reply_text, "完成了")
+        self.assertEqual(response.final_file_paths, [])
+
+    def test_missing_structured_final_response_fallback_accepts_plain_text(self) -> None:
+        response = _build_missing_structured_final_response_fallback(
+            {},
+            raw_final_response="已经完成。",
+        )
+
+        self.assertIsNotNone(response)
+        self.assertEqual(response.reply_text, "已经完成。")
+        self.assertEqual(response.final_file_paths, [])
 
     def test_reply_text_stream_extractor_only_emits_reply_text(self) -> None:
         extractor = _ReplyTextStreamExtractor()
@@ -1392,7 +1436,7 @@ class OrchestratorCallbackTests(unittest.IsolatedAsyncioTestCase):
             },
         )
 
-    async def test_run_until_done_requires_structured_final_response(self) -> None:
+    async def test_run_until_done_accepts_plain_text_final_response_fallback(self) -> None:
         session_service = InMemorySessionService()
         artifact_service = InMemoryArtifactService()
         orchestrator = Orchestrator(
@@ -1415,8 +1459,10 @@ class OrchestratorCallbackTests(unittest.IsolatedAsyncioTestCase):
             "run_agent_and_log_events",
             new=AsyncMock(return_value="fallback final text"),
         ):
-            with self.assertRaisesRegex(ValueError, "Missing structured final response"):
-                await orchestrator.run_until_done()
+            result = await orchestrator.run_until_done()
+
+        self.assertEqual(result["final_response"], "fallback final text")
+        self.assertEqual(result["final_file_paths"], [])
 
 
 class OrchestratorInvokeAgentIntegrationTests(unittest.IsolatedAsyncioTestCase):

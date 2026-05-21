@@ -23,6 +23,7 @@ class ProviderSpec:
     model_prefix: str = ""
     default_api_version: str = ""
     known_models: tuple[str, ...] = ()
+    native_structured_output: bool = False
 
 
 PROVIDERS: dict[str, ProviderSpec] = {
@@ -32,15 +33,22 @@ PROVIDERS: dict[str, ProviderSpec] = {
         kind="azure",
         model_prefix="azure",
         default_api_version="2024-10-21",
+        native_structured_output=True,
     ),
     "openai_codex": ProviderSpec(
         name="openai_codex",
         kind="codex_oauth",
         model_prefix="openai_codex",
         default_api_base="https://chatgpt.com/backend-api/codex/responses",
+        native_structured_output=True,
     ),
     "anthropic": ProviderSpec(name="anthropic", kind="litellm_prefix", model_prefix="anthropic"),
-    "openai": ProviderSpec(name="openai", kind="litellm_prefix", model_prefix="openai"),
+    "openai": ProviderSpec(
+        name="openai",
+        kind="litellm_prefix",
+        model_prefix="openai",
+        native_structured_output=True,
+    ),
     "openrouter": ProviderSpec(
         name="openrouter",
         kind="litellm_prefix",
@@ -67,7 +75,7 @@ PROVIDERS: dict[str, ProviderSpec] = {
     ),
     "vllm": ProviderSpec(name="vllm", kind="openai_compatible"),
     "ollama": ProviderSpec(name="ollama", kind="litellm_prefix", model_prefix="ollama"),
-    "gemini": ProviderSpec(name="gemini", kind="gemini"),
+    "gemini": ProviderSpec(name="gemini", kind="gemini", native_structured_output=True),
     "moonshot": ProviderSpec(
         name="moonshot",
         kind="openai_compatible",
@@ -158,6 +166,18 @@ def resolve_llm_model_name(model_reference: str | None = None) -> str:
     return f"{provider_name}/{model_name}"
 
 
+def resolve_structured_output_mode(model_reference: str | None = None) -> str:
+    """Return the Orchestrator structured-output strategy for one model."""
+    app_config = load_app_config()
+    requested_mode = _normalize_structured_output_mode(app_config.llm.structured_output_mode)
+    if requested_mode != "auto":
+        return requested_mode
+
+    provider_name, _ = resolve_provider_and_model(model_reference)
+    spec = get_provider_spec(provider_name)
+    return "native" if spec.native_structured_output else "prompt_json"
+
+
 def resolve_provider_and_model(
     model_reference: str | None = None,
     *,
@@ -187,6 +207,16 @@ def _normalize_provider_name(name: str | None) -> str:
     """Return the canonical provider name for config and model references."""
     cleaned = str(name or "").strip()
     return PROVIDER_ALIASES.get(cleaned, cleaned)
+
+
+def _normalize_structured_output_mode(mode: str | None) -> str:
+    """Return a supported structured-output mode."""
+    cleaned = str(mode or "auto").strip().lower()
+    if cleaned not in {"auto", "native", "prompt_json"}:
+        raise ValueError(
+            "llm.structured_output_mode must be one of: auto, native, prompt_json."
+        )
+    return cleaned
 
 
 def get_provider_spec(name: str) -> ProviderSpec:

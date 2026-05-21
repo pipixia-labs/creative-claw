@@ -104,6 +104,7 @@ class LlmConfig(BaseModel):
     model: str = "gpt-5.4"
     temperature: float = 0.1
     max_tokens: int = 8192
+    structured_output_mode: Literal["auto", "native", "prompt_json"] = "auto"
 
 
 class SystemSettings(BaseModel):
