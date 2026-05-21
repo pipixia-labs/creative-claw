@@ -26,22 +26,23 @@ import {
 import "tldraw/tldraw.css";
 import "./styles.css";
 
-const MAX_IMAGE_WIDTH = 920;
-const IMAGE_GAP = 96;
+const MAX_MEDIA_WIDTH = 920;
+const MEDIA_GAP = 96;
+const VIDEO_METADATA_TIMEOUT_MS = 4000;
 
 function CreativeClawSketchCanvas({ artifacts = [], onSubmitSketch }) {
   const loadedSignatureRef = useRef("");
 
-  const imageArtifacts = useMemo(
-    () => artifacts.filter((artifact) => Boolean(artifact?.url) && !String(artifact?.mimeType || "").startsWith("video/")),
+  const mediaArtifacts = useMemo(
+    () => artifacts.filter((artifact) => Boolean(artifact?.url)),
     [artifacts]
   );
 
   const handleMount = useCallback(
     (mountedEditor) => {
-      void seedImageArtifacts(mountedEditor, imageArtifacts, loadedSignatureRef);
+      void seedMediaArtifacts(mountedEditor, mediaArtifacts, loadedSignatureRef);
     },
-    [imageArtifacts]
+    [mediaArtifacts]
   );
 
   const tldrawComponents = useMemo(
@@ -123,7 +124,7 @@ function selectedArtifactReference(editor) {
   }
 
   const shape = editor.getShape(selectedIds[0]);
-  if (!shape || shape.type !== "image") {
+  if (!shape || !["image", "video"].includes(shape.type)) {
     return null;
   }
 
@@ -133,11 +134,12 @@ function selectedArtifactReference(editor) {
   }
 
   const asset = shape.props?.assetId && typeof editor.getAsset === "function" ? editor.getAsset(shape.props.assetId) : null;
+  const fallbackMimeType = shape.type === "video" ? "video/mp4" : "image/png";
   return {
     path,
     url: String(shape.meta?.creativeClawArtifactUrl || shape.props?.url || "").trim(),
     name: artifactNameFromPath(path, asset?.props?.name || shape.props?.altText || ""),
-    mimeType: String(asset?.props?.mimeType || "image/png"),
+    mimeType: String(asset?.props?.mimeType || fallbackMimeType),
   };
 }
 
@@ -209,8 +211,8 @@ function CreativeClawStyleToolbarButton() {
   );
 }
 
-async function seedImageArtifacts(editor, artifacts, loadedSignatureRef) {
-  const signature = artifacts.map((artifact) => `${artifact.url}|${artifact.name || ""}`).join("\n");
+async function seedMediaArtifacts(editor, artifacts, loadedSignatureRef) {
+  const signature = artifacts.map((artifact) => `${artifact.url}|${artifact.name || ""}|${artifact.mimeType || ""}`).join("\n");
   if (!signature || loadedSignatureRef.current === signature) {
     return;
   }
@@ -220,25 +222,49 @@ async function seedImageArtifacts(editor, artifacts, loadedSignatureRef) {
     let cursorX = 0;
     const shapeIds = [];
     for (const artifact of artifacts) {
-      const dimensions = await loadImageDimensions(artifact.url);
-      const scale = Math.min(1, MAX_IMAGE_WIDTH / dimensions.width);
+      const isVideo = isVideoArtifact(artifact);
+      const mediaType = isVideo ? "video" : "image";
+      const dimensions = await loadMediaDimensions(artifact, mediaType);
+      const scale = Math.min(1, MAX_MEDIA_WIDTH / dimensions.width);
       const width = Math.round(dimensions.width * scale);
       const height = Math.round(dimensions.height * scale);
       const assetId = AssetRecordType.createId();
       const shapeId = createShapeId();
+      const name = artifact.name || (isVideo ? "generated-video" : "generated-image");
+      const mimeType = artifact.mimeType || (isVideo ? "video/mp4" : "image/png");
+      const shapeProps = isVideo ? {
+        assetId,
+        altText: name,
+        autoplay: true,
+        h: height,
+        playing: true,
+        time: 0,
+        url: artifact.url,
+        w: width,
+      } : {
+        assetId,
+        altText: name,
+        crop: null,
+        flipX: false,
+        flipY: false,
+        w: width,
+        h: height,
+        playing: true,
+        url: artifact.url,
+      };
 
       editor.createAssets([
         {
           id: assetId,
           typeName: "asset",
-          type: "image",
+          type: mediaType,
           props: {
-            name: artifact.name || "generated-image",
+            name,
             src: artifact.url,
             w: dimensions.width,
             h: dimensions.height,
-            mimeType: artifact.mimeType || "image/png",
-            isAnimated: String(artifact.mimeType || "").toLowerCase() === "image/gif",
+            mimeType,
+            isAnimated: isVideo || String(mimeType).toLowerCase() === "image/gif",
           },
           meta: {
             creativeClawArtifactPath: artifact.path || "",
@@ -248,27 +274,17 @@ async function seedImageArtifacts(editor, artifacts, loadedSignatureRef) {
       ]);
       editor.createShape({
         id: shapeId,
-        type: "image",
+        type: mediaType,
         x: cursorX,
         y: 0,
-        props: {
-          assetId,
-          altText: artifact.name || "generated image",
-          crop: null,
-          flipX: false,
-          flipY: false,
-          w: width,
-          h: height,
-          playing: true,
-          url: artifact.url,
-        },
+        props: shapeProps,
         meta: {
           creativeClawArtifactPath: artifact.path || "",
           creativeClawArtifactUrl: artifact.url,
         },
       });
       shapeIds.push(shapeId);
-      cursorX += width + IMAGE_GAP;
+      cursorX += width + MEDIA_GAP;
     }
 
     if (shapeIds.length > 0) {
@@ -278,7 +294,24 @@ async function seedImageArtifacts(editor, artifacts, loadedSignatureRef) {
     }
   } catch (error) {
     loadedSignatureRef.current = "";
-    console.warn(error instanceof Error ? error.message : "Could not load images into tldraw.");
+    console.warn(error instanceof Error ? error.message : "Could not load media into tldraw.");
+  }
+}
+
+function isVideoArtifact(artifact) {
+  return String(artifact?.mimeType || "").toLowerCase().startsWith("video/");
+}
+
+async function loadMediaDimensions(artifact, mediaType) {
+  if (mediaType !== "video") {
+    return loadImageDimensions(artifact.url);
+  }
+
+  try {
+    return await loadVideoDimensions(artifact.url);
+  } catch (error) {
+    console.warn(error instanceof Error ? error.message : "Could not load video metadata into tldraw.");
+    return { width: 1280, height: 720 };
   }
 }
 
@@ -304,6 +337,50 @@ function loadImageDimensions(src) {
     );
     image.decoding = "async";
     image.src = src;
+  });
+}
+
+function loadVideoDimensions(src) {
+  return new Promise((resolve, reject) => {
+    const video = document.createElement("video");
+    let timeoutId;
+    let isSettled = false;
+    const settle = (callback) => {
+      if (isSettled) {
+        return;
+      }
+      isSettled = true;
+      window.clearTimeout(timeoutId);
+      video.removeAttribute("src");
+      video.load();
+      callback();
+    };
+    timeoutId = window.setTimeout(() => {
+      settle(() => reject(new Error("Timed out loading video metadata into the sketch canvas.")));
+    }, VIDEO_METADATA_TIMEOUT_MS);
+    video.addEventListener(
+      "loadedmetadata",
+      () => {
+        settle(() => {
+          resolve({
+            width: video.videoWidth || 1280,
+            height: video.videoHeight || 720,
+          });
+        });
+      },
+      { once: true }
+    );
+    video.addEventListener(
+      "error",
+      () => {
+        settle(() => reject(new Error("Could not load one video artifact into the sketch canvas.")));
+      },
+      { once: true }
+    );
+    video.muted = true;
+    video.playsInline = true;
+    video.preload = "metadata";
+    video.src = src;
   });
 }
 

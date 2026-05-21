@@ -1714,7 +1714,6 @@ function renderTldrawPreview() {
   unmountTldrawCanvas();
   tldrawPreview.innerHTML = "";
   const artifacts = previewArtifactsByTab.tldraw;
-  const imageArtifacts = artifacts.filter((artifact) => artifact.isImage && !isVideoArtifact(artifact));
 
   if (window.CreativeClawTldraw?.mount) {
     const shell = document.createElement("div");
@@ -1724,7 +1723,7 @@ function renderTldrawPreview() {
     shell.appendChild(host);
     tldrawPreview.appendChild(shell);
     tldrawCanvasUnmount = window.CreativeClawTldraw.mount(host, {
-      artifacts: imageArtifacts,
+      artifacts,
       sessionId,
       onSubmitSketch: handleTldrawSketchSubmit,
     });
