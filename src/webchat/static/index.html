@@ -71,23 +71,26 @@
             <label class="composer-label" for="prompt">Message</label>
             <div id="attachment-list" class="attachment-list" aria-live="polite" hidden></div>
             <div class="composer-box">
-              <textarea
-                id="prompt"
-                rows="1"
-              ></textarea>
-              <button id="attach-files" class="attach-button composer-icon-button" type="button" aria-label="Attach files" title="Attach files">
-                <svg aria-hidden="true" viewBox="0 0 24 24" focusable="false">
-                  <path d="M20.2 11.7 12 19.9a5.1 5.1 0 0 1-7.2-7.2l9.1-9.1a3.5 3.5 0 0 1 5 5l-9 9a1.9 1.9 0 0 1-2.7-2.7l8.2-8.2" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"></path>
-                </svg>
-              </button>
-              <button id="send" class="send-button composer-icon-button" type="submit" data-state="idle" aria-label="Send message" title="Send message">
-                <svg class="send-icon" aria-hidden="true" viewBox="0 0 24 24" focusable="false">
-                  <path d="M3.6 20.4 21 12 3.6 3.6l1.2 6.3L13 12l-8.2 2.1-1.2 6.3Z" fill="currentColor"></path>
-                </svg>
-                <svg class="stop-icon" aria-hidden="true" viewBox="0 0 24 24" focusable="false">
-                  <rect x="6" y="6" width="12" height="12" rx="1.5" fill="currentColor"></rect>
-                </svg>
-              </button>
+                <textarea
+                  id="prompt"
+                  rows="1"
+                ></textarea>
+                <div class="bottom-btn">
+                  <button id="attach-files" class="attach-button composer-icon-button" type="button" aria-label="Attach files" title="Attach files">
+                    <svg aria-hidden="true" viewBox="0 0 24 24" focusable="false">
+                      <path d="M20.2 11.7 12 19.9a5.1 5.1 0 0 1-7.2-7.2l9.1-9.1a3.5 3.5 0 0 1 5 5l-9 9a1.9 1.9 0 0 1-2.7-2.7l8.2-8.2" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"></path>
+                    </svg>
+                  </button>
+                  <div class="bottom-btn-center"></div>
+                  <button id="send" class="send-button composer-icon-button" type="submit" data-state="idle" aria-label="Send message" title="Send message">
+                    <svg class="send-icon" aria-hidden="true" viewBox="0 0 24 24" focusable="false">
+                      <path d="M3.6 20.4 21 12 3.6 3.6l1.2 6.3L13 12l-8.2 2.1-1.2 6.3Z" fill="currentColor"></path>
+                    </svg>
+                    <svg class="stop-icon" aria-hidden="true" viewBox="0 0 24 24" focusable="false">
+                      <rect x="6" y="6" width="12" height="12" rx="1.5" fill="currentColor"></rect>
+                    </svg>
+                  </button>
+              </div>
               <input id="file-input" class="file-input" type="file" multiple>
             </div>
             <div class="composer-hint">Markdown is supported. Press Enter to send, Shift + Enter for a new line.</div>
@@ -115,9 +118,13 @@
             <span class="progress-title">Working</span>
             <span class="progress-summary">Preparing the request.</span>
           </span>
-          <span class="progress-chevron" aria-hidden="true">⌄</span>
+          <span class="progress-chevron" aria-hidden="true">
+            <svg class="icon" viewBox="0 0 1024 1024" width="12" height="12" xmlns="http://www.w3.org/2000/svg"><path d="M512.790674 713.142857L55.647817 256a32.182857 32.182857 0 1 0-45.641143 45.348571l457.142857 457.142858a64.365714 64.365714 0 0 0 90.989715 0l457.142857-457.142858a32.182857 32.182857 0 0 0-45.348572-45.348571l-457.142857 457.142857z" fill="currentColor"></path></svg>
+          </span>
         </button>
-        <div class="progress-body markdown"></div>
+        <div class="progress-wrapper">
+          <div class="progress-body markdown"></div>
+        </div>
       </article>
     </template>
 
