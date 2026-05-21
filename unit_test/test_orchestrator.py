@@ -1513,6 +1513,53 @@ class OrchestratorStreamResponseTests(unittest.IsolatedAsyncioTestCase):
 
         self.assertEqual(response, "The complete answer.")
 
+    async def test_prompt_json_mode_streams_plain_text_deltas(self) -> None:
+        session_service = InMemorySessionService()
+        orchestrator = Orchestrator(
+            session_service=session_service,
+            artifact_service=InMemoryArtifactService(),
+            expert_agents={},
+        )
+        orchestrator.uses_native_structured_output = False
+        await session_service.create_session(
+            app_name=SYS_CONFIG.app_name,
+            user_id="user-prompt-json-stream",
+            session_id="session-prompt-json-stream",
+            state={"turn_index": 2},
+        )
+
+        class FakeRunner:
+            async def run_async(self, **_: object):
+                yield Event(
+                    author="CreativeClawOrchestrator",
+                    partial=True,
+                    content=Content(role="model", parts=[Part(text="Hello")]),
+                )
+                yield Event(
+                    author="CreativeClawOrchestrator",
+                    partial=True,
+                    content=Content(role="model", parts=[Part(text=" world")]),
+                )
+
+        published = []
+
+        async def _publisher(message):
+            published.append(message)
+
+        orchestrator.runner = FakeRunner()
+        configure_step_event_publisher(_publisher)
+        try:
+            with route_context("web", "chat-prompt-json-stream"):
+                response = await orchestrator.run_agent_and_log_events(
+                    user_id="user-prompt-json-stream",
+                    session_id="session-prompt-json-stream",
+                )
+        finally:
+            configure_step_event_publisher(None)
+
+        self.assertEqual([message.text for message in published], ["Hello", " world"])
+        self.assertEqual(response, "Hello world")
+
     async def test_run_until_done_prefers_output_key_plain_text_over_partial_raw_text(self) -> None:
         session_service = InMemorySessionService()
         orchestrator = Orchestrator(

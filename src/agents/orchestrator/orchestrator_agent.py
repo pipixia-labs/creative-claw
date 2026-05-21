@@ -2055,9 +2055,7 @@ Expert parameter contracts:
             session_id=session_id,
         )
         turn_index = int((current_session.state if current_session else {}).get("turn_index", 0) or 0)
-        reply_stream = _ReplyTextStreamExtractor(
-            allow_plain_text=self.uses_native_structured_output
-        )
+        reply_stream = _ReplyTextStreamExtractor(allow_plain_text=True)
         stream_reply_text = assistant_delta_streaming_active()
         run_config_kwargs: dict[str, Any] = {
             "max_llm_calls": SYS_CONFIG.max_iterations_orchestrator,
