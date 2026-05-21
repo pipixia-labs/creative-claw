@@ -293,6 +293,7 @@ class ProcessSessionManager:
 
     def remove_session(self, session_id: str, *, scope_key: str | None = None) -> bool:
         """Remove one finished session from the manager."""
+        session_to_close: ProcessSession | None = None
         with self._lock:
             session = self._sessions.get(session_id)
             if session is None:
@@ -302,7 +303,9 @@ class ProcessSessionManager:
             with session.lock:
                 if not session.exited:
                     return False
-            self._sessions.pop(session_id, None)
+            session_to_close = self._sessions.pop(session_id, None)
+        if session_to_close is not None:
+            self._close_process_pipes(session_to_close)
         return True
 
     def _lookup(self, session_id: str, *, scope_key: str | None = None) -> ProcessSession | None:
@@ -327,6 +330,17 @@ class ProcessSessionManager:
         if session.kill_requested:
             return "killed"
         return "exited" if int(session.exit_code or 0) == 0 else "failed"
+
+    @staticmethod
+    def _close_process_pipes(session: ProcessSession) -> None:
+        """Close subprocess pipes after a finished session leaves the manager."""
+        for pipe in (session.process.stdin, session.process.stdout, session.process.stderr):
+            if pipe is None or pipe.closed:
+                continue
+            try:
+                pipe.close()
+            except Exception:
+                pass
 
     @staticmethod
     def _terminate_process_group(session: ProcessSession) -> None:

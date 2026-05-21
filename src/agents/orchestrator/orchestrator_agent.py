@@ -51,6 +51,7 @@ from src.runtime.step_events import (
     step_event_streaming_active,
 )
 from src.runtime.cancellation import get_cancellation_manager
+from src.runtime.runtime_trace import CreativeClawRuntimeTracePlugin
 from src.runtime.tool_display import format_tool_args, stringify_value, summarize_tool_result
 from src.runtime.usage_logging import CreativeClawUsageLoggingPlugin
 from src.runtime.workspace import (
@@ -456,6 +457,76 @@ def _select_fallback_final_response_paths(state: dict[str, Any]) -> list[str]:
     return _normalize_final_response_paths(latest_paths, state=state)
 
 
+def _build_missing_structured_final_response_fallback(
+    state: dict[str, Any],
+    *,
+    raw_final_response: str,
+) -> Optional[OrchestratorFinalResponse]:
+    """Create a final response from tracked outputs when the model omitted the schema."""
+    try:
+        fallback_final_paths = _select_fallback_final_response_paths(state)
+    except ValueError:
+        return None
+    if not fallback_final_paths:
+        return None
+
+    reply_text = _select_missing_structured_final_response_text(
+        state,
+        raw_final_response=raw_final_response,
+    )
+    return OrchestratorFinalResponse(
+        reply_text=reply_text,
+        final_file_paths=fallback_final_paths,
+    )
+
+
+def _select_missing_structured_final_response_text(
+    state: dict[str, Any],
+    *,
+    raw_final_response: str,
+) -> str:
+    """Choose a user-facing reply for synthesized final responses."""
+    authoritative_candidates = [
+        raw_final_response,
+        state.get("final_response"),
+        state.get("final_summary"),
+        state.get("last_orchestrator_response"),
+    ]
+    for candidate in authoritative_candidates:
+        normalized = str(candidate or "").strip()
+        if normalized:
+            return normalized
+
+    message_candidates = [
+        state.get("last_output_message"),
+        (state.get("current_output") or {}).get("message")
+        if isinstance(state.get("current_output"), dict)
+        else "",
+        (state.get("last_expert_result") or {}).get("message")
+        if isinstance(state.get("last_expert_result"), dict)
+        else "",
+    ]
+    for candidate in message_candidates:
+        normalized = str(candidate or "").strip()
+        if normalized and not _looks_like_internal_execution_message(normalized):
+            return normalized
+
+    return "已完成，生成的文件见附件。"
+
+
+def _looks_like_internal_execution_message(message: str) -> bool:
+    """Return true for tool/expert status text that should not be shown as final copy."""
+    normalized = message.lower()
+    internal_markers = [
+        "agent has completed",
+        "finished with status=",
+        " output file:",
+        " output files:",
+        "status=success",
+    ]
+    return any(marker in normalized for marker in internal_markers)
+
+
 def _iter_function_response_results(event: Event) -> Iterator[dict[str, Any]]:
     """Yield normalized function response payloads from one ADK event."""
     if not event.content or not event.content.parts:
@@ -727,7 +798,11 @@ class Orchestrator:
         self.app = App(
             name=self.app_name,
             root_agent=self.agent,
-            plugins=[CreativeClawStepEventPlugin(), CreativeClawUsageLoggingPlugin()],
+            plugins=[
+                CreativeClawStepEventPlugin(),
+                CreativeClawUsageLoggingPlugin(),
+                CreativeClawRuntimeTracePlugin(),
+            ],
         )
         self.runner = Runner(
             app=self.app,
@@ -826,7 +901,8 @@ PPT workflow routing hints:
 - Pass `output` only for explicit delivery constraints from the user, such as format, route, language, slide count, aspect ratio, template id, or editability.
 - If the requested final deliverable is `.pptx`, PowerPoint, PPT, an editable slide deck, PPT template application, or PPTX editing, prefer `run_ppt_product` unless the user explicitly asks for a non-PPTX HTML deck or design prototype.
 - PPT is an independent product line optimized for slide generation. Do not route PPTX delivery through DesignProductManager.
-- The current PPT product priority is the HTML route first, then SVG and XML as later route pipelines.
+- Do not default `output.route` to HTML/SVG/XML. Only pass a route when the user explicitly selected it; otherwise let PptProductManager choose from uploaded inputs and task fit.
+- When the user uploads or references a PowerPoint file, pass it through `inputs` and let PptProductManager decide whether to use the PPTX/XML private-skill workflow.
 - PptProductManager owns PPT requirement normalization, route dispatch, route artifacts, PPTX validation, and delivery manifest registration.
 - PptProductManager has private product-ppt skills under `skills/product-ppt-skills` and decides whether to use a private PPT skill workflow or the built-in HTML route. Do not read or choose those skills from the orchestrator.
 - Do not call HTML, SVG, or OOXML route-internal tools directly from the orchestrator.
@@ -2051,18 +2127,30 @@ Expert parameter contracts:
 
         state = current_session.state
         structured_response_payload = state.get(ORCHESTRATOR_FINAL_RESPONSE_OUTPUT_KEY)
+        synthesized_structured_response = False
         if structured_response_payload is None:
-            raise ValueError(
-                "Missing structured final response in session state. "
-                f"Last observed final text: {raw_final_response!r}"
+            structured_response = _build_missing_structured_final_response_fallback(
+                state,
+                raw_final_response=raw_final_response,
             )
-
-        try:
-            structured_response = OrchestratorFinalResponse.model_validate(structured_response_payload)
-        except Exception as exc:
-            raise ValueError(
-                "Invalid structured final response payload stored in session state."
-            ) from exc
+            if structured_response is None:
+                raise ValueError(
+                    "Missing structured final response in session state. "
+                    f"Last observed final text: {raw_final_response!r}"
+                )
+            synthesized_structured_response = True
+            logger.warning(
+                "Synthesized structured final response for session {} from tracked output paths: {}",
+                self.sid,
+                structured_response.final_file_paths,
+            )
+        else:
+            try:
+                structured_response = OrchestratorFinalResponse.model_validate(structured_response_payload)
+            except Exception as exc:
+                raise ValueError(
+                    "Invalid structured final response payload stored in session state."
+                ) from exc
 
         normalized_response = structured_response.reply_text.strip()
         if not normalized_response:
@@ -2100,6 +2188,8 @@ Expert parameter contracts:
             "last_orchestrator_response": normalized_response,
             "orchestration_events": list(state.get("orchestration_events", [])),
         }
+        if synthesized_structured_response:
+            state_delta[ORCHESTRATOR_FINAL_RESPONSE_OUTPUT_KEY] = structured_response.model_dump(mode="json")
         await self.session_service.append_event(
             current_session,
             Event(author="api_server", actions=EventActions(state_delta=state_delta)),

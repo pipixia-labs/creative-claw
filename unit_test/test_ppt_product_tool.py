@@ -24,7 +24,8 @@ class PptProductToolTests(unittest.IsolatedAsyncioTestCase):
         self.assertIn("continue_ppt_product", instruction)
         self.assertIn("PPT workflow routing hints", instruction)
         self.assertIn("Do not route PPTX delivery through DesignProductManager", instruction)
-        self.assertIn("HTML route first", instruction)
+        self.assertIn("Do not default `output.route`", instruction)
+        self.assertIn("let PptProductManager choose from uploaded inputs", instruction)
         self.assertIn("skills/product-ppt-skills", instruction)
 
     async def test_run_ppt_product_returns_structured_status(self) -> None:

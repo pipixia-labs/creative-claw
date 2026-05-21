@@ -41,6 +41,45 @@ class WebchatStaticAssetTests(unittest.TestCase):
         self.assertTrue(bundle_path.exists())
         self.assertIn('from "pptx-preview"', source_path.read_text(encoding="utf-8"))
 
+    def test_webchat_protects_selected_chat_text_from_tldraw_copy_handlers(self) -> None:
+        app_js = Path("src/webchat/static/app.js").read_text(encoding="utf-8")
+
+        self.assertIn('document.addEventListener("copy", preserveChatTextSelectionClipboard, true);', app_js)
+        self.assertIn('document.addEventListener("cut", preserveChatTextSelectionClipboard, true);', app_js)
+        self.assertIn("function preserveChatTextSelectionClipboard(event)", app_js)
+        self.assertIn("selectionIntersectsChatPanel()", app_js)
+        self.assertIn("event.stopImmediatePropagation();", app_js)
+        self.assertNotIn("preserveChatTextSelectionClipboard(event) {\n  event.preventDefault", app_js)
+
+    def test_webchat_does_not_render_hidden_preview_tabs_on_artifact_updates(self) -> None:
+        app_js = Path("src/webchat/static/app.js").read_text(encoding="utf-8")
+
+        self.assertNotIn("renderAllPreviewViews", app_js)
+        activate_function = app_js[app_js.index("function activatePreviewTab") : app_js.index("function renderPreviewView")]
+        self.assertIn("view.hidden = !isActive;", activate_function)
+        self.assertIn("renderPreviewView(tabName);", activate_function)
+        preview_update_function = app_js[app_js.index("function previewArtifactSet") : app_js.index("function groupPreviewArtifacts")]
+        self.assertIn("activatePreviewTab(nextTab);", preview_update_function)
+        self.assertNotIn("renderPreviewView(\"tldraw\")", preview_update_function)
+
+    def test_tldraw_add_to_chat_reuses_single_artifact_without_success_toast(self) -> None:
+        tldraw_source = Path("src/webchat/tldraw_app/main.jsx").read_text(encoding="utf-8")
+        app_js = Path("src/webchat/static/app.js").read_text(encoding="utf-8")
+        tldraw_bundle = Path("src/webchat/static/tldraw-assets/creative-claw-tldraw.js").read_text(encoding="utf-8")
+
+        self.assertIn("selectedArtifactReference(editor)", tldraw_source)
+        self.assertIn("artifact: referencedArtifact", tldraw_source)
+        self.assertIn("creativeClawArtifactPath", tldraw_source)
+        self.assertNotIn("creative-claw-selection-attached", tldraw_source)
+        self.assertNotIn("已添加到对话", tldraw_source)
+        self.assertNotIn("已添加到对话", tldraw_bundle)
+        self.assertIn("creative-claw-selection-attach-failed", tldraw_source)
+
+        self.assertIn("payload?.artifact", app_js)
+        self.assertIn("function attachExistingWorkspaceArtifact", app_js)
+        self.assertIn("Referenced tldraw image artifact.", app_js)
+        self.assertIn("Selected tldraw canvas export.", app_js)
+
 
 class PptxPreviewRenderingTests(unittest.TestCase):
     def test_pptx_preview_prefers_libreoffice_pdf_conversion(self) -> None:

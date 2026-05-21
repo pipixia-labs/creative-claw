@@ -83,7 +83,7 @@ let designSystemsPromise = null;
 
 connect();
 restoreHistory();
-renderAllPreviewViews();
+activatePreviewTab(activePreviewTab);
 renderSessionHistory();
 
 function ensureSessionId() {
@@ -1594,7 +1594,6 @@ function clearPreviewState(options = {}) {
   if (!options.keepActiveTab) {
     activePreviewTab = "tldraw";
   }
-  renderAllPreviewViews();
   activatePreviewTab(activePreviewTab);
 }
 
@@ -1633,11 +1632,11 @@ function previewArtifactSet(artifacts) {
       selectedPreviewByTab[tabName] = previousSelections[tabName];
     }
   }
-  renderAllPreviewViews();
-
   const nextTab = AUTO_PREVIEW_PRIORITY.find((tabName) => groups[tabName].length > 0);
   if (nextTab) {
     activatePreviewTab(nextTab);
+  } else {
+    renderPreviewView(activePreviewTab);
   }
 }
 
@@ -1660,7 +1659,6 @@ function selectPreviewArtifact(artifact) {
   }
   addUniqueArtifact(previewArtifactsByTab[tabName], artifact);
   selectedPreviewByTab[tabName] = artifact;
-  renderPreviewView(tabName);
   activatePreviewTab(tabName);
 }
 
@@ -1691,12 +1689,7 @@ function activatePreviewTab(tabName) {
     view.classList.toggle("active", isActive);
     view.hidden = !isActive;
   }
-}
-
-function renderAllPreviewViews() {
-  for (const tabName of PREVIEW_TABS) {
-    renderPreviewView(tabName);
-  }
+  renderPreviewView(tabName);
 }
 
 function renderPreviewView(tabName) {
@@ -3327,6 +3320,15 @@ async function handleTldrawSketchSubmit(payload) {
     throw new Error("Web chat is not connected.");
   }
 
+  if (payload?.artifact) {
+    const attached = attachExistingWorkspaceArtifact(payload.artifact, {
+      description: "Referenced tldraw image artifact.",
+    });
+    promptInput.focus();
+    updateComposerButtons();
+    return attached;
+  }
+
   const imageBlob = payload?.imageBlob;
   if (!(imageBlob instanceof Blob)) {
     throw new Error("Sketch export did not include a PNG image.");
@@ -3340,6 +3342,60 @@ async function handleTldrawSketchSubmit(payload) {
   promptInput.focus();
   updateComposerButtons();
   return uploaded;
+}
+
+function attachExistingWorkspaceArtifact(artifact, options = {}) {
+  const path = workspacePathFromReferenceArtifact(artifact);
+  if (!path) {
+    throw new Error("Selected tldraw image does not reference a workspace file.");
+  }
+
+  const existing = attachedFiles.find((attachment) => attachment.status === "uploaded" && attachment.path === path);
+  if (existing) {
+    renderAttachments();
+    return existing;
+  }
+
+  const extension = artifactExtension({ path, url: artifact?.url || "" });
+  const attachment = {
+    id: crypto.randomUUID(),
+    name: String(artifact?.name || path.split("/").filter(Boolean).pop() || "attachment"),
+    size: Number(artifact?.size || 0),
+    mimeType: String(artifact?.mimeType || mimeTypeForExtension(extension) || ""),
+    description: String(options.description || artifact?.description || "").trim(),
+    status: "uploaded",
+    progress: 100,
+    path,
+  };
+  attachedFiles.push(attachment);
+  renderAttachments();
+  return attachment;
+}
+
+function workspacePathFromReferenceArtifact(artifact) {
+  const rawPath = String(artifact?.path || "").trim();
+  if (rawPath.startsWith("/workspace/")) {
+    return workspacePathFromUrl(rawPath);
+  }
+  if (rawPath.startsWith("workspace/")) {
+    return rawPath.slice("workspace/".length);
+  }
+  if (rawPath && !rawPath.startsWith("/") && !rawPath.includes("://")) {
+    return rawPath;
+  }
+
+  const rawUrl = String(artifact?.url || "").trim();
+  if (!rawUrl) {
+    return "";
+  }
+  const normalizedUrl = normalizeWorkspaceUrl(rawUrl);
+  if (normalizedUrl.startsWith("/workspace/")) {
+    return workspacePathFromUrl(normalizedUrl);
+  }
+  if (normalizedUrl.startsWith("workspace/")) {
+    return normalizedUrl.slice("workspace/".length);
+  }
+  return "";
 }
 
 async function uploadGeneratedFile(file, options = {}) {
@@ -3582,6 +3638,9 @@ document.addEventListener("keydown", (event) => {
   }
 });
 
+document.addEventListener("copy", preserveChatTextSelectionClipboard, true);
+document.addEventListener("cut", preserveChatTextSelectionClipboard, true);
+
 for (const tab of previewTabs) {
   tab.addEventListener("click", () => {
     activatePreviewTab(tab.dataset.previewTab);
@@ -3591,3 +3650,56 @@ for (const tab of previewTabs) {
 window.addEventListener("beforeunload", () => {
   disconnect();
 });
+
+function preserveChatTextSelectionClipboard(event) {
+  if (event.defaultPrevented || !selectionIntersectsChatPanel()) {
+    return;
+  }
+
+  event.stopImmediatePropagation();
+}
+
+function selectionIntersectsChatPanel() {
+  const selection = window.getSelection?.();
+  if (!selection || selection.isCollapsed || selection.rangeCount === 0) {
+    return false;
+  }
+  return selectionIntersectsElement(selection, document.querySelector(".chat-panel"));
+}
+
+function selectionIntersectsElement(selection, element) {
+  if (!element) {
+    return false;
+  }
+
+  for (let index = 0; index < selection.rangeCount; index += 1) {
+    const range = selection.getRangeAt(index);
+    if (range.collapsed) {
+      continue;
+    }
+    if (typeof range.intersectsNode === "function") {
+      try {
+        if (range.intersectsNode(element)) {
+          return true;
+        }
+      } catch {
+        // Some browser selection ranges can throw for detached nodes.
+      }
+    }
+    if (nodeInsideElement(range.commonAncestorContainer, element)) {
+      return true;
+    }
+    if (nodeInsideElement(range.startContainer, element) || nodeInsideElement(range.endContainer, element)) {
+      return true;
+    }
+  }
+  return false;
+}
+
+function nodeInsideElement(node, element) {
+  if (!node || !element) {
+    return false;
+  }
+  const candidate = node.nodeType === Node.ELEMENT_NODE ? node : node.parentElement;
+  return Boolean(candidate && element.contains(candidate));
+}

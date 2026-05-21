@@ -227,6 +227,16 @@ Credential resolution rule:
 - this fallback applies to key-like secret fields, not to general settings such as `workspace` or `api_base`
 - after config load, runtime also syncs configured secrets back into process environment variables for SDK compatibility
 
+Logging:
+
+- Console logs are controlled by `CREATIVE_CLAW_CONSOLE_LOG_LEVEL`; set it in the shell before startup or in the repository-local `.env`. Shell variables take priority because `.env` does not override existing variables.
+- File logs are controlled by `system.log_level`, `system.log_file`, `system.retention`, and `system.rotation` in `~/.creative-claw/conf.json`.
+- File logs are written under `~/.creative-claw/logs/`; if that path is not writable, runtime falls back to `/tmp/creative-claw-logs`.
+- Supported log levels are `TRACE`, `DEBUG`, `INFO`, `SUCCESS`, `WARNING`, `ERROR`, and `CRITICAL`.
+- Defaults: console level `INFO`; file level `DEBUG`; file template `creative_claw_{time}.log`; retention `7 days`; rotation `10 MB`.
+- Verbose runtime communication tracing is controlled by `CREATIVE_CLAW_RUNTIME_TRACE`; set it to `1`, `true`, `yes`, or `on` to log orchestrator, manager, expert, model, event, and tool communication content to the backend logger.
+- Runtime trace entries are truncated by `CREATIVE_CLAW_RUNTIME_TRACE_MAX_CHARS`, defaulting to `8000` characters per entry. Trace logs can include prompts and user content, so use this switch only for local debugging or trusted environments.
+
 Current provider env-fallback coverage:
 
 - auto-fallback is implemented for `openai`, `anthropic`, `gemini`, `groq`, `deepseek`, `dashscope`, `zhipu`, `moonshot`, `minimax`, `mistral`, `stepfun`, and `qianfan`
@@ -236,6 +246,7 @@ Current provider env-fallback coverage:
 
 Common environment variables:
 
+- runtime: `CREATIVE_CLAW_HOME`, `CREATIVE_CLAW_DOTENV_PATH`, `CREATIVE_CLAW_CONSOLE_LOG_LEVEL`, `CREATIVE_CLAW_RUNTIME_TRACE`, `CREATIVE_CLAW_RUNTIME_TRACE_MAX_CHARS`
 - text providers: `OPENAI_API_KEY`, `ANTHROPIC_API_KEY`, `GOOGLE_API_KEY`, `GEMINI_API_KEY`, `GROQ_API_KEY`, `DEEPSEEK_API_KEY`, `DASHSCOPE_API_KEY`, `ZAI_API_KEY`, `MOONSHOT_API_KEY`, `MINIMAX_API_KEY`, `MISTRAL_API_KEY`, `STEPFUN_API_KEY`, `QIANFAN_API_KEY`
 - service integrations: `ARK_API_KEY`, `DDS_API_KEY`, `SERPER_API_KEY`, `BRAVE_API_KEY`, `DOC2X_API_KEY`, `VOLCENGINE_APPID`, `VOLCENGINE_ACCESS_TOKEN`
 - Tencent Cloud 3D: `TENCENTCLOUD_SECRET_ID`, `TENCENTCLOUD_SECRET_KEY`, optional `TENCENTCLOUD_SESSION_TOKEN`, optional `TENCENTCLOUD_REGION`
