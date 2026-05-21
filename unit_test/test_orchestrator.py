@@ -236,6 +236,14 @@ class OrchestratorTests(unittest.TestCase):
 
         self.assertEqual(deltas, ["Hi", ", I am CreativeClaw", ".\nNice to meet you"])
 
+    def test_reply_text_stream_extractor_can_suppress_plain_text_preamble(self) -> None:
+        extractor = _ReplyTextStreamExtractor(allow_plain_text=False)
+
+        self.assertEqual(extractor.append("The"), "")
+        self.assertEqual(extractor.append('{"reply_text":"Hi'), "Hi")
+        self.assertEqual(extractor.append(' there", "final_file_paths":[]}'), " there")
+        self.assertEqual(extractor.published_text, "Hi there")
+
     def test_list_skills_records_orchestration_step(self) -> None:
         orchestrator = Orchestrator(
             session_service=InMemorySessionService(),
@@ -1462,6 +1470,76 @@ class OrchestratorCallbackTests(unittest.IsolatedAsyncioTestCase):
             result = await orchestrator.run_until_done()
 
         self.assertEqual(result["final_response"], "fallback final text")
+        self.assertEqual(result["final_file_paths"], [])
+
+
+class OrchestratorStreamResponseTests(unittest.IsolatedAsyncioTestCase):
+    async def test_run_agent_and_log_events_ignores_partial_final_response_text(self) -> None:
+        session_service = InMemorySessionService()
+        orchestrator = Orchestrator(
+            session_service=session_service,
+            artifact_service=InMemoryArtifactService(),
+            expert_agents={},
+        )
+        await session_service.create_session(
+            app_name=SYS_CONFIG.app_name,
+            user_id="user-1",
+            session_id="session-1",
+            state={"turn_index": 1},
+        )
+
+        class FakeEvent:
+            def __init__(self, *, text: str, partial: bool) -> None:
+                self.partial = partial
+                self.content = Content(parts=[Part(text=text)])
+
+            def is_final_response(self) -> bool:
+                return True
+
+            def model_dump_json(self, **_: object) -> str:
+                return "{}"
+
+        class FakeRunner:
+            async def run_async(self, **_: object):
+                yield FakeEvent(text="The", partial=True)
+                yield FakeEvent(text="The complete answer.", partial=False)
+
+        orchestrator.runner = FakeRunner()
+
+        response = await orchestrator.run_agent_and_log_events(
+            user_id="user-1",
+            session_id="session-1",
+        )
+
+        self.assertEqual(response, "The complete answer.")
+
+    async def test_run_until_done_prefers_output_key_plain_text_over_partial_raw_text(self) -> None:
+        session_service = InMemorySessionService()
+        orchestrator = Orchestrator(
+            session_service=session_service,
+            artifact_service=InMemoryArtifactService(),
+            expert_agents={},
+        )
+        orchestrator.uid = "user-1"
+        orchestrator.sid = "session-1"
+        await session_service.create_session(
+            app_name=SYS_CONFIG.app_name,
+            user_id=orchestrator.uid,
+            session_id=orchestrator.sid,
+            state={
+                "orchestration_events": [],
+                ORCHESTRATOR_FINAL_RESPONSE_OUTPUT_KEY: "The complete answer from state.",
+            },
+        )
+
+        with patch.object(
+            orchestrator,
+            "run_agent_and_log_events",
+            new=AsyncMock(return_value="The"),
+        ):
+            result = await orchestrator.run_until_done()
+
+        self.assertEqual(result["final_response"], "The complete answer from state.")
         self.assertEqual(result["final_file_paths"], [])
 
 

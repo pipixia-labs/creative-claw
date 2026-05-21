@@ -488,10 +488,11 @@ def _select_missing_structured_final_response_text(
 ) -> str:
     """Choose a user-facing reply for synthesized final responses."""
     authoritative_candidates = [
-        raw_final_response,
         state.get("final_response"),
         state.get("final_summary"),
         state.get("last_orchestrator_response"),
+        _plain_text_final_response_payload(state.get(ORCHESTRATOR_FINAL_RESPONSE_OUTPUT_KEY)),
+        raw_final_response,
     ]
     for candidate in authoritative_candidates:
         normalized = str(candidate or "").strip()
@@ -513,6 +514,18 @@ def _select_missing_structured_final_response_text(
             return normalized
 
     return "已完成，生成的文件见附件。"
+
+
+def _plain_text_final_response_payload(payload: Any) -> str:
+    """Return plain output-key text that is safe to use as a compatibility fallback."""
+    if not isinstance(payload, str):
+        return ""
+    normalized = payload.strip()
+    if not normalized:
+        return ""
+    if normalized.startswith("{") or '"reply_text"' in normalized:
+        return ""
+    return normalized
 
 
 def _coerce_structured_final_response(payload: Any) -> OrchestratorFinalResponse:
@@ -668,10 +681,16 @@ def _format_question_form_reply(result: Any) -> str:
 class _ReplyTextStreamExtractor:
     """Extract safe `reply_text` deltas from a streamed structured response."""
 
-    def __init__(self) -> None:
+    def __init__(self, *, allow_plain_text: bool = True) -> None:
         self._raw_text = ""
         self._published_text = ""
         self._plain_text_mode = False
+        self._allow_plain_text = allow_plain_text
+
+    @property
+    def published_text(self) -> str:
+        """Return the user-visible text already published as deltas."""
+        return self._published_text
 
     def append(self, text: str) -> str:
         """Append one partial model text chunk and return newly safe user-visible text."""
@@ -686,9 +705,11 @@ class _ReplyTextStreamExtractor:
 
         stripped = self._raw_text.lstrip()
         if stripped and not stripped.startswith("{") and '"reply_text"' not in stripped:
-            self._plain_text_mode = True
-            self._published_text += self._raw_text
-            return self._raw_text
+            if self._allow_plain_text:
+                self._plain_text_mode = True
+                self._published_text += self._raw_text
+                return self._raw_text
+            return ""
 
         reply_prefix = _extract_reply_text_prefix(self._raw_text)
         if not reply_prefix.startswith(self._published_text):
@@ -2034,7 +2055,9 @@ Expert parameter contracts:
             session_id=session_id,
         )
         turn_index = int((current_session.state if current_session else {}).get("turn_index", 0) or 0)
-        reply_stream = _ReplyTextStreamExtractor()
+        reply_stream = _ReplyTextStreamExtractor(
+            allow_plain_text=self.uses_native_structured_output
+        )
         stream_reply_text = assistant_delta_streaming_active()
         run_config_kwargs: dict[str, Any] = {
             "max_llm_calls": SYS_CONFIG.max_iterations_orchestrator,
@@ -2112,10 +2135,17 @@ Expert parameter contracts:
                     final_file_paths=[],
                 )
                 return final_reply
-            if event.is_final_response() and event.content and event.content.parts:
+            if (
+                event.is_final_response()
+                and not getattr(event, "partial", False)
+                and event.content
+                and event.content.parts
+            ):
                 text_part = next((part.text for part in event.content.parts if part.text), None)
                 if text_part:
                     final_response_text = text_part
+        if not final_response_text and reply_stream.published_text:
+            final_response_text = reply_stream.published_text
         return final_response_text
 
     async def _persist_confirmation_final_response(
