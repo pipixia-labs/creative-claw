@@ -1166,6 +1166,10 @@ button {
   background: rgba(255, 255, 252, 0.62);
 }
 
+.progress-card.collapsed .progress-wrapper {
+  display: none;
+}
+
 .progress-body {
   max-height: min(36dvh, 320px);
   overflow: auto;
