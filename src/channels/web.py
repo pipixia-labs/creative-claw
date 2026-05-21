@@ -906,7 +906,7 @@ class WebChannel(BaseChannel):
                 )
 
     def _attachments_from_chat_payload(self, payload: dict[str, Any]) -> list[MessageAttachment]:
-        """Normalize browser-uploaded attachment records from one chat payload."""
+        """Normalize browser attachment records from one chat payload."""
         raw_attachments = payload.get("attachments") or []
         if not isinstance(raw_attachments, list):
             raise ValueError("Chat attachments must be a list.")
@@ -922,8 +922,7 @@ class WebChannel(BaseChannel):
             if not raw_path:
                 raise ValueError(f"Attachment {index} is missing a path.")
             try:
-                resolved_path = Path(raw_path).resolve()
-                resolved_path.relative_to(upload_root)
+                resolved_path = self._resolve_chat_attachment_path(raw_path, upload_root)
             except Exception as exc:
                 raise ValueError(f"Attachment {index} is not a valid uploaded file.") from exc
             if not resolved_path.is_file():
@@ -938,6 +937,26 @@ class WebChannel(BaseChannel):
                 )
             )
         return attachments
+
+    def _resolve_chat_attachment_path(self, raw_path: str, upload_root: Path) -> Path:
+        """Resolve a browser chat attachment from upload storage or the workspace."""
+        cleaned_path = raw_path.strip()
+        if "://" in cleaned_path:
+            raise ValueError("Attachment paths must be local files.")
+
+        try:
+            uploaded_path = Path(cleaned_path).expanduser().resolve()
+            uploaded_path.relative_to(upload_root)
+            return uploaded_path
+        except Exception:
+            pass
+
+        workspace_path = cleaned_path
+        if workspace_path.startswith("/workspace/"):
+            workspace_path = workspace_path.removeprefix("/workspace/")
+        elif workspace_path.startswith("workspace/"):
+            workspace_path = workspace_path.removeprefix("workspace/")
+        return resolve_workspace_path(workspace_path)
 
     async def _handle_stop(self, conn: _ClientConnection, payload: dict[str, Any]) -> None:
         """Stop the currently active run for one Web Chat session."""

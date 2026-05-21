@@ -80,6 +80,46 @@ class WebchatStaticAssetTests(unittest.TestCase):
         self.assertIn("Referenced tldraw image artifact.", app_js)
         self.assertIn("Selected tldraw canvas export.", app_js)
 
+    def test_web_channel_accepts_workspace_relative_tldraw_attachments(self) -> None:
+        async def _handler(_message: InboundMessage) -> None:
+            return None
+
+        channel = WebChannel(
+            config=WebChannelConfig(host="127.0.0.1", port=0, open_browser=False),
+            inbound_handler=_handler,
+        )
+        generated_file = generated_root() / f"web_channel_tldraw_{uuid.uuid4().hex[:8]}.png"
+        generated_file.write_bytes(b"fake tldraw image")
+
+        try:
+            relative_path = workspace_relative_path(generated_file)
+            attachments = channel._attachments_from_chat_payload(
+                {
+                    "attachments": [
+                        {
+                            "name": generated_file.name,
+                            "path": relative_path,
+                            "mimeType": "image/png",
+                            "description": "Referenced tldraw image artifact.",
+                        }
+                    ]
+                }
+            )
+
+            self.assertEqual(len(attachments), 1)
+            self.assertEqual(Path(attachments[0].path).resolve(), generated_file.resolve())
+            self.assertEqual(attachments[0].name, generated_file.name)
+            self.assertEqual(attachments[0].mime_type, "image/png")
+            self.assertEqual(attachments[0].description, "Referenced tldraw image artifact.")
+
+            with self.assertRaisesRegex(ValueError, "not a valid uploaded file"):
+                channel._attachments_from_chat_payload(
+                    {"attachments": [{"name": "remote.png", "path": "https://example.com/remote.png"}]}
+                )
+        finally:
+            with contextlib.suppress(FileNotFoundError):
+                generated_file.unlink()
+
 
 class PptxPreviewRenderingTests(unittest.TestCase):
     def test_pptx_preview_prefers_libreoffice_pdf_conversion(self) -> None:
