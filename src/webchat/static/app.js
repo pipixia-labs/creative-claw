@@ -225,7 +225,7 @@ function sessionArtifactTypes(artifacts) {
     const tab = previewTabForArtifact(artifact);
     if (tab === "tldraw") labels.add("Image");
     if (tab === "html") labels.add("Design");
-    if (tab === "ppt") labels.add("PPT");
+    if (tab === "ppt") labels.add("PPT/PDF");
     if (tab === "model3d") labels.add("3D");
   }
   return Array.from(labels);
@@ -2626,7 +2626,7 @@ function renderPptPreview() {
   pptPreview.innerHTML = "";
   const artifact = selectedPreviewByTab.ppt;
   if (!artifact) {
-    pptPreview.appendChild(previewEmpty("No PPT preview"));
+    pptPreview.appendChild(previewEmpty("No PPT/PDF preview"));
     return;
   }
 
@@ -2649,7 +2649,7 @@ function renderPptPreview() {
     const iframe = document.createElement("iframe");
     iframe.className = "ppt-preview-frame";
     iframe.src = previewUrlForArtifact(artifact);
-    iframe.title = artifact.name || "PPT preview";
+    iframe.title = artifact.name || "PPT/PDF preview";
     iframe.addEventListener("load", () => hideEmbeddedPptChrome(iframe));
     pptPreview.appendChild(iframe);
     return;

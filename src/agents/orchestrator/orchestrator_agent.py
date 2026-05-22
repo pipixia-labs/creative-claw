@@ -109,6 +109,8 @@ _AUTO_OUTPUT_TOOL_NAMES = {
     "audio_convert",
 }
 
+_DEEPSEEK_THINKING_PLACEHOLDER = "thinking ..."
+
 _DISPLAY_TOOL_TITLES = {
     "list_skills": "List Skills",
     "read_skill": "Read Skill",
@@ -720,6 +722,45 @@ class _ReplyTextStreamExtractor:
         return delta
 
 
+def _is_deepseek_model(model_name: str) -> bool:
+    """Return whether one resolved model name belongs to the DeepSeek provider."""
+    return str(model_name or "").strip().lower().startswith("deepseek/")
+
+
+def _is_thought_part(part: Any) -> bool:
+    """Return whether one ADK content part is marked as model thinking."""
+    return getattr(part, "thought", None) is True
+
+
+def _event_has_thought_text(event: Event) -> bool:
+    """Return whether one model event contains thought text parts."""
+    parts = getattr(getattr(event, "content", None), "parts", None) or []
+    return any(_is_thought_part(part) and getattr(part, "text", None) for part in parts)
+
+
+def _event_text(event: Event, *, skip_thought: bool = False) -> str:
+    """Return concatenated text parts from one model event."""
+    parts = getattr(getattr(event, "content", None), "parts", None) or []
+    return "".join(
+        str(text)
+        for part in parts
+        if not (skip_thought and _is_thought_part(part))
+        if (text := getattr(part, "text", None))
+    )
+
+
+def _first_event_text(event: Event, *, skip_thought: bool = False) -> str:
+    """Return the first text part from one model event."""
+    parts = getattr(getattr(event, "content", None), "parts", None) or []
+    for part in parts:
+        if skip_thought and _is_thought_part(part):
+            continue
+        text = getattr(part, "text", None)
+        if text:
+            return str(text)
+    return ""
+
+
 def _extract_reply_text_prefix(text: str) -> str:
     """Return the currently available `reply_text` string prefix from JSON text."""
     key_index = text.find('"reply_text"')
@@ -819,6 +860,8 @@ class Orchestrator:
         self.design_product_manager = DesignProductManager()
 
         model_name = resolve_llm_model_name(llm_model or SYS_CONFIG.llm_model)
+        self.llm_model_name = model_name
+        self._uses_deepseek_model = _is_deepseek_model(model_name)
         self.structured_output_mode = resolve_structured_output_mode(llm_model or SYS_CONFIG.llm_model)
         self.uses_native_structured_output = self.structured_output_mode == "native"
         logger.info(
@@ -2057,6 +2100,7 @@ Expert parameter contracts:
         turn_index = int((current_session.state if current_session else {}).get("turn_index", 0) or 0)
         reply_stream = _ReplyTextStreamExtractor(allow_plain_text=True)
         stream_reply_text = assistant_delta_streaming_active()
+        deepseek_thinking_placeholder_sent = False
         run_config_kwargs: dict[str, Any] = {
             "max_llm_calls": SYS_CONFIG.max_iterations_orchestrator,
         }
@@ -2075,7 +2119,17 @@ Expert parameter contracts:
                 event.model_dump_json(indent=2, exclude_none=True),
             )
             if stream_reply_text and getattr(event, "partial", False) and event.content and event.content.parts:
-                text_delta = "".join(part.text or "" for part in event.content.parts if part.text)
+                if self._uses_deepseek_model and _event_has_thought_text(event):
+                    if not deepseek_thinking_placeholder_sent:
+                        published = await publish_assistant_delta(
+                            session_id=session_id,
+                            turn_index=turn_index,
+                            delta=_DEEPSEEK_THINKING_PLACEHOLDER,
+                        )
+                        if published:
+                            self._last_run_streamed_reply_text = True
+                            deepseek_thinking_placeholder_sent = True
+                text_delta = _event_text(event, skip_thought=self._uses_deepseek_model)
                 safe_delta = reply_stream.append(text_delta)
                 if safe_delta:
                     published = await publish_assistant_delta(
@@ -2139,7 +2193,7 @@ Expert parameter contracts:
                 and event.content
                 and event.content.parts
             ):
-                text_part = next((part.text for part in event.content.parts if part.text), None)
+                text_part = _first_event_text(event, skip_thought=self._uses_deepseek_model)
                 if text_part:
                     final_response_text = text_part
         if not final_response_text and reply_stream.published_text:

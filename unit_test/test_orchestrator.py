@@ -1560,6 +1560,154 @@ class OrchestratorStreamResponseTests(unittest.IsolatedAsyncioTestCase):
         self.assertEqual([message.text for message in published], ["Hello", " world"])
         self.assertEqual(response, "Hello world")
 
+    async def test_deepseek_partial_thought_streams_placeholder_only(self) -> None:
+        session_service = InMemorySessionService()
+        orchestrator = Orchestrator(
+            session_service=session_service,
+            artifact_service=InMemoryArtifactService(),
+            expert_agents={},
+        )
+        orchestrator.llm_model_name = "deepseek/deepseek-v4-pro"
+        orchestrator._uses_deepseek_model = True
+        await session_service.create_session(
+            app_name=SYS_CONFIG.app_name,
+            user_id="user-deepseek-thought",
+            session_id="session-deepseek-thought",
+            state={"turn_index": 5},
+        )
+
+        class FakeEvent:
+            def __init__(self, *, parts: list[Part], partial: bool) -> None:
+                self.partial = partial
+                self.content = Content(role="model", parts=parts)
+
+            def is_final_response(self) -> bool:
+                return not self.partial
+
+            def model_dump_json(self, **_: object) -> str:
+                return "{}"
+
+        class FakeRunner:
+            async def run_async(self, **_: object):
+                yield FakeEvent(parts=[Part(text="Raw English thinking", thought=True)], partial=True)
+                yield FakeEvent(parts=[Part(text="Final answer.")], partial=False)
+
+        published = []
+
+        async def _publisher(message):
+            published.append(message)
+
+        orchestrator.runner = FakeRunner()
+        configure_step_event_publisher(_publisher)
+        try:
+            with route_context("web", "chat-deepseek-thought"):
+                response = await orchestrator.run_agent_and_log_events(
+                    user_id="user-deepseek-thought",
+                    session_id="session-deepseek-thought",
+                )
+        finally:
+            configure_step_event_publisher(None)
+
+        self.assertEqual([message.text for message in published], ["thinking ..."])
+        self.assertNotIn("Raw English thinking", "".join(message.text for message in published))
+        self.assertEqual(response, "Final answer.")
+
+    async def test_deepseek_final_response_skips_thought_part(self) -> None:
+        session_service = InMemorySessionService()
+        orchestrator = Orchestrator(
+            session_service=session_service,
+            artifact_service=InMemoryArtifactService(),
+            expert_agents={},
+        )
+        orchestrator.llm_model_name = "deepseek/deepseek-v4-pro"
+        orchestrator._uses_deepseek_model = True
+        await session_service.create_session(
+            app_name=SYS_CONFIG.app_name,
+            user_id="user-deepseek-final",
+            session_id="session-deepseek-final",
+            state={"turn_index": 6},
+        )
+
+        class FakeEvent:
+            partial = False
+            content = Content(
+                role="model",
+                parts=[
+                    Part(text="Raw final thought", thought=True),
+                    Part(text="Visible final answer."),
+                ],
+            )
+
+            def is_final_response(self) -> bool:
+                return True
+
+            def model_dump_json(self, **_: object) -> str:
+                return "{}"
+
+        class FakeRunner:
+            async def run_async(self, **_: object):
+                yield FakeEvent()
+
+        orchestrator.runner = FakeRunner()
+
+        response = await orchestrator.run_agent_and_log_events(
+            user_id="user-deepseek-final",
+            session_id="session-deepseek-final",
+        )
+
+        self.assertEqual(response, "Visible final answer.")
+
+    async def test_non_deepseek_partial_text_streaming_preserves_existing_behavior(self) -> None:
+        session_service = InMemorySessionService()
+        orchestrator = Orchestrator(
+            session_service=session_service,
+            artifact_service=InMemoryArtifactService(),
+            expert_agents={},
+        )
+        orchestrator.llm_model_name = "gemini/gemini-2.5-flash"
+        orchestrator._uses_deepseek_model = False
+        await session_service.create_session(
+            app_name=SYS_CONFIG.app_name,
+            user_id="user-gemini-thought",
+            session_id="session-gemini-thought",
+            state={"turn_index": 7},
+        )
+
+        class FakeEvent:
+            def __init__(self, *, text: str, partial: bool) -> None:
+                self.partial = partial
+                self.content = Content(role="model", parts=[Part(text=text, thought=True)])
+
+            def is_final_response(self) -> bool:
+                return not self.partial
+
+            def model_dump_json(self, **_: object) -> str:
+                return "{}"
+
+        class FakeRunner:
+            async def run_async(self, **_: object):
+                yield FakeEvent(text="Existing stream text", partial=True)
+                yield FakeEvent(text="Existing final text", partial=False)
+
+        published = []
+
+        async def _publisher(message):
+            published.append(message)
+
+        orchestrator.runner = FakeRunner()
+        configure_step_event_publisher(_publisher)
+        try:
+            with route_context("web", "chat-gemini-thought"):
+                response = await orchestrator.run_agent_and_log_events(
+                    user_id="user-gemini-thought",
+                    session_id="session-gemini-thought",
+                )
+        finally:
+            configure_step_event_publisher(None)
+
+        self.assertEqual([message.text for message in published], ["Existing stream text"])
+        self.assertEqual(response, "Existing final text")
+
     async def test_run_until_done_prefers_output_key_plain_text_over_partial_raw_text(self) -> None:
         session_service = InMemorySessionService()
         orchestrator = Orchestrator(
