@@ -18,6 +18,7 @@ No more jumping back and forth between different tools.
 With CreativeClaw, you can keep iterating around a single idea and move from inspiration to final output in one flow.
 
 ## 📰 News
+ - 2026-05-22: Released v0.4 with Web visual workspace upgrades, PPT/Page/Design product workflows, broader LLM compatibility, improved video previews, grouped Activity cards, and richer runtime trace debugging.
  - 2026-05-10: Added requirement confirmation and design system support for Web design tasks.
  - 2026-05-09: Upgraded the Design and Web Chat workflow with a tldraw-powered Visual Board, canvas-style Design previews, and path-based visual attachments.
  - 2026-05-05: Added interactive PPT generation and HTML-to-PPTX workflows, plus improved Web Chat previews for artifacts, media, PDF, and PPT outputs.
