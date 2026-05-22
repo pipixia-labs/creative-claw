@@ -10,3 +10,17 @@
 .cc-sketch-root .tl-container {
   background: #f8f9f4;
 }
+
+.cc-video {
+  object-fit: contain;
+  background: #111;
+}
+
+.cc-video-placeholder {
+  width: 100%;
+  height: 100%;
+  display: grid;
+  place-items: center;
+  color: var(--tl-color-text-3);
+  font: 12px/1.4 system-ui, sans-serif;
+}

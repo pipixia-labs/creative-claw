@@ -43,7 +43,7 @@ Module fallback before installing the console script:
 
 ```bash
 cd creative_claw
-python3.12 -m venv .venv
+python3.13 -m venv .venv
 source ./.venv/bin/activate
 pip install -r requirements.txt
 pip install -e .
@@ -54,6 +54,7 @@ If you already have the repository-local virtual environment, reuse it instead o
 
 Important:
 
+- Python 3.13 is the recommended runtime. Python 3.12 is supported, but Python 3.14 is not recommended yet because the Volcengine Ark SDK path used by Seedance / Seedream currently relies on Pydantic v1 compatibility code that is not stable on Python 3.14.
 - runtime config now lives in `~/.creative-claw/conf.json`
 - the default workspace is `~/.creative-claw/workspace`
 - repository-local `.env` is loaded at startup without overriding shell environment variables
@@ -218,6 +219,11 @@ Speech synthesis, recognition, and subtitle service grants:
 - Open or grant these resources from the [Volcengine speech console](https://console.volcengine.com/speech/app).
 - If a grant is missing, the live API usually returns `requested resource not granted` or `requested grant not found`.
 - The resource names above align with the current CreativeClaw backend routes and the official Volcengine speech product docs / live validation responses.
+
+Volcengine Ark runtime note:
+
+- Seedream, Seedance, Seed3D, Hyper3D, and Hitem3D use the Volcengine Ark SDK.
+- Run these paths with Python 3.13 for now. Python 3.14 can trigger Ark SDK Pydantic v1 compatibility warnings or failures, especially in Seedance 2.0 video generation.
 
 Credential resolution rule:
 

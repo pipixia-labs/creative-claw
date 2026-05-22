@@ -13,6 +13,7 @@ from src.agents.experts.base import CreativeExpert
 from src.agents.experts.video_generation.capabilities import (
     get_default_video_duration,
     get_default_video_resolution,
+    get_video_generation_model_name,
     normalize_dashscope_video_model_name,
     normalize_provider_video_aspect_ratio,
     normalize_provider_video_duration,
@@ -29,6 +30,27 @@ from src.logger import logger
 from src.runtime.workspace import build_workspace_file_record, save_binary_output
 
 
+VIDEO_PROMPT_ENHANCEMENT_ENABLED = False
+
+
+def _effective_model_name(
+    *,
+    provider: str,
+    mode: str,
+    seedance_model_name: str,
+    dashscope_model_name: str,
+    kling_model_name: str,
+) -> str:
+    """Return the effective video model name selected for provider dispatch logging."""
+    if provider == "seedance":
+        return seedance_model_name
+    if provider == "dashscope":
+        return dashscope_model_name
+    if provider == "kling":
+        return kling_model_name or get_video_generation_model_name("kling", mode=mode)
+    return get_video_generation_model_name(provider, mode=mode)
+
+
 async def _prepare_prompts(
     ctx: InvocationContext,
     prompt_list: list[str],
@@ -36,7 +58,7 @@ async def _prepare_prompts(
     prompt_rewrite: str,
 ) -> list[str]:
     """Return prompts after applying the agent-side rewrite policy."""
-    if prompt_rewrite == "off":
+    if prompt_rewrite == "off" or not VIDEO_PROMPT_ENHANCEMENT_ENABLED:
         return prompt_list
 
     enhanced_prompt_results = await asyncio.gather(
@@ -215,6 +237,31 @@ class VideoGenerationAgent(CreativeExpert):
             ctx,
             prompt_list,
             prompt_rewrite=prompt_rewrite,
+        )
+        effective_model_name = _effective_model_name(
+            provider=provider,
+            mode=mode,
+            seedance_model_name=seedance_model_name,
+            dashscope_model_name=dashscope_model_name,
+            kling_model_name=kling_model_name,
+        )
+        logger.info(
+            (
+                "VideoGenerationAgent dispatch: provider={} mode={} model_name={} "
+                "aspect_ratio={} resolution={} duration_seconds={} prompt_rewrite={} "
+                "generate_audio={} prompt_count={} input_path_count={} input_url_count={}"
+            ),
+            provider,
+            mode,
+            effective_model_name,
+            aspect_ratio,
+            resolution,
+            duration_seconds,
+            prompt_rewrite,
+            seedance_generate_audio,
+            len(normalized_prompts),
+            len(input_paths),
+            len(input_urls),
         )
 
         if provider == "veo":

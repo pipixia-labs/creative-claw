@@ -33,7 +33,7 @@ class VideoExpertProviderTests(unittest.IsolatedAsyncioTestCase):
             patch(
                 "src.agents.experts.video_generation.video_generation_agent.video_tools.prompt_enhancement_tool",
                 new=AsyncMock(return_value={"status": "success", "message": "enhanced cat video"}),
-            ),
+            ) as enhancement_mock,
             patch(
                 "src.agents.experts.video_generation.video_generation_agent.save_binary_output",
                 return_value=workspace_root() / "generated" / "session_1" / "step1_video_generation_output0.mp4",
@@ -53,12 +53,23 @@ class VideoExpertProviderTests(unittest.IsolatedAsyncioTestCase):
                 "src.agents.experts.video_generation.video_generation_agent.video_tools.veo_video_generation_tool",
                 new=AsyncMock(),
             ) as veo_mock,
+            patch(
+                "src.agents.experts.video_generation.video_generation_agent.logger.info",
+            ) as info_mock,
         ):
             events = [event async for event in agent._run_async_impl(ctx)]
 
         self.assertEqual(len(events), 1)
+        enhancement_mock.assert_not_called()
+        dispatch_log_args = [
+            call.args
+            for call in info_mock.call_args_list
+            if call.args and str(call.args[0]).startswith("VideoGenerationAgent dispatch:")
+        ]
+        self.assertEqual(len(dispatch_log_args), 1)
+        self.assertEqual(dispatch_log_args[0][3], "doubao-seedance-2-0-260128")
         seedance_mock.assert_awaited_once_with(
-            "enhanced cat video",
+            "draw a cat video",
             input_paths=[],
             mode="prompt",
             aspect_ratio="16:9",
@@ -71,7 +82,7 @@ class VideoExpertProviderTests(unittest.IsolatedAsyncioTestCase):
         )
         veo_mock.assert_not_called()
 
-    async def test_video_generation_logs_prompt_enhancement_error_and_uses_original_prompt(self) -> None:
+    async def test_video_generation_skips_local_prompt_enhancement_while_disabled(self) -> None:
         agent = VideoGenerationAgent(name="VideoGenerationAgent")
         ctx = _build_ctx({"current_parameters": {"prompt": "draw a cat video"}, "step": 0})
 
@@ -79,7 +90,7 @@ class VideoExpertProviderTests(unittest.IsolatedAsyncioTestCase):
             patch(
                 "src.agents.experts.video_generation.video_generation_agent.video_tools.prompt_enhancement_tool",
                 new=AsyncMock(return_value={"status": "error", "message": "Codex request timed out"}),
-            ),
+            ) as enhancement_mock,
             patch(
                 "src.agents.experts.video_generation.video_generation_agent.logger.warning",
             ) as warning_mock,
@@ -102,6 +113,7 @@ class VideoExpertProviderTests(unittest.IsolatedAsyncioTestCase):
             events = [event async for event in agent._run_async_impl(ctx)]
 
         self.assertEqual(len(events), 1)
+        enhancement_mock.assert_not_called()
         seedance_mock.assert_awaited_once_with(
             "draw a cat video",
             input_paths=[],
@@ -114,8 +126,7 @@ class VideoExpertProviderTests(unittest.IsolatedAsyncioTestCase):
             watermark=False,
             seed=None,
         )
-        warning_mock.assert_called_once()
-        self.assertEqual(warning_mock.call_args.args[1], "Codex request timed out")
+        warning_mock.assert_not_called()
 
     async def test_video_generation_passes_seedance_2_fast_audio_parameters(self) -> None:
         agent = VideoGenerationAgent(name="VideoGenerationAgent")
@@ -192,7 +203,7 @@ class VideoExpertProviderTests(unittest.IsolatedAsyncioTestCase):
             patch(
                 "src.agents.experts.video_generation.video_generation_agent.video_tools.prompt_enhancement_tool",
                 new=AsyncMock(return_value={"status": "success", "message": "enhanced cat video"}),
-            ),
+            ) as enhancement_mock,
             patch(
                 "src.agents.experts.video_generation.video_generation_agent.save_binary_output",
                 return_value=workspace_root() / "generated" / "session_1" / "step1_video_generation_output0.mp4",
@@ -216,8 +227,9 @@ class VideoExpertProviderTests(unittest.IsolatedAsyncioTestCase):
             events = [event async for event in agent._run_async_impl(ctx)]
 
         self.assertEqual(len(events), 1)
+        enhancement_mock.assert_not_called()
         veo_mock.assert_awaited_once_with(
-            "enhanced cat video",
+            "draw a cat video",
             input_paths=[],
             mode="prompt",
             aspect_ratio="16:9",
@@ -319,7 +331,7 @@ class VideoExpertProviderTests(unittest.IsolatedAsyncioTestCase):
             patch(
                 "src.agents.experts.video_generation.video_generation_agent.video_tools.prompt_enhancement_tool",
                 new=AsyncMock(return_value={"status": "success", "message": "enhanced kling prompt"}),
-            ),
+            ) as enhancement_mock,
             patch(
                 "src.agents.experts.video_generation.video_generation_agent.save_binary_output",
                 return_value=workspace_root() / "generated" / "session_1" / "step1_video_generation_output0.mp4",
@@ -347,8 +359,9 @@ class VideoExpertProviderTests(unittest.IsolatedAsyncioTestCase):
             events = [event async for event in agent._run_async_impl(ctx)]
 
         self.assertEqual(len(events), 1)
+        enhancement_mock.assert_not_called()
         kling_mock.assert_awaited_once_with(
-            "enhanced kling prompt",
+            "keep the subject consistent",
             input_paths=["generated/a.png", "generated/b.png"],
             mode="multi_reference",
             aspect_ratio="16:9",

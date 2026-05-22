@@ -4,7 +4,7 @@
   <h3>One conversation. Endless creativity.</h3>
   <p><a href="README_zh.md">中文</a> · <strong>English</strong></p>
   <p>
-    <img src="https://img.shields.io/badge/python-3.12%2B-blue" alt="Python">
+    <img src="https://img.shields.io/badge/python-3.13%20recommended-blue" alt="Python">
     <img src="https://img.shields.io/badge/google--adk-1.29.0-green" alt="Google ADK">
     <img src="https://img.shields.io/badge/channels-CLI%20%7C%20Web%20%7C%20Telegram%20%7C%20Feishu-orange" alt="Channels">
   </p>
@@ -99,11 +99,13 @@ The following diagram shows the high-level architecture of CreativeClaw, includi
 ```bash
 git clone https://github.com/GML-FMGroup/creative_claw.git
 cd creative_claw
-python3.12 -m venv .venv
+python3.13 -m venv .venv
 source .venv/bin/activate
 pip install -r requirements.txt
 pip install -e .
 ```
+
+Python 3.13 is the recommended runtime. Python 3.12 is also supported, but Python 3.14 is not recommended yet because the current Volcengine Ark SDK path used by Seedance / Seedream depends on Pydantic v1 compatibility code that is not stable on Python 3.14.
 
 If you want deterministic local video or audio operations, also make sure `ffmpeg` and `ffprobe` are installed and available on `PATH`.
 For operation parameters and example payloads, see [docs/media_basic_operations.md](docs/media_basic_operations.md).
@@ -145,6 +147,7 @@ Notes:
 - Image, video, search, and some provider-specific capabilities only need extra credentials when you actually use them.
 - `VideoGenerationAgent` provider `seedance` now defaults to `doubao-seedance-2-0-260128`. For faster generation use `model_name="doubao-seedance-2-0-fast-260128"` and keep `resolution` at `720p`; legacy `model_name="doubao-seedance-1-0-pro-250528"` remains accepted.
 - For exact dialogue or native generated audio with Seedance 2.0, use `provider="seedance"`, `generate_audio=true`, and `prompt_rewrite="off"` so quoted dialogue is preserved.
+- Seedance / Volcengine Ark calls should run on Python 3.13 for now. Python 3.14 can trigger SDK compatibility warnings or failures from the Ark SDK's Pydantic v1 compatibility layer.
 - For `VideoGenerationAgent` with `provider="kling"`, prompt and image-guided routes now default to `kling-v3`, while `mode="multi_reference"` follows the official `kling-v1-6` schema.
 - If `services.kling_api_base` or `KLING_API_BASE` is not set explicitly, the built-in Kling provider probes the official Beijing and Singapore gateways and caches the first working base.
 - Kling image-guided routes validate the documented input constraints but do not auto-resize or auto-crop input images. If preprocessing is needed, do it first with local image tools before calling `VideoGenerationAgent`.
@@ -244,6 +247,7 @@ The main LLM orchestrator can call these tool groups directly:
 
 - Common controls: `provider`, `mode`, `prompt_rewrite`, `aspect_ratio`, `resolution`, `duration_seconds`, `negative_prompt`, `seed`, and optional `input_path` / `input_paths`.
 - `seedance`: modes `prompt`, `first_frame`, `first_frame_and_last_frame`, `reference_asset`, `reference_style`; model ids `doubao-seedance-2-0-260128`, `doubao-seedance-2-0-fast-260128`, `doubao-seedance-1-0-pro-250528`; extra controls `generate_audio` and `watermark`.
+- Seedance uses Volcengine Ark and is currently validated with Python 3.13. Avoid Python 3.14 for this path until the Ark SDK fully supports it.
 - `veo`: modes `prompt`, `first_frame`, `first_frame_and_last_frame`, `reference_asset`, `reference_style`, `video_extension`; model id `veo-3.1-generate-preview`; extra control `person_generation`.
 - `kling`: modes `prompt`, `first_frame`, `first_frame_and_last_frame`, `multi_reference`; model ids `kling-v3` and `kling-v1-6` for `multi_reference`; extra control `kling_mode` (`std` or `pro`).
 - `dashscope`: modes `prompt`, `first_frame`, `first_frame_and_last_frame`; text-to-video model ids `wan2.7-t2v`, `wan2.7-t2v-2026-04-25`, `happyhorse-1.0-t2v`; image-to-video model ids `wan2.7-i2v`, `wan2.7-i2v-2026-04-25`, `happyhorse-1.0-i2v`. HappyHorse image-to-video requires `image_url` / `image_urls`; Wan 2.7 image-guided routes can use local `input_path` / `input_paths`.

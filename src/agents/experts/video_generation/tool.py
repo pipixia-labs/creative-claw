@@ -938,7 +938,8 @@ async def seedance_video_generation_tool(
     seed: Any = None,
 ) -> dict[str, Any]:
     """Generate one video via Seedance."""
-    logger.info("calling seedance for video generation ...")
+    current_model = normalize_seedance_model_name(model_name)
+    logger.info("calling seedance for video generation: model_name={}", current_model)
     ark_api_key = os.environ.get("ARK_API_KEY", "").strip()
     if not ark_api_key:
         return {
@@ -960,7 +961,6 @@ async def seedance_video_generation_tool(
 
     current_mode = str(mode or "").strip().lower() or "prompt"
     current_paths = input_paths or []
-    current_model = normalize_seedance_model_name(model_name)
     current_ratio = normalize_provider_video_aspect_ratio("seedance", aspect_ratio)
     current_resolution = normalize_seedance_video_resolution(current_model, resolution)
     current_duration = normalize_seedance_video_duration(current_model, duration_seconds)
@@ -1095,12 +1095,12 @@ async def dashscope_video_generation_tool(
     seed: Any = None,
 ) -> dict[str, Any]:
     """Generate one video via DashScope Wan 2.7 or HappyHorse 1.0."""
-    logger.info("calling dashscope for video generation ...")
-    api_key = _get_dashscope_api_key()
     current_mode = str(mode or "").strip().lower() or "prompt"
+    current_model = normalize_dashscope_video_model_name(model_name, mode=current_mode)
+    logger.info("calling dashscope for video generation: model_name={}", current_model)
+    api_key = _get_dashscope_api_key()
     current_paths = input_paths or []
     current_urls = input_urls or []
-    current_model = normalize_dashscope_video_model_name(model_name, mode=current_mode)
     current_ratio = normalize_provider_video_aspect_ratio("dashscope", aspect_ratio)
     current_resolution = normalize_provider_video_resolution(
         "dashscope",
@@ -1214,7 +1214,7 @@ async def veo_video_generation_tool(
     seed: int | None = None,
 ) -> dict[str, Any]:
     """Generate one video via Google's VEO API."""
-    logger.info("calling veo for video generation ...")
+    logger.info("calling veo for video generation: model_name={}", _VEO_MODEL_NAME)
     google_api_key = (
         os.environ.get("GOOGLE_API_KEY", "").strip()
         or os.environ.get("GEMINI_API_KEY", "").strip()
@@ -1353,17 +1353,21 @@ async def kling_video_generation_tool(
     kling_mode: str = "std",
 ) -> dict[str, Any]:
     """Generate one video via the Kling official video API."""
-    logger.info("calling kling for video generation ...")
+    current_mode = str(mode or "").strip().lower() or "prompt"
+    current_model_name = (
+        str(model_name or "").strip()
+        or (_KLING_MULTI_REFERENCE_MODEL_NAME if current_mode == "multi_reference" else _KLING_MODEL_NAME)
+    )
+    logger.info("calling kling for video generation: model_name={}", current_model_name)
     access_key, secret_key, api_base = _get_kling_runtime_settings()
     if not access_key or not secret_key:
         return {
             "status": "error",
             "message": "KLING_ACCESS_KEY or KLING_SECRET_KEY is not set.",
             "provider": "kling",
-            "model_name": model_name or _KLING_MODEL_NAME,
+            "model_name": current_model_name,
         }
 
-    current_mode = str(mode or "").strip().lower() or "prompt"
     current_paths = input_paths or []
     current_ratio = normalize_provider_video_aspect_ratio("kling", aspect_ratio)
     current_duration = int(
@@ -1377,10 +1381,6 @@ async def kling_video_generation_tool(
     )
     current_negative_prompt = str(negative_prompt or "").strip()
     current_kling_mode = normalize_kling_mode(kling_mode)
-    current_model_name = (
-        str(model_name or "").strip()
-        or (_KLING_MULTI_REFERENCE_MODEL_NAME if current_mode == "multi_reference" else _KLING_MODEL_NAME)
-    )
 
     try:
         _validate_kling_constraints(mode=current_mode, input_paths=current_paths)

@@ -1,8 +1,9 @@
-import React, { useCallback, useMemo, useRef } from "react";
+import React, { memo, useCallback, useMemo, useRef, useState } from "react";
 import { createRoot } from "react-dom/client";
 import {
   AssetRecordType,
   DefaultColorStyle,
+  HTMLContainer,
   DefaultContextMenu,
   DefaultContextMenuContent,
   DefaultStylePanel,
@@ -19,9 +20,13 @@ import {
   createShapeId,
   getColorValue,
   useEditor,
+  useEditorComponents,
+  useImageOrVideoAsset,
+  usePrefersReducedMotion,
   useRelevantStyles,
   useToasts,
   useValue,
+  VideoShapeUtil,
 } from "tldraw";
 import "tldraw/tldraw.css";
 import "./styles.css";
@@ -58,10 +63,72 @@ function CreativeClawSketchCanvas({ artifacts = [], onSubmitSketch }) {
 
   return (
     <div className="cc-sketch-root">
-      <Tldraw onMount={handleMount} components={tldrawComponents} />
+      <Tldraw onMount={handleMount} components={tldrawComponents} shapeUtils={CREATIVE_CLAW_SHAPE_UTILS} />
     </div>
   );
 }
+
+class CreativeClawVideoShapeUtil extends VideoShapeUtil {
+  component(shape) {
+    return <CreativeClawVideoShape shape={shape} />;
+  }
+}
+
+const CREATIVE_CLAW_SHAPE_UTILS = [CreativeClawVideoShapeUtil];
+
+const CreativeClawVideoShape = memo(function CreativeClawVideoShape({ shape }) {
+  const prefersReducedMotion = usePrefersReducedMotion();
+  const { Spinner } = useEditorComponents();
+  const { asset, url } = useImageOrVideoAsset({
+    shapeId: shape.id,
+    assetId: shape.props.assetId,
+    width: shape.props.w,
+  });
+  const [isLoaded, setIsLoaded] = useState(false);
+
+  return (
+    <HTMLContainer
+      id={shape.id}
+      style={{
+        color: "var(--tl-color-text-3)",
+        backgroundColor: asset ? "transparent" : "var(--tl-color-low)",
+        border: asset ? "none" : "1px solid var(--tl-color-low-border)",
+      }}
+    >
+      <div className="tl-counter-scaled">
+        <div className="tl-video-container">
+          {!asset ? (
+            <div className="cc-video-placeholder">Video unavailable</div>
+          ) : Spinner && !asset.props.src ? (
+            <Spinner />
+          ) : url ? (
+            <>
+              <video
+                key={url}
+                className="tl-video cc-video"
+                width="100%"
+                height="100%"
+                draggable={false}
+                playsInline
+                autoPlay={shape.props.autoplay && !prefersReducedMotion}
+                loop
+                disableRemotePlayback
+                disablePictureInPicture
+                controls
+                style={isLoaded ? { pointerEvents: "all" } : { display: "none" }}
+                onLoadedData={() => setIsLoaded(true)}
+                aria-label={shape.props.altText}
+              >
+                <source src={url} />
+              </video>
+              {!isLoaded && Spinner ? <Spinner /> : null}
+            </>
+          ) : null}
+        </div>
+      </div>
+    </HTMLContainer>
+  );
+});
 
 function CreativeClawContextMenu({ onSubmitSketch, ...props }) {
   const editor = useEditor();
@@ -235,9 +302,9 @@ async function seedMediaArtifacts(editor, artifacts, loadedSignatureRef) {
       const shapeProps = isVideo ? {
         assetId,
         altText: name,
-        autoplay: true,
+        autoplay: false,
         h: height,
-        playing: true,
+        playing: false,
         time: 0,
         url: artifact.url,
         w: width,
@@ -351,9 +418,12 @@ function loadVideoDimensions(src) {
       }
       isSettled = true;
       window.clearTimeout(timeoutId);
-      video.removeAttribute("src");
-      video.load();
-      callback();
+      try {
+        callback();
+      } finally {
+        video.removeAttribute("src");
+        video.load();
+      }
     };
     timeoutId = window.setTimeout(() => {
       settle(() => reject(new Error("Timed out loading video metadata into the sketch canvas.")));
@@ -361,10 +431,12 @@ function loadVideoDimensions(src) {
     video.addEventListener(
       "loadedmetadata",
       () => {
+        const width = video.videoWidth || 1280;
+        const height = video.videoHeight || 720;
         settle(() => {
           resolve({
-            width: video.videoWidth || 1280,
-            height: video.videoHeight || 720,
+            width,
+            height,
           });
         });
       },
