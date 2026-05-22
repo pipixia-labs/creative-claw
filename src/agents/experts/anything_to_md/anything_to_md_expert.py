@@ -13,7 +13,7 @@ from src.agents.experts.base import CreativeExpert
 
 
 class AnythingToMDExpert(CreativeExpert):
-    """Convert one workspace source file or web URL into Markdown."""
+    """Convert one local workspace source file into Markdown."""
 
     def __init__(self, name: str, description: str = "") -> None:
         """Initialize the AnythingToMD expert."""
@@ -37,4 +37,3 @@ class AnythingToMDExpert(CreativeExpert):
             current_output.get("output_text") or current_output.get("message", ""),
             state_delta,
         )
-

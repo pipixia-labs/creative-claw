@@ -6,11 +6,15 @@ import copy
 import html as html_lib
 import inspect
 import json
+import mimetypes
 import re
 import shutil
 import xml.etree.ElementTree as ET
 from pathlib import Path
 from typing import Any
+from urllib.error import HTTPError, URLError
+from urllib.parse import unquote, urlparse
+from urllib.request import Request, urlopen
 
 from google.adk.apps import App
 from google.adk.agents import BaseAgent, LlmAgent, SequentialAgent
@@ -116,6 +120,32 @@ PPT_PRIVATE_SKILL_FORWARD_STATE_KEYS = (
     "ppt_route_build",
 )
 WorkspacePptxSnapshot = dict[str, tuple[int, int]]
+PPT_REMOTE_SOURCE_MAX_BYTES = 100 * 1024 * 1024
+PPT_REMOTE_SOURCE_KNOWN_EXTENSIONS = {
+    ".csv",
+    ".docx",
+    ".gif",
+    ".htm",
+    ".html",
+    ".jpeg",
+    ".jpg",
+    ".json",
+    ".markdown",
+    ".md",
+    ".pdf",
+    ".png",
+    ".potm",
+    ".potx",
+    ".pptm",
+    ".pptx",
+    ".txt",
+    ".webp",
+    ".xlsm",
+    ".xlsx",
+    ".xml",
+    ".yaml",
+    ".yml",
+}
 
 
 class PptProductManager(LlmAgent):
@@ -3610,8 +3640,17 @@ Return structured status, current phase, selected route, warnings, next actions,
     ) -> SourceInput:
         """Return a SourceInput whose local path is workspace-relative when possible."""
         source_path = str(source_input.path or "").strip()
-        if not source_path or cls._looks_like_url(source_path):
+        if not source_path:
             return source_input
+        if cls._looks_like_url(source_path):
+            try:
+                return cls._download_remote_source_input_for_workspace(source_input, state, index)
+            except Exception as exc:
+                warnings = list(state.get("ppt_source_input_warnings") or [])
+                source_label = source_input.name or source_path
+                warnings.append(f"Could not download remote source {source_label}: {type(exc).__name__}: {exc}")
+                state["ppt_source_input_warnings"] = warnings
+                return source_input
 
         try:
             workspace_path = resolve_workspace_path(source_path)
@@ -3637,6 +3676,145 @@ Return structured status, current phase, selected route, warnings, next actions,
                 "path": workspace_relative_path(staged_path),
             }
         )
+
+    @classmethod
+    def _download_remote_source_input_for_workspace(
+        cls,
+        source_input: SourceInput,
+        state: dict[str, Any],
+        index: int,
+    ) -> SourceInput:
+        """Download one remote PPT source URL into the workspace and return a local SourceInput."""
+        source_url = str(source_input.path or "").strip()
+        request = Request(source_url, headers={"User-Agent": "Mozilla/5.0 CreativeClaw PptProductManager"})
+        try:
+            with urlopen(request, timeout=60) as response:
+                content_length = cls._coerce_optional_int(response.headers.get("content-length"))
+                if content_length is not None and content_length > PPT_REMOTE_SOURCE_MAX_BYTES:
+                    raise ValueError(f"Remote source is too large: {content_length} bytes")
+                content_type = str(response.headers.get("content-type") or "").split(";", 1)[0].strip().lower()
+                content_disposition = str(response.headers.get("content-disposition") or "")
+                data = cls._read_remote_source_bytes(response)
+        except (HTTPError, URLError) as exc:
+            raise RuntimeError(str(exc)) from exc
+
+        output_dir = cls._remote_source_output_dir(state)
+        filename = cls._remote_source_filename(
+            source_input,
+            source_url=source_url,
+            content_type=content_type,
+            content_disposition=content_disposition,
+            index=index,
+        )
+        output_path = cls._dedupe_path(output_dir / filename)
+        output_path.write_bytes(data)
+        relative_path = workspace_relative_path(output_path)
+
+        downloads = list(state.get("ppt_remote_source_downloads") or [])
+        downloads.append(
+            {
+                "source_url": source_url,
+                "path": relative_path,
+                "name": output_path.name,
+                "mime_type": content_type,
+            }
+        )
+        state["ppt_remote_source_downloads"] = downloads
+
+        return source_input.model_copy(
+            update={
+                "name": output_path.name,
+                "path": relative_path,
+                "mime_type": source_input.mime_type or content_type,
+            }
+        )
+
+    @staticmethod
+    def _read_remote_source_bytes(response: Any) -> bytes:
+        """Read a remote source response with a conservative size limit."""
+        chunks: list[bytes] = []
+        total = 0
+        while True:
+            chunk = response.read(1024 * 1024)
+            if not chunk:
+                break
+            total += len(chunk)
+            if total > PPT_REMOTE_SOURCE_MAX_BYTES:
+                raise ValueError(f"Remote source is too large: over {PPT_REMOTE_SOURCE_MAX_BYTES} bytes")
+            chunks.append(chunk)
+        return b"".join(chunks)
+
+    @staticmethod
+    def _remote_source_output_dir(state: dict[str, Any]) -> Path:
+        """Return the workspace directory used for downloaded remote PPT sources."""
+        session_id = str(state.get("sid") or "ppt-session").strip()
+        turn_index = PptProductManager._coerce_optional_int(state.get("turn_index"))
+        output_dir = generated_session_dir(session_id, turn_index=turn_index) / "ppt_remote_sources"
+        output_dir.mkdir(parents=True, exist_ok=True)
+        return output_dir
+
+    @classmethod
+    def _remote_source_filename(
+        cls,
+        source_input: SourceInput,
+        *,
+        source_url: str,
+        content_type: str,
+        content_disposition: str,
+        index: int,
+    ) -> str:
+        """Infer a safe filename for one downloaded remote source."""
+        parsed = urlparse(source_url)
+        candidate = (
+            cls._filename_from_content_disposition(content_disposition)
+            or source_input.name
+            or Path(unquote(parsed.path)).name
+            or f"remote_source_{index:02d}"
+        )
+        candidate = Path(candidate).name
+        original_suffix = Path(candidate).suffix.lower()
+        suffix = original_suffix
+        content_suffix = cls._extension_from_content_type(content_type)
+        if content_suffix and suffix not in PPT_REMOTE_SOURCE_KNOWN_EXTENSIONS:
+            suffix = content_suffix
+        elif not suffix:
+            suffix = content_suffix or ".bin"
+        stem_source = Path(candidate).stem if original_suffix in PPT_REMOTE_SOURCE_KNOWN_EXTENSIONS else candidate
+        stem = cls._safe_source_stem(stem_source.replace(".", "_"))
+        return f"{index:02d}_{stem}{suffix}"
+
+    @staticmethod
+    def _filename_from_content_disposition(value: str) -> str:
+        """Extract a filename from a Content-Disposition header when present."""
+        header = str(value or "")
+        filename_star = re.search(r"filename\*\s*=\s*(?:UTF-8''|)([^;]+)", header, flags=re.IGNORECASE)
+        if filename_star:
+            return unquote(filename_star.group(1).strip().strip('"'))
+        filename = re.search(r"filename\s*=\s*([^;]+)", header, flags=re.IGNORECASE)
+        if filename:
+            return filename.group(1).strip().strip('"')
+        return ""
+
+    @staticmethod
+    def _extension_from_content_type(content_type: str) -> str:
+        """Return a conventional file extension for a response content type."""
+        if not content_type:
+            return ""
+        extension = mimetypes.guess_extension(content_type)
+        if extension == ".jpe":
+            return ".jpg"
+        return extension or ""
+
+    @staticmethod
+    def _dedupe_path(path: Path) -> Path:
+        """Return a non-existing path by appending a numeric suffix when needed."""
+        if not path.exists():
+            return path
+        for counter in range(2, 1000):
+            candidate = path.with_name(f"{path.stem}_{counter}{path.suffix}")
+            if not candidate.exists():
+                return candidate
+        raise FileExistsError(f"Could not allocate a unique path for {path.name}")
 
     @classmethod
     def _ensure_private_skill_source_files_visible(
@@ -3736,7 +3914,7 @@ Return structured status, current phase, selected route, warnings, next actions,
         markdown_sources: list[dict[str, Any]] = []
         figures: list[dict[str, Any]] = []
         output_files: list[dict[str, Any]] = []
-        warnings: list[str] = []
+        warnings: list[str] = list(tool_context.state.get("ppt_source_input_warnings") or [])
         source_output_dir = self._build_source_output_dir(tool_context.state)
 
         for index, source_input in enumerate(source_inputs, start=1):
@@ -3744,6 +3922,12 @@ Return structured status, current phase, selected route, warnings, next actions,
             source_label = source_input.name or source_path or f"source_{index}"
             if not source_path:
                 warnings.append(f"Source {source_label} has no path or URL.")
+                continue
+            if self._looks_like_url(source_path):
+                warnings.append(
+                    f"Remote source {source_label} was not downloaded into the workspace; "
+                    "source conversion skipped."
+                )
                 continue
             image_passthrough = self._register_existing_image_source(
                 source_input,
@@ -3910,7 +4094,7 @@ Return structured status, current phase, selected route, warnings, next actions,
         source_index: int,
         output_dir: Path,
     ) -> dict[str, Any]:
-        """Build AnythingToMD expert parameters for one source file or URL."""
+        """Build AnythingToMD expert parameters for one local source file."""
         source_path = str(source_input.path or "").strip()
         source_label = source_input.name or source_path or f"source_{source_index}"
         output_file = output_dir / f"source_{source_index:02d}_{cls._safe_source_stem(source_label)}.md"
@@ -3921,10 +4105,7 @@ Return structured status, current phase, selected route, warnings, next actions,
             "__expert_step": int(runtime_state.get("expert_step", 0) or 0) + source_index,
             "output_path": workspace_relative_path(output_file),
         }
-        if cls._looks_like_url(source_path):
-            parameters["url"] = source_path
-        else:
-            parameters["input_path"] = source_path
+        parameters["input_path"] = source_path
         return parameters
 
     @classmethod

@@ -218,13 +218,13 @@ _EXPERT_SPECS = {
         agent_factory=lambda: AnythingToMDExpert(name="AnythingToMD"),
         default_prompt_key="input_path",
         supports_plain_prompt=False,
-        required_parameters=("input_path or url",),
+        required_parameters=("input_path",),
         required_parameter_groups=(
-            RequiredParameterGroup(keys=("input_path", "url"), description="input_path or url"),
+            RequiredParameterGroup(keys=("input_path",), description="input_path"),
         ),
         mirrored_output_keys=("anything_to_md_results",),
         notes=(
-            "Convert one workspace file or URL into Markdown. "
+            "Convert one local workspace file into Markdown. "
             "Primary converter follows source_to_md-style logic; MarkItDown is an optional fallback. "
             "Optional parameters: output_path, max_rows, max_cols."
         ),

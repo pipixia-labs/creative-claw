@@ -227,4 +227,10 @@ class AnythingToMDExpertTests(unittest.IsolatedAsyncioTestCase):
         result = convert_anything_to_markdown({})
 
         self.assertEqual(result["status"], "error")
-        self.assertIn("input_path or url is required", result["message"])
+        self.assertIn("input_path is required", result["message"])
+
+    def test_url_input_returns_error(self) -> None:
+        result = convert_anything_to_markdown({"url": "https://example.com/source.pdf"})
+
+        self.assertEqual(result["status"], "error")
+        self.assertIn("URL inputs are not supported", result["message"])

@@ -70,6 +70,28 @@ class _DictState(dict):
         return dict(self)
 
 
+class _FakeRemoteResponse:
+    def __init__(self, data: bytes, headers: dict[str, str]):
+        self._data = data
+        self._offset = 0
+        self.headers = headers
+
+    def __enter__(self):
+        return self
+
+    def __exit__(self, exc_type, exc, traceback):
+        return False
+
+    def read(self, size: int = -1) -> bytes:
+        if self._offset >= len(self._data):
+            return b""
+        if size is None or size < 0:
+            size = len(self._data) - self._offset
+        chunk = self._data[self._offset : self._offset + size]
+        self._offset += len(chunk)
+        return chunk
+
+
 async def _fake_source_converter(source_input, parameters: dict) -> dict:
     output_path = str(parameters["output_path"])
     output_file = resolve_workspace_path(output_path)
@@ -1779,6 +1801,56 @@ Visual:
         self.assertTrue(resolve_workspace_path(captured["input_path"]).exists())
         self.assertEqual(result["confirmed_requirement"]["source_inputs"][0]["path"], captured["source_input_path"])
         self.assertEqual(result["confirmed_requirement"]["source_inputs"][0]["path"], captured["input_path"])
+
+    async def test_requirement_confirmation_downloads_remote_url_before_source_conversion(self) -> None:
+        manager = PptProductManager()
+        tool_context = SimpleNamespace(
+            state={
+                "sid": "ppt-manager-remote-source-test",
+                "channel": "web",
+                "turn_index": 1,
+                "step": 1,
+            }
+        )
+        source_url = "https://arxiv.org/pdf/1706.03762"
+        captured: dict[str, str] = {}
+
+        async def _capturing_source_converter(source_input, parameters: dict) -> dict:
+            captured["source_input_path"] = source_input.path
+            captured["input_path"] = parameters["input_path"]
+            captured["has_url_parameter"] = str("url" in parameters)
+            return await _fake_source_converter(source_input, parameters)
+
+        await manager.run_product_request(
+            task="针对这个论文，给我做一个ppt，用于组会和同学讲解。",
+            inputs=[{"name": "1706.03762", "url": source_url}],
+            output={"format": "pptx", "language": "zh-CN", "usage": "组会讲解"},
+            tool_context=tool_context,
+        )
+
+        tool_context.state["turn_index"] = 2
+        fake_response = _FakeRemoteResponse(
+            b"%PDF-1.4\nremote pdf fixture\n",
+            {"content-type": "application/pdf", "content-length": "28"},
+        )
+        with patch(
+            "src.productions.ppt.ppt_product_manager.ppt_product_manager.urlopen",
+            return_value=fake_response,
+        ):
+            result = await manager.continue_product_request(
+                user_response="确认",
+                tool_context=tool_context,
+                source_converter=_capturing_source_converter,
+            )
+
+        self.assertEqual(result["status"], "awaiting_content_plan_confirmation")
+        self.assertEqual(captured["has_url_parameter"], "False")
+        self.assertTrue(captured["input_path"].startswith("generated/ppt-manager-remote-source-test/turn_2/"))
+        self.assertTrue(captured["input_path"].endswith(".pdf"))
+        self.assertTrue(resolve_workspace_path(captured["input_path"]).exists())
+        self.assertEqual(result["confirmed_requirement"]["source_inputs"][0]["path"], captured["source_input_path"])
+        self.assertEqual(result["confirmed_requirement"]["source_inputs"][0]["path"], captured["input_path"])
+        self.assertEqual(tool_context.state["ppt_remote_source_downloads"][0]["source_url"], source_url)
 
     async def test_run_returns_deferred_status_for_unimplemented_xml_route(self) -> None:
         manager = PptProductManager()

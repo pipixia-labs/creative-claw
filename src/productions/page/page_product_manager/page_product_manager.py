@@ -154,7 +154,7 @@ Own content-first HTML page tasks end to end. This product line is for posters, 
 - Use ImageGenerationAgent for original final bitmap assets. Prefer `provider="nano_banana"` unless the user explicitly asks for another provider or a task-specific constraint requires it.
 - Use SearchAgent for text facts, platform examples, or visual references. Search images are references unless explicitly approved for direct final use.
 - Use ImageUnderstandingAgent for uploaded/reference images that need OCR, style analysis, or reverse-prompt extraction.
-- Use AnythingToMD for user-provided documents or web pages that should become Markdown source material.
+- Use AnythingToMD for user-provided local documents that should become Markdown source material.
 
 # Workflow
 1. Call `emit_page_progress` when you start.

@@ -12,7 +12,7 @@ from dataclasses import dataclass
 from datetime import date, datetime, time
 from pathlib import Path
 from typing import Any
-from urllib.parse import unquote, urljoin, urlparse
+from urllib.parse import unquote, urlparse
 
 from src.agents.experts.basic_operations_helpers import (
     build_error_output,
@@ -46,31 +46,18 @@ class ConversionResult:
 
 
 def convert_anything_to_markdown(parameters: dict[str, Any]) -> dict[str, Any]:
-    """Convert one workspace file or URL to Markdown and return runtime output."""
+    """Convert one local workspace file to Markdown and return runtime output."""
     try:
         output_path = str(parameters.get("output_path", "") or "").strip()
         url = str(parameters.get("url", "") or "").strip()
-        if url:
-            output_file = _resolve_output_path(parameters, output_path, source_name=_url_stem(url))
-            primary_error = ""
-            try:
-                conversion = _convert_url_primary(url, output_file)
-            except Exception as exc:
-                primary_error = f"{type(exc).__name__}: {exc}"
-                conversion = None
-            if conversion is None:
-                conversion = _convert_with_markitdown(url)
-            if conversion is None:
-                detail = f" Primary error: {primary_error}." if primary_error else ""
-                raise ValueError(
-                    "URL conversion failed. Install markitdown or provide a supported HTML page."
-                    + detail
-                )
-            return _write_success_output(parameters, output_file, conversion, input_paths=[], source_url=url)
-
         input_path = str(parameters.get("input_path", "") or "").strip()
+        if url or input_path.lower().startswith(("http://", "https://")):
+            raise ValueError(
+                "URL inputs are not supported by AnythingToMD. "
+                "Download the file into the workspace and pass input_path."
+            )
         if not input_path:
-            raise ValueError("input_path or url is required.")
+            raise ValueError("input_path is required.")
         resolved_input = resolve_workspace_path(input_path)
         if not resolved_input.is_file():
             raise FileNotFoundError(f"Input file not found: {input_path}")
@@ -99,7 +86,7 @@ def convert_anything_to_markdown(parameters: dict[str, Any]) -> dict[str, Any]:
                 f"Primary supports: {supported}. MarkItDown fallback is unavailable or failed."
                 + detail
             )
-        return _write_success_output(parameters, output_file, conversion, input_paths=[input_path], source_url="")
+        return _write_success_output(parameters, output_file, conversion, input_paths=[input_path])
     except Exception as exc:
         return build_error_output(_EXPERT_NAME, f"{_EXPERT_NAME} failed: {exc}")
 
@@ -131,7 +118,6 @@ def _write_success_output(
     conversion: ConversionResult,
     *,
     input_paths: list[str],
-    source_url: str,
 ) -> dict[str, Any]:
     """Write the Markdown file and build a normalized success payload."""
     markdown = conversion.markdown.rstrip() + "\n"
@@ -148,7 +134,6 @@ def _write_success_output(
         "output_text": markdown,
         "results": {
             "input_paths": input_paths,
-            "source_url": source_url,
             "output_path": relative_output_path,
             "method": conversion.method,
             "source_label": conversion.source_label,
@@ -589,32 +574,10 @@ def _convert_docx(input_file: Path, output_file: Path) -> str:
 def _convert_html(input_file: Path, output_file: Path) -> str:
     """Convert an HTML file to Markdown and copy local/data images."""
     raw_html = input_file.read_text(encoding="utf-8", errors="replace")
-    return _html_to_markdown(raw_html, base_dir=input_file.parent, output_file=output_file, source_url="")
+    return _html_to_markdown(raw_html, base_dir=input_file.parent, output_file=output_file)
 
 
-def _convert_url_primary(url: str, output_file: Path) -> ConversionResult | None:
-    """Fetch an HTML URL and convert its main content to Markdown."""
-    try:
-        import requests
-    except ImportError:
-        return None
-    try:
-        response = requests.get(
-            url,
-            headers={"User-Agent": "Mozilla/5.0 CreativeClaw AnythingToMD"},
-            timeout=30,
-        )
-        response.raise_for_status()
-    except Exception:
-        return None
-    content_type = response.headers.get("content-type", "").lower()
-    if "html" not in content_type and not response.text.lstrip().startswith("<"):
-        return None
-    markdown = _html_to_markdown(response.text, base_dir=output_file.parent, output_file=output_file, source_url=url)
-    return ConversionResult(markdown=markdown, method="primary:web", source_label=url)
-
-
-def _html_to_markdown(raw_html: str, *, base_dir: Path, output_file: Path, source_url: str) -> str:
+def _html_to_markdown(raw_html: str, *, base_dir: Path, output_file: Path) -> str:
     """Convert HTML to Markdown using markdownify and BeautifulSoup."""
     try:
         from bs4 import BeautifulSoup
@@ -627,7 +590,7 @@ def _html_to_markdown(raw_html: str, *, base_dir: Path, output_file: Path, sourc
     content = _find_main_content(soup)
     asset_dir = output_file.parent / f"{output_file.stem}_files"
     rel_asset_dir = asset_dir.name
-    _rewrite_html_images(content, base_dir=base_dir, asset_dir=asset_dir, rel_asset_dir=rel_asset_dir, source_url=source_url)
+    _rewrite_html_images(content, base_dir=base_dir, asset_dir=asset_dir, rel_asset_dir=rel_asset_dir)
     markdown = markdownify(str(content or soup), heading_style="ATX", bullets="-")
     return re.sub(r"\n{3,}", "\n\n", markdown).strip()
 
@@ -647,9 +610,8 @@ def _rewrite_html_images(
     base_dir: Path,
     asset_dir: Path,
     rel_asset_dir: str,
-    source_url: str,
 ) -> None:
-    """Extract local, data URI, and URL images from HTML into the Markdown asset directory."""
+    """Extract local and data URI images from HTML into the Markdown asset directory."""
     if content is None:
         return
     index = 0
@@ -658,7 +620,7 @@ def _rewrite_html_images(
         if not src:
             continue
         index += 1
-        filename = _copy_or_download_html_image(src, base_dir, asset_dir, index, source_url=source_url)
+        filename = _copy_or_download_html_image(src, base_dir, asset_dir, index)
         if filename:
             img["src"] = f"{rel_asset_dir}/{filename}"
 
@@ -668,8 +630,6 @@ def _copy_or_download_html_image(
     base_dir: Path,
     asset_dir: Path,
     index: int,
-    *,
-    source_url: str,
 ) -> str | None:
     """Persist one HTML image source if possible and return its local filename."""
     asset_dir.mkdir(parents=True, exist_ok=True)
@@ -683,20 +643,10 @@ def _copy_or_download_html_image(
         return filename
 
     parsed = urlparse(src)
-    if parsed.scheme in {"http", "https"} or (source_url and src.startswith(("/", "//"))):
-        try:
-            import requests
-            absolute_url = urljoin(source_url, src)
-            response = requests.get(absolute_url, timeout=15)
-            response.raise_for_status()
-        except Exception:
-            return None
-        ext = Path(urlparse(absolute_url).path).suffix
-        if not ext:
-            ext = mimetypes.guess_extension(response.headers.get("content-type", "").split(";")[0]) or ".bin"
-        filename = f"image_{index:03d}{ext}"
-        (asset_dir / filename).write_bytes(response.content)
-        return filename
+    if parsed.scheme in {"http", "https"} or src.startswith("//"):
+        return None
+    if parsed.scheme and parsed.scheme != "file":
+        return None
 
     local_path = Path(unquote(parsed.path if parsed.scheme == "file" else src))
     if not local_path.is_absolute():
@@ -749,13 +699,6 @@ def _normalize_text(value: str) -> str:
 def _escape_table_cell(value: str) -> str:
     """Escape Markdown table syntax inside a cell."""
     return _normalize_text(value).replace("|", r"\|") or " "
-
-
-def _url_stem(url: str) -> str:
-    """Derive a safe output stem from a URL."""
-    parsed = urlparse(url)
-    candidate = Path(parsed.path).stem or parsed.netloc or "web_page"
-    return _safe_stem(candidate)
 
 
 def _safe_stem(value: str) -> str:

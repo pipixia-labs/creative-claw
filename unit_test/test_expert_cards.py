@@ -144,7 +144,7 @@ class ExpertCardTests(unittest.TestCase):
                 "does not judge truthfulness",
             ],
             ("anything_to_md", "EXPERT.md"): [
-                "convert one workspace source file or one web page into Markdown",
+                "convert one local workspace source file into Markdown",
                 "MarkItDown is used only as a fallback",
                 "does not call an LLM",
             ],
