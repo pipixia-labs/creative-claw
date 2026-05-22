@@ -139,6 +139,7 @@ async def _publish_step_event(
         user_detail=user_detail,
         turn_index=normalized_turn,
         debug_events=_debug_history(history),
+        activity_sequence=len(history),
     )
 
     maybe_awaitable = publisher(
@@ -239,6 +240,7 @@ def append_orchestration_step_event(
     normalized_title = str(title or "").strip() or "In Progress"
     normalized_detail = str(detail or "").strip() or "Processing the current step."
     normalized_stage = str(stage or "").strip() or "orchestrating"
+    events = list(state.get("orchestration_events", []) or [])
     metadata = build_progress_metadata(
         session_id=str(session_id or "").strip() or str(state.get("sid", "") or "").strip(),
         stage=normalized_stage,
@@ -247,8 +249,8 @@ def append_orchestration_step_event(
         user_title=user_title,
         user_detail=user_detail,
         turn_index=_normalize_turn_index(state.get("turn_index")),
+        activity_sequence=len(events) + 1,
     )
-    events = list(state.get("orchestration_events", []) or [])
     events.append(
         {
             "title": normalized_title,
@@ -258,6 +260,8 @@ def append_orchestration_step_event(
             "user_detail": str(metadata.get("user_detail") or ""),
             "debug_title": normalized_title,
             "debug_detail": normalized_detail,
+            "activity_group_id": str(metadata.get("activity_group_id") or ""),
+            "activity_sequence": metadata.get("activity_sequence"),
         }
     )
     state["orchestration_events"] = events

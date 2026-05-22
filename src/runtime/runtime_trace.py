@@ -12,10 +12,8 @@ from google.adk.plugins.base_plugin import BasePlugin
 from src.logger import logger
 
 RUNTIME_TRACE_ENV_VAR = "CREATIVE_CLAW_RUNTIME_TRACE"
-RUNTIME_TRACE_MAX_CHARS_ENV_VAR = "CREATIVE_CLAW_RUNTIME_TRACE_MAX_CHARS"
 RUNTIME_TRACE_RAW_EVENTS_ENV_VAR = "CREATIVE_CLAW_RUNTIME_TRACE_RAW_EVENTS"
 RUNTIME_TRACE_STREAM_DELTAS_ENV_VAR = "CREATIVE_CLAW_RUNTIME_TRACE_STREAM_DELTAS"
-DEFAULT_RUNTIME_TRACE_MAX_CHARS = 8000
 
 _TRUE_VALUES = {"1", "true", "yes", "on"}
 _SENSITIVE_KEYS = {
@@ -42,9 +40,7 @@ _SENSITIVE_KEY_PARTS = (
     "bot_token",
     "secret_key",
 )
-_MAX_COLLECTION_ITEMS = 80
 _MAX_OBJECT_DEPTH = 8
-_MAX_STRING_CHARS = 20000
 
 
 def runtime_trace_enabled() -> bool:
@@ -62,18 +58,6 @@ def runtime_trace_stream_deltas_enabled() -> bool:
     return _env_flag_enabled(RUNTIME_TRACE_STREAM_DELTAS_ENV_VAR)
 
 
-def runtime_trace_max_chars() -> int:
-    """Return the maximum rendered characters for one runtime trace entry."""
-    raw_value = os.getenv(RUNTIME_TRACE_MAX_CHARS_ENV_VAR, "").strip()
-    if not raw_value:
-        return DEFAULT_RUNTIME_TRACE_MAX_CHARS
-    try:
-        value = int(raw_value)
-    except ValueError:
-        return DEFAULT_RUNTIME_TRACE_MAX_CHARS
-    return max(500, value)
-
-
 def trace_runtime_event(event_type: str, payload: Any | None = None) -> bool:
     """Print one runtime trace event to the backend logger when tracing is enabled."""
     if not runtime_trace_enabled():
@@ -84,13 +68,13 @@ def trace_runtime_event(event_type: str, payload: Any | None = None) -> bool:
 
 
 def serialize_trace_payload(payload: Any) -> str:
-    """Render one trace payload as redacted, bounded JSON text."""
+    """Render one trace payload as redacted JSON text without content truncation."""
     safe_payload = _to_trace_safe_value(payload)
     try:
         rendered = json.dumps(safe_payload, ensure_ascii=False, indent=2, sort_keys=True)
     except TypeError:
         rendered = str(safe_payload)
-    return _truncate(rendered, runtime_trace_max_chars())
+    return rendered
 
 
 class CreativeClawRuntimeTracePlugin(BasePlugin):
@@ -175,7 +159,7 @@ class CreativeClawRuntimeTracePlugin(BasePlugin):
             "model.response",
             {
                 "callback": _callback_context_summary(callback_context),
-                "response": llm_response,
+                "response": _model_response_trace_payload(llm_response),
             },
         )
         return None
@@ -250,15 +234,12 @@ def _to_trace_safe_value(value: Any, *, depth: int = 0) -> Any:
     if value is None or isinstance(value, (bool, int, float)):
         return value
     if isinstance(value, str):
-        return _truncate(value, _MAX_STRING_CHARS)
+        return value
     if isinstance(value, bytes):
         return f"<bytes:{len(value)}>"
     if isinstance(value, Mapping):
         result: dict[str, Any] = {}
-        for index, (key, item) in enumerate(value.items()):
-            if index >= _MAX_COLLECTION_ITEMS:
-                result["<truncated_items>"] = len(value) - _MAX_COLLECTION_ITEMS
-                break
+        for key, item in value.items():
             clean_key = str(key)
             if _is_sensitive_key(clean_key):
                 result[clean_key] = "[REDACTED]"
@@ -267,10 +248,7 @@ def _to_trace_safe_value(value: Any, *, depth: int = 0) -> Any:
         return result
     if isinstance(value, (list, tuple, set, frozenset)):
         items = list(value)
-        result = [_to_trace_safe_value(item, depth=depth + 1) for item in items[:_MAX_COLLECTION_ITEMS]]
-        if len(items) > _MAX_COLLECTION_ITEMS:
-            result.append({"<truncated_items>": len(items) - _MAX_COLLECTION_ITEMS})
-        return result
+        return [_to_trace_safe_value(item, depth=depth + 1) for item in items]
 
     model_dump = getattr(value, "model_dump", None)
     if callable(model_dump):
@@ -299,11 +277,70 @@ def _to_trace_safe_value(value: Any, *, depth: int = 0) -> Any:
     return str(value)
 
 
-def _truncate(value: str, max_chars: int) -> str:
-    """Trim one rendered trace payload to a bounded length."""
-    if len(value) <= max_chars:
-        return value
-    return f"{value[:max_chars]}\n... <runtime trace truncated: {len(value) - max_chars} chars>"
+def _model_response_trace_payload(llm_response: Any) -> Any:
+    """Return a model response trace payload with content parts aggregated."""
+    response = _to_trace_safe_value(llm_response)
+    if not isinstance(response, Mapping):
+        return response
+
+    result = dict(response)
+    if "content" in result:
+        result["content"] = _model_content_trace_payload(result["content"])
+    return result
+
+
+def _model_content_trace_payload(content: Any) -> Any:
+    """Return trace-safe model content without exposing raw part fragments."""
+    if not isinstance(content, Mapping):
+        return content
+
+    result = {key: value for key, value in content.items() if key != "parts"}
+    parts = content.get("parts")
+    if not isinstance(parts, list):
+        return result
+
+    text_segments: list[str] = []
+    thought_segments: list[str] = []
+    function_calls: list[Any] = []
+    function_responses: list[Any] = []
+    other_content: list[dict[str, Any]] = []
+
+    for part in parts:
+        if not isinstance(part, Mapping):
+            other_content.append({"value": part})
+            continue
+
+        text = part.get("text")
+        if isinstance(text, str):
+            if part.get("thought") is True:
+                thought_segments.append(text)
+            else:
+                text_segments.append(text)
+
+        if part.get("function_call") is not None:
+            function_calls.append(part["function_call"])
+        if part.get("function_response") is not None:
+            function_responses.append(part["function_response"])
+
+        non_text_content = {
+            key: value
+            for key, value in part.items()
+            if key not in {"text", "thought", "function_call", "function_response"}
+        }
+        if non_text_content:
+            other_content.append(non_text_content)
+
+    if text_segments:
+        result["text"] = "".join(text_segments)
+    if thought_segments:
+        result["thought_text"] = "".join(thought_segments)
+    if function_calls:
+        result["function_calls"] = function_calls
+    if function_responses:
+        result["function_responses"] = function_responses
+    if other_content:
+        result["other_content"] = other_content
+    return result
 
 
 def _is_sensitive_key(key: str) -> bool:
@@ -380,11 +417,9 @@ def _state_get(state: Any, key: str) -> Any:
 __all__ = [
     "CreativeClawRuntimeTracePlugin",
     "RUNTIME_TRACE_ENV_VAR",
-    "RUNTIME_TRACE_MAX_CHARS_ENV_VAR",
     "RUNTIME_TRACE_RAW_EVENTS_ENV_VAR",
     "RUNTIME_TRACE_STREAM_DELTAS_ENV_VAR",
     "runtime_trace_enabled",
-    "runtime_trace_max_chars",
     "runtime_trace_raw_events_enabled",
     "runtime_trace_stream_deltas_enabled",
     "serialize_trace_payload",

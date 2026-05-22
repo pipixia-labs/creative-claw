@@ -22,6 +22,7 @@ from src.runtime.cancellation import TaskCancelledError, get_cancellation_manage
 from src.runtime.expert_registry import build_expert_agents
 from src.runtime.models import InboundMessage, WorkflowEvent
 from src.runtime.progress_events import build_progress_metadata, progress_text_from_metadata
+from src.runtime.runtime_trace import trace_runtime_event
 from src.runtime.step_events import reset_step_event_history, step_event_streaming_active
 from src.runtime.workspace import (
     build_workspace_file_record,
@@ -126,6 +127,7 @@ def _build_progress_event(
     user_title: str | None = None,
     user_detail: str | None = None,
     turn_index: int | None = None,
+    activity_sequence: int | None = None,
 ) -> WorkflowEvent:
     """Build one progress event with user-facing copy and debug details."""
     metadata = build_progress_metadata(
@@ -136,6 +138,7 @@ def _build_progress_event(
         user_title=user_title,
         user_detail=user_detail,
         turn_index=turn_index,
+        activity_sequence=activity_sequence,
     )
     return WorkflowEvent(event_type="status", text=progress_text_from_metadata(metadata), metadata=metadata)
 
@@ -145,6 +148,7 @@ def _build_orchestration_progress_event(
     *,
     session_id: str,
     turn_index: int | None = None,
+    activity_sequence: int | None = None,
 ) -> WorkflowEvent:
     """Convert one structured orchestrator step event into a progress event."""
     stage = str(step_event.get("stage", "")).strip() or "in_progress"
@@ -158,6 +162,7 @@ def _build_orchestration_progress_event(
         user_title=str(step_event.get("user_title") or "").strip() or None,
         user_detail=str(step_event.get("user_detail") or "").strip() or None,
         turn_index=turn_index,
+        activity_sequence=activity_sequence,
     )
 
 
@@ -213,22 +218,48 @@ class CreativeClawRuntime:
                     raise TaskCancelledError(session_id, reason=record.reason)
 
             current_turn = await self._next_turn_index(user_id, session_id)
+            trace_runtime_event(
+                "workflow.user_task",
+                {
+                    "session_id": session_id,
+                    "user_id": user_id,
+                    "turn_index": current_turn,
+                    "channel": inbound.channel,
+                    "chat_id": inbound.chat_id,
+                    "sender_id": inbound.sender_id,
+                    "text": inbound.text,
+                    "attachments": [
+                        {
+                            "name": attachment.name,
+                            "mime_type": attachment.mime_type,
+                            "description": attachment.description,
+                        }
+                        for attachment in inbound.attachments
+                    ],
+                    "metadata": inbound.metadata,
+                },
+            )
 
             yield _build_progress_event(
                 "Workflow started.",
                 session_id=session_id,
                 stage="started",
                 turn_index=current_turn,
+                activity_sequence=1,
             )
             reset_step_event_history(session_id=session_id, turn_index=current_turn)
+            activity_sequence = 1
             for attachment in inbound.attachments:
+                activity_sequence += 1
                 yield _build_progress_event(
                     f"Received attachment: {attachment.name}",
                     session_id=session_id,
                     stage="attachment_received",
                     turn_index=current_turn,
+                    activity_sequence=activity_sequence,
                 )
             if _contains_form_answers(inbound.text):
+                activity_sequence += 1
                 yield _build_progress_event(
                     "已收到需求确认表单，正在继续生成设计方案。",
                     session_id=session_id,
@@ -236,6 +267,7 @@ class CreativeClawRuntime:
                     user_title="Reviewing your answers",
                     user_detail="已收到需求确认表单，正在继续生成设计方案。",
                     turn_index=current_turn,
+                    activity_sequence=activity_sequence,
                 )
 
             try:
@@ -290,10 +322,12 @@ class CreativeClawRuntime:
             )
 
             for step_event in orchestration_events:
+                activity_sequence += 1
                 yield _build_orchestration_progress_event(
                     step_event,
                     session_id=session_id,
                     turn_index=current_turn,
+                    activity_sequence=activity_sequence,
                 )
 
             final_event = await self._build_final_event(

@@ -1,4 +1,5 @@
 import asyncio
+import json
 import os
 import unittest
 from types import SimpleNamespace
@@ -11,7 +12,6 @@ from src.agents.orchestrator.orchestrator_agent import Orchestrator
 from src.runtime.runtime_trace import (
     CreativeClawRuntimeTracePlugin,
     RUNTIME_TRACE_ENV_VAR,
-    RUNTIME_TRACE_MAX_CHARS_ENV_VAR,
     RUNTIME_TRACE_RAW_EVENTS_ENV_VAR,
     RUNTIME_TRACE_STREAM_DELTAS_ENV_VAR,
     runtime_trace_raw_events_enabled,
@@ -165,13 +165,48 @@ class RuntimeTraceTests(unittest.TestCase):
         logger_info.assert_called_once()
         self.assertEqual(logger_info.call_args.args[1], "model.response")
 
-    def test_runtime_trace_payload_redacts_secrets_and_truncates(self) -> None:
+    def test_model_response_trace_aggregates_content_parts(self) -> None:
+        plugin = CreativeClawRuntimeTracePlugin()
+        callback_context = SimpleNamespace(
+            agent_name="CreativeClawOrchestrator",
+            invocation_id="inv-1",
+            state={},
+        )
+        final_response = SimpleNamespace(
+            model_version="deepseek-v4-pro",
+            partial=False,
+            content={
+                "role": "model",
+                "parts": [
+                    {"text": "The", "thought": True},
+                    {"text": " image", "thought": True},
+                    {"text": "Final answer."},
+                ],
+            },
+            finish_reason="STOP",
+        )
+
+        async def _run_callback() -> None:
+            await plugin.after_model_callback(
+                callback_context=callback_context,
+                llm_response=final_response,
+            )
+
+        with patch.dict(os.environ, {RUNTIME_TRACE_ENV_VAR: "1"}, clear=False):
+            with patch("src.runtime.runtime_trace.logger.info") as logger_info:
+                asyncio.run(_run_callback())
+
+        payload = json.loads(logger_info.call_args.args[2])
+        content = payload["response"]["content"]
+        self.assertNotIn("parts", content)
+        self.assertEqual(content["role"], "model")
+        self.assertEqual(content["thought_text"], "The image")
+        self.assertEqual(content["text"], "Final answer.")
+
+    def test_runtime_trace_payload_redacts_secrets_without_truncating(self) -> None:
         with patch.dict(
             os.environ,
-            {
-                RUNTIME_TRACE_ENV_VAR: "1",
-                RUNTIME_TRACE_MAX_CHARS_ENV_VAR: "500",
-            },
+            {RUNTIME_TRACE_ENV_VAR: "1"},
             clear=False,
         ):
             rendered = serialize_trace_payload(
@@ -184,7 +219,8 @@ class RuntimeTraceTests(unittest.TestCase):
 
         self.assertIn('"api_key": "[REDACTED]"', rendered)
         self.assertIn('"prompt_token_count": 123', rendered)
-        self.assertIn("<runtime trace truncated", rendered)
+        self.assertIn("x" * 1000, rendered)
+        self.assertNotIn("<runtime trace truncated", rendered)
         self.assertNotIn("sk-secret", rendered)
 
     def test_trace_plugin_logs_tool_lifecycle_when_enabled(self) -> None:

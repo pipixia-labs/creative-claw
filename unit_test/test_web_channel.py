@@ -546,12 +546,17 @@ class WebChannelTests(unittest.IsolatedAsyncioTestCase):
                         channel="web",
                         chat_id="test-session",
                         text="working on it",
-                        metadata={"display_style": "progress", "stage_title": "Planning"},
+                        metadata={
+                            "display_style": "progress",
+                            "stage_title": "Planning",
+                            "activity_group_id": "runtime-session:turn:1",
+                        },
                     )
                 )
                 progress = await self._recv_until(websocket, "progress")
                 self.assertEqual(progress["type"], "progress")
                 self.assertEqual(progress["metadata"]["stage_title"], "Planning")
+                self.assertEqual(progress["metadata"]["activity_group_id"], "runtime-session:turn:1")
 
                 await self.channel.send(
                     OutboundMessage(

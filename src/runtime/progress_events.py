@@ -110,8 +110,11 @@ def build_progress_metadata(
     user_detail: str | None = None,
     turn_index: int | None = None,
     debug_events: list[dict[str, str]] | None = None,
+    activity_group_id: str | None = None,
+    activity_sequence: int | None = None,
 ) -> dict[str, Any]:
     """Build metadata for one progress event with separated user/debug fields."""
+    normalized_session_id = str(session_id or "").strip()
     normalized_stage = str(stage or "in_progress").strip() or "in_progress"
     normalized_debug_title = str(debug_title or "").strip()
     normalized_debug_detail = str(debug_detail or "").strip()
@@ -122,7 +125,7 @@ def build_progress_metadata(
         user_detail=user_detail,
     )
     metadata: dict[str, Any] = {
-        "session_id": str(session_id or "").strip(),
+        "session_id": normalized_session_id,
         "display_style": "progress",
         "stage": normalized_stage,
         "stage_title": copy.title,
@@ -130,11 +133,19 @@ def build_progress_metadata(
         "user_detail": copy.detail,
         "debug_title": normalized_debug_title,
         "debug_detail": normalized_debug_detail,
+        "activity_group_id": _resolve_activity_group_id(
+            session_id=normalized_session_id,
+            turn_index=turn_index,
+            activity_group_id=activity_group_id,
+        ),
+        "activity_status": _activity_status_for_stage(normalized_stage),
     }
     if debug_events:
         metadata["debug_events"] = list(debug_events)
     if turn_index is not None:
         metadata["turn_index"] = turn_index
+    if activity_sequence is not None:
+        metadata["activity_sequence"] = activity_sequence
     return metadata
 
 
@@ -152,6 +163,29 @@ def _progress_copy_for(*, stage: str, debug_title: str) -> ProgressCopy:
     if stage_copy is not None:
         return stage_copy
     return DEFAULT_PROGRESS_COPY
+
+
+def _resolve_activity_group_id(
+    *,
+    session_id: str,
+    turn_index: int | None,
+    activity_group_id: str | None,
+) -> str:
+    """Return the stable user-facing Activity group id for one request turn."""
+    explicit = str(activity_group_id or "").strip()
+    if explicit:
+        return explicit
+    if session_id and turn_index is not None:
+        return f"{session_id}:turn:{turn_index}"
+    return session_id
+
+
+def _activity_status_for_stage(stage: str) -> str:
+    """Return the broad lifecycle status represented by a progress stage."""
+    normalized = str(stage or "").strip().lower()
+    if normalized in {"completed", "cancelled", "failed"}:
+        return normalized
+    return "running"
 
 
 def _tool_progress_key(debug_title: str) -> str:

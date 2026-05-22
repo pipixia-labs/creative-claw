@@ -608,6 +608,14 @@ class RuntimeSessionTests(unittest.IsolatedAsyncioTestCase):
         self.assertEqual(first_events[-1].metadata["turn_index"], 1)
         self.assertEqual(second_events[0].metadata["turn_index"], 2)
         self.assertEqual(second_events[-1].metadata["turn_index"], 2)
+        self.assertEqual(
+            first_events[0].metadata["activity_group_id"],
+            f"{first_events[0].metadata['session_id']}:turn:1",
+        )
+        self.assertEqual(
+            second_events[0].metadata["activity_group_id"],
+            f"{second_events[0].metadata['session_id']}:turn:2",
+        )
 
     async def test_run_message_emits_granular_orchestration_events(self) -> None:
         runtime = CreativeClawRuntime()
@@ -647,6 +655,17 @@ class RuntimeSessionTests(unittest.IsolatedAsyncioTestCase):
             events = [event async for event in runtime.run_message(inbound)]
 
         progress_events = [event for event in events if event.event_type == "status"]
+        self.assertEqual(progress_events[0].metadata["activity_sequence"], 1)
+        self.assertEqual(progress_events[1].metadata["activity_sequence"], 2)
+        self.assertEqual(progress_events[2].metadata["activity_sequence"], 3)
+        self.assertEqual(
+            progress_events[1].metadata["activity_group_id"],
+            progress_events[0].metadata["activity_group_id"],
+        )
+        self.assertEqual(
+            progress_events[2].metadata["activity_group_id"],
+            progress_events[0].metadata["activity_group_id"],
+        )
         self.assertEqual(progress_events[1].metadata["stage_title"], "Checking capabilities")
         self.assertEqual(progress_events[1].metadata["debug_title"], "List Skills")
         self.assertEqual(progress_events[1].metadata["stage"], "planning")
@@ -955,6 +974,62 @@ class RuntimeSessionTests(unittest.IsolatedAsyncioTestCase):
         self.assertIn("Workflow failed", events[-1].text)
         self.assertIn("session_id=", events[-1].text)
         self.assertIn("KeyError: 'error'", events[-1].text)
+
+    async def test_run_message_traces_real_inbound_user_task(self) -> None:
+        runtime = CreativeClawRuntime()
+
+        class _FakeOrchestrator:
+            def __init__(self, **_kwargs) -> None:
+                self.uid = ""
+                self.sid = ""
+
+            async def run_until_done(self) -> dict:
+                return {
+                    "workflow_status": "finished",
+                    "final_summary": "done",
+                    "final_response": "done",
+                    "last_output_message": "done",
+                    "new_orchestration_events": [],
+                }
+
+        with tempfile.TemporaryDirectory() as tmpdir:
+            upload_path = Path(tmpdir) / "reference.png"
+            upload_path.write_bytes(b"fake-image")
+            inbound = InboundMessage(
+                channel="web",
+                sender_id="web-client",
+                chat_id="web-chat",
+                text="帮我画一个秋老虎相关的图像",
+                attachments=[
+                    MessageAttachment(
+                        path=str(upload_path),
+                        name="reference.png",
+                        mime_type="image/png",
+                        description="reference image",
+                    )
+                ],
+                metadata={"run_id": "run-1"},
+            )
+
+            with (
+                patch("src.runtime.workflow_service.Orchestrator", _FakeOrchestrator),
+                patch("src.runtime.workflow_service.trace_runtime_event") as trace_runtime_event,
+            ):
+                events = [event async for event in runtime.run_message(inbound)]
+
+        self.assertEqual(events[-1].event_type, "final")
+        trace_runtime_event.assert_called()
+        workflow_task_calls = [
+            call
+            for call in trace_runtime_event.call_args_list
+            if call.args and call.args[0] == "workflow.user_task"
+        ]
+        self.assertEqual(len(workflow_task_calls), 1)
+        payload = workflow_task_calls[0].args[1]
+        self.assertEqual(payload["text"], "帮我画一个秋老虎相关的图像")
+        self.assertEqual(payload["channel"], "web")
+        self.assertEqual(payload["chat_id"], "web-chat")
+        self.assertEqual(payload["attachments"][0]["name"], "reference.png")
 
     async def test_run_message_does_not_resend_channel_only_upload_as_final_artifact(self) -> None:
         runtime = CreativeClawRuntime()

@@ -24,6 +24,7 @@ const STORAGE_KEY = "creative_claw_webchat_session_id";
 const HISTORY_KEY_PREFIX = "creative_claw_webchat_history:";
 const SESSION_INDEX_KEY = "creative_claw_webchat_sessions";
 const HIDDEN_PROGRESS_TITLES = new Set(["Starting", "Finalize Result"]);
+const PROGRESS_STEP_LIMIT = 16;
 const PREVIEW_TABS = ["tldraw", "html", "ppt", "model3d"];
 const AUTO_PREVIEW_PRIORITY = ["model3d", "ppt", "html", "tldraw"];
 const INTERACTIVE_PPT_HTML_KIND = "interactive_ppt_html";
@@ -55,6 +56,7 @@ const QUESTION_FORM_REVEAL_STEP_MS = 85;
 let sessionId = ensureSessionId();
 let socket = null;
 let activeProgressCard = null;
+let progressCardsByGroup = new Map();
 let activeAssistantStream = null;
 let progressBodyCounter = 0;
 let currentRunId = null;
@@ -385,6 +387,7 @@ function disconnect() {
     socket = null;
   }
   activeProgressCard = null;
+  progressCardsByGroup.clear();
   activeAssistantStream = null;
 }
 
@@ -558,6 +561,7 @@ function renderEmptyState() {
 function clearTimeline() {
   timeline.innerHTML = "";
   activeProgressCard = null;
+  progressCardsByGroup.clear();
   activeAssistantStream = null;
 }
 
@@ -1405,21 +1409,26 @@ function submitQuestionForm(root, form, answers) {
 
 function upsertProgressCard(content, metadata, options = {}) {
   removeEmptyState();
-  if (!activeProgressCard) {
+  const groupKey = progressGroupKey(metadata, options.runId || currentRunId || "");
+  let card = progressCardsByGroup.get(groupKey);
+  if (!card || !card.isConnected) {
     const fragment = progressTemplate.content.cloneNode(true);
     timeline.appendChild(fragment);
-    activeProgressCard = timeline.lastElementChild;
-    initializeProgressCard(activeProgressCard);
+    card = timeline.lastElementChild;
+    initializeProgressCard(card);
+    progressCardsByGroup.set(groupKey, card);
   }
+  activeProgressCard = card;
   if (options.runId) {
-    activeProgressCard.dataset.runId = String(options.runId);
+    card.dataset.runId = String(options.runId);
   }
-  activeProgressCard.classList.remove("completed", "cancelled", "failed");
-  activeProgressCard.dataset.status = "running";
+  card.dataset.activityGroupId = groupKey;
+  card.classList.remove("completed", "cancelled", "failed");
+  card.dataset.status = "running";
   const userTitle = String(metadata.user_title || metadata.stage_title || "").trim();
   const userDetail = String(metadata.user_detail || "").trim();
   const rawTitle = userTitle;
-  const titleEl = activeProgressCard.querySelector(".progress-title");
+  const titleEl = card.querySelector(".progress-title");
   if (HIDDEN_PROGRESS_TITLES.has(rawTitle)) {
     titleEl.hidden = true;
     titleEl.textContent = "";
@@ -1428,9 +1437,96 @@ function upsertProgressCard(content, metadata, options = {}) {
     titleEl.textContent = rawTitle || "Working";
   }
   const progressDetail = userDetail || summarizeProgressContent(content, rawTitle);
-  activeProgressCard.querySelector(".progress-summary").textContent = progressDetail;
-  activeProgressCard.querySelector(".progress-body").innerHTML = renderMarkdown(progressDetail);
+  card.querySelector(".progress-summary").textContent = progressDetail;
+  recordProgressStep(card, {
+    title: rawTitle && !HIDDEN_PROGRESS_TITLES.has(rawTitle) ? rawTitle : "Activity",
+    detail: progressDetail,
+    stage: String(metadata.stage || ""),
+    sequence: Number(metadata.activity_sequence || 0) || null,
+  });
+  renderProgressCardBody(card);
+  const activityStatus = String(metadata.activity_status || "running").trim();
+  if (activityStatus === "completed" || activityStatus === "cancelled" || activityStatus === "failed") {
+    completeProgressCard(card, activityStatus);
+  }
   scrollToBottom();
+}
+
+function progressGroupKey(metadata, runId = "") {
+  const explicit = String(metadata?.activity_group_id || "").trim();
+  if (explicit) {
+    return explicit;
+  }
+  const session = String(metadata?.session_id || "").trim();
+  const turn = String(metadata?.turn_index || "").trim();
+  if (session && turn) {
+    return `${session}:turn:${turn}`;
+  }
+  const normalizedRunId = String(runId || "").trim();
+  if (normalizedRunId) {
+    return `run:${normalizedRunId}`;
+  }
+  return session || "active";
+}
+
+function recordProgressStep(card, step) {
+  const steps = progressSteps(card);
+  const normalizedStep = {
+    title: String(step.title || "Activity").trim() || "Activity",
+    detail: String(step.detail || "").trim(),
+    stage: String(step.stage || "").trim(),
+    sequence: Number(step.sequence || 0) || null,
+  };
+  if (!normalizedStep.detail) {
+    return;
+  }
+  const last = steps[steps.length - 1];
+  if (
+    last &&
+    last.title === normalizedStep.title &&
+    last.detail === normalizedStep.detail &&
+    last.stage === normalizedStep.stage
+  ) {
+    return;
+  }
+  steps.push(normalizedStep);
+  if (steps.length > PROGRESS_STEP_LIMIT) {
+    steps.splice(0, steps.length - PROGRESS_STEP_LIMIT);
+  }
+  card._progressSteps = steps;
+}
+
+function progressSteps(card) {
+  if (!Array.isArray(card._progressSteps)) {
+    card._progressSteps = [];
+  }
+  return card._progressSteps;
+}
+
+function renderProgressCardBody(card, statusText = "") {
+  const bodyEl = card.querySelector(".progress-body");
+  if (!bodyEl) {
+    return;
+  }
+  const steps = progressSteps(card);
+  const body = progressDetailsMarkdown(steps, statusText);
+  bodyEl.innerHTML = renderMarkdown(body);
+}
+
+function progressDetailsMarkdown(steps, statusText = "") {
+  const visibleSteps = Array.isArray(steps) ? steps.filter((step) => step.detail) : [];
+  const normalizedStatus = String(statusText || "").trim();
+  if (visibleSteps.length === 0) {
+    return normalizedStatus || "";
+  }
+  if (visibleSteps.length === 1 && !normalizedStatus) {
+    return visibleSteps[0].detail;
+  }
+  const lines = visibleSteps.map((step, index) => `${index + 1}. **${step.title}** ${step.detail}`);
+  if (normalizedStatus) {
+    lines.push("", normalizedStatus);
+  }
+  return lines.join("\n");
 }
 
 function completeProgressCards({ runId = "", status = "completed" } = {}) {
@@ -1475,7 +1571,7 @@ function completeProgressCard(card, status = "completed") {
   }
 
   if (bodyEl) {
-    bodyEl.innerHTML = renderMarkdown(statusText);
+    renderProgressCardBody(card, statusText);
   }
   setProgressExpanded(card, false);
 }

@@ -242,7 +242,8 @@ Logging:
 - Defaults: console level `INFO`; file level `DEBUG`; file template `creative_claw_{time}.log`; retention `7 days`; rotation `10 MB`.
 - Verbose runtime communication tracing is controlled by `CREATIVE_CLAW_RUNTIME_TRACE`; set it to `1`, `true`, `yes`, or `on` to log orchestrator, manager, expert, model, and tool communication content to the backend logger.
 - Runtime trace skips raw ADK runner events and partial streaming model-response chunks by default to avoid noisy logs during streamed output. Set `CREATIVE_CLAW_RUNTIME_TRACE_RAW_EVENTS=1` to include `runner.event` entries, and set `CREATIVE_CLAW_RUNTIME_TRACE_STREAM_DELTAS=1` to include `partial=true` streaming `model.response` entries.
-- Runtime trace entries are truncated by `CREATIVE_CLAW_RUNTIME_TRACE_MAX_CHARS`, defaulting to `8000` characters per entry. Trace logs can include prompts and user content, so use this switch only for local debugging or trusted environments.
+- Runtime trace logs full redacted payloads without truncation so local debugging can inspect complete prompts and responses. Trace logs can include prompts and user content, so use this switch only for local debugging or trusted environments.
+- `model.response` trace entries aggregate model content fragments into readable fields such as `text`, `thought_text`, `function_calls`, and `function_responses` instead of logging raw `content.parts` arrays.
 
 Current provider env-fallback coverage:
 
@@ -253,7 +254,7 @@ Current provider env-fallback coverage:
 
 Common environment variables:
 
-- runtime: `CREATIVE_CLAW_HOME`, `CREATIVE_CLAW_DOTENV_PATH`, `CREATIVE_CLAW_CONSOLE_LOG_LEVEL`, `CREATIVE_CLAW_RUNTIME_TRACE`, `CREATIVE_CLAW_RUNTIME_TRACE_RAW_EVENTS`, `CREATIVE_CLAW_RUNTIME_TRACE_STREAM_DELTAS`, `CREATIVE_CLAW_RUNTIME_TRACE_MAX_CHARS`
+- runtime: `CREATIVE_CLAW_HOME`, `CREATIVE_CLAW_DOTENV_PATH`, `CREATIVE_CLAW_CONSOLE_LOG_LEVEL`, `CREATIVE_CLAW_RUNTIME_TRACE`, `CREATIVE_CLAW_RUNTIME_TRACE_RAW_EVENTS`, `CREATIVE_CLAW_RUNTIME_TRACE_STREAM_DELTAS`
 - text providers: `OPENAI_API_KEY`, `ANTHROPIC_API_KEY`, `GOOGLE_API_KEY`, `GEMINI_API_KEY`, `GROQ_API_KEY`, `DEEPSEEK_API_KEY`, `DASHSCOPE_API_KEY`, `ZAI_API_KEY`, `MOONSHOT_API_KEY`, `MINIMAX_API_KEY`, `MISTRAL_API_KEY`, `STEPFUN_API_KEY`, `QIANFAN_API_KEY`
 - service integrations: `ARK_API_KEY`, `DDS_API_KEY`, `SERPER_API_KEY`, `BRAVE_API_KEY`, `DOC2X_API_KEY`, `VOLCENGINE_APPID`, `VOLCENGINE_ACCESS_TOKEN`
 - Tencent Cloud 3D: `TENCENTCLOUD_SECRET_ID`, `TENCENTCLOUD_SECRET_KEY`, optional `TENCENTCLOUD_SESSION_TOKEN`, optional `TENCENTCLOUD_REGION`
