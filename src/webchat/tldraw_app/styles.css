@@ -4,11 +4,22 @@
   height: 100%;
   min-height: 0;
   overflow: hidden;
-  background: #f3f5ef;
+  background: #f5f5f5;
 }
 
 .cc-sketch-root .tl-container {
-  background: #f8f9f4;
+  background: #fafafa;
+}
+
+.cc-sketch-root .tl-theme__light {
+  --tl-color-background: transparent !important;
+  --tl-color-low: #f1f2f3 !important;
+  --tl-color-low-border: #e3e5e7 !important;
+  --tl-color-panel: #ffffff !important;
+  --tl-color-panel-overlay: rgba(255, 255, 255, 0.88) !important;
+  --tl-color-panel-transparent: rgba(255, 255, 255, 0) !important;
+  --tl-color-divider: #e7e7e7 !important;
+  --tl-color-text-3: #6f7377 !important;
 }
 
 .cc-video {

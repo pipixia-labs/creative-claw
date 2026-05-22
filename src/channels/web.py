@@ -246,17 +246,17 @@ def _simple_preview_error(title: str, message: str) -> str:
         min-height: 100vh;
         display: grid;
         place-items: center;
-        background: #f3f5ef;
+        background: #f5f5f5;
         color: #18211d;
         font-family: Avenir Next, Segoe UI, sans-serif;
       }}
       main {{
         width: min(560px, calc(100vw - 48px));
         padding: 28px;
-        border: 1px solid rgba(29, 39, 34, 0.14);
+        border: 1px solid rgba(32, 32, 32, 0.14);
         border-radius: 18px;
-        background: #fffef9;
-        box-shadow: 0 18px 48px rgba(35, 42, 36, 0.12);
+        background: #ffffff;
+        box-shadow: 0 18px 48px rgba(32, 32, 32, 0.12);
       }}
       h1 {{ margin: 0 0 10px; font-size: 22px; }}
       p {{ margin: 0; color: #5b675f; line-height: 1.6; }}
@@ -365,11 +365,11 @@ def _render_pptx_browser_preview_html(pptx_path: Path) -> str:
     <title>{title}</title>
     <style>
       :root {{
-        --bg: #eef1ea;
-        --paper: #fffef9;
+        --bg: #f5f5f5;
+        --paper: #ffffff;
         --ink: #18211d;
         --muted: #68746d;
-        --border: rgba(29, 39, 34, 0.16);
+        --border: rgba(32, 32, 32, 0.16);
       }}
       * {{ box-sizing: border-box; }}
       body {{
@@ -395,7 +395,7 @@ def _render_pptx_browser_preview_html(pptx_path: Path) -> str:
         border: 1px solid var(--border);
         border-radius: 16px;
         background: var(--paper);
-        box-shadow: 0 18px 46px rgba(35, 42, 36, 0.13);
+        box-shadow: 0 18px 46px rgba(32, 32, 32, 0.13);
         color: var(--muted);
         font-size: 14px;
         text-align: center;
@@ -460,11 +460,11 @@ def _render_pdf_preview_html(pdf_path: Path, *, title: str | None = None, page_l
     <title>{title}</title>
     <style>
       :root {{
-        --bg: #eef1ea;
-        --paper: #fffef9;
+        --bg: #f5f5f5;
+        --paper: #ffffff;
         --ink: #18211d;
         --muted: #68746d;
-        --border: rgba(29, 39, 34, 0.16);
+        --border: rgba(32, 32, 32, 0.16);
       }}
       * {{ box-sizing: border-box; }}
       body {{
@@ -495,7 +495,7 @@ def _render_pdf_preview_html(pdf_path: Path, *, title: str | None = None, page_l
         border: 1px solid var(--border);
         border-radius: 16px;
         background: var(--paper);
-        box-shadow: 0 18px 46px rgba(35, 42, 36, 0.13);
+        box-shadow: 0 18px 46px rgba(32, 32, 32, 0.13);
       }}
       .empty-document {{
         min-height: 100vh;
