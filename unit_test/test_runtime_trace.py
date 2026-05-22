@@ -12,7 +12,11 @@ from src.runtime.runtime_trace import (
     CreativeClawRuntimeTracePlugin,
     RUNTIME_TRACE_ENV_VAR,
     RUNTIME_TRACE_MAX_CHARS_ENV_VAR,
+    RUNTIME_TRACE_RAW_EVENTS_ENV_VAR,
+    RUNTIME_TRACE_STREAM_DELTAS_ENV_VAR,
+    runtime_trace_raw_events_enabled,
     runtime_trace_enabled,
+    runtime_trace_stream_deltas_enabled,
     serialize_trace_payload,
     trace_runtime_event,
 )
@@ -34,6 +38,132 @@ class RuntimeTraceTests(unittest.TestCase):
 
         logger_info.assert_called_once()
         self.assertEqual(logger_info.call_args.args[1], "tool.start")
+
+    def test_raw_runner_events_are_opt_in(self) -> None:
+        plugin = CreativeClawRuntimeTracePlugin()
+        invocation_context = SimpleNamespace(
+            app_name="CreativeClaw",
+            user_id="user-1",
+            invocation_id="inv-1",
+            session=SimpleNamespace(id="session-1"),
+            agent=SimpleNamespace(name="CreativeClawOrchestrator"),
+        )
+
+        async def _run_callback() -> None:
+            await plugin.on_event_callback(
+                invocation_context=invocation_context,
+                event=SimpleNamespace(author="CreativeClawOrchestrator", partial=True),
+            )
+
+        with patch.dict(
+            os.environ,
+            {
+                RUNTIME_TRACE_ENV_VAR: "1",
+                RUNTIME_TRACE_RAW_EVENTS_ENV_VAR: "",
+            },
+            clear=False,
+        ):
+            self.assertFalse(runtime_trace_raw_events_enabled())
+            with patch("src.runtime.runtime_trace.logger.info") as logger_info:
+                asyncio.run(_run_callback())
+
+        logger_info.assert_not_called()
+
+        with patch.dict(
+            os.environ,
+            {
+                RUNTIME_TRACE_ENV_VAR: "1",
+                RUNTIME_TRACE_RAW_EVENTS_ENV_VAR: "1",
+            },
+            clear=False,
+        ):
+            self.assertTrue(runtime_trace_raw_events_enabled())
+            with patch("src.runtime.runtime_trace.logger.info") as logger_info:
+                asyncio.run(_run_callback())
+
+        logger_info.assert_called_once()
+        self.assertEqual(logger_info.call_args.args[1], "runner.event")
+
+    def test_partial_model_responses_are_opt_in(self) -> None:
+        plugin = CreativeClawRuntimeTracePlugin()
+        callback_context = SimpleNamespace(
+            agent_name="CreativeClawOrchestrator",
+            invocation_id="inv-1",
+            state={},
+        )
+        partial_response = SimpleNamespace(
+            model_version="deepseek-v4-pro",
+            partial=True,
+            content={"parts": [{"text": "The", "thought": True}]},
+        )
+
+        async def _run_callback() -> None:
+            await plugin.after_model_callback(
+                callback_context=callback_context,
+                llm_response=partial_response,
+            )
+
+        with patch.dict(
+            os.environ,
+            {
+                RUNTIME_TRACE_ENV_VAR: "1",
+                RUNTIME_TRACE_STREAM_DELTAS_ENV_VAR: "",
+            },
+            clear=False,
+        ):
+            self.assertFalse(runtime_trace_stream_deltas_enabled())
+            with patch("src.runtime.runtime_trace.logger.info") as logger_info:
+                asyncio.run(_run_callback())
+
+        logger_info.assert_not_called()
+
+        with patch.dict(
+            os.environ,
+            {
+                RUNTIME_TRACE_ENV_VAR: "1",
+                RUNTIME_TRACE_STREAM_DELTAS_ENV_VAR: "1",
+            },
+            clear=False,
+        ):
+            self.assertTrue(runtime_trace_stream_deltas_enabled())
+            with patch("src.runtime.runtime_trace.logger.info") as logger_info:
+                asyncio.run(_run_callback())
+
+        logger_info.assert_called_once()
+        self.assertEqual(logger_info.call_args.args[1], "model.response")
+
+    def test_final_model_response_logs_when_trace_is_enabled(self) -> None:
+        plugin = CreativeClawRuntimeTracePlugin()
+        callback_context = SimpleNamespace(
+            agent_name="CreativeClawOrchestrator",
+            invocation_id="inv-1",
+            state={},
+        )
+        final_response = SimpleNamespace(
+            model_version="deepseek-v4-pro",
+            partial=False,
+            content={"parts": [{"text": "done"}]},
+        )
+
+        async def _run_callback() -> None:
+            await plugin.after_model_callback(
+                callback_context=callback_context,
+                llm_response=final_response,
+            )
+
+        with patch.dict(
+            os.environ,
+            {
+                RUNTIME_TRACE_ENV_VAR: "1",
+                RUNTIME_TRACE_STREAM_DELTAS_ENV_VAR: "",
+            },
+            clear=False,
+        ):
+            with patch("src.runtime.runtime_trace.logger.info") as logger_info:
+                asyncio.run(_run_callback())
+
+        logger_info.assert_called_once()
+        self.assertEqual(logger_info.call_args.args[1], "model.response")
 
     def test_runtime_trace_payload_redacts_secrets_and_truncates(self) -> None:
         with patch.dict(

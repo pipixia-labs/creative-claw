@@ -13,6 +13,8 @@ from src.logger import logger
 
 RUNTIME_TRACE_ENV_VAR = "CREATIVE_CLAW_RUNTIME_TRACE"
 RUNTIME_TRACE_MAX_CHARS_ENV_VAR = "CREATIVE_CLAW_RUNTIME_TRACE_MAX_CHARS"
+RUNTIME_TRACE_RAW_EVENTS_ENV_VAR = "CREATIVE_CLAW_RUNTIME_TRACE_RAW_EVENTS"
+RUNTIME_TRACE_STREAM_DELTAS_ENV_VAR = "CREATIVE_CLAW_RUNTIME_TRACE_STREAM_DELTAS"
 DEFAULT_RUNTIME_TRACE_MAX_CHARS = 8000
 
 _TRUE_VALUES = {"1", "true", "yes", "on"}
@@ -47,7 +49,17 @@ _MAX_STRING_CHARS = 20000
 
 def runtime_trace_enabled() -> bool:
     """Return whether verbose runtime communication tracing is enabled."""
-    return os.getenv(RUNTIME_TRACE_ENV_VAR, "").strip().lower() in _TRUE_VALUES
+    return _env_flag_enabled(RUNTIME_TRACE_ENV_VAR)
+
+
+def runtime_trace_raw_events_enabled() -> bool:
+    """Return whether raw ADK runner events should be traced."""
+    return _env_flag_enabled(RUNTIME_TRACE_RAW_EVENTS_ENV_VAR)
+
+
+def runtime_trace_stream_deltas_enabled() -> bool:
+    """Return whether partial streaming model responses should be traced."""
+    return _env_flag_enabled(RUNTIME_TRACE_STREAM_DELTAS_ENV_VAR)
 
 
 def runtime_trace_max_chars() -> int:
@@ -82,7 +94,7 @@ def serialize_trace_payload(payload: Any) -> str:
 
 
 class CreativeClawRuntimeTracePlugin(BasePlugin):
-    """ADK plugin that logs agent, model, event, and tool communication content."""
+    """ADK plugin that logs runtime communication content for local debugging."""
 
     def __init__(self) -> None:
         """Initialize the runtime trace plugin."""
@@ -110,7 +122,9 @@ class CreativeClawRuntimeTracePlugin(BasePlugin):
         return None
 
     async def on_event_callback(self, *, invocation_context, event) -> None:
-        """Trace raw ADK events emitted by the runner."""
+        """Trace raw ADK events emitted by the runner when explicitly enabled."""
+        if not runtime_trace_raw_events_enabled():
+            return None
         trace_runtime_event(
             "runner.event",
             {
@@ -155,6 +169,8 @@ class CreativeClawRuntimeTracePlugin(BasePlugin):
 
     async def after_model_callback(self, *, callback_context, llm_response) -> None:
         """Trace model response content after it is received."""
+        if _is_partial_model_response(llm_response) and not runtime_trace_stream_deltas_enabled():
+            return None
         trace_runtime_event(
             "model.response",
             {
@@ -213,6 +229,18 @@ class CreativeClawRuntimeTracePlugin(BasePlugin):
             },
         )
         return None
+
+
+def _env_flag_enabled(name: str) -> bool:
+    """Return whether an environment flag is set to a supported true value."""
+    return os.getenv(name, "").strip().lower() in _TRUE_VALUES
+
+
+def _is_partial_model_response(llm_response: Any) -> bool:
+    """Return whether an ADK model response is a streaming partial chunk."""
+    if isinstance(llm_response, Mapping):
+        return llm_response.get("partial") is True
+    return getattr(llm_response, "partial", None) is True
 
 
 def _to_trace_safe_value(value: Any, *, depth: int = 0) -> Any:
@@ -353,8 +381,12 @@ __all__ = [
     "CreativeClawRuntimeTracePlugin",
     "RUNTIME_TRACE_ENV_VAR",
     "RUNTIME_TRACE_MAX_CHARS_ENV_VAR",
+    "RUNTIME_TRACE_RAW_EVENTS_ENV_VAR",
+    "RUNTIME_TRACE_STREAM_DELTAS_ENV_VAR",
     "runtime_trace_enabled",
     "runtime_trace_max_chars",
+    "runtime_trace_raw_events_enabled",
+    "runtime_trace_stream_deltas_enabled",
     "serialize_trace_payload",
     "trace_runtime_event",
 ]
