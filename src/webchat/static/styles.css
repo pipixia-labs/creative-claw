@@ -1039,9 +1039,9 @@ button {
 .progress-card {
   overflow: hidden;
   padding: 0;
-  background:
-    linear-gradient(135deg, rgba(47, 125, 116, 0.055), rgba(255, 255, 252, 0.92)),
-    rgba(255, 255, 252, 0.88);
+  background: rgba(255, 255, 255, 0.96);
+  border-color: rgba(30, 40, 34, 0.07);
+  box-shadow: none;
 }
 
 .message-meta {
@@ -1064,12 +1064,12 @@ button {
 
 .progress-toggle {
   width: 100%;
-  min-height: 68px;
+  min-height: 44px;
   display: grid;
-  grid-template-columns: 12px minmax(0, 1fr) 28px;
-  align-items: start;
-  gap: 12px;
-  padding: 13px 13px 12px 14px;
+  grid-template-columns: 10px minmax(0, 1fr) 24px;
+  align-items: center;
+  gap: 10px;
+  padding: 9px 12px;
   border: 0;
   background: transparent;
   color: inherit;
@@ -1086,21 +1086,20 @@ button {
 }
 
 .progress-status {
-  width: 9px;
-  height: 9px;
-  margin-top: 6px;
+  width: 8px;
+  height: 8px;
+  margin-top: 0;
   border-radius: 50%;
   background: var(--accent);
-  box-shadow: 0 0 0 4px rgba(47, 125, 116, 0.1);
+  box-shadow: 0 0 0 3px rgba(47, 125, 116, 0.09);
 }
 
 .progress-copy {
   min-width: 0;
   display: grid;
-  grid-template-columns: auto minmax(0, 1fr);
-  align-items: baseline;
-  column-gap: 8px;
-  row-gap: 4px;
+  grid-template-columns: auto auto minmax(0, 1fr);
+  align-items: center;
+  column-gap: 7px;
 }
 
 .progress-badge {
@@ -1121,25 +1120,21 @@ button {
 }
 
 .progress-summary {
-  grid-column: 1 / -1;
   min-width: 0;
   overflow: hidden;
   color: var(--text-soft);
   font-family: var(--font-ui);
   font-size: 13px;
-  line-height: 1.42;
-  display: -webkit-box;
+  line-height: 1.35;
   text-overflow: ellipsis;
-  white-space: normal;
-  -webkit-box-orient: vertical;
-  -webkit-line-clamp: 2;
+  white-space: nowrap;
   -webkit-font-smoothing: antialiased;
 }
 
 .progress-chevron {
-  width: 24px;
-  height: 24px;
-  margin-top: 1px;
+  width: 22px;
+  height: 22px;
+  margin-top: 0;
   display: flex;
   align-items: center;
   justify-content: center;
@@ -1160,10 +1155,26 @@ button {
   transform: rotate(180deg);
 }
 
+.progress-card.completed .progress-status {
+  background: var(--success);
+  box-shadow: 0 0 0 3px rgba(40, 121, 79, 0.09);
+}
+
+.progress-card.completed .progress-title,
+.progress-card.completed .progress-summary {
+  color: rgba(91, 103, 95, 0.72);
+}
+
+.progress-card.cancelled .progress-status,
+.progress-card.failed .progress-status {
+  background: var(--danger);
+  box-shadow: 0 0 0 3px rgba(179, 72, 64, 0.1);
+}
+
 .progress-wrapper {
-  padding: 12px 14px 14px;
+  padding: 10px 14px 14px;
   border-top: 1px solid var(--hairline);
-  background: rgba(255, 255, 252, 0.62);
+  background: rgba(247, 248, 245, 0.56);
 }
 
 .progress-card.collapsed .progress-wrapper {
@@ -1895,26 +1906,27 @@ button {
 }
 
 .composer {
-  background: rgba(255, 255, 252, 0.9);
-  border: 1px solid rgba(30, 40, 34, 0.085);
-  border-radius: 14px;
-  box-shadow: 0 8px 22px rgba(35, 42, 36, 0.065);
-  padding: 12px;
+  background: rgba(255, 255, 252, 0.94);
+  border: 1px solid rgba(30, 40, 34, 0.12);
+  border-radius: 20px;
+  box-shadow: 0 12px 28px rgba(35, 42, 36, 0.08);
+  padding: 16px 18px 14px;
   backdrop-filter: blur(14px);
+  transition: border-color 0.18s ease, box-shadow 0.18s ease;
+}
+
+.composer:focus-within {
+  border-color: rgba(47, 125, 116, 0.24);
+  box-shadow: 0 14px 34px rgba(35, 42, 36, 0.1), 0 0 0 2px rgba(47, 125, 116, 0.055);
 }
 
 .composer-label {
-  display: block;
-  margin-bottom: 2px;
-  padding-left: 4px;
-  color: rgba(91, 103, 95, 0.78);
-  font-family: var(--font-ui);
-  font-size: 11px;
-  font-weight: 600;
-  line-height: 1;
-  letter-spacing: 0;
-  text-transform: none;
-  -webkit-font-smoothing: antialiased;
+  position: absolute;
+  width: 1px;
+  height: 1px;
+  overflow: hidden;
+  clip: rect(0 0 0 0);
+  white-space: nowrap;
 }
 
 .attachment-list {
@@ -1982,44 +1994,62 @@ button {
 
 .composer-box {
   position: relative;
-  box-shadow: inset 0 0 0 1px rgba(29, 39, 34, 0.07);
-  border-radius: 12px;
-}
-
-.composer-box {
-  position: relative;
-  border-radius: 12px;
-  background: rgba(255, 255, 255, 0.82);
-  transition: background 0.18s ease, box-shadow 0.18s ease;
+  display: flex;
+  flex-direction: column;
 }
 
 .composer-box:focus-within {
-  background: rgba(255, 255, 255, 0.94);
-  box-shadow: inset 0 0 0 1px rgba(47, 125, 116, 0.18), 0 0 0 2px rgba(47, 125, 116, 0.06);
+  background: transparent;
+  box-shadow: none;
 }
 
 .composer textarea {
   width: 100%;
-  min-height: 44px;
-  padding: 11px 12px;
+  min-height: 42px;
+  max-height: 210px;
+  flex: 0 0 auto;
+  padding: 0;
   resize: none;
   border: none;
-  border-radius: 12px;
+  border-radius: 0;
   outline: none;
-  background: rgba(255, 255, 255, 0.82);
+  background: transparent;
   color: var(--text);
   font-size: 14px;
   line-height: 1.5;
-  /* box-shadow: inset 0 0 0 1px rgba(29, 39, 34, 0.07); */
-  transition: background 0.18s ease, box-shadow 0.18s ease;
+  transition: none;
   display: block;
-  overflow: visible;
-  height: auto;
-  overflow: auto;
+  height: 42px;
+  overflow-y: hidden;
+  scrollbar-gutter: stable;
 }
 
 .composer textarea:focus {
   outline: none;
+}
+
+.composer textarea.is-scrollable {
+  scrollbar-color: rgba(91, 103, 95, 0.34) transparent;
+  scrollbar-width: thin;
+}
+
+.composer textarea::-webkit-scrollbar {
+  width: 8px;
+}
+
+.composer textarea::-webkit-scrollbar-track {
+  background: transparent;
+}
+
+.composer textarea::-webkit-scrollbar-thumb {
+  border: 2px solid transparent;
+  border-radius: 999px;
+  background: transparent;
+  background-clip: padding-box;
+}
+
+.composer textarea.is-scrollable::-webkit-scrollbar-thumb {
+  background-color: rgba(91, 103, 95, 0.34);
 }
 
 .composer-icon-button {
@@ -2034,18 +2064,19 @@ button {
 .bottom-btn {
   width: 100%;
   box-sizing: border-box;
-  position: a;
-  padding: 0 12px 12px;
+  position: relative;
+  margin-top: 12px;
+  padding: 0;
   display: flex;
   justify-content: space-between;
   align-items: flex-end;
-  border-radius: 0 0 12px 12px;
+  border-radius: 0;
 }
 
 .bottom-btn-center {
   flex: 1;
   height: 100%;
-  background: #fff;
+  background: transparent;
   margin: 0;
   border-radius: 0;
 }
@@ -2125,12 +2156,6 @@ button {
 
 .file-input {
   display: none;
-}
-
-.composer-hint {
-  margin-top: 7px;
-  color: rgba(137, 148, 140, 0.88);
-  font-size: 9px;
 }
 
 .empty-state {

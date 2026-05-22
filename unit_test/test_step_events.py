@@ -51,13 +51,17 @@ class StepEventPluginTests(unittest.IsolatedAsyncioTestCase):
             await plugin.after_run_callback(invocation_context=invocation)
 
         self.assertEqual(len(self.messages), 2)
-        self.assertEqual(self.messages[0].metadata["stage_title"], "read_file")
+        self.assertEqual(self.messages[0].metadata["stage_title"], "Reading context")
+        self.assertEqual(self.messages[0].metadata["debug_title"], "read_file")
         self.assertEqual(self.messages[0].metadata["turn_index"], 4)
-        self.assertIn("Status: started", self.messages[0].text)
-        self.assertIn("Args: path=README.md", self.messages[0].text)
-        self.assertIn("1. read_file", self.messages[1].text)
-        self.assertIn("2. read_file", self.messages[1].text)
-        self.assertIn("Result: Read succeeded", self.messages[1].text)
+        self.assertEqual(self.messages[0].text, "The system is reading relevant workspace content.")
+        self.assertIn("Status: started", self.messages[0].metadata["debug_detail"])
+        self.assertIn("Args: path=README.md", self.messages[0].metadata["debug_detail"])
+        self.assertEqual(self.messages[1].text, "The system is reading relevant workspace content.")
+        self.assertEqual(len(self.messages[1].metadata["debug_events"]), 2)
+        self.assertEqual(self.messages[1].metadata["debug_events"][0]["title"], "read_file")
+        self.assertEqual(self.messages[1].metadata["debug_events"][1]["title"], "read_file")
+        self.assertIn("Result: Read succeeded", self.messages[1].metadata["debug_detail"])
 
     async def test_plugin_ignores_unknown_tool_names(self) -> None:
         plugin = CreativeClawStepEventPlugin()
@@ -91,8 +95,10 @@ class StepEventPluginTests(unittest.IsolatedAsyncioTestCase):
             await asyncio.sleep(0)
 
         self.assertEqual(len(self.messages), 1)
-        self.assertEqual(self.messages[0].metadata["stage_title"], "Call Expert Agent")
-        self.assertIn("Calling `ImageGenerationAgent`", self.messages[0].text)
+        self.assertEqual(self.messages[0].metadata["stage_title"], "Generating content")
+        self.assertEqual(self.messages[0].metadata["debug_title"], "Call Expert Agent")
+        self.assertEqual(self.messages[0].text, "The system is using a specialist capability for this step.")
+        self.assertIn("Calling `ImageGenerationAgent`", self.messages[0].metadata["debug_detail"])
 
     async def test_assistant_delta_only_publishes_for_web_channel(self) -> None:
         with route_context("cli", "chat-cli"):
@@ -111,6 +117,26 @@ class StepEventPluginTests(unittest.IsolatedAsyncioTestCase):
         self.assertEqual(self.messages[0].metadata["display_style"], "assistant_delta")
         self.assertEqual(self.messages[0].metadata["turn_index"], 2)
 
+    async def test_orchestration_tool_titles_are_normalized_for_user_progress(self) -> None:
+        with route_context("cli", "chat-normalized"):
+            reset_step_event_history(session_id="session-normalized")
+            publish_orchestration_step_event(
+                session_id="session-normalized",
+                title="List Session Files",
+                detail="Session file snapshot loaded, uploaded=0; generated=0.",
+                stage="inspection",
+            )
+            await asyncio.sleep(0)
+
+        self.assertEqual(len(self.messages), 1)
+        self.assertEqual(self.messages[0].metadata["stage_title"], "Checking context")
+        self.assertEqual(
+            self.messages[0].text,
+            "The system is reviewing this conversation's files and previous outputs.",
+        )
+        self.assertEqual(self.messages[0].metadata["debug_title"], "List Session Files")
+        self.assertIn("Session file snapshot", self.messages[0].metadata["debug_detail"])
+
     async def test_append_orchestration_step_event_updates_state_and_publishes(self) -> None:
         state = {"sid": "session-append", "turn_index": 3, "orchestration_events": []}
 
@@ -125,10 +151,13 @@ class StepEventPluginTests(unittest.IsolatedAsyncioTestCase):
             await asyncio.sleep(0)
 
         self.assertEqual(state["orchestration_events"][0]["title"], "PPT Image Generation")
+        self.assertEqual(state["orchestration_events"][0]["user_title"], "Processing images")
         self.assertEqual(len(self.messages), 1)
-        self.assertEqual(self.messages[0].metadata["stage_title"], "PPT Image Generation")
+        self.assertEqual(self.messages[0].metadata["stage_title"], "Processing images")
+        self.assertEqual(self.messages[0].metadata["debug_title"], "PPT Image Generation")
         self.assertEqual(self.messages[0].metadata["turn_index"], 3)
-        self.assertIn("slide_01_visual", self.messages[0].text)
+        self.assertEqual(self.messages[0].text, "The system is working with image assets.")
+        self.assertIn("slide_01_visual", self.messages[0].metadata["debug_detail"])
 
     async def test_orchestration_event_history_is_scoped_by_turn_index(self) -> None:
         with route_context("cli", "chat-3"):
@@ -152,9 +181,11 @@ class StepEventPluginTests(unittest.IsolatedAsyncioTestCase):
         self.assertEqual(len(self.messages), 2)
         self.assertEqual(self.messages[0].metadata["turn_index"], 1)
         self.assertEqual(self.messages[1].metadata["turn_index"], 2)
-        self.assertIn("First Turn Expert", self.messages[0].text)
-        self.assertIn("Second Turn Expert", self.messages[1].text)
-        self.assertNotIn("First Turn Expert", self.messages[1].text)
+        self.assertEqual(self.messages[0].metadata["debug_title"], "First Turn Expert")
+        self.assertEqual(self.messages[1].metadata["debug_title"], "Second Turn Expert")
+        self.assertEqual(self.messages[0].text, "The system is using a specialist capability for this step.")
+        self.assertEqual(self.messages[1].text, "The system is using a specialist capability for this step.")
+        self.assertNotIn("First Turn Expert", self.messages[1].metadata["debug_detail"])
 
     async def test_plugin_and_orchestration_events_share_same_history(self) -> None:
         plugin = CreativeClawStepEventPlugin()
@@ -181,5 +212,6 @@ class StepEventPluginTests(unittest.IsolatedAsyncioTestCase):
             )
 
         self.assertEqual(len(self.messages), 2)
-        self.assertIn("1. Call Expert Agent", self.messages[1].text)
-        self.assertIn("2. read_file", self.messages[1].text)
+        self.assertEqual(self.messages[1].text, "The system is reading relevant workspace content.")
+        self.assertEqual(self.messages[1].metadata["debug_events"][0]["title"], "Call Expert Agent")
+        self.assertEqual(self.messages[1].metadata["debug_events"][1]["title"], "read_file")

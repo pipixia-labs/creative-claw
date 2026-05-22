@@ -9,6 +9,7 @@ from typing import Any, Awaitable, Callable
 from google.adk.plugins.base_plugin import BasePlugin
 
 from src.channels.events import OutboundMessage
+from src.runtime.progress_events import build_progress_metadata, progress_text_from_metadata
 from src.runtime.tool_context import get_route
 from src.runtime.tool_display import format_tool_args, summarize_tool_result
 
@@ -65,15 +66,9 @@ def assistant_delta_streaming_active() -> bool:
     return _STEP_EVENT_PUBLISHER is not None and channel == "web" and bool(chat_id)
 
 
-def _render_history(history: list[dict[str, str]], limit: int = 8) -> str:
-    """Render recent tool events into one readable progress timeline."""
-    recent = history[-limit:]
-    blocks: list[str] = []
-    for index, step_event in enumerate(recent, start=1):
-        title = str(step_event.get("title", "")).strip() or "In Progress"
-        detail = str(step_event.get("detail", "")).strip() or "Processing the current step."
-        blocks.append(f"**{index}. {title}**\n{detail}")
-    return "\n\n".join(blocks)
+def _debug_history(history: list[dict[str, str]], limit: int = 8) -> list[dict[str, str]]:
+    """Return recent raw tool events for trace/debug consumers."""
+    return list(history[-limit:])
 
 
 def _normalize_turn_index(turn_index: Any) -> int | None:
@@ -122,8 +117,10 @@ async def _publish_step_event(
     tool_name: str,
     stage: str,
     detail: str,
+    user_title: str | None = None,
+    user_detail: str | None = None,
 ) -> None:
-    """Publish one realtime tool progress event through the configured publisher."""
+    """Publish one realtime tool progress event with user/debug fields separated."""
     publisher = _STEP_EVENT_PUBLISHER
     channel, chat_id = get_route()
     if publisher is None or not channel or not chat_id:
@@ -133,20 +130,22 @@ async def _publish_step_event(
     key = _session_history_key(channel, chat_id, session_id, normalized_turn)
     history = _HISTORY_BY_SESSION.setdefault(key, [])
     history.append({"title": tool_name, "detail": detail, "stage": stage})
-    metadata: dict[str, Any] = {
-        "session_id": session_id,
-        "display_style": "progress",
-        "stage": stage,
-        "stage_title": tool_name,
-    }
-    if normalized_turn is not None:
-        metadata["turn_index"] = normalized_turn
+    metadata = build_progress_metadata(
+        session_id=session_id,
+        stage=stage,
+        debug_title=tool_name,
+        debug_detail=detail,
+        user_title=user_title,
+        user_detail=user_detail,
+        turn_index=normalized_turn,
+        debug_events=_debug_history(history),
+    )
 
     maybe_awaitable = publisher(
         OutboundMessage(
             channel=channel,
             chat_id=chat_id,
-            text=_render_history(history),
+            text=progress_text_from_metadata(metadata),
             metadata=metadata,
         )
     )
@@ -203,6 +202,8 @@ def publish_orchestration_step_event(
     title: str,
     detail: str,
     stage: str,
+    user_title: str | None = None,
+    user_detail: str | None = None,
 ) -> None:
     """Schedule one realtime publish for an orchestrator-level step event."""
     if not step_event_streaming_active():
@@ -218,6 +219,8 @@ def publish_orchestration_step_event(
             tool_name=title,
             stage=stage,
             detail=detail,
+            user_title=user_title,
+            user_detail=user_detail,
         )
     )
 
@@ -229,17 +232,32 @@ def append_orchestration_step_event(
     detail: str,
     stage: str = "orchestrating",
     session_id: str = "",
+    user_title: str | None = None,
+    user_detail: str | None = None,
 ) -> None:
     """Append one progress event to session state and publish it when realtime streaming is active."""
     normalized_title = str(title or "").strip() or "In Progress"
     normalized_detail = str(detail or "").strip() or "Processing the current step."
     normalized_stage = str(stage or "").strip() or "orchestrating"
+    metadata = build_progress_metadata(
+        session_id=str(session_id or "").strip() or str(state.get("sid", "") or "").strip(),
+        stage=normalized_stage,
+        debug_title=normalized_title,
+        debug_detail=normalized_detail,
+        user_title=user_title,
+        user_detail=user_detail,
+        turn_index=_normalize_turn_index(state.get("turn_index")),
+    )
     events = list(state.get("orchestration_events", []) or [])
     events.append(
         {
             "title": normalized_title,
             "detail": normalized_detail,
             "stage": normalized_stage,
+            "user_title": str(metadata.get("user_title") or ""),
+            "user_detail": str(metadata.get("user_detail") or ""),
+            "debug_title": normalized_title,
+            "debug_detail": normalized_detail,
         }
     )
     state["orchestration_events"] = events
@@ -252,6 +270,8 @@ def append_orchestration_step_event(
         title=normalized_title,
         detail=normalized_detail,
         stage=normalized_stage,
+        user_title=str(metadata.get("user_title") or ""),
+        user_detail=str(metadata.get("user_detail") or ""),
     )
 
 

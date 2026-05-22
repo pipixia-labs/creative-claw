@@ -438,8 +438,9 @@ class RuntimeSessionTests(unittest.IsolatedAsyncioTestCase):
             events = [event async for event in runtime.run_message(inbound)]
 
         self.assertEqual(events[0].event_type, "status")
-        self.assertEqual(events[0].text, "I'll start processing your request.")
-        self.assertEqual(events[0].metadata["stage_title"], "Starting")
+        self.assertEqual(events[0].text, "The system is getting ready to work on your request.")
+        self.assertEqual(events[0].metadata["stage_title"], "Preparing your request")
+        self.assertEqual(events[0].metadata["debug_detail"], "Workflow started.")
         self.assertEqual(events[-1].event_type, "final")
         self.assertEqual(events[-1].text, "The image is ready.")
         self.assertNotIn("Image generation is complete.", events[-1].text)
@@ -477,7 +478,8 @@ class RuntimeSessionTests(unittest.IsolatedAsyncioTestCase):
         progress_events = [event for event in events if event.event_type == "status"]
         self.assertEqual(progress_events[1].text, "已收到需求确认表单，正在继续生成设计方案。")
         self.assertEqual(progress_events[1].metadata["stage"], "design_planning")
-        self.assertEqual(progress_events[1].metadata["stage_title"], "Preparing Design Brief")
+        self.assertEqual(progress_events[1].metadata["stage_title"], "Reviewing your answers")
+        self.assertEqual(progress_events[1].metadata["user_detail"], "已收到需求确认表单，正在继续生成设计方案。")
 
     async def test_run_message_with_design_metadata_uses_orchestrator(self) -> None:
         runtime = CreativeClawRuntime()
@@ -645,15 +647,18 @@ class RuntimeSessionTests(unittest.IsolatedAsyncioTestCase):
             events = [event async for event in runtime.run_message(inbound)]
 
         progress_events = [event for event in events if event.event_type == "status"]
-        self.assertEqual(progress_events[1].metadata["stage_title"], "List Skills")
+        self.assertEqual(progress_events[1].metadata["stage_title"], "Checking capabilities")
+        self.assertEqual(progress_events[1].metadata["debug_title"], "List Skills")
         self.assertEqual(progress_events[1].metadata["stage"], "planning")
         self.assertEqual(progress_events[1].metadata["turn_index"], 1)
-        self.assertIn("Checking the currently available skills.", progress_events[1].text)
-        self.assertEqual(progress_events[2].metadata["stage_title"], "invoke_agent")
+        self.assertEqual(progress_events[1].text, "The system is checking available capabilities.")
+        self.assertIn("Checking the currently available skills.", progress_events[1].metadata["debug_detail"])
+        self.assertEqual(progress_events[2].metadata["stage_title"], "Generating content")
+        self.assertEqual(progress_events[2].metadata["debug_title"], "invoke_agent")
         self.assertEqual(progress_events[2].metadata["stage"], "expert_execution")
         self.assertEqual(progress_events[2].metadata["turn_index"], 1)
-        self.assertIn("1. List Skills", progress_events[2].text)
-        self.assertIn("2. invoke_agent", progress_events[2].text)
+        self.assertEqual(progress_events[2].text, "The system is using a specialist capability.")
+        self.assertIn("agent_name=KnowledgeAgent", progress_events[2].metadata["debug_detail"])
 
     async def test_run_message_renders_tool_args_and_result_summary(self) -> None:
         runtime = CreativeClawRuntime()
@@ -693,8 +698,10 @@ class RuntimeSessionTests(unittest.IsolatedAsyncioTestCase):
             events = [event async for event in runtime.run_message(inbound)]
 
         progress_events = [event for event in events if event.event_type == "status"]
-        self.assertIn("Args: path=README.md", progress_events[-1].text)
-        self.assertIn("Result: Hello world", progress_events[-1].text)
+        self.assertEqual(progress_events[-1].text, "The system is reading relevant workspace content.")
+        self.assertNotIn("README.md", progress_events[-1].text)
+        self.assertIn("Args: path=README.md", progress_events[-1].metadata["debug_detail"])
+        self.assertIn("Result: Hello world", progress_events[-1].metadata["debug_detail"])
 
     async def test_run_message_keeps_smart_tool_summary_in_timeline(self) -> None:
         runtime = CreativeClawRuntime()
@@ -734,8 +741,10 @@ class RuntimeSessionTests(unittest.IsolatedAsyncioTestCase):
             events = [event async for event in runtime.run_message(inbound)]
 
         progress_events = [event for event in events if event.event_type == "status"]
-        self.assertIn("3 entries", progress_events[-1].text)
-        self.assertIn("README.md", progress_events[-1].text)
+        self.assertEqual(progress_events[-1].text, "The system is reviewing relevant workspace files.")
+        self.assertNotIn("README.md", progress_events[-1].text)
+        self.assertIn("3 entries", progress_events[-1].metadata["debug_detail"])
+        self.assertIn("README.md", progress_events[-1].metadata["debug_detail"])
 
     async def test_build_final_event_prefers_state_final_response_over_text_history(self) -> None:
         runtime = CreativeClawRuntime()

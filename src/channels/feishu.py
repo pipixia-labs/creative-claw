@@ -106,7 +106,11 @@ def _build_status_card(text: str, metadata: dict[str, Any] | None = None) -> dic
         title = str(info.get("stage_title", "")).strip() or "Completed"
         template = "green"
     else:
-        title = str(info.get("stage_title", "")).strip() or _STAGE_TITLES.get(stage, "Current Progress")
+        title = (
+            str(info.get("user_title") or "").strip()
+            or str(info.get("stage_title", "")).strip()
+            or _STAGE_TITLES.get(stage, "Current Progress")
+        )
         template = {
             "started": "blue",
             "attachment_received": "wathet",
@@ -114,7 +118,7 @@ def _build_status_card(text: str, metadata: dict[str, Any] | None = None) -> dic
             "completed": "green",
         }.get(stage, "blue")
 
-    body = str(text or "").strip() or "No content available."
+    body = str(info.get("user_detail") or text or "").strip() or "No content available."
     return {
         "config": {"wide_screen_mode": True, "enable_forward": True},
         "header": {
@@ -1358,6 +1362,11 @@ def _is_video_file(file_path: str) -> bool:
 
 def _guess_mime_type(file_name: str) -> str:
     """Guess mime type for one inbound file name."""
+    suffix = Path(str(file_name or "")).suffix.lower()
+    if suffix == ".glb":
+        return "model/gltf-binary"
+    if suffix == ".gltf":
+        return "model/gltf+json"
     mime_type, _ = mimetypes.guess_type(file_name)
     return mime_type or "application/octet-stream"
 

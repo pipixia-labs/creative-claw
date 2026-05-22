@@ -437,7 +437,7 @@ function handleEvent(payload) {
     if (shouldIgnoreStaleRunEvent(payload)) {
       return;
     }
-    upsertProgressCard(payload.content || "", payload.metadata || {});
+    upsertProgressCard(payload.content || "", payload.metadata || {}, { runId: payload.runId || "" });
     return;
   }
 
@@ -445,17 +445,18 @@ function handleEvent(payload) {
     if (shouldIgnoreStaleRunEvent(payload)) {
       return;
     }
+    completeProgressCards({ runId: payload.runId || currentRunId });
     activeProgressCard = null;
     appendAssistantDelta(payload);
     return;
   }
 
-  activeProgressCard = null;
-
   if (payload.type === "assistant_message") {
     if (shouldIgnoreStaleRunEvent(payload)) {
       return;
     }
+    completeProgressCards({ runId: payload.runId || currentRunId });
+    activeProgressCard = null;
     if (finalizeAssistantStream(payload)) {
       return;
     }
@@ -481,6 +482,7 @@ function handleEvent(payload) {
     if (shouldIgnoreStaleRunEvent(payload)) {
       return;
     }
+    completeProgressCards({ runId: payload.runId || currentRunId, status: "failed" });
     activeAssistantStream = null;
     addMessageCard("error", "CreativeClaw", payload.content || payload.message || "Unknown error.");
     appendHistory({
@@ -490,6 +492,8 @@ function handleEvent(payload) {
       artifacts: [],
     });
   }
+
+  activeProgressCard = null;
 }
 
 function setRunState(next, runId = currentRunId) {
@@ -528,8 +532,13 @@ function handleTaskFinished(payload) {
     return;
   }
   if (payload.reason === "cancelled") {
+    completeProgressCards({ runId: payload.runId, status: "cancelled" });
     addMessageCard("system", "CreativeClaw", "Task stopped.");
     activeAssistantStream = null;
+  } else if (payload.reason === "completed") {
+    completeProgressCards({ runId: payload.runId });
+  } else {
+    completeProgressCards({ runId: payload.runId, status: "failed" });
   }
   setRunState("idle");
 }
@@ -1394,7 +1403,7 @@ function submitQuestionForm(root, form, answers) {
   activeAssistantStream = null;
 }
 
-function upsertProgressCard(content, metadata) {
+function upsertProgressCard(content, metadata, options = {}) {
   removeEmptyState();
   if (!activeProgressCard) {
     const fragment = progressTemplate.content.cloneNode(true);
@@ -1402,7 +1411,14 @@ function upsertProgressCard(content, metadata) {
     activeProgressCard = timeline.lastElementChild;
     initializeProgressCard(activeProgressCard);
   }
-  const rawTitle = String(metadata.stage_title || "").trim();
+  if (options.runId) {
+    activeProgressCard.dataset.runId = String(options.runId);
+  }
+  activeProgressCard.classList.remove("completed", "cancelled", "failed");
+  activeProgressCard.dataset.status = "running";
+  const userTitle = String(metadata.user_title || metadata.stage_title || "").trim();
+  const userDetail = String(metadata.user_detail || "").trim();
+  const rawTitle = userTitle;
   const titleEl = activeProgressCard.querySelector(".progress-title");
   if (HIDDEN_PROGRESS_TITLES.has(rawTitle)) {
     titleEl.hidden = true;
@@ -1411,9 +1427,57 @@ function upsertProgressCard(content, metadata) {
     titleEl.hidden = false;
     titleEl.textContent = rawTitle || "Working";
   }
-  activeProgressCard.querySelector(".progress-summary").textContent = summarizeProgressContent(content, rawTitle);
-  activeProgressCard.querySelector(".progress-body").innerHTML = renderMarkdown(content);
+  const progressDetail = userDetail || summarizeProgressContent(content, rawTitle);
+  activeProgressCard.querySelector(".progress-summary").textContent = progressDetail;
+  activeProgressCard.querySelector(".progress-body").innerHTML = renderMarkdown(progressDetail);
   scrollToBottom();
+}
+
+function completeProgressCards({ runId = "", status = "completed" } = {}) {
+  const cards = Array.from(timeline.querySelectorAll(".progress-card:not(.completed):not(.cancelled):not(.failed)"));
+  const normalizedRunId = String(runId || "").trim();
+  for (const card of cards) {
+    const cardRunId = String(card.dataset.runId || "").trim();
+    if (normalizedRunId && cardRunId && cardRunId !== normalizedRunId) {
+      continue;
+    }
+    completeProgressCard(card, status);
+  }
+  if (activeProgressCard && activeProgressCard.dataset.status !== "running") {
+    activeProgressCard = null;
+  }
+}
+
+function completeProgressCard(card, status = "completed") {
+  const normalizedStatus = status === "cancelled" || status === "failed" ? status : "completed";
+  card.classList.remove("completed", "cancelled", "failed");
+  card.classList.add(normalizedStatus);
+  card.dataset.status = normalizedStatus;
+
+  const titleEl = card.querySelector(".progress-title");
+  const summaryEl = card.querySelector(".progress-summary");
+  const bodyEl = card.querySelector(".progress-body");
+  const currentTitle = String(titleEl?.textContent || "").trim();
+  const statusText = {
+    completed: "Completed.",
+    cancelled: "Cancelled.",
+    failed: "Failed.",
+  }[normalizedStatus];
+
+  if (titleEl && (titleEl.hidden || !currentTitle)) {
+    titleEl.hidden = false;
+    titleEl.textContent = statusText.replace(/\.$/, "");
+    if (summaryEl) {
+      summaryEl.textContent = "";
+    }
+  } else if (summaryEl) {
+    summaryEl.textContent = statusText;
+  }
+
+  if (bodyEl) {
+    bodyEl.innerHTML = renderMarkdown(statusText);
+  }
+  setProgressExpanded(card, false);
 }
 
 function initializeProgressCard(card) {
@@ -3558,7 +3622,7 @@ async function sendPrompt() {
   addMessageCard("user", "You", displayContent);
   appendHistory({ type: "user", role: "You", content: displayContent, artifacts: [] });
   promptInput.value = "";
-  promptInput.style.height = "";
+  resizePromptInput();
   clearAttachments();
   activeProgressCard = null;
   activeAssistantStream = null;
@@ -3588,9 +3652,21 @@ composer.addEventListener("submit", (event) => {
   void handleComposerSubmit();
 });
 
+function resizePromptInput() {
+  const style = window.getComputedStyle(promptInput);
+  const lineHeight = Number.parseFloat(style.lineHeight) || 21;
+  const minHeight = Math.ceil(lineHeight * 2);
+  const maxHeight = Math.ceil(lineHeight * 10);
+  promptInput.style.height = `${minHeight}px`;
+  const nextHeight = Math.min(promptInput.scrollHeight, maxHeight);
+  promptInput.style.height = `${nextHeight}px`;
+  const isScrollable = promptInput.scrollHeight > maxHeight;
+  promptInput.style.overflowY = isScrollable ? "auto" : "hidden";
+  promptInput.classList.toggle("is-scrollable", isScrollable);
+}
+
 promptInput.addEventListener("input", () => {
-  promptInput.style.height = "";
-  promptInput.style.height = `${Math.min(promptInput.scrollHeight, 220)}px`;
+  resizePromptInput();
   updateComposerButtons();
 });
 

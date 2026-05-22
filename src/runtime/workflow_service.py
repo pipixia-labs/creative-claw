@@ -21,6 +21,7 @@ from src.productions.design.design_product_manager.brief_form import (
 from src.runtime.cancellation import TaskCancelledError, get_cancellation_manager
 from src.runtime.expert_registry import build_expert_agents
 from src.runtime.models import InboundMessage, WorkflowEvent
+from src.runtime.progress_events import build_progress_metadata, progress_text_from_metadata
 from src.runtime.step_events import reset_step_event_history, step_event_streaming_active
 from src.runtime.workspace import (
     build_workspace_file_record,
@@ -36,23 +37,6 @@ _HELP_TEXT = (
     "/new - Start a new conversation session\n"
     "/help - Show available commands"
 )
-
-_PROGRESS_STAGE_TITLES = {
-    "started": "Starting",
-    "attachment_received": "Attachment Received",
-    "in_progress": "In Progress",
-    "planning": "Planning Next Step",
-    "inspection": "Inspecting Context",
-    "editing": "Editing Content",
-    "image_processing": "Processing Image",
-    "video_processing": "Processing Video",
-    "audio_processing": "Processing Audio",
-    "execution": "Running Command",
-    "research": "Researching",
-    "design_planning": "Preparing Design Brief",
-    "expert_execution": "Calling Expert Agent",
-    "finalizing": "Finalizing Result",
-}
 
 _PENDING_PPT_WORKFLOW_STAGES = {
     "awaiting_requirement_confirmation",
@@ -134,33 +118,26 @@ def _contains_form_answers(text: str) -> bool:
 
 
 def _build_progress_event(
-    text: str,
+    debug_detail: str,
     *,
     session_id: str,
     stage: str,
     stage_title: str | None = None,
+    user_title: str | None = None,
+    user_detail: str | None = None,
     turn_index: int | None = None,
 ) -> WorkflowEvent:
-    """Build one user-facing progress event."""
-    metadata: dict[str, object] = {
-        "session_id": session_id,
-        "display_style": "progress",
-        "stage": stage,
-        "stage_title": stage_title or _PROGRESS_STAGE_TITLES.get(stage, "Current Progress"),
-    }
-    if turn_index is not None:
-        metadata["turn_index"] = turn_index
-    return WorkflowEvent(event_type="status", text=text, metadata=metadata)
-
-
-def _summarize_step_output(output_message: str) -> str:
-    """Convert one raw step output into a concise user-facing progress line."""
-    text = str(output_message or "").strip()
-    if not text:
-        return ""
-    if len(text) > 160:
-        text = f"{text[:157].rstrip()}..."
-    return f"Current progress: {text}"
+    """Build one progress event with user-facing copy and debug details."""
+    metadata = build_progress_metadata(
+        session_id=session_id,
+        stage=stage,
+        debug_title=stage_title or "",
+        debug_detail=debug_detail,
+        user_title=user_title,
+        user_detail=user_detail,
+        turn_index=turn_index,
+    )
+    return WorkflowEvent(event_type="status", text=progress_text_from_metadata(metadata), metadata=metadata)
 
 
 def _build_orchestration_progress_event(
@@ -171,26 +148,17 @@ def _build_orchestration_progress_event(
 ) -> WorkflowEvent:
     """Convert one structured orchestrator step event into a progress event."""
     stage = str(step_event.get("stage", "")).strip() or "in_progress"
-    title = str(step_event.get("title", "")).strip() or _PROGRESS_STAGE_TITLES.get(stage, "Current Progress")
-    detail = str(step_event.get("detail", "")).strip() or "Processing the current step."
+    title = str(step_event.get("debug_title") or step_event.get("title") or "").strip()
+    detail = str(step_event.get("debug_detail") or step_event.get("detail") or "").strip()
     return _build_progress_event(
         detail,
         session_id=session_id,
         stage=stage,
         stage_title=title,
+        user_title=str(step_event.get("user_title") or "").strip() or None,
+        user_detail=str(step_event.get("user_detail") or "").strip() or None,
         turn_index=turn_index,
     )
-
-
-def _render_orchestration_history(history: list[dict[str, str]], limit: int = 8) -> str:
-    """Render recent orchestration events into one readable progress timeline."""
-    recent = history[-limit:]
-    blocks: list[str] = []
-    for index, step_event in enumerate(recent, start=1):
-        title = str(step_event.get("title", "")).strip() or "In Progress"
-        detail = str(step_event.get("detail", "")).strip() or "Processing the current step."
-        blocks.append(f"**{index}. {title}**\n{detail}")
-    return "\n\n".join(blocks)
 
 
 class CreativeClawRuntime:
@@ -247,7 +215,7 @@ class CreativeClawRuntime:
             current_turn = await self._next_turn_index(user_id, session_id)
 
             yield _build_progress_event(
-                "I'll start processing your request.",
+                "Workflow started.",
                 session_id=session_id,
                 stage="started",
                 turn_index=current_turn,
@@ -265,6 +233,8 @@ class CreativeClawRuntime:
                     "已收到需求确认表单，正在继续生成设计方案。",
                     session_id=session_id,
                     stage="design_planning",
+                    user_title="Reviewing your answers",
+                    user_detail="已收到需求确认表单，正在继续生成设计方案。",
                     turn_index=current_turn,
                 )
 
@@ -298,7 +268,6 @@ class CreativeClawRuntime:
             orchestrator_agent.sid = session_id
 
             final_summary = "task workflow has started."
-            orchestration_history: list[dict[str, str]] = []
             current_session = await self.session_service.get_session(
                 app_name=SYS_CONFIG.app_name,
                 user_id=user_id,
@@ -321,14 +290,11 @@ class CreativeClawRuntime:
             )
 
             for step_event in orchestration_events:
-                orchestration_history.append(step_event)
-                progress_event = _build_orchestration_progress_event(
+                yield _build_orchestration_progress_event(
                     step_event,
                     session_id=session_id,
                     turn_index=current_turn,
                 )
-                progress_event.text = _render_orchestration_history(orchestration_history)
-                yield progress_event
 
             final_event = await self._build_final_event(
                 user_id,
