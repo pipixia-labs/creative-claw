@@ -35,7 +35,7 @@ const MAX_MEDIA_WIDTH = 920;
 const MEDIA_GAP = 96;
 const VIDEO_METADATA_TIMEOUT_MS = 4000;
 
-function CreativeClawSketchCanvas({ artifacts = [], selectedArtifact = null, onSubmitSketch }) {
+function CreativeClawSketchCanvas({ artifacts = [], selectedArtifact = null, fitSelectedArtifact = false, onSubmitSketch }) {
   const loadedSignatureRef = useRef("");
   const editorRef = useRef(null);
 
@@ -48,10 +48,10 @@ function CreativeClawSketchCanvas({ artifacts = [], selectedArtifact = null, onS
     (mountedEditor) => {
       editorRef.current = mountedEditor;
       void seedMediaArtifacts(mountedEditor, mediaArtifacts, loadedSignatureRef).then(() => {
-        selectMediaArtifact(mountedEditor, selectedArtifact);
+        selectMediaArtifact(mountedEditor, selectedArtifact, { fit: fitSelectedArtifact });
       });
     },
-    [mediaArtifacts, selectedArtifact]
+    [fitSelectedArtifact, mediaArtifacts, selectedArtifact]
   );
 
   useEffect(() => {
@@ -60,7 +60,9 @@ function CreativeClawSketchCanvas({ artifacts = [], selectedArtifact = null, onS
 
   useEffect(() => {
     const handleSelectArtifact = (event) => {
-      selectMediaArtifact(editorRef.current, event.detail?.artifact);
+      selectMediaArtifact(editorRef.current, event.detail?.artifact, {
+        fit: Boolean(event.detail?.fit),
+      });
     };
     window.addEventListener("creative-claw-select-artifact", handleSelectArtifact);
     return () => {
@@ -383,7 +385,7 @@ async function seedMediaArtifacts(editor, artifacts, loadedSignatureRef) {
   }
 }
 
-function selectMediaArtifact(editor, artifact) {
+function selectMediaArtifact(editor, artifact, options = {}) {
   if (!editor || !artifact) {
     return false;
   }
@@ -403,6 +405,9 @@ function selectMediaArtifact(editor, artifact) {
     const shapePath = String(shape.meta?.creativeClawArtifactPath || "").trim();
     if ((targetUrl && targetUrl === shapeUrl) || (targetPath && targetPath === shapePath)) {
       editor.select(shape.id);
+      if (options.fit) {
+        editor.zoomToSelection({ animation: { duration: 180 } });
+      }
       return true;
     }
   }

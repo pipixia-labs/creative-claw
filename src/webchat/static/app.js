@@ -80,6 +80,7 @@ const mediaCanvasState = {
 };
 let tldrawCanvasUnmount = null;
 let tldrawCanvasSignature = "";
+let tldrawShouldFitSelectedArtifact = false;
 let model3dViewerController = null;
 const largeModelPreviewApprovals = new Set();
 let designSystemsCache = null;
@@ -1854,6 +1855,9 @@ function selectPreviewArtifact(artifact) {
   }
   addUniqueArtifact(previewArtifactsByTab[tabName], artifact);
   selectedPreviewByTab[tabName] = artifact;
+  if (tabName === "tldraw") {
+    tldrawShouldFitSelectedArtifact = true;
+  }
   activatePreviewTab(tabName);
 }
 
@@ -1911,7 +1915,8 @@ function renderTldrawPreview() {
 
   if (window.CreativeClawTldraw?.mount) {
     if (tldrawCanvasUnmount && tldrawCanvasSignature === signature) {
-      selectMountedTldrawArtifact(selectedPreviewByTab.tldraw);
+      selectMountedTldrawArtifact(selectedPreviewByTab.tldraw, { fit: tldrawShouldFitSelectedArtifact });
+      tldrawShouldFitSelectedArtifact = false;
       return;
     }
 
@@ -1924,9 +1929,12 @@ function renderTldrawPreview() {
     shell.appendChild(host);
     tldrawPreview.appendChild(shell);
     tldrawCanvasSignature = signature;
+    const fitSelectedArtifact = tldrawShouldFitSelectedArtifact;
+    tldrawShouldFitSelectedArtifact = false;
     tldrawCanvasUnmount = window.CreativeClawTldraw.mount(host, {
       artifacts,
       selectedArtifact: selectedPreviewByTab.tldraw,
+      fitSelectedArtifact,
       sessionId,
       onSubmitSketch: handleTldrawSketchSubmit,
     });
@@ -1949,15 +1957,16 @@ function unmountTldrawCanvas() {
   }
   tldrawCanvasUnmount = null;
   tldrawCanvasSignature = "";
+  tldrawShouldFitSelectedArtifact = false;
 }
 
 function tldrawPreviewArtifactsSignature(artifacts) {
   return artifacts.map((artifact) => artifactKey(artifact)).join("|");
 }
 
-function selectMountedTldrawArtifact(artifact) {
+function selectMountedTldrawArtifact(artifact, options = {}) {
   window.dispatchEvent(new CustomEvent("creative-claw-select-artifact", {
-    detail: { artifact },
+    detail: { artifact, fit: Boolean(options.fit) },
   }));
 }
 
