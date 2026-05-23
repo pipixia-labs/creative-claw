@@ -1431,20 +1431,20 @@ button {
 }
 
 .cc-question-option:hover .cc-question-option-body {
-  border-color: rgba(20, 184, 166, 0.34);
-  background: rgba(240, 253, 250, 0.64);
+  border-color: rgba(37, 99, 235, 0.3);
+  background: rgba(239, 246, 255, 0.72);
 }
 
 .cc-question-option input:checked + .cc-question-option-body {
-  border-color: rgba(20, 184, 166, 0.44);
-  background: linear-gradient(180deg, #f0fdfa 0%, #ecfdf5 100%);
-  color: #0f766e;
-  box-shadow: 0 0 0 2px rgba(20, 184, 166, 0.1), inset 0 1px 0 rgba(255, 255, 255, 0.88);
+  border-color: rgba(37, 99, 235, 0.38);
+  background: linear-gradient(180deg, #eff6ff 0%, #dbeafe 100%);
+  color: #1d4ed8;
+  box-shadow: 0 0 0 2px rgba(37, 99, 235, 0.1), inset 0 1px 0 rgba(255, 255, 255, 0.88);
 }
 
 .cc-question-option input:focus-visible + .cc-question-option-body {
-  border-color: rgba(20, 184, 166, 0.56);
-  box-shadow: 0 0 0 3px rgba(20, 184, 166, 0.14), inset 0 1px 0 rgba(255, 255, 255, 0.82);
+  border-color: rgba(37, 99, 235, 0.5);
+  box-shadow: 0 0 0 3px rgba(37, 99, 235, 0.14), inset 0 1px 0 rgba(255, 255, 255, 0.82);
 }
 
 .cc-question-option-label {
@@ -1457,7 +1457,7 @@ button {
 }
 
 .cc-question-option input:checked + .cc-question-option-body .cc-question-option-label {
-  color: #0f766e;
+  color: #1d4ed8;
 }
 
 .cc-question-option-description {
