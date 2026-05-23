@@ -62,6 +62,16 @@ class WebchatStaticAssetTests(unittest.TestCase):
         self.assertIn("activatePreviewTab(nextTab);", preview_update_function)
         self.assertNotIn("renderPreviewView(\"tldraw\")", preview_update_function)
 
+    def test_webchat_replaces_thinking_placeholder_before_normal_delta(self) -> None:
+        app_js = Path("src/webchat/static/app.js").read_text(encoding="utf-8")
+
+        self.assertIn('const ASSISTANT_DELTA_KIND_THINKING_PLACEHOLDER = "thinking_placeholder";', app_js)
+        self.assertIn("payload.metadata?.assistant_delta_kind", app_js)
+        self.assertIn("hasThinkingPlaceholder: false", app_js)
+        self.assertIn("activeAssistantStream.hasThinkingPlaceholder = true;", app_js)
+        self.assertIn("activeAssistantStream.content = \"\";", app_js)
+        self.assertIn("activeAssistantStream.hasThinkingPlaceholder ? \"\" : activeAssistantStream.content", app_js)
+
     def test_tldraw_add_to_chat_reuses_single_artifact_without_success_toast(self) -> None:
         tldraw_source = Path("src/webchat/tldraw_app/main.jsx").read_text(encoding="utf-8")
         app_js = Path("src/webchat/static/app.js").read_text(encoding="utf-8")

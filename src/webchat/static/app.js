@@ -45,6 +45,7 @@ const MODEL3D_PREVIEW_EXTENSION_PRIORITY = new Map([
 const MODEL3D_AUTO_PREVIEW_LIMIT_BYTES = 150 * 1024 * 1024;
 const UPLOAD_CHUNK_SIZE = 512 * 1024;
 const QUESTION_FORM_STREAM_MARKER = "<cc-question-form";
+const ASSISTANT_DELTA_KIND_THINKING_PLACEHOLDER = "thinking_placeholder";
 const MEDIA_CANVAS_MIN_ZOOM = 0.45;
 const MEDIA_CANVAS_MAX_ZOOM = 2.4;
 const HTML_PREVIEW_MIN_ZOOM = 0.1;
@@ -710,15 +711,29 @@ function appendAssistantDelta(payload) {
   if (!delta) {
     return;
   }
+  const deltaKind = String(payload.metadata?.assistant_delta_kind || "").trim();
+  const isThinkingPlaceholder = deltaKind === ASSISTANT_DELTA_KIND_THINKING_PLACEHOLDER;
   if (!activeAssistantStream || activeAssistantStream.key !== streamKey) {
     activeAssistantStream = {
       key: streamKey,
       content: "",
+      hasThinkingPlaceholder: false,
       isStructuredForm: false,
       card: addMessageCard("assistant", "CreativeClaw", "", [], true),
     };
   }
-  activeAssistantStream.content += delta;
+  if (isThinkingPlaceholder) {
+    if (!activeAssistantStream.content || activeAssistantStream.hasThinkingPlaceholder) {
+      activeAssistantStream.content = delta;
+      activeAssistantStream.hasThinkingPlaceholder = true;
+    }
+  } else {
+    if (activeAssistantStream.hasThinkingPlaceholder) {
+      activeAssistantStream.content = "";
+      activeAssistantStream.hasThinkingPlaceholder = false;
+    }
+    activeAssistantStream.content += delta;
+  }
   activeAssistantStream.isStructuredForm =
     activeAssistantStream.isStructuredForm || isQuestionFormStreamContent(activeAssistantStream.content);
   const displayContent = activeAssistantStream.isStructuredForm
@@ -732,7 +747,8 @@ function finalizeAssistantStream(payload) {
   if (!activeAssistantStream || activeAssistantStream.key !== assistantStreamKey(payload)) {
     return false;
   }
-  const content = String(payload.content || activeAssistantStream.content || "");
+  const fallbackContent = activeAssistantStream.hasThinkingPlaceholder ? "" : activeAssistantStream.content;
+  const content = String(payload.content || fallbackContent || "");
   const artifacts = payload.artifacts || [];
   updateMessageCard(activeAssistantStream.card, content, artifacts, {
     revealQuestionForms: isQuestionFormStreamContent(content),

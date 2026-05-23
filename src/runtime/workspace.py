@@ -3,10 +3,12 @@
 from __future__ import annotations
 
 import mimetypes
+import re
 import shutil
 import uuid
 from pathlib import Path
 from typing import Any
+from urllib.parse import unquote, urlparse
 
 from google.genai.types import Blob, Part
 
@@ -15,6 +17,8 @@ from conf.system import SYS_CONFIG
 _WORKSPACE_DIR_NAME = "workspace"
 _INBOX_DIR_NAME = "inbox"
 _GENERATED_DIR_NAME = "generated"
+_WORKSPACE_RELATIVE_ROOTS = {_INBOX_DIR_NAME, _GENERATED_DIR_NAME}
+_MARKDOWN_IMAGE_RE = re.compile(r"!\[(?P<alt>[^\]]*)\]\((?P<src>[^\s)]+)(?P<title>\s+[^)]*)?\)")
 
 
 def workspace_root() -> Path:
@@ -79,6 +83,52 @@ def resolve_workspace_path(path: str | Path) -> Path:
 def workspace_relative_path(path: str | Path) -> str:
     """Convert one workspace file path into a workspace-relative string."""
     return str(resolve_workspace_path(path).relative_to(workspace_root()))
+
+
+def workspace_relative_file_reference(path: str | Path, *, base_path: str | Path | None = None) -> str:
+    """Normalize one local file reference into a workspace-relative path when possible."""
+    clean_path = str(path or "").strip()
+    if not clean_path:
+        return ""
+
+    parsed = urlparse(clean_path)
+    if parsed.scheme and parsed.scheme != "file":
+        return clean_path
+
+    if parsed.scheme == "file":
+        candidate = Path(unquote(parsed.path)).expanduser()
+    else:
+        raw_path = Path(clean_path).expanduser()
+        if raw_path.is_absolute():
+            candidate = raw_path
+        else:
+            workspace_candidate = workspace_root() / raw_path
+            first_segment = raw_path.parts[0] if raw_path.parts else ""
+            if first_segment in _WORKSPACE_RELATIVE_ROOTS or workspace_candidate.exists():
+                candidate = workspace_candidate
+            elif base_path is not None:
+                base = resolve_workspace_path(base_path)
+                base_dir = base if base.is_dir() else base.parent
+                candidate = base_dir / raw_path
+            else:
+                candidate = workspace_candidate
+
+    try:
+        return workspace_relative_path(candidate)
+    except Exception:
+        return clean_path
+
+
+def normalize_workspace_markdown_image_paths(markdown: str, *, markdown_path: str | Path) -> str:
+    """Rewrite local Markdown image references to workspace-relative paths."""
+
+    def _replace(match: re.Match[str]) -> str:
+        source = match.group("src")
+        normalized_source = workspace_relative_file_reference(source, base_path=markdown_path)
+        title = match.group("title") or ""
+        return f"![{match.group('alt')}]({normalized_source}{title})"
+
+    return _MARKDOWN_IMAGE_RE.sub(_replace, str(markdown or ""))
 
 
 def build_workspace_file_record(

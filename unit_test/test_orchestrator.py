@@ -740,7 +740,7 @@ class OrchestratorCallbackTests(unittest.IsolatedAsyncioTestCase):
         self.assertIn("Selected tldraw canvas export", prompt_text)
         self.assertFalse(any(getattr(part, "inline_data", None) is not None for part in all_parts))
 
-    async def test_run_agent_stops_after_tool_confirmation_request(self) -> None:
+    async def test_run_agent_drains_after_tool_confirmation_request(self) -> None:
         session_service = InMemorySessionService()
         orchestrator = Orchestrator(
             session_service=session_service,
@@ -797,7 +797,7 @@ class OrchestratorCallbackTests(unittest.IsolatedAsyncioTestCase):
             new_message=Content(role="user", parts=[Part(text="确认")]),
         )
 
-        self.assertFalse(fake_runner.continued_after_confirmation)
+        self.assertTrue(fake_runner.continued_after_confirmation)
         self.assertIn("请确认 PPT 需求参数。", reply)
         self.assertIn("| 主题 | 英语单词 |", reply)
         session = await session_service.get_session(
@@ -809,7 +809,7 @@ class OrchestratorCallbackTests(unittest.IsolatedAsyncioTestCase):
         self.assertEqual(structured["reply_text"], reply)
         self.assertEqual(structured["final_file_paths"], [])
 
-    async def test_run_agent_stops_after_design_question_form_request(self) -> None:
+    async def test_run_agent_drains_after_design_question_form_request(self) -> None:
         session_service = InMemorySessionService()
         orchestrator = Orchestrator(
             session_service=session_service,
@@ -872,7 +872,7 @@ class OrchestratorCallbackTests(unittest.IsolatedAsyncioTestCase):
             new_message=Content(role="user", parts=[Part(text="设计一个餐厅 App")]),
         )
 
-        self.assertFalse(fake_runner.continued_after_question_form)
+        self.assertTrue(fake_runner.continued_after_question_form)
         self.assertEqual(fake_runner.extracted_result, tool_result)
         self.assertEqual(_format_question_form_reply(tool_result), form_message)
         self.assertEqual(reply, form_message)
@@ -885,7 +885,7 @@ class OrchestratorCallbackTests(unittest.IsolatedAsyncioTestCase):
         self.assertEqual(structured["reply_text"], form_message)
         self.assertEqual(structured["final_file_paths"], [])
 
-    async def test_run_agent_stops_after_completed_page_product_result(self) -> None:
+    async def test_run_agent_drains_after_completed_page_product_result(self) -> None:
         session_service = InMemorySessionService()
         orchestrator = Orchestrator(
             session_service=session_service,
@@ -942,7 +942,7 @@ class OrchestratorCallbackTests(unittest.IsolatedAsyncioTestCase):
             new_message=Content(role="user", parts=[Part(text="做一个朋友圈海报")]),
         )
 
-        self.assertFalse(fake_runner.continued_after_page_result)
+        self.assertTrue(fake_runner.continued_after_page_result)
         self.assertEqual(fake_runner.extracted_result, tool_result)
         self.assertEqual(reply, "页面已完成。")
         session = await session_service.get_session(
@@ -954,7 +954,7 @@ class OrchestratorCallbackTests(unittest.IsolatedAsyncioTestCase):
         self.assertEqual(structured["reply_text"], "页面已完成。")
         self.assertEqual(structured["final_file_paths"], ["520_guandan_friendship_poster.html"])
 
-    async def test_run_agent_stops_after_failed_page_product_result(self) -> None:
+    async def test_run_agent_drains_after_failed_page_product_result(self) -> None:
         session_service = InMemorySessionService()
         orchestrator = Orchestrator(
             session_service=session_service,
@@ -1011,7 +1011,7 @@ class OrchestratorCallbackTests(unittest.IsolatedAsyncioTestCase):
             new_message=Content(role="user", parts=[Part(text="做一个朋友圈海报")]),
         )
 
-        self.assertFalse(fake_runner.continued_after_page_error)
+        self.assertTrue(fake_runner.continued_after_page_error)
         self.assertEqual(fake_runner.extracted_result, tool_result)
         self.assertEqual(reply, "PageProductManager finished without registering a page delivery.")
         session = await session_service.get_session(
@@ -1026,7 +1026,7 @@ class OrchestratorCallbackTests(unittest.IsolatedAsyncioTestCase):
         )
         self.assertEqual(structured["final_file_paths"], [])
 
-    async def test_run_agent_stops_after_completed_ppt_product_result(self) -> None:
+    async def test_run_agent_drains_after_completed_ppt_product_result(self) -> None:
         session_service = InMemorySessionService()
         orchestrator = Orchestrator(
             session_service=session_service,
@@ -1081,7 +1081,7 @@ class OrchestratorCallbackTests(unittest.IsolatedAsyncioTestCase):
             new_message=Content(role="user", parts=[Part(text="确认")]),
         )
 
-        self.assertFalse(fake_runner.continued_after_ppt_result)
+        self.assertTrue(fake_runner.continued_after_ppt_result)
         self.assertEqual(reply, "PPT 已完成。")
         session = await session_service.get_session(
             app_name=SYS_CONFIG.app_name,
@@ -1091,6 +1091,39 @@ class OrchestratorCallbackTests(unittest.IsolatedAsyncioTestCase):
         structured = session.state[ORCHESTRATOR_FINAL_RESPONSE_OUTPUT_KEY]
         self.assertEqual(structured["reply_text"], "PPT 已完成。")
         self.assertEqual(structured["final_file_paths"], ["generated/session/demo/deck.pptx"])
+
+    async def test_product_tool_result_sets_skip_summarization(self) -> None:
+        orchestrator = Orchestrator(
+            session_service=InMemorySessionService(),
+            artifact_service=InMemoryArtifactService(),
+            expert_agents={},
+        )
+        tool_result = {
+            "result_schema_version": "ppt-product-result-v1",
+            "status": "success",
+            "product_line": "ppt",
+            "message": "PPT 已完成。",
+            "final_file_paths": ["generated/session/demo/deck.pptx"],
+        }
+        tool_context = SimpleNamespace(
+            state={},
+            session=SimpleNamespace(id=""),
+            actions=SimpleNamespace(skip_summarization=False),
+        )
+
+        async def _runner() -> dict:
+            return tool_result
+
+        result = await orchestrator._run_async_tool_with_events(
+            tool_context=tool_context,
+            tool_name="continue_ppt_product",
+            stage="ppt_product_confirmation",
+            args={"user_response": "确认"},
+            runner=_runner,
+        )
+
+        self.assertEqual(result, tool_result)
+        self.assertTrue(tool_context.actions.skip_summarization)
 
     async def test_run_agent_streams_reply_text_deltas_with_adk_sse(self) -> None:
         session_service = InMemorySessionService()
@@ -1609,6 +1642,7 @@ class OrchestratorStreamResponseTests(unittest.IsolatedAsyncioTestCase):
             configure_step_event_publisher(None)
 
         self.assertEqual([message.text for message in published], ["thinking ..."])
+        self.assertEqual(published[0].metadata["assistant_delta_kind"], "thinking_placeholder")
         self.assertNotIn("Raw English thinking", "".join(message.text for message in published))
         self.assertEqual(response, "Final answer.")
 

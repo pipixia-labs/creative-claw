@@ -170,6 +170,7 @@ def convert_html_pages_to_pptx(
     html_pages: list[str],
     pptx_path: Path,
     template: HtmlTemplatePackage,
+    asset_base_dir: Path | None = None,
 ) -> HtmlToPptxConversionResult:
     """Convert per-slide HTML fragments into an editable PPTX.
 
@@ -189,6 +190,7 @@ def convert_html_pages_to_pptx(
         html_pages=clean_pages,
         pptx_path=pptx_path,
         template=template,
+        asset_base_dir=asset_base_dir,
     )
     browser_preflight_report = _browser_report_to_preflight_report(browser_result)
     if browser_result.ok:
@@ -210,7 +212,7 @@ def convert_html_pages_to_pptx(
         )
 
     models = extract_html_slide_models(html_pages=clean_pages, template=template)
-    report = preflight_html_slide_models(models=models, template=template)
+    report = preflight_html_slide_models(models=models, template=template, asset_base_dir=asset_base_dir)
     if not report.ok:
         return HtmlToPptxConversionResult(
             ok=False,
@@ -229,6 +231,7 @@ def convert_html_pages_to_pptx(
             models=models,
             pptx_path=pptx_path,
             template=template,
+            asset_base_dir=asset_base_dir,
         )
     except Exception as exc:
         return HtmlToPptxConversionResult(
@@ -346,6 +349,7 @@ def preflight_html_slide_models(
     *,
     models: list[PptxSlideModel],
     template: HtmlTemplatePackage,
+    asset_base_dir: Path | None = None,
 ) -> PreflightReport:
     """Validate extracted models before writing a PPTX file."""
     findings: list[PreflightFinding] = []
@@ -377,7 +381,14 @@ def preflight_html_slide_models(
             )
 
         for element in model.elements:
-            findings.extend(_preflight_element(element, model=model, template=template))
+            findings.extend(
+                _preflight_element(
+                    element,
+                    model=model,
+                    template=template,
+                    asset_base_dir=asset_base_dir,
+                )
+            )
         findings.extend(_preflight_overlaps(model))
 
     return PreflightReport(
@@ -391,6 +402,7 @@ def render_html_slide_models_to_pptx(
     models: list[PptxSlideModel],
     pptx_path: Path,
     template: HtmlTemplatePackage,
+    asset_base_dir: Path | None = None,
 ) -> None:
     """Render extracted slide models into an editable PPTX."""
     prs = Presentation()
@@ -405,7 +417,7 @@ def render_html_slide_models_to_pptx(
             if element.kind == "text":
                 _add_text(slide, element.text, box, style=element.style, tag_name=element.tag_name)
             elif element.kind == "image":
-                _add_image(slide, element.src, box)
+                _add_image(slide, element.src, box, asset_base_dir=asset_base_dir)
             elif element.kind == "line":
                 _add_line(slide, box, style=element.style)
             elif element.kind == "shape":
@@ -633,6 +645,7 @@ def _preflight_element(
     *,
     model: PptxSlideModel,
     template: HtmlTemplatePackage,
+    asset_base_dir: Path | None = None,
 ) -> list[PreflightFinding]:
     """Run element-level QA checks."""
     findings: list[PreflightFinding] = []
@@ -665,7 +678,7 @@ def _preflight_element(
                     f"Text is close to the PPTX box height limit: {element.text[:80]}",
                 )
             )
-    if element.kind == "image" and _resolve_image_path(element.src) is None:
+    if element.kind == "image" and _resolve_image_path(element.src, asset_base_dir=asset_base_dir) is None:
         findings.append(
             PreflightFinding(
                 "error",
@@ -1003,16 +1016,18 @@ def _add_image(
     slide: object,
     src: str,
     box: tuple[float, float, float, float],
+    *,
+    asset_base_dir: Path | None = None,
 ) -> None:
     """Add one local image fitted into a box."""
-    image_path = _resolve_image_path(src)
+    image_path = _resolve_image_path(src, asset_base_dir=asset_base_dir)
     if image_path is None:
         raise ValueError(f"Image src is not a local readable file: {src}")
     x, y, width, height = _fit_image_box(image_path, box)
     slide.shapes.add_picture(str(image_path), Inches(x), Inches(y), width=Inches(width), height=Inches(height))
 
 
-def _resolve_image_path(src: str) -> Path | None:
+def _resolve_image_path(src: str, *, asset_base_dir: Path | None = None) -> Path | None:
     """Resolve an HTML image src to a local filesystem path."""
     clean_src = str(src or "").strip()
     if not clean_src or clean_src.startswith("data:") or clean_src.startswith("http://") or clean_src.startswith("https://"):
@@ -1023,6 +1038,10 @@ def _resolve_image_path(src: str) -> Path | None:
     else:
         candidate = Path(clean_src)
         if not candidate.is_absolute():
+            if asset_base_dir is not None:
+                route_candidate = (asset_base_dir / candidate).resolve()
+                if route_candidate.exists() and route_candidate.is_file():
+                    return route_candidate
             try:
                 candidate = resolve_workspace_path(clean_src)
             except Exception:

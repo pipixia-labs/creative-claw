@@ -191,7 +191,7 @@ def build_design_code_generation_prompt(user_prompt: str) -> str:
 def build_design_code_generation_constraints(extra_constraints: list[str]) -> list[str]:
     """Return default design code generation constraints plus caller constraints."""
     defaults = [
-        "Return only the complete file contents.",
+        "Submit only the complete file contents through the code artifact save tool.",
         "Generate a design artifact, not a production app.",
         "Embed a DesignCanvas/DCViewport-style scaffold for the main design surface.",
         "Use transform-based canvas pan/zoom instead of browser-window scrolling for the main design board.",

@@ -210,7 +210,7 @@ def build_page_code_generation_prompt(
 def build_page_code_generation_constraints(extra_constraints: list[str]) -> list[str]:
     """Return default page code generation constraints plus caller constraints."""
     defaults = [
-        "Return only the complete file contents.",
+        "Submit only the complete file contents through the code artifact save tool.",
         "Do not wrap the answer in markdown fences or add explanatory text before or after the HTML.",
         "The HTML document must start with <!DOCTYPE html> and end with </html>.",
         "Generate exactly one standalone HTML file.",

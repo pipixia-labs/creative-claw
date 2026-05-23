@@ -27,13 +27,14 @@ from src.productions.ppt.routes.html import (
     prepare_html_template,
     save_html_route_pages,
 )
+from src.productions.ppt.routes.html import route as html_route_module
 from src.productions.ppt.routes.html.html_to_pptx import (
     convert_html_pages_to_pptx,
     extract_html_slide_models,
     preflight_html_slide_models,
 )
 from src.productions.ppt.templates.html_registry import list_html_templates, load_html_template_package
-from src.runtime.workspace import workspace_root
+from src.runtime.workspace import workspace_relative_path, workspace_root
 
 
 def _write_route_test_image(tmpdir: Path) -> str:
@@ -107,6 +108,55 @@ class PptHtmlRouteTests(unittest.TestCase):
         self.assertEqual(len(saved_pages), len(content_plan.pages))
         self.assertIn('class="slide generated-slide', saved_pages[0]["html"])
         self.assertIn('data-slide-number="01"', saved_pages[0]["html"])
+
+    def test_html_page_generation_message_exposes_route_local_asset_html_src(self) -> None:
+        manager = PptProductManager()
+        requirement = manager.prepare_confirmed_requirement(
+            task="做一个 5 页 PPTX，用于产品发布。",
+            inputs=[],
+            output={"format": "pptx"},
+        )
+        content_plan = manager.build_initial_deck_content_plan(requirement)
+
+        with tempfile.TemporaryDirectory(dir=workspace_root()) as tmpdir:
+            image_path = Path(tmpdir) / "slide_asset.png"
+            Image.new("RGB", (640, 360), "#2457D6").save(image_path)
+            relative_image_path = workspace_relative_path(image_path)
+            content_plan.pages[0].assets = [
+                DeckPageAsset(
+                    asset_id="material_figure_1",
+                    source_kind="material_figure",
+                    status="ready",
+                    path=relative_image_path,
+                    alt="Existing image",
+                )
+            ]
+            content_plan.pages[1].assets = [
+                DeckPageAsset(
+                    asset_id="material_figure_2",
+                    source_kind="material_figure",
+                    status="ready",
+                    path="source_01_input_1_files/page_003_image_01.png",
+                    alt="Missing image",
+                )
+            ]
+            route_output_dir = Path(tmpdir) / "route_output"
+            paths = prepare_html_route_paths(route_output_dir)
+            template = prepare_html_template(template_id="", aspect_ratio="16:9").template
+
+            message = html_route_module._build_html_page_generation_user_message(
+                content_plan=content_plan,
+                template=template,
+                paths=paths,
+            )
+
+            self.assertIn(f'"path": "{relative_image_path}"', message)
+            self.assertIn('"html_src": "assets/slide_001_asset_001.png"', message)
+            self.assertNotIn('"html_src": "file://', message)
+            self.assertNotIn(str(workspace_root()), message)
+            self.assertIn('"missing_asset": true', message)
+            self.assertNotIn("/workspace/source_01_input_1_files/page_003_image_01.png", message)
+            self.assertTrue((route_output_dir / "assets" / "slide_001_asset_001.png").exists())
 
     def test_html_route_builds_html_previews_and_pptx(self) -> None:
         manager = PptProductManager()
@@ -208,7 +258,11 @@ class PptHtmlRouteTests(unittest.TestCase):
             )
             quality_report = json.loads(quality_path.read_text(encoding="utf-8"))
 
-            self.assertIn("<img", html_path.read_text(encoding="utf-8"))
+            html_text = html_path.read_text(encoding="utf-8")
+            self.assertIn("<img", html_text)
+            self.assertIn('src="assets/slide_001_asset_001.png"', html_text)
+            self.assertNotIn("file://", html_text)
+            self.assertTrue((Path(tmpdir) / "route_output" / "assets" / "slide_001_asset_001.png").exists())
             self.assertGreaterEqual(picture_count, 1)
             self.assertEqual(quality_report["ready_asset_count"], 1)
             self.assertTrue(quality_report["checks"]["pptx_ready_assets_rendered"])
@@ -402,6 +456,44 @@ class PptHtmlRouteTests(unittest.TestCase):
             self.assertEqual(result.errors, [])
             self.assertIn("Cat 猫", pptx_text)
             self.assertIn("Cat means 猫", pptx_text)
+            self.assertEqual(picture_count, 1)
+
+    def test_html_to_pptx_resolves_route_local_image_src(self) -> None:
+        with tempfile.TemporaryDirectory(dir=workspace_root()) as tmpdir:
+            tmp_path = Path(tmpdir)
+            assets_dir = tmp_path / "assets"
+            assets_dir.mkdir(parents=True, exist_ok=True)
+            image_path = assets_dir / "slide_001_asset_001.png"
+            Image.new("RGB", (640, 360), "#2457D6").save(image_path)
+            template = prepare_html_template(template_id="", aspect_ratio="16:9").template
+            pptx_path = tmp_path / "route_local_asset.pptx"
+            html_pages = [
+                (
+                    "<section>"
+                    "<h1 style='position:absolute;left:64px;top:44px;width:720px;height:72px;font-size:38px;color:#172033;'>Cat 猫</h1>"
+                    "<p style='position:absolute;left:68px;top:128px;width:680px;height:46px;font-size:22px;color:#5f6472;'>Cat means 猫.</p>"
+                    "<img src='assets/slide_001_asset_001.png' style='position:absolute;left:820px;top:220px;width:320px;height:190px;' />"
+                    "</section>"
+                )
+            ]
+
+            result = convert_html_pages_to_pptx(
+                html_pages=html_pages,
+                pptx_path=pptx_path,
+                template=template,
+                asset_base_dir=tmp_path,
+            )
+
+            prs = Presentation(str(pptx_path))
+            picture_count = sum(
+                1
+                for slide in prs.slides
+                for shape in slide.shapes
+                if shape.shape_type == MSO_SHAPE_TYPE.PICTURE
+            )
+
+            self.assertTrue(result.ok)
+            self.assertEqual(result.errors, [])
             self.assertEqual(picture_count, 1)
 
     def test_html_to_pptx_preflight_reports_text_overflow(self) -> None:

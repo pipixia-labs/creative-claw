@@ -15,6 +15,7 @@ from src.runtime.tool_display import format_tool_args, summarize_tool_result
 
 _STEP_EVENT_PUBLISHER: Callable[[OutboundMessage], Awaitable[None] | None] | None = None
 _HISTORY_BY_SESSION: dict[str, list[dict[str, str]]] = {}
+ASSISTANT_DELTA_KIND_THINKING_PLACEHOLDER = "thinking_placeholder"
 _BUILTIN_TOOL_STAGES = {
     "list_dir": "inspection",
     "read_file": "inspection",
@@ -159,6 +160,7 @@ async def publish_assistant_delta(
     session_id: str,
     delta: str,
     turn_index: int | None = None,
+    delta_kind: str | None = None,
 ) -> bool:
     """Publish one realtime Web assistant text delta through the configured publisher."""
     publisher = _STEP_EVENT_PUBLISHER
@@ -174,6 +176,9 @@ async def publish_assistant_delta(
     normalized_turn = _normalize_turn_index(turn_index)
     if normalized_turn is not None:
         metadata["turn_index"] = normalized_turn
+    normalized_delta_kind = str(delta_kind or "").strip()
+    if normalized_delta_kind:
+        metadata["assistant_delta_kind"] = normalized_delta_kind
 
     maybe_awaitable = publisher(
         OutboundMessage(

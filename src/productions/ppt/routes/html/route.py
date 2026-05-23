@@ -6,6 +6,7 @@ import copy
 from dataclasses import dataclass, field
 import html
 import json
+import shutil
 import textwrap
 from pathlib import Path
 from typing import Any
@@ -66,6 +67,7 @@ class HtmlRoutePaths:
     """Filesystem paths used by one HTML route build."""
 
     output_dir: Path
+    assets_dir: Path
     preview_dir: Path
     html_path: Path
     pptx_path: Path
@@ -206,10 +208,13 @@ async def build_html_route_with_agent(
 def prepare_html_route_paths(output_dir: Path) -> HtmlRoutePaths:
     """Prepare output paths for all HTML route stages."""
     output_dir.mkdir(parents=True, exist_ok=True)
+    assets_dir = output_dir / "assets"
+    assets_dir.mkdir(parents=True, exist_ok=True)
     preview_dir = output_dir / "previews"
     preview_dir.mkdir(parents=True, exist_ok=True)
     return HtmlRoutePaths(
         output_dir=output_dir,
+        assets_dir=assets_dir,
         preview_dir=preview_dir,
         html_path=output_dir / "deck.html",
         pptx_path=output_dir / "deck.pptx",
@@ -273,12 +278,19 @@ def generate_html_pages(
     paths: HtmlRoutePaths,
 ) -> HtmlPageGenerationResult:
     """Generate HTML deck and PNG previews from a content plan."""
-    paths.html_path.write_text(_render_html_deck(content_plan, template), encoding="utf-8")
+    route_asset_srcs = _materialize_html_route_assets(content_plan, paths)
+    paths.html_path.write_text(
+        _render_html_deck(content_plan, template, route_asset_srcs=route_asset_srcs),
+        encoding="utf-8",
+    )
     preview_paths = _render_previews(content_plan, template, paths.preview_dir)
     return HtmlPageGenerationResult(
         html_path=paths.html_path,
         preview_paths=preview_paths,
-        html_pages=[_render_html_slide(page, template) for page in content_plan.pages],
+        html_pages=[
+            _render_html_slide(page, template, route_asset_srcs=route_asset_srcs)
+            for page in content_plan.pages
+        ],
     )
 
 
@@ -304,6 +316,7 @@ async def generate_html_pages_with_agent(
         page_fragments = await _run_html_page_generation_agent(
             content_plan=content_plan,
             template=template,
+            paths=paths,
             tool_context=tool_context,
             app_name=app_name,
             artifact_service=artifact_service,
@@ -357,6 +370,7 @@ def export_html_pptx(
             html_pages=page_generation.html_pages,
             pptx_path=paths.pptx_path,
             template=template,
+            asset_base_dir=paths.output_dir,
         )
         if conversion.ok:
             return HtmlPptxOutputResult(
@@ -635,6 +649,7 @@ async def _run_html_page_generation_agent(
     *,
     content_plan: DeckContentPlan,
     template: HtmlTemplatePackage,
+    paths: HtmlRoutePaths,
     tool_context: ToolContext,
     app_name: str,
     artifact_service: BaseArtifactService | None,
@@ -672,6 +687,7 @@ async def _run_html_page_generation_agent(
                         text=_build_html_page_generation_user_message(
                             content_plan=content_plan,
                             template=template,
+                            paths=paths,
                         )
                     )
                 ],
@@ -728,21 +744,42 @@ def _build_html_page_generation_user_message(
     *,
     content_plan: DeckContentPlan,
     template: HtmlTemplatePackage,
+    paths: HtmlRoutePaths,
 ) -> str:
     """Build the explicit user message for HTML page generation."""
+    route_asset_srcs = _materialize_html_route_assets(content_plan, paths)
     payload = content_plan.model_dump(mode="json")
     page_payloads = []
     for page in payload.get("pages", []):
         prepared_page = dict(page)
+        slide_number = int(prepared_page.get("slide_number") or 0)
         prepared_assets = []
         for asset in prepared_page.get("assets", []) or []:
             prepared_asset = dict(asset)
             asset_path = str(prepared_asset.get("path") or "").strip()
             if asset_path:
                 try:
-                    prepared_asset["html_src"] = resolve_workspace_path(asset_path).as_uri()
+                    validated_asset = DeckPageAsset.model_validate(prepared_asset)
+                    asset_file = _resolve_asset_file(validated_asset)
+                    if asset_file is not None:
+                        prepared_asset["path"] = workspace_relative_path(asset_file)
+                        html_src = _route_asset_src_for_asset(
+                            slide_number=slide_number,
+                            asset=validated_asset,
+                            asset_file=asset_file,
+                            route_asset_srcs=route_asset_srcs,
+                        )
+                        if html_src:
+                            prepared_asset["html_src"] = html_src
+                        else:
+                            prepared_asset.pop("html_src", None)
+                            prepared_asset["missing_asset"] = True
+                    else:
+                        prepared_asset.pop("html_src", None)
+                        prepared_asset["missing_asset"] = True
                 except Exception:
-                    prepared_asset["html_src"] = asset_path
+                    prepared_asset.pop("html_src", None)
+                    prepared_asset["missing_asset"] = True
             prepared_assets.append(prepared_asset)
         prepared_page["assets"] = prepared_assets
         page_payloads.append(prepared_page)
@@ -755,8 +792,10 @@ def _build_html_page_generation_user_message(
             "`[{\"slide_number\": 1, \"html\": \"<section>...</section>\"}, ...]`.",
             f"Viewport: {template.viewport_width}x{template.viewport_height}.",
             "HTML-to-PPTX rule: every slide must be convertible into editable PowerPoint objects. "
-            "Use measurable browser layout, explicit dimensions, semantic text tags, local/file image src values, "
+            "Use measurable browser layout, explicit dimensions, semantic text tags, local relative image src values, "
             "and separate div/section shapes behind text.",
+            "Use `html_src` for ready assets. Do not put raw `path` values into img src attributes; "
+            "assets without `html_src` are unavailable and should be replaced by editable shapes/text.",
             "",
             "DeckContentPlan JSON:",
             "```json",
@@ -957,9 +996,109 @@ def _append_html_page_generation_warning(state: Any, warning: str) -> None:
     state[HTML_PAGE_GENERATION_WARNINGS_KEY] = warnings
 
 
-def _render_html_deck(content_plan: DeckContentPlan, template: HtmlTemplatePackage) -> str:
+def _materialize_html_route_assets(content_plan: DeckContentPlan, paths: HtmlRoutePaths) -> dict[str, str]:
+    """Copy ready assets into the route assets directory and return route-local src values."""
+    route_asset_srcs: dict[str, str] = {}
+    for page in content_plan.pages:
+        for asset_index, raw_asset in enumerate(page.assets, start=1):
+            asset = DeckPageAsset.model_validate(raw_asset)
+            if asset.status != "ready" or not asset.path:
+                continue
+            asset_file = _resolve_asset_file(asset)
+            if asset_file is None:
+                continue
+            destination = _route_asset_destination(
+                asset_file=asset_file,
+                assets_dir=paths.assets_dir,
+                slide_number=page.slide_number,
+                asset_index=asset_index,
+            )
+            destination.parent.mkdir(parents=True, exist_ok=True)
+            try:
+                if asset_file.resolve() != destination.resolve():
+                    shutil.copy2(asset_file, destination)
+            except OSError:
+                continue
+            route_asset_srcs[
+                _route_asset_key(
+                    slide_number=page.slide_number,
+                    asset=asset,
+                    asset_file=asset_file,
+                )
+            ] = _route_local_asset_src(destination, output_dir=paths.output_dir)
+    return route_asset_srcs
+
+
+def _route_asset_destination(
+    *,
+    asset_file: Path,
+    assets_dir: Path,
+    slide_number: int,
+    asset_index: int,
+) -> Path:
+    """Return the deterministic route-local copy path for one slide asset."""
+    suffix = asset_file.suffix.lower() or ".bin"
+    return assets_dir / f"slide_{slide_number:03d}_asset_{asset_index:03d}{suffix}"
+
+
+def _route_local_asset_src(path: Path, *, output_dir: Path) -> str:
+    """Return one browser src relative to the route output directory."""
+    try:
+        return path.resolve().relative_to(output_dir.resolve()).as_posix()
+    except ValueError:
+        return workspace_relative_path(path)
+
+
+def _route_asset_key(
+    *,
+    slide_number: int,
+    asset: DeckPageAsset,
+    asset_file: Path | None = None,
+) -> str:
+    """Build a stable key for one slide asset within a route run."""
+    clean_asset_id = str(asset.asset_id or "").strip()
+    if clean_asset_id:
+        return f"{slide_number}:id:{clean_asset_id}"
+    if asset_file is not None:
+        try:
+            return f"{slide_number}:path:{workspace_relative_path(asset_file)}"
+        except Exception:
+            pass
+    return f"{slide_number}:path:{str(asset.path or '').strip()}"
+
+
+def _route_asset_src_for_asset(
+    *,
+    slide_number: int,
+    asset: DeckPageAsset,
+    asset_file: Path | None,
+    route_asset_srcs: dict[str, str],
+) -> str:
+    """Return the route-local browser src for one ready asset."""
+    if asset_file is None:
+        return ""
+    return route_asset_srcs.get(
+        _route_asset_key(
+            slide_number=slide_number,
+            asset=asset,
+            asset_file=asset_file,
+        ),
+        "",
+    )
+
+
+def _render_html_deck(
+    content_plan: DeckContentPlan,
+    template: HtmlTemplatePackage,
+    *,
+    route_asset_srcs: dict[str, str] | None = None,
+) -> str:
     """Render one complete static HTML deck."""
-    slides_html = "\n".join(_render_html_slide(page, template) for page in content_plan.pages)
+    route_asset_srcs = route_asset_srcs or {}
+    slides_html = "\n".join(
+        _render_html_slide(page, template, route_asset_srcs=route_asset_srcs)
+        for page in content_plan.pages
+    )
     theme = _html_theme_values(content_plan, template)
     return f"""<!doctype html>
 <html lang="zh-CN">
@@ -1190,7 +1329,12 @@ def _looks_child_friendly_plan(content_plan: DeckContentPlan) -> bool:
     )
 
 
-def _render_html_slide(page: DeckPagePlan, template: HtmlTemplatePackage) -> str:
+def _render_html_slide(
+    page: DeckPagePlan,
+    template: HtmlTemplatePackage,
+    *,
+    route_asset_srcs: dict[str, str] | None = None,
+) -> str:
     """Render one HTML slide from a page plan."""
     layout = template.page_types.get(page.page_type, "chapter-content")
     blocks = page.content_blocks or [{"title": "Core point", "body": page.key_takeaway}]
@@ -1199,7 +1343,9 @@ def _render_html_slide(page: DeckPagePlan, template: HtmlTemplatePackage) -> str
     if page.page_type == "toc":
         toc_html = _render_toc_list(blocks)
     content = toc_html or f'<div class="content-grid">{block_html}</div>'
-    visual = _render_page_asset_html(page) or ('<div class="visual-band"></div>' if page.asset_intent else "")
+    visual = _render_page_asset_html(page, route_asset_srcs=route_asset_srcs or {}) or (
+        '<div class="visual-band"></div>' if page.asset_intent else ""
+    )
     return f"""    <section class="slide slide-{html.escape(page.page_type)}" data-layout="{html.escape(layout)}" data-slide-number="{page.slide_number:02d}">
       <div>
         <div class="eyebrow">{html.escape(page.page_type.replace("_", " "))}</div>
@@ -1211,7 +1357,7 @@ def _render_html_slide(page: DeckPagePlan, template: HtmlTemplatePackage) -> str
     </section>"""
 
 
-def _render_page_asset_html(page: DeckPagePlan) -> str:
+def _render_page_asset_html(page: DeckPagePlan, *, route_asset_srcs: dict[str, str]) -> str:
     """Render the first ready slide asset as an HTML image."""
     asset = _first_ready_asset(page)
     if asset is None:
@@ -1219,7 +1365,14 @@ def _render_page_asset_html(page: DeckPagePlan) -> str:
     image_path = _resolve_asset_file(asset)
     if image_path is None:
         return ""
-    src = image_path.as_uri()
+    src = _route_asset_src_for_asset(
+        slide_number=page.slide_number,
+        asset=asset,
+        asset_file=image_path,
+        route_asset_srcs=route_asset_srcs,
+    )
+    if not src:
+        return ""
     alt = asset.alt or asset.description or page.title
     return f'<figure class="asset-frame"><img src="{html.escape(src)}" alt="{html.escape(alt)}" /></figure>'
 

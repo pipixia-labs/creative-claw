@@ -35,6 +35,16 @@ class _FakeEvent:
         return self._final
 
 
+class _FakePartsEvent:
+    def __init__(self, parts: list[Part], *, final: bool = True, partial: bool = False) -> None:
+        self.content = Content(role="model", parts=parts)
+        self.partial = partial
+        self._final = final
+
+    def is_final_response(self) -> bool:
+        return self._final
+
+
 class CodeGenerationExpertTests(unittest.IsolatedAsyncioTestCase):
     def test_strip_code_fence_removes_surrounding_fence(self) -> None:
         self.assertEqual(strip_code_fence("```html\n<div>ok</div>\n```"), "<div>ok</div>")
@@ -94,6 +104,136 @@ class CodeGenerationExpertTests(unittest.IsolatedAsyncioTestCase):
         self.assertIn("single self-contained HTML", captured_request["text"])
         self.assertIn("design-systems/claude/DESIGN.md", captured_request["text"])
         self.assertIn("operations dashboard", captured_request["text"])
+
+    async def test_code_generation_tool_prefers_structured_save_tool_result(self) -> None:
+        captured: dict[str, object] = {}
+
+        class _ToolCallingLlmAgent:
+            def __init__(self, **kwargs) -> None:
+                self.before_model_callback = kwargs["before_model_callback"]
+                self.tools = kwargs["tools"]
+
+            async def run_async(self, ctx):
+                llm_request = SimpleNamespace(contents=[])
+                self.before_model_callback(SimpleNamespace(state={}), llm_request)
+                tool_context = SimpleNamespace(
+                    state={},
+                    actions=SimpleNamespace(skip_summarization=False),
+                )
+                captured["tool_result"] = await self.tools[0](
+                    content=(
+                        "I will save the HTML now.\n"
+                        "<!DOCTYPE html><html><body>Tool Saved</body></html>\n"
+                        "Done."
+                    ),
+                    tool_context=tool_context,
+                )
+                captured["skip_summarization"] = tool_context.actions.skip_summarization
+                yield _FakeEvent("This assistant prose must not be written.")
+
+        with tempfile.TemporaryDirectory(dir=workspace_root()) as tmp_dir:
+            output_path = Path(tmp_dir) / "tool-save.html"
+            relative_output_path = workspace_relative_path(output_path)
+
+            with (
+                patch("src.runtime.code_artifacts.LlmAgent", _ToolCallingLlmAgent),
+                patch("src.runtime.code_artifacts.build_llm", return_value="fake-model"),
+                patch(
+                    "src.runtime.code_artifacts.resolve_llm_model_name",
+                    return_value="fake-model",
+                ),
+            ):
+                result = await code_generation_tool(
+                    _build_ctx({"turn_index": 0, "step": 0}),
+                    prompt="Create an operations dashboard.",
+                    language="html",
+                    output_path=relative_output_path,
+                )
+            generated_content = output_path.read_text(encoding="utf-8").strip()
+
+        self.assertEqual(result["status"], "success")
+        self.assertTrue(captured["skip_summarization"])
+        self.assertEqual(captured["tool_result"]["status"], "success")
+        self.assertEqual(generated_content, "<!DOCTYPE html><html><body>Tool Saved</body></html>")
+        self.assertNotIn("assistant prose", generated_content)
+        self.assertNotIn("I will save", generated_content)
+
+    async def test_code_generation_tool_filters_thought_and_extracts_html_fallback(self) -> None:
+        class _ThoughtAndProseLlmAgent:
+            def __init__(self, **_kwargs) -> None:
+                pass
+
+            async def run_async(self, ctx):
+                yield _FakePartsEvent(
+                    [
+                        Part(text="The user wants me to generate a UI prototype.", thought=True),
+                        Part(
+                            text=(
+                                "Here is the complete file:\n"
+                                "<!DOCTYPE html><html><body>Clean HTML</body></html>\n"
+                                "No extra notes."
+                            )
+                        ),
+                    ]
+                )
+
+        with tempfile.TemporaryDirectory(dir=workspace_root()) as tmp_dir:
+            output_path = Path(tmp_dir) / "clean.html"
+            relative_output_path = workspace_relative_path(output_path)
+
+            with (
+                patch("src.runtime.code_artifacts.LlmAgent", _ThoughtAndProseLlmAgent),
+                patch("src.runtime.code_artifacts.build_llm", return_value="fake-model"),
+                patch(
+                    "src.runtime.code_artifacts.resolve_llm_model_name",
+                    return_value="fake-model",
+                ),
+            ):
+                result = await code_generation_tool(
+                    _build_ctx({"turn_index": 0, "step": 0}),
+                    prompt="Create an operations dashboard.",
+                    language="html",
+                    output_path=relative_output_path,
+                )
+            generated_content = output_path.read_text(encoding="utf-8").strip()
+
+        self.assertEqual(result["status"], "success")
+        self.assertEqual(generated_content, "<!DOCTYPE html><html><body>Clean HTML</body></html>")
+        self.assertNotIn("The user wants", generated_content)
+        self.assertNotIn("Here is the complete file", generated_content)
+        self.assertTrue(any("Dropped non-HTML text before" in warning for warning in result["warnings"]))
+
+    async def test_code_generation_tool_rejects_invalid_html_fallback(self) -> None:
+        class _InvalidHtmlLlmAgent:
+            def __init__(self, **_kwargs) -> None:
+                pass
+
+            async def run_async(self, ctx):
+                yield _FakeEvent("Here is a fragment: <div>Missing document shell</div>")
+
+        with tempfile.TemporaryDirectory(dir=workspace_root()) as tmp_dir:
+            output_path = Path(tmp_dir) / "invalid.html"
+            relative_output_path = workspace_relative_path(output_path)
+
+            with (
+                patch("src.runtime.code_artifacts.LlmAgent", _InvalidHtmlLlmAgent),
+                patch("src.runtime.code_artifacts.build_llm", return_value="fake-model"),
+                patch(
+                    "src.runtime.code_artifacts.resolve_llm_model_name",
+                    return_value="fake-model",
+                ),
+            ):
+                result = await code_generation_tool(
+                    _build_ctx({"turn_index": 0, "step": 0}),
+                    prompt="Create an operations dashboard.",
+                    language="html",
+                    output_path=relative_output_path,
+                )
+
+        self.assertEqual(result["status"], "error")
+        self.assertEqual(result["error_type"], "invalid_generated_content")
+        self.assertTrue(result["retryable"])
+        self.assertFalse(output_path.exists())
 
     async def test_code_generation_tool_reports_empty_model_response(self) -> None:
         class _EmptyLlmAgent:

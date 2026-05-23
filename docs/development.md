@@ -25,6 +25,30 @@ Workspace behavior:
 - uploaded files are staged into `workspace/inbox/...`
 - generated outputs are written into `workspace/generated/...`
 
+### Workspace File Reference Contract
+
+Across product managers, expert agents, session state, tool parameters, and prompts, local file references must use workspace-relative paths such as `inbox/web/session/input.png` or `generated/session/turn_1/output.png`.
+
+Only the boundary that performs actual file I/O should convert a workspace-relative path into an absolute filesystem path with `resolve_workspace_path(...)`. Browser-facing HTML may convert an existing workspace file into `file://...` with `resolve_workspace_path(path).as_uri()`, but that URI should not be stored in long-lived state or passed between agents as the canonical file reference.
+
+When a source document format contains local relative asset links, normalize those links at the ingestion boundary before exposing the text to another agent. For example, a Markdown image link such as `source_files/page_001.png` should be rewritten or represented as a workspace-relative path under `generated/.../source_files/page_001.png`. This prevents downstream agents from copying a path whose base directory has already been lost.
+
+Structured asset records should prefer explicit fields such as `asset_id`, `path`, `alt`, and `status`. The model may choose which asset to use, but deterministic code should resolve the path and verify that it exists before rendering or exporting a deliverable.
+
+For the PPT HTML route, `path` remains the canonical workspace-relative asset path. HTML-only `html_src` values are route-local browser references such as `assets/slide_001_asset_001.png`; the route copies those files into its output `assets/` directory before prompting the page-generation agent or rendering `deck.html`.
+
+### ADK Product Tool Finalization
+
+Product-line tools return deterministic user-facing results for confirmations, successful deliveries, and terminal failures. These tool responses should set ADK `skip_summarization` so the framework does not ask the model to summarize an already-final product result.
+
+The outer orchestrator should still drain the ADK `run_async` event stream naturally after capturing that deterministic result. Do not return directly from inside the runner event loop, because closing ADK's async generators early can interrupt tracing cleanup and leave the Web UI without a final event.
+
+### Code Artifact Finalization
+
+Code-backed artifacts should be submitted through a structured save tool whenever possible, not inferred from assistant prose. The shared code artifact runtime provides a private `save_code_artifact` boundary for Design, Page, and CodeGeneration flows.
+
+Any text fallback must skip ADK `thought` parts before collecting model text. HTML artifacts must be extracted and validated as a complete `<!DOCTYPE html>` or `<html>...</html>` document before writing to the workspace; prose before or after the HTML document is discarded with a warning, and invalid HTML returns a retryable generation error.
+
 ## Included Channels
 
 - Unified CLI chat: `creative-claw chat cli`

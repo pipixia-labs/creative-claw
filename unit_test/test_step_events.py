@@ -3,6 +3,7 @@ import asyncio
 from types import SimpleNamespace
 
 from src.runtime.step_events import (
+    ASSISTANT_DELTA_KIND_THINKING_PLACEHOLDER,
     CreativeClawStepEventPlugin,
     append_orchestration_step_event,
     assistant_delta_streaming_active,
@@ -121,6 +122,22 @@ class StepEventPluginTests(unittest.IsolatedAsyncioTestCase):
         self.assertEqual(self.messages[0].text, "Hello")
         self.assertEqual(self.messages[0].metadata["display_style"], "assistant_delta")
         self.assertEqual(self.messages[0].metadata["turn_index"], 2)
+
+    async def test_assistant_delta_can_mark_thinking_placeholder(self) -> None:
+        with route_context("web", "chat-web"):
+            published = await publish_assistant_delta(
+                session_id="session-web",
+                delta="thinking ...",
+                turn_index=3,
+                delta_kind=ASSISTANT_DELTA_KIND_THINKING_PLACEHOLDER,
+            )
+
+        self.assertTrue(published)
+        self.assertEqual(len(self.messages), 1)
+        self.assertEqual(
+            self.messages[0].metadata["assistant_delta_kind"],
+            ASSISTANT_DELTA_KIND_THINKING_PLACEHOLDER,
+        )
 
     async def test_orchestration_tool_titles_are_normalized_for_user_progress(self) -> None:
         with route_context("cli", "chat-normalized"):

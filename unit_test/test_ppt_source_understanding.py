@@ -16,6 +16,16 @@ def _write_markdown_source(name: str, text: str) -> str:
     return workspace_relative_path(source_path)
 
 
+def _write_markdown_source_with_asset(name: str) -> str:
+    source_dir = workspace_root() / "inbox" / "ppt_source_material_tests" / Path(name).stem
+    asset_dir = source_dir / "assets"
+    asset_dir.mkdir(parents=True, exist_ok=True)
+    (asset_dir / "chart.png").write_bytes(b"fake-png")
+    source_path = source_dir / name
+    source_path.write_text("# Brief\n\n![Growth chart](assets/chart.png)\n", encoding="utf-8")
+    return workspace_relative_path(source_path)
+
+
 async def _fake_source_converter(source_input: SourceInput, parameters: dict) -> dict:
     output_path = str(parameters["output_path"])
     output_file = resolve_workspace_path(output_path)
@@ -74,7 +84,36 @@ class PptSourceMaterialTests(unittest.IsolatedAsyncioTestCase):
         self.assertTrue(result.figures[0]["path"].endswith("assets/chart.png"))
         self.assertTrue(resolve_workspace_path(result.markdown_sources[0]["output_path"]).exists())
         self.assertTrue(resolve_workspace_path(result.figures[0]["path"]).exists())
+        markdown_text = resolve_workspace_path(result.markdown_sources[0]["output_path"]).read_text(encoding="utf-8")
+        self.assertIn(result.figures[0]["path"], markdown_text)
+        self.assertNotIn("](assets/chart.png)", markdown_text)
         self.assertTrue(result.output_files)
+
+    async def test_read_ppt_markdown_sources_exposes_workspace_relative_image_paths(self) -> None:
+        markdown_path = _write_markdown_source_with_asset("relative_images.md")
+        source_materials = SourceUnderstanding(
+            document_type="markdown",
+            markdown_sources=[
+                {
+                    "name": "relative_images.md",
+                    "source_path": markdown_path,
+                    "method": "test:markdown_passthrough",
+                    "output_path": markdown_path,
+                }
+            ],
+        )
+        requirement = ConfirmedRequirement(
+            route="html",
+            topic="AI sales assistant launch deck",
+            source_understanding=source_materials,
+        )
+        tool_context = SimpleNamespace(state={"ppt_confirmed_requirement": requirement.model_dump(mode="json")})
+
+        result = PptContentPlanner().read_ppt_markdown_sources(tool_context)
+
+        source_text = result["source_texts"][0]["text"]
+        self.assertIn("inbox/ppt_source_material_tests/relative_images/assets/chart.png", source_text)
+        self.assertNotIn("](assets/chart.png)", source_text)
 
     async def test_content_planner_uses_source_material_references_only(self) -> None:
         source_path = _write_markdown_source("planner_brief.md", "# AI Sales Assistant\n")

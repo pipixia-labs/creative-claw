@@ -44,6 +44,7 @@ from src.runtime.product_results import (
     slim_product_result,
 )
 from src.runtime.step_events import (
+    ASSISTANT_DELTA_KIND_THINKING_PLACEHOLDER,
     CreativeClawStepEventPlugin,
     append_orchestration_step_event,
     assistant_delta_streaming_active,
@@ -642,6 +643,26 @@ def _extract_terminal_product_tool_result(event: Event) -> dict[str, Any] | None
         if is_terminal_product_result(result):
             return result
     return None
+
+
+def _should_skip_tool_result_summarization(result: Any) -> bool:
+    """Return whether one tool result is already the deterministic user outcome."""
+    return bool(
+        _format_confirmation_reply(result)
+        or _format_question_form_reply(result)
+        or is_product_confirmation_result(result)
+        or is_completed_product_result(result)
+        or is_terminal_product_result(result)
+    )
+
+
+def _mark_tool_result_skip_summarization(tool_context: ToolContext | None, result: Any) -> None:
+    """Ask ADK to treat deterministic tool results as final without LLM summarization."""
+    if tool_context is None or not _should_skip_tool_result_summarization(result):
+        return
+    actions = getattr(tool_context, "actions", None)
+    if actions is not None:
+        actions.skip_summarization = True
 
 
 def _extract_completed_page_product_tool_result(event: Event) -> dict[str, Any] | None:
@@ -1437,6 +1458,7 @@ Expert parameter contracts:
                 result=result,
                 stage=stage,
             )
+        _mark_tool_result_skip_summarization(tool_context, result)
         return result
 
     @staticmethod
@@ -2091,6 +2113,7 @@ Expert parameter contracts:
     ) -> str:
         """Run one orchestrator turn and collect the final text response."""
         final_response_text = ""
+        pending_final_reply: str | None = None
         self._last_run_streamed_reply_text = False
         current_session = await self.session_service.get_session(
             app_name=self.app_name,
@@ -2118,13 +2141,20 @@ Expert parameter contracts:
                 session_id,
                 event.model_dump_json(indent=2, exclude_none=True),
             )
-            if stream_reply_text and getattr(event, "partial", False) and event.content and event.content.parts:
+            if (
+                pending_final_reply is None
+                and stream_reply_text
+                and getattr(event, "partial", False)
+                and event.content
+                and event.content.parts
+            ):
                 if self._uses_deepseek_model and _event_has_thought_text(event):
                     if not deepseek_thinking_placeholder_sent:
                         published = await publish_assistant_delta(
                             session_id=session_id,
                             turn_index=turn_index,
                             delta=_DEEPSEEK_THINKING_PLACEHOLDER,
+                            delta_kind=ASSISTANT_DELTA_KIND_THINKING_PLACEHOLDER,
                         )
                         if published:
                             self._last_run_streamed_reply_text = True
@@ -2139,6 +2169,8 @@ Expert parameter contracts:
                     )
                     if published:
                         self._last_run_streamed_reply_text = True
+            if pending_final_reply is not None:
+                continue
             confirmation_result = _extract_confirmation_tool_result(event)
             if confirmation_result is not None:
                 final_reply = _format_confirmation_reply(confirmation_result)
@@ -2147,7 +2179,8 @@ Expert parameter contracts:
                     session_id=session_id,
                     reply_text=final_reply,
                 )
-                return final_reply
+                pending_final_reply = final_reply
+                continue
             question_form_result = _extract_question_form_tool_result(event)
             if question_form_result is not None:
                 final_reply = _format_question_form_reply(question_form_result)
@@ -2156,7 +2189,8 @@ Expert parameter contracts:
                     session_id=session_id,
                     reply_text=final_reply,
                 )
-                return final_reply
+                pending_final_reply = final_reply
+                continue
             product_confirmation_result = _extract_product_confirmation_tool_result(event)
             if product_confirmation_result is not None:
                 final_reply = str(product_confirmation_result.get("message") or "").strip()
@@ -2166,17 +2200,20 @@ Expert parameter contracts:
                     reply_text=final_reply,
                     final_file_paths=[],
                 )
-                return final_reply
+                pending_final_reply = final_reply
+                continue
             completed_product_result = _extract_completed_product_tool_result(event)
             if completed_product_result is not None:
                 final_reply = str(completed_product_result.get("message") or "").strip()
+                final_file_paths = list(completed_product_result.get("final_file_paths") or [])
                 await self._persist_structured_final_response(
                     user_id=user_id,
                     session_id=session_id,
                     reply_text=final_reply,
-                    final_file_paths=list(completed_product_result.get("final_file_paths") or []),
+                    final_file_paths=final_file_paths,
                 )
-                return final_reply
+                pending_final_reply = final_reply
+                continue
             terminal_product_result = _extract_terminal_product_tool_result(event)
             if terminal_product_result is not None:
                 final_reply = str(terminal_product_result.get("message") or "").strip()
@@ -2186,7 +2223,8 @@ Expert parameter contracts:
                     reply_text=final_reply,
                     final_file_paths=[],
                 )
-                return final_reply
+                pending_final_reply = final_reply
+                continue
             if (
                 event.is_final_response()
                 and not getattr(event, "partial", False)
@@ -2196,6 +2234,8 @@ Expert parameter contracts:
                 text_part = _first_event_text(event, skip_thought=self._uses_deepseek_model)
                 if text_part:
                     final_response_text = text_part
+        if pending_final_reply is not None:
+            return pending_final_reply
         if not final_response_text and reply_stream.published_text:
             final_response_text = reply_stream.published_text
         return final_response_text

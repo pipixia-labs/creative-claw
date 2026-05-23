@@ -80,8 +80,10 @@ from src.runtime.tool_context_artifact_service import ToolContextArtifactService
 from src.runtime.workspace import (
     build_workspace_file_record,
     generated_session_dir,
+    normalize_workspace_markdown_image_paths,
     resolve_workspace_path,
     stage_attachment_into_workspace,
+    workspace_relative_file_reference,
     workspace_relative_path,
     workspace_root,
 )
@@ -3606,11 +3608,7 @@ Return structured status, current phase, selected route, warnings, next actions,
         state["generated"] = generated
         state["new_files"] = records
         state["files_history"] = files_history
-        clean_final_file_paths = [
-            str(path).strip()
-            for path in (final_file_paths or [])
-            if str(path or "").strip()
-        ]
+        clean_final_file_paths = _normalize_ppt_final_file_paths(final_file_paths or [])
         if clean_final_file_paths:
             state["final_file_paths"] = clean_final_file_paths
         else:
@@ -3973,12 +3971,15 @@ Return structured status, current phase, selected route, warnings, next actions,
                 warnings.append(f"Could not convert {source_label}: {message}")
                 continue
 
-            markdown = str(conversion.get("output_text") or "").strip()
             results = dict(conversion.get("results") or {})
             output_path = str(results.get("output_path") or parameters.get("output_path") or "")
             if not output_path:
                 warnings.append(f"Converted source {source_label} did not report a Markdown path.")
                 continue
+            markdown = self._normalize_converted_markdown_source(
+                str(conversion.get("output_text") or "").strip(),
+                output_path=output_path,
+            )
             if not markdown:
                 warnings.append(f"Converted source {source_label} produced empty Markdown.")
 
@@ -4118,35 +4119,29 @@ Return structured status, current phase, selected route, warnings, next actions,
     ) -> list[dict[str, Any]]:
         """Collect Markdown image references as source material figure records."""
         figures: list[dict[str, Any]] = []
-        for match in re.finditer(r"!\[(?P<alt>[^\]]*)\]\((?P<src>[^)]+)\)", markdown):
+        for match in re.finditer(r"!\[(?P<alt>[^\]]*)\]\((?P<src>[^\s)]+)(?:\s+[^)]*)?\)", markdown):
             raw_path = match.group("src").strip()
             figures.append(
                 {
                     "source_name": source_name,
                     "alt": cls._clean_markdown_text(match.group("alt")),
-                    "path": cls._resolve_markdown_relative_path(
-                        raw_path,
-                        markdown_output_path=markdown_output_path,
-                    ),
+                    "path": workspace_relative_file_reference(raw_path, base_path=markdown_output_path),
                     "markdown_output_path": markdown_output_path,
                 }
             )
         return figures
 
     @staticmethod
-    def _resolve_markdown_relative_path(raw_path: str, *, markdown_output_path: str) -> str:
-        """Resolve a Markdown image path relative to the generated Markdown file when possible."""
-        clean_path = str(raw_path or "").strip()
-        if not clean_path or PptProductManager._looks_like_url(clean_path):
-            return clean_path
+    def _normalize_converted_markdown_source(markdown: str, *, output_path: str) -> str:
+        """Normalize local image links inside one prepared Markdown source."""
         try:
-            markdown_file = resolve_workspace_path(markdown_output_path)
-            candidate = (markdown_file.parent / clean_path).resolve()
-            if candidate.exists():
-                return workspace_relative_path(candidate)
+            normalized = normalize_workspace_markdown_image_paths(markdown, markdown_path=output_path)
+            output_file = resolve_workspace_path(output_path)
+            if output_file.exists() and output_file.is_file():
+                output_file.write_text(normalized, encoding="utf-8")
+            return normalized
         except Exception:
-            return clean_path
-        return clean_path
+            return markdown
 
     @staticmethod
     def _select_source_document_type(
@@ -5367,6 +5362,22 @@ def _copy_state(state: Any) -> dict[str, Any]:
     if hasattr(state, "to_dict"):
         return copy.deepcopy(state.to_dict())
     return copy.deepcopy(dict(state))
+
+
+def _normalize_ppt_final_file_paths(paths: list[Any]) -> list[str]:
+    """Normalize final PPT product file paths into workspace-relative strings."""
+    normalized: list[str] = []
+    for path in paths:
+        clean_path = str(path or "").strip()
+        if not clean_path:
+            continue
+        try:
+            normalized_path = workspace_relative_path(clean_path)
+        except Exception:
+            continue
+        if normalized_path and normalized_path not in normalized:
+            normalized.append(normalized_path)
+    return normalized
 
 
 def _resolve_child_artifact_service(

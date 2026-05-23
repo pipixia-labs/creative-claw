@@ -29,7 +29,7 @@ from src.productions.ppt.schemas import (
 from src.runtime.expert_dispatcher import dispatch_expert_call
 from src.runtime.step_events import append_orchestration_step_event
 from src.runtime.tool_context_artifact_service import ToolContextArtifactService
-from src.runtime.workspace import resolve_workspace_path
+from src.runtime.workspace import normalize_workspace_markdown_image_paths, resolve_workspace_path
 
 PPT_CONTENT_PLANNING_OUTPUT_KEY = "ppt_deck_content_plan"
 PPT_CONTENT_PLANNING_MARKDOWN_KEY = "ppt_deck_content_plan_markdown"
@@ -449,14 +449,15 @@ class PptContentPlanner:
                 warnings.append(f"Could not read Markdown source `{output_path}`: {exc}")
                 continue
 
-            clipped_text = text[: max(0, remaining_chars)]
+            normalized_text = normalize_workspace_markdown_image_paths(text, markdown_path=output_path)
+            clipped_text = normalized_text[: max(0, remaining_chars)]
             remaining_chars -= len(clipped_text)
             source_texts.append(
                 {
                     "name": str(source.get("name") or output_path),
                     "output_path": output_path,
                     "text": clipped_text,
-                    "truncated": len(clipped_text) < len(text),
+                    "truncated": len(clipped_text) < len(normalized_text),
                 }
             )
             if remaining_chars <= 0:

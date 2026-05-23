@@ -501,6 +501,23 @@ class PptProductManagerTests(unittest.IsolatedAsyncioTestCase):
         self.assertEqual(tool_context.state["final_file_paths"], [workspace_relative_path(pptx_path)])
         self.assertEqual(tool_context.state["ppt_private_skill_build"]["pptx_path"], workspace_relative_path(pptx_path))
 
+    def test_record_output_files_normalizes_absolute_final_paths(self) -> None:
+        state = {"sid": "ppt-final-path-test", "turn_index": 1, "step": 2}
+        pptx_path = resolve_workspace_path("generated/ppt-final-path-test/final.pptx")
+        pptx_path.parent.mkdir(parents=True, exist_ok=True)
+        deck = Presentation()
+        deck.slides.add_slide(deck.slide_layouts[0])
+        deck.save(pptx_path)
+
+        PptProductManager._record_output_files(
+            state,
+            [workspace_relative_path(pptx_path)],
+            final_file_paths=[str(pptx_path)],
+        )
+
+        self.assertEqual(state["final_file_paths"], [workspace_relative_path(pptx_path)])
+        self.assertNotIn(str(workspace_root()), state["final_file_paths"][0])
+
     def test_recover_unregistered_private_skill_pptx_registers_final_artifact(self) -> None:
         manager = PptProductManager()
         state = {"sid": "ppt-private-recovery-test", "turn_index": 1, "step": 3}

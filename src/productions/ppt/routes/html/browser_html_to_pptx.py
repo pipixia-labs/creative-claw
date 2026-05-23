@@ -31,6 +31,7 @@ def convert_html_pages_with_browser(
     html_pages: list[str],
     pptx_path: Path,
     template: HtmlTemplatePackage,
+    asset_base_dir: Path | None = None,
     timeout_seconds: int = 90,
 ) -> BrowserHtmlToPptxResult:
     """Convert HTML pages to editable PPTX using Chromium layout and pptxgenjs.
@@ -70,7 +71,7 @@ def convert_html_pages_with_browser(
         for index, html_page in enumerate(clean_pages, start=1):
             html_path = temp_dir / f"slide_{index:03d}.html"
             html_path.write_text(
-                _wrap_html_page(html_page, template=template),
+                _wrap_html_page(html_page, template=template, asset_base_dir=asset_base_dir),
                 encoding="utf-8",
             )
             page_specs.append(
@@ -153,15 +154,22 @@ def convert_html_pages_with_browser(
         )
 
 
-def _wrap_html_page(html_page: str, *, template: HtmlTemplatePackage) -> str:
+def _wrap_html_page(
+    html_page: str,
+    *,
+    template: HtmlTemplatePackage,
+    asset_base_dir: Path | None = None,
+) -> str:
     """Return a full HTML page with a fixed PPT viewport."""
     clean_page = str(html_page or "").strip()
+    base_tag = _build_base_tag(asset_base_dir)
     if "<html" in clean_page[:300].lower():
-        return clean_page
+        return _inject_base_tag(clean_page, base_tag=base_tag)
     return f"""<!doctype html>
 <html lang="zh-CN">
 <head>
   <meta charset="utf-8" />
+  {base_tag}
   <meta name="viewport" content="width=device-width, initial-scale=1" />
   <style>
     html, body {{
@@ -190,6 +198,30 @@ def _wrap_html_page(html_page: str, *, template: HtmlTemplatePackage) -> str:
 </body>
 </html>
 """
+
+
+def _build_base_tag(asset_base_dir: Path | None) -> str:
+    """Return a base tag for resolving route-local asset sources."""
+    if asset_base_dir is None:
+        return ""
+    href = asset_base_dir.resolve().as_uri().rstrip("/") + "/"
+    return f'<base href="{href}" />'
+
+
+def _inject_base_tag(html_page: str, *, base_tag: str) -> str:
+    """Inject the route asset base tag into a full HTML page when possible."""
+    if not base_tag:
+        return html_page
+    lowered = html_page[:1000].lower()
+    if "<base " in lowered:
+        return html_page
+    head_index = lowered.find("<head")
+    if head_index < 0:
+        return html_page
+    head_close = html_page.find(">", head_index)
+    if head_close < 0:
+        return html_page
+    return f"{html_page[:head_close + 1]}\n  {base_tag}{html_page[head_close + 1:]}"
 
 
 def _read_json_report(report_path: Path) -> dict[str, Any]:
