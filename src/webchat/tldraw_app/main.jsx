@@ -1,4 +1,4 @@
-import React, { memo, useCallback, useMemo, useRef, useState } from "react";
+import React, { memo, useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { createRoot } from "react-dom/client";
 import {
   AssetRecordType,
@@ -35,8 +35,9 @@ const MAX_MEDIA_WIDTH = 920;
 const MEDIA_GAP = 96;
 const VIDEO_METADATA_TIMEOUT_MS = 4000;
 
-function CreativeClawSketchCanvas({ artifacts = [], onSubmitSketch }) {
+function CreativeClawSketchCanvas({ artifacts = [], selectedArtifact = null, onSubmitSketch }) {
   const loadedSignatureRef = useRef("");
+  const editorRef = useRef(null);
 
   const mediaArtifacts = useMemo(
     () => artifacts.filter((artifact) => Boolean(artifact?.url)),
@@ -45,10 +46,27 @@ function CreativeClawSketchCanvas({ artifacts = [], onSubmitSketch }) {
 
   const handleMount = useCallback(
     (mountedEditor) => {
-      void seedMediaArtifacts(mountedEditor, mediaArtifacts, loadedSignatureRef);
+      editorRef.current = mountedEditor;
+      void seedMediaArtifacts(mountedEditor, mediaArtifacts, loadedSignatureRef).then(() => {
+        selectMediaArtifact(mountedEditor, selectedArtifact);
+      });
     },
-    [mediaArtifacts]
+    [mediaArtifacts, selectedArtifact]
   );
+
+  useEffect(() => {
+    selectMediaArtifact(editorRef.current, selectedArtifact);
+  }, [selectedArtifact]);
+
+  useEffect(() => {
+    const handleSelectArtifact = (event) => {
+      selectMediaArtifact(editorRef.current, event.detail?.artifact);
+    };
+    window.addEventListener("creative-claw-select-artifact", handleSelectArtifact);
+    return () => {
+      window.removeEventListener("creative-claw-select-artifact", handleSelectArtifact);
+    };
+  }, []);
 
   const tldrawComponents = useMemo(
     () => ({
@@ -363,6 +381,32 @@ async function seedMediaArtifacts(editor, artifacts, loadedSignatureRef) {
     loadedSignatureRef.current = "";
     console.warn(error instanceof Error ? error.message : "Could not load media into tldraw.");
   }
+}
+
+function selectMediaArtifact(editor, artifact) {
+  if (!editor || !artifact) {
+    return false;
+  }
+
+  const targetUrl = String(artifact.url || "").trim();
+  const targetPath = String(artifact.path || "").trim();
+  if (!targetUrl && !targetPath) {
+    return false;
+  }
+
+  for (const shapeId of Array.from(editor.getCurrentPageShapeIds())) {
+    const shape = editor.getShape(shapeId);
+    if (!shape || !["image", "video"].includes(shape.type)) {
+      continue;
+    }
+    const shapeUrl = String(shape.meta?.creativeClawArtifactUrl || shape.props?.url || "").trim();
+    const shapePath = String(shape.meta?.creativeClawArtifactPath || "").trim();
+    if ((targetUrl && targetUrl === shapeUrl) || (targetPath && targetPath === shapePath)) {
+      editor.select(shape.id);
+      return true;
+    }
+  }
+  return false;
 }
 
 function isVideoArtifact(artifact) {
