@@ -1027,9 +1027,8 @@ button {
 }
 
 .message-card.user {
-  background:
-    linear-gradient(135deg, rgba(47, 111, 237, 0.1), rgba(255, 255, 255, 0.94)),
-    rgba(255, 255, 255, 0.86);
+  background: rgba(248, 251, 255, 0.96);
+  border-color: rgba(37, 99, 235, 0.12);
 }
 
 .message-card {
