@@ -78,6 +78,7 @@ const mediaCanvasState = {
   positions: new Map(),
 };
 let tldrawCanvasUnmount = null;
+let tldrawCanvasSignature = "";
 let model3dViewerController = null;
 const largeModelPreviewApprovals = new Set();
 let designSystemsCache = null;
@@ -1871,25 +1872,35 @@ function renderPreviewView(tabName) {
 }
 
 function renderTldrawPreview() {
-  unmountTldrawCanvas();
-  tldrawPreview.innerHTML = "";
   const artifacts = previewArtifactsByTab.tldraw;
+  const signature = tldrawPreviewArtifactsSignature(artifacts);
 
   if (window.CreativeClawTldraw?.mount) {
+    if (tldrawCanvasUnmount && tldrawCanvasSignature === signature) {
+      selectMountedTldrawArtifact(selectedPreviewByTab.tldraw);
+      return;
+    }
+
+    unmountTldrawCanvas();
+    tldrawPreview.innerHTML = "";
     const shell = document.createElement("div");
     shell.className = "tldraw-sketch-shell";
     const host = document.createElement("div");
     host.className = "tldraw-sketch-host";
     shell.appendChild(host);
     tldrawPreview.appendChild(shell);
+    tldrawCanvasSignature = signature;
     tldrawCanvasUnmount = window.CreativeClawTldraw.mount(host, {
       artifacts,
+      selectedArtifact: selectedPreviewByTab.tldraw,
       sessionId,
       onSubmitSketch: handleTldrawSketchSubmit,
     });
     return;
   }
 
+  unmountTldrawCanvas();
+  tldrawPreview.innerHTML = "";
   if (!artifacts.length) {
     tldrawPreview.appendChild(previewEmpty("No visual board preview"));
     return;
@@ -1903,6 +1914,17 @@ function unmountTldrawCanvas() {
     tldrawCanvasUnmount();
   }
   tldrawCanvasUnmount = null;
+  tldrawCanvasSignature = "";
+}
+
+function tldrawPreviewArtifactsSignature(artifacts) {
+  return artifacts.map((artifact) => artifactKey(artifact)).join("|");
+}
+
+function selectMountedTldrawArtifact(artifact) {
+  window.dispatchEvent(new CustomEvent("creative-claw-select-artifact", {
+    detail: { artifact },
+  }));
 }
 
 function renderMediaCanvasPreview(artifacts = previewArtifactsByTab.tldraw) {
