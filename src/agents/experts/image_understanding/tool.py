@@ -1,16 +1,21 @@
+import os
 from typing import Any
 
 from PIL import Image
 from google.adk.agents import LlmAgent
 from google.adk.agents.callback_context import CallbackContext
 from google.adk.agents.invocation_context import InvocationContext
-from google.adk.models import LlmRequest
+from google.adk.models import LiteLlm, LlmRequest
 from google.genai.types import Content, Part
 
-from conf.llm import build_llm, resolve_llm_model_name
-from conf.system import SYS_CONFIG
+from conf.api import API_CONFIG
 from src.logger import logger
 from src.runtime.workspace import load_local_file_part, resolve_workspace_path, workspace_relative_path
+
+_DASHSCOPE_QWEN_VL_MODEL_NAME = "qwen-vl-plus-latest"
+_DASHSCOPE_QWEN_VL_LITELLM_MODEL = f"openai/{_DASHSCOPE_QWEN_VL_MODEL_NAME}"
+_DASHSCOPE_QWEN_VL_MODEL_REFERENCE = f"dashscope/{_DASHSCOPE_QWEN_VL_MODEL_NAME}"
+_DASHSCOPE_OPENAI_COMPATIBLE_API_BASE = "https://dashscope.aliyuncs.com/compatible-mode/v1"
 
 
 def _format_exception_summary(exc: Exception) -> str:
@@ -19,6 +24,23 @@ def _format_exception_summary(exc: Exception) -> str:
     if message:
         return f"{type(exc).__name__}: {message}"
     return type(exc).__name__
+
+
+def _get_dashscope_api_key() -> str:
+    """Return the DashScope API key used by the dedicated vision model."""
+    return os.environ.get("DASHSCOPE_API_KEY", "").strip() or str(API_CONFIG.DASHSCOPE_API_KEY).strip()
+
+
+def _build_image_understanding_model() -> LiteLlm:
+    """Build the dedicated Qwen-VL model used for image understanding."""
+    api_key = _get_dashscope_api_key()
+    if not api_key:
+        raise ValueError("DASHSCOPE_API_KEY is not set for ImageUnderstandingAgent.")
+    return LiteLlm(
+        model=_DASHSCOPE_QWEN_VL_LITELLM_MODEL,
+        api_key=api_key,
+        api_base=_DASHSCOPE_OPENAI_COMPATIBLE_API_BASE,
+    )
 
 
 def _describe_image_metadata(image_path) -> str:
@@ -105,6 +127,46 @@ def _build_analysis_prompt(mode: str) -> str:
     return prompts_map.get(mode, prompts_map["description"])
 
 
+def _extract_final_response_text(parts: list[Any]) -> str:
+    """Return visible model text from final response parts, ignoring thought parts."""
+    for part in parts:
+        if getattr(part, "thought", False):
+            continue
+        text = str(getattr(part, "text", "") or "").strip()
+        if text:
+            return text
+    return ""
+
+
+def _looks_like_missing_image_response(text: str) -> bool:
+    """Return whether an analysis response says the model did not receive the image."""
+    normalized = " ".join(str(text or "").lower().split())
+    if not normalized:
+        return False
+    missing_image_markers = (
+        "no image has been provided",
+        "no image was provided",
+        "no image provided",
+        "no image attached",
+        "no image data",
+        "there is no image",
+        "i don't see any image",
+        "i do not see any image",
+        "can't see the image",
+        "cannot see the image",
+        "unable to view the image",
+        "please upload the image",
+        "请上传图片",
+        "未提供图片",
+        "没有提供图片",
+        "没有图片",
+        "未看到图片",
+        "看不到图片",
+        "无法看到图片",
+    )
+    return any(marker in normalized for marker in missing_image_markers)
+
+
 async def image_to_text_tool(ctx: InvocationContext, input_path: str, mode: str = "description") -> dict[str, Any]:
     """Analyze one workspace image with an ADK-backed multimodal LLM call."""
     tool_name_for_log = "image_to_text_tool"
@@ -132,7 +194,7 @@ async def image_to_text_tool(ctx: InvocationContext, input_path: str, mode: str 
 
         llm = LlmAgent(
             name="ImageUnderstandingToolAgent",
-            model=build_llm(),
+            model=_build_image_understanding_model(),
             instruction=(
                 "You are a professional image analyst. "
                 "Follow the requested mode exactly and return a clear, faithful result."
@@ -151,7 +213,7 @@ async def image_to_text_tool(ctx: InvocationContext, input_path: str, mode: str 
         output_text = ""
         async for event in llm.run_async(ctx):
             if event.is_final_response() and event.content and event.content.parts:
-                generated_text = next((part.text for part in event.content.parts if part.text), None)
+                generated_text = _extract_final_response_text(list(event.content.parts))
                 if generated_text:
                     output_text = generated_text
 
@@ -161,8 +223,24 @@ async def image_to_text_tool(ctx: InvocationContext, input_path: str, mode: str 
                 "message": "Image understanding returned empty text.",
                 "input_path": workspace_relative_path(resolved_path),
                 "mode": normalized_mode,
-                "provider": "google_adk",
-                "model_name": resolve_llm_model_name(),
+                "provider": "dashscope",
+                "model_name": _DASHSCOPE_QWEN_VL_MODEL_REFERENCE,
+            }
+
+        if _looks_like_missing_image_response(output_text):
+            basic_info = _describe_image_metadata(resolved_path)
+            return {
+                "status": "error",
+                "message": (
+                    "Image understanding model did not appear to receive the image. "
+                    f"Raw response: {output_text}\n\n{basic_info}"
+                ),
+                "analysis_text": output_text,
+                "basic_info": basic_info,
+                "input_path": workspace_relative_path(resolved_path),
+                "mode": normalized_mode,
+                "provider": "dashscope",
+                "model_name": _DASHSCOPE_QWEN_VL_MODEL_REFERENCE,
             }
 
         logger.info("[{}] image analysis success", tool_name_for_log)
@@ -174,8 +252,8 @@ async def image_to_text_tool(ctx: InvocationContext, input_path: str, mode: str 
             "basic_info": basic_info,
             "input_path": workspace_relative_path(resolved_path),
             "mode": normalized_mode,
-            "provider": "google_adk",
-            "model_name": resolve_llm_model_name(),
+            "provider": "dashscope",
+            "model_name": _DASHSCOPE_QWEN_VL_MODEL_REFERENCE,
         }
 
     except Exception as e:
@@ -198,6 +276,6 @@ async def image_to_text_tool(ctx: InvocationContext, input_path: str, mode: str 
                 workspace_relative_path(resolved_path) if resolved_path is not None else str(input_path)
             ),
             "mode": str(mode or "description").strip().lower(),
-            "provider": "google_adk",
-            "model_name": resolve_llm_model_name(),
+            "provider": "dashscope",
+            "model_name": _DASHSCOPE_QWEN_VL_MODEL_REFERENCE,
         }

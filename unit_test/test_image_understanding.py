@@ -152,6 +152,11 @@ class ImageUnderstandingTests(unittest.IsolatedAsyncioTestCase):
 
     async def test_tool_supports_all_mode_and_appends_basic_info(self) -> None:
         captured_llm_request: dict[str, object] = {}
+        captured_model_kwargs: dict[str, object] = {}
+
+        class _FakeLiteLlm:
+            def __init__(self, **kwargs) -> None:
+                captured_model_kwargs.update(kwargs)
 
         class _FakeEvent:
             def __init__(self, text: str) -> None:
@@ -178,6 +183,8 @@ class ImageUnderstandingTests(unittest.IsolatedAsyncioTestCase):
             relative_path = workspace_relative_path(image_path)
 
             with (
+                patch("src.agents.experts.image_understanding.tool.LiteLlm", _FakeLiteLlm),
+                patch.dict("os.environ", {"DASHSCOPE_API_KEY": "test-key"}, clear=False),
                 patch("src.agents.experts.image_understanding.tool.LlmAgent", _FakeLlmAgent),
             ):
                 result = await understanding_tool.image_to_text_tool(_build_ctx({}), relative_path, mode="all")
@@ -185,10 +192,17 @@ class ImageUnderstandingTests(unittest.IsolatedAsyncioTestCase):
         self.assertEqual(result["status"], "success")
         self.assertIn("analysis result", result["message"])
         self.assertIn("Basic image info: format=PNG, size=4x3, mode=RGBA", result["message"])
-        self.assertEqual(result["provider"], "google_adk")
-        self.assertEqual(result["model_name"], understanding_tool.SYS_CONFIG.llm_model)
+        self.assertEqual(result["provider"], "dashscope")
+        self.assertEqual(result["model_name"], "dashscope/qwen-vl-plus-latest")
+        self.assertEqual(captured_model_kwargs["model"], "openai/qwen-vl-plus-latest")
+        self.assertEqual(captured_model_kwargs["api_key"], "test-key")
+        self.assertEqual(
+            captured_model_kwargs["api_base"],
+            "https://dashscope.aliyuncs.com/compatible-mode/v1",
+        )
         user_prompt = captured_llm_request["contents"][0].parts[0].text
         self.assertIn("Finally, extract all readable text from the image", user_prompt)
+        self.assertIsNotNone(captured_llm_request["contents"][0].parts[1].inline_data)
 
     async def test_tool_supports_prompt_mode(self) -> None:
         captured_llm_request: dict[str, object] = {}
@@ -216,7 +230,10 @@ class ImageUnderstandingTests(unittest.IsolatedAsyncioTestCase):
             Image.new("RGB", (8, 6), color=(0, 128, 255)).save(image_path)
             relative_path = workspace_relative_path(image_path)
 
-            with patch("src.agents.experts.image_understanding.tool.LlmAgent", _FakeLlmAgent):
+            with (
+                patch.dict("os.environ", {"DASHSCOPE_API_KEY": "test-key"}, clear=False),
+                patch("src.agents.experts.image_understanding.tool.LlmAgent", _FakeLlmAgent),
+            ):
                 result = await understanding_tool.image_to_text_tool(_build_ctx({}), relative_path, mode="prompt")
 
         self.assertEqual(result["status"], "success")
@@ -225,6 +242,55 @@ class ImageUnderstandingTests(unittest.IsolatedAsyncioTestCase):
         self.assertIn("## System Role", user_prompt)
         self.assertIn("### 1. Long Prompt", user_prompt)
         self.assertIn("### 2. Negative Prompt", user_prompt)
+
+    async def test_tool_errors_when_dashscope_key_is_missing(self) -> None:
+        with tempfile.TemporaryDirectory(dir=workspace_root()) as tmp_dir:
+            image_path = Path(tmp_dir) / "sample.png"
+            Image.new("RGB", (4, 3), color=(255, 0, 0)).save(image_path)
+            relative_path = workspace_relative_path(image_path)
+
+            with (
+                patch.dict("os.environ", {"DASHSCOPE_API_KEY": ""}, clear=False),
+                patch.object(understanding_tool.API_CONFIG, "DASHSCOPE_API_KEY", ""),
+            ):
+                result = await understanding_tool.image_to_text_tool(_build_ctx({}), relative_path, mode="description")
+
+        self.assertEqual(result["status"], "error")
+        self.assertIn("DASHSCOPE_API_KEY is not set", result["message"])
+        self.assertEqual(result["provider"], "dashscope")
+        self.assertEqual(result["model_name"], "dashscope/qwen-vl-plus-latest")
+
+    async def test_tool_treats_missing_image_response_as_error(self) -> None:
+        class _FakeEvent:
+            def __init__(self, text: str) -> None:
+                self.content = Content(role="model", parts=[Part(text=text)])
+
+            def is_final_response(self) -> bool:
+                return True
+
+        class _FakeLlmAgent:
+            def __init__(self, **kwargs) -> None:
+                self.before_model_callback = kwargs["before_model_callback"]
+
+            async def run_async(self, ctx) -> AsyncGenerator[_FakeEvent, None]:
+                llm_request = SimpleNamespace(contents=[])
+                self.before_model_callback(SimpleNamespace(state={}), llm_request)
+                yield _FakeEvent("I cannot analyze this because no image has been provided.")
+
+        with tempfile.TemporaryDirectory(dir=workspace_root()) as tmp_dir:
+            image_path = Path(tmp_dir) / "sample.png"
+            Image.new("RGB", (4, 3), color=(255, 0, 0)).save(image_path)
+            relative_path = workspace_relative_path(image_path)
+
+            with (
+                patch.dict("os.environ", {"DASHSCOPE_API_KEY": "test-key"}, clear=False),
+                patch("src.agents.experts.image_understanding.tool.LlmAgent", _FakeLlmAgent),
+            ):
+                result = await understanding_tool.image_to_text_tool(_build_ctx({}), relative_path, mode="description")
+
+        self.assertEqual(result["status"], "error")
+        self.assertIn("did not appear to receive the image", result["message"])
+        self.assertIn("no image has been provided", result["analysis_text"])
 
     async def test_agent_persists_structured_results_on_success(self) -> None:
         agent = ImageUnderstandingAgent(name="ImageUnderstandingAgent")

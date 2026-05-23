@@ -1,6 +1,6 @@
 import asyncio
 from typing_extensions import override
-from typing import AsyncGenerator
+from typing import Any, AsyncGenerator
 
 from google.adk.agents.invocation_context import InvocationContext
 from google.adk.events import Event
