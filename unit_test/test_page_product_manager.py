@@ -125,8 +125,9 @@ class PageProductManagerTests(unittest.TestCase):
         self.assertIn("Visual Quality Defaults", prompt)
         self.assertIn("Template-specific or skill-specific style rules override these defaults.", prompt)
         self.assertIn("Selected Built-In Page Template", prompt)
-        self.assertIn("Template ID: card-xiaohongshu", prompt)
-        self.assertIn("Xiaohongshu Card", prompt)
+        self.assertIn("No built-in Page template was selected.", prompt)
+        self.assertNotIn("Template ID: card-xiaohongshu", prompt)
+        self.assertNotIn("Xiaohongshu Card", prompt)
         self.assertIn("做一篇小红书长图", prompt)
         self.assertNotIn("DesignCanvas", prompt)
 
@@ -219,13 +220,13 @@ class PageProductManagerTests(unittest.TestCase):
 
     def test_page_template_selector_matches_typical_briefs(self) -> None:
         cases = {
-            "根据这份 CSV 数据生成一页视觉报告，突出关键洞察。": "data-report",
+            "根据这份 CSV data 数据生成 data report chart 视觉报告，突出关键洞察。": "data-report",
             "做一张小红书图文卡片，主题是 AI 写作。": "card-xiaohongshu",
             "做一个 SaaS 官网 landing page，包含 value proposition 和 waitlist。": "saas-landing",
-            "做一张产品发布海报，强调新品首发和预约 CTA。": "poster-hero",
-            "写一篇杂志风文章，主题是 AI 写作方法。": "article-magazine",
-            "做一个 pricing 页面，包含三个套餐。": "pricing-page",
-            "生成团队 OKR 页面。": "team-okrs",
+            "做一张 1080×1920 竖版海报 / 朋友圈分享图，强调新品首发和预约 CTA。": "poster-hero",
+            "写一篇杂志风文章，适合公众号、博客发布，主题是 AI 写作方法。": "article-magazine",
+            "做一个 pricing page 定价页面，包含三个套餐和 FAQ。": "pricing-page",
+            "生成 Team OKR objectives key results 目标页面。": "team-okrs",
         }
 
         for brief, expected_template_id in cases.items():
@@ -233,7 +234,16 @@ class PageProductManagerTests(unittest.TestCase):
                 match = select_page_template_match(brief)
 
                 self.assertEqual(match.template.id, expected_template_id)
-                self.assertGreater(match.score, 0)
+                self.assertGreaterEqual(match.score, 20)
+
+    def test_page_template_selector_returns_no_template_for_low_confidence_match(self) -> None:
+        match = select_page_template_match("根据图片制作一个图文结合的科普网页。")
+
+        self.assertIsNone(match.template)
+        self.assertEqual(match.score, 9)
+        self.assertFalse(match.to_dict()["use_template"])
+        self.assertEqual(match.to_dict()["template_id"], "")
+        self.assertIn("below the automatic selection threshold 20", match.reasons[0])
 
     def test_page_template_selector_returns_no_template_for_underspecified_brief(self) -> None:
         match = select_page_template_match("zzzz qqqq 123456")

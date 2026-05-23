@@ -8,6 +8,7 @@ from src.productions.page.page_product_manager.templates.models import (
 )
 
 DEFAULT_PAGE_TEMPLATE_ID = ""
+MIN_AUTO_TEMPLATE_SCORE = 20
 
 
 def select_page_template(
@@ -54,6 +55,19 @@ def select_page_template(
             score=0,
             reasons=(
                 "No built-in Page template matched the brief strongly enough; use free-form HTML generation.",
+            ),
+        )
+    if best_match.score < MIN_AUTO_TEMPLATE_SCORE:
+        return PageTemplateMatch(
+            template=None,
+            score=best_match.score,
+            reasons=(
+                (
+                    f"Best built-in Page template score {best_match.score} is below "
+                    f"the automatic selection threshold {MIN_AUTO_TEMPLATE_SCORE}; "
+                    "use free-form HTML generation."
+                ),
+                *best_match.reasons,
             ),
         )
 
