@@ -41,6 +41,18 @@ _SENSITIVE_KEY_PARTS = (
     "secret_key",
 )
 _MAX_OBJECT_DEPTH = 8
+_CONTENT_ROLES = {"model", "user", "system"}
+_ADK_PART_KEYS = {
+    "text",
+    "thought",
+    "function_call",
+    "function_response",
+    "inline_data",
+    "file_data",
+    "video_metadata",
+    "executable_code",
+    "code_execution_result",
+}
 
 
 def runtime_trace_enabled() -> bool:
@@ -238,6 +250,8 @@ def _to_trace_safe_value(value: Any, *, depth: int = 0) -> Any:
     if isinstance(value, bytes):
         return f"<bytes:{len(value)}>"
     if isinstance(value, Mapping):
+        if _is_content_like_mapping(value):
+            return _content_mapping_trace_value(value, depth=depth)
         result: dict[str, Any] = {}
         for key, item in value.items():
             clean_key = str(key)
@@ -291,10 +305,43 @@ def _model_response_trace_payload(llm_response: Any) -> Any:
 
 def _model_content_trace_payload(content: Any) -> Any:
     """Return trace-safe model content without exposing raw part fragments."""
-    if not isinstance(content, Mapping):
+    if not isinstance(content, Mapping) or not _is_content_like_mapping(content):
         return content
+    return _content_mapping_trace_value(content, depth=0)
 
+
+def _is_content_like_mapping(value: Mapping[Any, Any]) -> bool:
+    """Return whether one mapping resembles a Google ADK/GenAI Content object."""
+    parts = value.get("parts")
+    if not isinstance(parts, list):
+        return False
+    role = str(value.get("role") or "").strip().lower()
+    if role in _CONTENT_ROLES:
+        return True
+    return any(_is_part_like_value(part) for part in parts)
+
+
+def _is_part_like_value(value: Any) -> bool:
+    """Return whether one value resembles a Google ADK/GenAI Part object."""
+    if isinstance(value, Mapping):
+        return bool(_ADK_PART_KEYS.intersection(str(key) for key in value.keys()))
+    attributes = getattr(value, "__dict__", None)
+    if isinstance(attributes, dict):
+        return bool(_ADK_PART_KEYS.intersection(str(key) for key in attributes.keys()))
+    return any(hasattr(value, key) for key in _ADK_PART_KEYS)
+
+
+def _content_mapping_trace_value(content: Mapping[Any, Any], *, depth: int) -> dict[str, Any]:
+    """Return trace-safe Content data with raw parts aggregated into readable fields."""
     result = {key: value for key, value in content.items() if key != "parts"}
+    result = {
+        str(key): (
+            "[REDACTED]"
+            if _is_sensitive_key(str(key))
+            else _to_trace_safe_value(value, depth=depth + 1)
+        )
+        for key, value in result.items()
+    }
     parts = content.get("parts")
     if not isinstance(parts, list):
         return result
@@ -306,6 +353,7 @@ def _model_content_trace_payload(content: Any) -> Any:
     other_content: list[dict[str, Any]] = []
 
     for part in parts:
+        part = _to_trace_safe_value(part, depth=depth + 1)
         if not isinstance(part, Mapping):
             other_content.append({"value": part})
             continue
@@ -323,7 +371,7 @@ def _model_content_trace_payload(content: Any) -> Any:
             function_responses.append(part["function_response"])
 
         non_text_content = {
-            key: value
+            key: _compact_part_payload(key, value)
             for key, value in part.items()
             if key not in {"text", "thought", "function_call", "function_response"}
         }
@@ -341,6 +389,25 @@ def _model_content_trace_payload(content: Any) -> Any:
     if other_content:
         result["other_content"] = other_content
     return result
+
+
+def _compact_part_payload(key: Any, value: Any) -> Any:
+    """Return a compact representation for binary/media part payloads."""
+    normalized_key = str(key)
+    if normalized_key == "inline_data" and isinstance(value, Mapping):
+        result: dict[str, Any] = {}
+        for item_key, item_value in value.items():
+            if str(item_key) == "data":
+                if isinstance(item_value, str):
+                    result[str(item_key)] = f"<data:{len(item_value)} chars>"
+                elif isinstance(item_value, bytes):
+                    result[str(item_key)] = f"<bytes:{len(item_value)}>"
+                else:
+                    result[str(item_key)] = _to_trace_safe_value(item_value)
+            else:
+                result[str(item_key)] = item_value
+        return result
+    return value
 
 
 def _is_sensitive_key(key: str) -> bool:

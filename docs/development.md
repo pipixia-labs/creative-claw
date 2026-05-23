@@ -267,7 +267,7 @@ Logging:
 - Verbose runtime communication tracing is controlled by `CREATIVE_CLAW_RUNTIME_TRACE`; set it to `1`, `true`, `yes`, or `on` to log orchestrator, manager, expert, model, and tool communication content to the backend logger.
 - Runtime trace skips raw ADK runner events and partial streaming model-response chunks by default to avoid noisy logs during streamed output. Set `CREATIVE_CLAW_RUNTIME_TRACE_RAW_EVENTS=1` to include `runner.event` entries, and set `CREATIVE_CLAW_RUNTIME_TRACE_STREAM_DELTAS=1` to include `partial=true` streaming `model.response` entries.
 - Runtime trace logs full redacted payloads without truncation so local debugging can inspect complete prompts and responses. Trace logs can include prompts and user content, so use this switch only for local debugging or trusted environments.
-- `model.response` trace entries aggregate model content fragments into readable fields such as `text`, `thought_text`, `function_calls`, and `function_responses` instead of logging raw `content.parts` arrays.
+- Runtime trace aggregates ADK Content-like payloads into readable fields such as `text`, `thought_text`, `function_calls`, `function_responses`, and compact media summaries instead of logging raw `parts` arrays.
 
 Current provider env-fallback coverage:
 
