@@ -72,6 +72,15 @@ class WebchatStaticAssetTests(unittest.TestCase):
         self.assertIn("activeAssistantStream.content = \"\";", app_js)
         self.assertIn("activeAssistantStream.hasThinkingPlaceholder ? \"\" : activeAssistantStream.content", app_js)
 
+    def test_markdown_resource_urls_use_workspace_route(self) -> None:
+        app_js = Path("src/webchat/static/app.js").read_text(encoding="utf-8")
+
+        self.assertIn("function normalizeMarkdownResourceUrl", app_js)
+        self.assertIn("function isWorkspaceRelativePath", app_js)
+        self.assertIn("return `/workspace/${value}`;", app_js)
+        self.assertIn("normalizeMarkdownResourceUrl(rawUrl, { allowMailto: false })", app_js)
+        self.assertIn("normalizeMarkdownResourceUrl(rawUrl, { allowMailto: true })", app_js)
+
     def test_tldraw_add_to_chat_reuses_single_artifact_without_success_toast(self) -> None:
         tldraw_source = Path("src/webchat/tldraw_app/main.jsx").read_text(encoding="utf-8")
         app_js = Path("src/webchat/static/app.js").read_text(encoding="utf-8")

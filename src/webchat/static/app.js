@@ -634,6 +634,9 @@ function normalizeWorkspaceUrl(rawUrl) {
   if (value.startsWith("workspace/")) {
     return `/${value}`;
   }
+  if (isWorkspaceRelativePath(value)) {
+    return `/workspace/${value}`;
+  }
 
   try {
     const parsed = new URL(value);
@@ -648,6 +651,21 @@ function normalizeWorkspaceUrl(rawUrl) {
   }
 
   return value;
+}
+
+function normalizeMarkdownResourceUrl(rawUrl, options = {}) {
+  const safeUrl = sanitizeUrl(rawUrl, options);
+  if (!safeUrl) {
+    return "";
+  }
+  if (isWorkspaceRelativePath(safeUrl) || safeUrl.startsWith("workspace/") || safeUrl.includes("/workspace/")) {
+    return normalizeWorkspaceUrl(safeUrl);
+  }
+  return safeUrl;
+}
+
+function isWorkspaceRelativePath(value) {
+  return /^(generated|inbox)\//.test(String(value || "").trim());
 }
 
 function isPreviewableArtifactUrl(url) {
@@ -3284,7 +3302,7 @@ function renderInline(text) {
   working = working.replace(
     /!\[([^\]\n]*)\]\(([^)\s]+)(?:\s+"([^"]+)")?\)/g,
     (_, alt, rawUrl, title) => {
-      const safeUrl = sanitizeUrl(rawUrl, { allowMailto: false });
+      const safeUrl = normalizeMarkdownResourceUrl(rawUrl, { allowMailto: false });
       if (!safeUrl) return alt;
       const cleanAlt = stripInlineTokens(alt);
       const titleAttr = title ? ` title="${escapeAttribute(stripInlineTokens(title))}"` : "";
@@ -3297,7 +3315,7 @@ function renderInline(text) {
   working = working.replace(
     /\[([^\]\n]+)\]\(([^)\s]+)(?:\s+"([^"]+)")?\)/g,
     (_, label, rawUrl, title) => {
-      const safeUrl = sanitizeUrl(rawUrl, { allowMailto: true });
+      const safeUrl = normalizeMarkdownResourceUrl(rawUrl, { allowMailto: true });
       if (!safeUrl) return label;
       const titleAttr = title ? ` title="${escapeAttribute(stripInlineTokens(title))}"` : "";
       return inlineToken(
