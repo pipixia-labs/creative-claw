@@ -1,4 +1,4 @@
-google-adk>=1.29.0,<2.0.0
+google-adk>=2.1.0,<3.0.0
 google-genai>=0.6.0
 pydantic>=2.7.0
 requests>=2.31.0
