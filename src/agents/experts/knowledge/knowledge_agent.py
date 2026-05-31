@@ -1,44 +1,107 @@
-import asyncio
-import uuid
-from typing_extensions import override
-from typing import AsyncGenerator, List
+from __future__ import annotations
 
-from google.adk.agents import LlmAgent
+from typing import Any, AsyncGenerator, Literal
+
 from google.adk.agents import BaseAgent, LlmAgent
+from google.adk.agents.callback_context import CallbackContext
 from google.adk.agents.invocation_context import InvocationContext
 from google.adk.events import Event, EventActions
-from google.adk.tools import ToolContext
-from google.adk.agents.callback_context import CallbackContext
-from google.adk.sessions import InMemorySessionService
 from google.adk.models import LlmRequest
-from google.genai.types import Part
-from google.genai.types import Content
+from google.genai.types import Content, Part
+from pydantic import BaseModel, Field, ValidationError, field_validator, model_validator
 
 from conf.llm import build_llm, resolve_llm_model_name
 from conf.system import SYS_CONFIG
 from src.logger import logger
+from src.agents.experts.schema_utils import (
+    as_non_empty_string_list,
+    clean_string,
+    current_output_dict,
+)
 from src.runtime.workspace import load_local_file_part
 
-async def knowledge_before_model_callback(callback_context: CallbackContext, llm_request: LlmRequest):
-    current_parameters = callback_context.state.get('current_parameters', {})
-    
-    llm_request.contents.append(Content(role='user', parts=[Part(text=f"Current task is: {current_parameters['prompt']}")]))
 
-    input_paths = current_parameters.get("input_paths", current_parameters.get("input_path", []))
-    if isinstance(input_paths, str):
-        input_paths = [input_paths]
+class KnowledgeAgentParameters(BaseModel):
+    """Structured request contract read from ``current_parameters``."""
 
-    if len(input_paths) == 0:
+    model_config = {"extra": "ignore"}
+
+    prompt: str = Field(description="The design or image-generation task to analyze.")
+    input_paths: list[str] = Field(
+        default_factory=list,
+        description="Optional workspace-relative reference image paths.",
+    )
+
+    @model_validator(mode="before")
+    @classmethod
+    def _support_legacy_input_path(cls, value: Any) -> Any:
+        """Map legacy ``input_path`` into the normalized ``input_paths`` field."""
+        if not isinstance(value, dict):
+            return value
+        data = dict(value)
+        if "input_paths" not in data and "input_path" in data:
+            data["input_paths"] = data.get("input_path")
+        return data
+
+    @field_validator("prompt", mode="before")
+    @classmethod
+    def _strip_prompt(cls, value: Any) -> str:
+        """Strip the prompt while preserving the existing empty-prompt behavior."""
+        return clean_string(value)
+
+    @field_validator("input_paths", mode="before")
+    @classmethod
+    def _normalize_input_paths(cls, value: Any) -> list[str]:
+        """Normalize reference image path input."""
+        return as_non_empty_string_list(value)
+
+
+class KnowledgeAgentOutput(BaseModel):
+    """Structured ``current_output`` contract emitted by ``KnowledgeAgent``."""
+
+    status: Literal["success", "error"]
+    message: str
+    output_text: str | None = None
+
+    @field_validator("message", mode="before")
+    @classmethod
+    def _strip_message(cls, value: Any) -> str:
+        """Normalize the user-visible status message."""
+        return clean_string(value)
+
+    def to_current_output(self) -> dict[str, Any]:
+        """Convert to the stable dictionary contract stored in session state."""
+        return current_output_dict(self)
+
+
+def _parse_knowledge_parameters(raw_parameters: Any) -> KnowledgeAgentParameters | None:
+    """Parse session parameters without raising from ADK callbacks."""
+    try:
+        return KnowledgeAgentParameters.model_validate(raw_parameters or {})
+    except ValidationError:
+        return None
+
+
+async def knowledge_before_model_callback(callback_context: CallbackContext, llm_request: LlmRequest) -> None:
+    """Attach the structured KnowledgeAgent request to the child LLM call."""
+    current_parameters = _parse_knowledge_parameters(callback_context.state.get("current_parameters", {}))
+    if current_parameters is None:
         return
-    
-    file_parts = [Part(text="Here are some workspace pictures you can refer to: \n")]
-    for i, file_path in enumerate(input_paths):
-        file_parts.append(Part(text=f"image{i+1}, path: {file_path}"))
-        file_parts.append(load_local_file_part(file_path))
-    
-    llm_request.contents.append(Content(role='user', parts=file_parts))
 
-    return
+    if current_parameters.prompt:
+        llm_request.contents.append(
+            Content(role="user", parts=[Part(text=f"Current task is: {current_parameters.prompt}")])
+        )
+
+    if not current_parameters.input_paths:
+        return
+
+    file_parts = [Part(text="Here are some workspace pictures you can refer to: \n")]
+    for i, file_path in enumerate(current_parameters.input_paths):
+        file_parts.append(Part(text=f"image{i + 1}, path: {file_path}"))
+        file_parts.append(load_local_file_part(file_path))
+
+    llm_request.contents.append(Content(role="user", parts=file_parts))
 
 
 
@@ -49,13 +112,13 @@ class KnowledgeAgent(BaseAgent):
     def __init__(
         self,
         name: str,
-        description: str = '',
-        llm_model:str = ''
+        description: str = "",
+        llm_model: str = "",
     ):
         if not llm_model:
             llm_model = SYS_CONFIG.llm_model
         logger.info(f"KnowledgeAgent: using llm: {resolve_llm_model_name(llm_model)}")
-        description = 'Analyze input requirement, output refined design scheme or enhanced prompt'
+        description = "Analyze input requirement, output refined design scheme or enhanced prompt"
 
         # The LLM does not automatically receive prior session content.
         llm = LlmAgent(
@@ -68,22 +131,23 @@ class KnowledgeAgent(BaseAgent):
         )
         
         super().__init__(
-            name = name,
+            name=name,
             description=description,
             llm=llm,
         )
 
     async def _run_async_impl(self, ctx: InvocationContext) -> AsyncGenerator[Event, None]:
-        current_parameters = ctx.session.state.get('current_parameters', {})
-        if 'prompt' not in current_parameters:
+        """Run the knowledge LLM and persist a structured ``current_output``."""
+        current_parameters = _parse_knowledge_parameters(ctx.session.state.get("current_parameters", {}))
+        if current_parameters is None:
             error_text = f"Missing parameters provided to {self.name}, must include: prompt"
-            current_output = {"status": "error", "message": error_text}
+            current_output = KnowledgeAgentOutput(status="error", message=error_text).to_current_output()
             logger.error(error_text)
 
             yield Event(
                 author=self.name,
-                content=Content(role='model', parts=[Part(text=error_text)]),
-                actions=EventActions(state_delta={"current_output":current_output})
+                content=Content(role="model", parts=[Part(text=error_text)]),
+                actions=EventActions(state_delta={"current_output": current_output}),
             )
             return
         
@@ -96,22 +160,26 @@ class KnowledgeAgent(BaseAgent):
                 generated_text = next((part.text for part in event.content.parts if part.text), None)
                 if not generated_text:
                     continue
-                yield event # model response will be appended to session
+                yield event  # model response will be appended to session
                 text_list.append(generated_text)
 
-        if len(text_list)==0:
+        if len(text_list) == 0:
             message = f"{self.name} generate response failed"
             logger.error(message)
-            current_output = {'status': 'error', 'message': message}
+            current_output = KnowledgeAgentOutput(status="error", message=message).to_current_output()
         else:
             message = f"{self.name} has completed the design."
-            output_text = '\n'.join(text_list)
-            current_output = {'status': 'success', 'message': message, 'output_text': output_text}
+            output_text = "\n".join(text_list)
+            current_output = KnowledgeAgentOutput(
+                status="success",
+                message=message,
+                output_text=output_text,
+            ).to_current_output()
         
         yield Event(
-            author='KnowledgeAgent',
-            content=Content(role='model', parts=[Part(text=message)]),          
-            actions=EventActions(state_delta={'current_output':current_output})
+            author="KnowledgeAgent",
+            content=Content(role="model", parts=[Part(text=message)]),
+            actions=EventActions(state_delta={"current_output": current_output}),
         )
 
 

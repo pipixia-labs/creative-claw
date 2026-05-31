@@ -13,13 +13,8 @@ from pathlib import Path
 from typing import Any
 
 from google.adk.agents import BaseAgent, LlmAgent
-from google.adk.apps import App
-from google.adk.artifacts import BaseArtifactService, InMemoryArtifactService
-from google.adk.memory import InMemoryMemoryService
-from google.adk.runners import Runner
-from google.adk.sessions import InMemorySessionService
+from google.adk.artifacts import BaseArtifactService
 from google.adk.tools.tool_context import ToolContext
-from google.genai.types import Content, Part
 
 from conf.llm import build_llm
 from src.productions.ppt.routes.svg.native_converter import (
@@ -32,6 +27,7 @@ from src.productions.ppt.routes.svg.native_converter import (
     validate_svg_content,
     validate_svg_file,
 )
+from src.runtime.agent_tool_transport import run_agent_tool, supports_agent_tool_context
 from src.productions.ppt.schemas import (
     ConfirmedRequirement,
     DeckContentPlan,
@@ -47,7 +43,6 @@ from src.productions.ppt.templates.svg import (
     SvgLayoutTemplateMatch,
     select_svg_layout_template_match,
 )
-from src.runtime.tool_context_artifact_service import ToolContextArtifactService
 from src.runtime.workspace import resolve_workspace_path, workspace_relative_path
 
 PPT_DESIGN_STRATEGY_EXPERT_NAME = "PptDesignStrategyExpert"
@@ -458,7 +453,11 @@ async def build_svg_design_strategy_with_agent(
         content_plan=content_plan,
         template_match=template_match,
     )
-    if tool_context is None or not hasattr(tool_context, "_invocation_context") or design_strategy_agent is None:
+    if (
+        tool_context is None
+        or not _supports_agent_tool_context(tool_context)
+        or design_strategy_agent is None
+    ):
         _persist_svg_design_to_state(tool_context, fallback)
         return fallback
 
@@ -531,7 +530,11 @@ async def generate_svg_pages_with_agent(
     svg_executor_agent: BaseAgent | None,
 ) -> SvgPageGenerationResult:
     """Generate SVG pages through an ADK expert, falling back deterministically."""
-    if tool_context is None or not hasattr(tool_context, "_invocation_context") or svg_executor_agent is None:
+    if (
+        tool_context is None
+        or not _supports_agent_tool_context(tool_context)
+        or svg_executor_agent is None
+    ):
         return generate_svg_pages(content_plan=content_plan, design_stage=design_stage, paths=paths)
 
     try:
@@ -916,21 +919,9 @@ async def _run_svg_design_strategy_agent(
     design_strategy_agent: BaseAgent,
 ) -> SvgDesignStrategyResult:
     """Run the design-strategy child expert and return saved strategy state."""
-    invocation_context = tool_context._invocation_context
-    child_session_service = InMemorySessionService()
-    child_artifact_service = _resolve_child_artifact_service(
-        tool_context=tool_context,
-        fallback_service=artifact_service or InMemoryArtifactService(),
-    )
-    child_runner = _build_child_runner(
-        agent=design_strategy_agent,
-        app_name=app_name,
-        session_service=child_session_service,
-        artifact_service=child_artifact_service,
-        invocation_context=invocation_context,
-    )
-    child_state = _copy_state(tool_context.state)
-    child_state.update(
+    # AgentTool inherits app and artifact context from the parent invocation.
+    _ = app_name, artifact_service
+    tool_context.state.update(
         {
             "ppt_confirmed_requirement": requirement.model_dump(mode="json"),
             "ppt_deck_content_plan": content_plan.model_dump(mode="json"),
@@ -941,64 +932,44 @@ async def _run_svg_design_strategy_agent(
             PPT_SVG_ROUTE_OUTPUT_DIR_KEY: str(paths.output_dir),
         }
     )
-    try:
-        child_session = await child_session_service.create_session(
-            app_name=app_name,
-            user_id=invocation_context.user_id,
-            state=child_state,
-        )
-        async for _event in child_runner.run_async(
-            user_id=child_session.user_id,
-            session_id=child_session.id,
-            new_message=Content(
-                role="user",
-                parts=[
-                    Part(
-                        text=_build_svg_design_strategy_user_message(
-                            requirement=requirement,
-                            content_plan=content_plan,
-                            fallback=fallback,
-                        )
-                    )
-                ],
-            ),
-        ):
-            pass
-        final_session = await child_session_service.get_session(
-            app_name=app_name,
-            user_id=child_session.user_id,
-            session_id=child_session.id,
-        )
-        final_state = final_session.state if final_session is not None else child_state
-        confirmation = PptDesignConfirmation.model_validate(
-            final_state.get(PPT_DESIGN_CONFIRMATION_STATE_KEY) or fallback.confirmation
-        )
-        strategy = PptDesignStrategy.model_validate(
-            final_state.get(PPT_DESIGN_STRATEGY_STATE_KEY) or fallback.strategy
-        )
-        execution_plan = PptSvgExecutionPlan.model_validate(
-            final_state.get(PPT_SVG_EXECUTION_PLAN_STATE_KEY) or fallback.execution_plan
-        )
-        for key in (
-            PPT_DESIGN_CONFIRMATION_STATE_KEY,
-            PPT_DESIGN_STRATEGY_STATE_KEY,
-            PPT_SVG_EXECUTION_PLAN_STATE_KEY,
-            PPT_SVG_LAYOUT_TEMPLATE_SELECTION_KEY,
-            PPT_SVG_DESIGN_AGENT_MESSAGE_KEY,
-        ):
-            if key in final_state:
-                tool_context.state[key] = copy.deepcopy(final_state[key])
-        return SvgDesignStrategyResult(
-            confirmation=confirmation,
-            strategy=strategy,
-            execution_plan=execution_plan,
-            template_selection=copy.deepcopy(
-                final_state.get(PPT_SVG_LAYOUT_TEMPLATE_SELECTION_KEY) or fallback.template_selection
-            ),
-            generation_mode="llm_agent_design_strategy",
-        )
-    finally:
-        await child_runner.close()
+    await _run_svg_route_agent_tool(
+        agent=design_strategy_agent,
+        request=_build_svg_design_strategy_user_message(
+            requirement=requirement,
+            content_plan=content_plan,
+            fallback=fallback,
+        ),
+        tool_context=tool_context,
+    )
+    final_state = _copy_state(tool_context.state)
+    confirmation = PptDesignConfirmation.model_validate(
+        final_state.get(PPT_DESIGN_CONFIRMATION_STATE_KEY) or fallback.confirmation
+    )
+    strategy = PptDesignStrategy.model_validate(
+        final_state.get(PPT_DESIGN_STRATEGY_STATE_KEY) or fallback.strategy
+    )
+    execution_plan = PptSvgExecutionPlan.model_validate(
+        final_state.get(PPT_SVG_EXECUTION_PLAN_STATE_KEY) or fallback.execution_plan
+    )
+    for key in (
+        PPT_DESIGN_CONFIRMATION_STATE_KEY,
+        PPT_DESIGN_STRATEGY_STATE_KEY,
+        PPT_SVG_EXECUTION_PLAN_STATE_KEY,
+        PPT_SVG_LAYOUT_TEMPLATE_SELECTION_KEY,
+        PPT_SVG_DESIGN_AGENT_MESSAGE_KEY,
+    ):
+        if key in final_state:
+            tool_context.state[key] = copy.deepcopy(final_state[key])
+    return SvgDesignStrategyResult(
+        confirmation=confirmation,
+        strategy=strategy,
+        execution_plan=execution_plan,
+        template_selection=copy.deepcopy(
+            final_state.get(PPT_SVG_LAYOUT_TEMPLATE_SELECTION_KEY)
+            or fallback.template_selection
+        ),
+        generation_mode="llm_agent_design_strategy",
+    )
 
 
 async def _run_svg_deck_executor_agent(
@@ -1013,21 +984,9 @@ async def _run_svg_deck_executor_agent(
     svg_executor_agent: BaseAgent,
 ) -> SvgPageGenerationResult:
     """Run the SVG deck executor child expert and return saved page artifacts."""
-    invocation_context = tool_context._invocation_context
-    child_session_service = InMemorySessionService()
-    child_artifact_service = _resolve_child_artifact_service(
-        tool_context=tool_context,
-        fallback_service=artifact_service or InMemoryArtifactService(),
-    )
-    child_runner = _build_child_runner(
-        agent=svg_executor_agent,
-        app_name=app_name,
-        session_service=child_session_service,
-        artifact_service=child_artifact_service,
-        invocation_context=invocation_context,
-    )
-    child_state = _copy_state(tool_context.state)
-    child_state.update(
+    # AgentTool inherits app and artifact context from the parent invocation.
+    _ = app_name, artifact_service
+    tool_context.state.update(
         {
             "ppt_confirmed_requirement": requirement.model_dump(mode="json"),
             "ppt_deck_content_plan": content_plan.model_dump(mode="json"),
@@ -1040,54 +999,36 @@ async def _run_svg_deck_executor_agent(
             PPT_SVG_ROUTE_GENERATED_PAGES_KEY: [],
         }
     )
-    try:
-        child_session = await child_session_service.create_session(
-            app_name=app_name,
-            user_id=invocation_context.user_id,
-            state=child_state,
-        )
-        async for _event in child_runner.run_async(
-            user_id=child_session.user_id,
-            session_id=child_session.id,
-            new_message=Content(
-                role="user",
-                parts=[
-                    Part(
-                        text=_build_svg_executor_user_message(
-                            requirement=requirement,
-                            content_plan=content_plan,
-                            design_stage=design_stage,
-                        )
-                    )
-                ],
-            ),
-        ):
-            pass
-        final_session = await child_session_service.get_session(
-            app_name=app_name,
-            user_id=child_session.user_id,
-            session_id=child_session.id,
-        )
-        final_state = final_session.state if final_session is not None else child_state
-        pages = _normalize_svg_page_results(
-            final_state.get(PPT_SVG_ROUTE_GENERATED_PAGES_KEY) or [],
+    await _run_svg_route_agent_tool(
+        agent=svg_executor_agent,
+        request=_build_svg_executor_user_message(
+            requirement=requirement,
             content_plan=content_plan,
+            design_stage=design_stage,
+        ),
+        tool_context=tool_context,
+    )
+    final_state = _copy_state(tool_context.state)
+    pages = _normalize_svg_page_results(
+        final_state.get(PPT_SVG_ROUTE_GENERATED_PAGES_KEY) or [],
+        content_plan=content_plan,
+    )
+    if not pages:
+        raise ValueError(
+            f"{getattr(svg_executor_agent, 'name', PPT_SVG_DECK_EXECUTOR_EXPERT_NAME)} "
+            "did not save SVG pages."
         )
-        if not pages:
-            raise ValueError(f"{getattr(svg_executor_agent, 'name', PPT_SVG_DECK_EXECUTOR_EXPERT_NAME)} did not save SVG pages.")
-        tool_context.state[PPT_SVG_ROUTE_GENERATED_PAGES_KEY] = [
-            page.model_dump(mode="json") for page in pages
-        ]
-        if final_state.get(PPT_SVG_EXECUTOR_AGENT_MESSAGE_KEY):
-            tool_context.state[PPT_SVG_EXECUTOR_AGENT_MESSAGE_KEY] = str(
-                final_state.get(PPT_SVG_EXECUTOR_AGENT_MESSAGE_KEY)
-            )
-        return SvgPageGenerationResult(
-            svg_pages=pages,
-            generation_mode="llm_agent_svg",
+    tool_context.state[PPT_SVG_ROUTE_GENERATED_PAGES_KEY] = [
+        page.model_dump(mode="json") for page in pages
+    ]
+    if final_state.get(PPT_SVG_EXECUTOR_AGENT_MESSAGE_KEY):
+        tool_context.state[PPT_SVG_EXECUTOR_AGENT_MESSAGE_KEY] = str(
+            final_state.get(PPT_SVG_EXECUTOR_AGENT_MESSAGE_KEY)
         )
-    finally:
-        await child_runner.close()
+    return SvgPageGenerationResult(
+        svg_pages=pages,
+        generation_mode="llm_agent_svg",
+    )
 
 
 def _build_svg_route_package(
@@ -1526,44 +1467,19 @@ def _copy_state(state: Any) -> dict[str, Any]:
     return copy.deepcopy(dict(state))
 
 
-def _resolve_child_artifact_service(
-    *,
-    tool_context: ToolContext,
-    fallback_service: BaseArtifactService,
-) -> BaseArtifactService:
-    """Pick the artifact service for an internal route runner."""
-    required_methods = ("save_artifact", "load_artifact", "list_artifacts")
-    if all(hasattr(tool_context, method_name) for method_name in required_methods):
-        return ToolContextArtifactService(tool_context)
-    return fallback_service
+def _supports_agent_tool_context(tool_context: ToolContext) -> bool:
+    """Return whether the context can safely run an ADK AgentTool child agent."""
+    return supports_agent_tool_context(tool_context)
 
 
-def _build_child_runner(
+async def _run_svg_route_agent_tool(
     *,
     agent: BaseAgent,
-    app_name: str,
-    session_service: InMemorySessionService,
-    artifact_service: BaseArtifactService,
-    invocation_context: Any,
-) -> Runner:
-    """Create a child ADK runner for SVG route experts."""
-    child_plugins = getattr(getattr(invocation_context, "plugin_manager", None), "plugins", None)
-    runner_kwargs = {
-        "app_name": app_name,
-        "session_service": session_service,
-        "artifact_service": artifact_service,
-        "memory_service": InMemoryMemoryService(),
-        "credential_service": getattr(invocation_context, "credential_service", None),
-    }
-    if child_plugins:
-        runner_kwargs["app"] = App(
-            name=app_name,
-            root_agent=agent,
-            plugins=list(child_plugins),
-        )
-    else:
-        runner_kwargs["agent"] = agent
-    return Runner(**runner_kwargs)
+    request: str,
+    tool_context: ToolContext,
+) -> None:
+    """Run one SVG route expert through ADK AgentTool."""
+    await run_agent_tool(agent=agent, request=request, tool_context=tool_context)
 
 
 def _append_svg_route_warning(state: Any, warning: str) -> None:

@@ -1,19 +1,17 @@
-from typing import Any, AsyncGenerator, ByteString, Dict, List
-import asyncio
+from typing import Any, AsyncGenerator, Dict
 import base64
 import os
 from io import BytesIO
 
-import httpx
 from PIL import Image
 
 from google.adk.agents import LlmAgent
-from google.adk.agents.callback_context import CallbackContext
-from google.adk.models import LlmRequest
 from google.adk.tools import ToolContext
-from google.genai.types import Blob, Content, Part
+from google.genai.types import Blob, Part
 
 from src.logger import logger
+from src.runtime.adk_compat import get_invocation_context, has_invocation_context
+from src.runtime.llm_oneshot import run_oneshot_llm
 from src.runtime.workspace import resolve_workspace_path
  
 
@@ -153,9 +151,9 @@ async def nano_banana_image_edit_tool(tool_context: ToolContext, enhance_prompt_
         input_paths = [input_paths]
     if isinstance(prompt, str): prompt = [prompt]
 
-    invocation_ctx = getattr(tool_context, "_invocation_context", None)
-    if invocation_ctx is None:
+    if not has_invocation_context(tool_context):
         return {"status": "error", "message": "ToolContext missing invocation context"}
+    invocation_ctx = get_invocation_context(tool_context)
 
     img_binary_list = []
     for file_path in input_paths or []:
@@ -177,38 +175,26 @@ async def nano_banana_image_edit_tool(tool_context: ToolContext, enhance_prompt_
             for img in img_binary_list:
                 input_images.append(Image.open(BytesIO(img)))
 
-            def before_model_callback(callback_context: CallbackContext, llm_request: LlmRequest):
-                user_parts: list[Part] = [Part(text=p)]
-                for img_obj in input_images:
-                    buffer = BytesIO()
-                    img_obj.save(buffer, format="PNG")
-                    user_parts.append(
-                        Part(inline_data=Blob(mime_type="image/png", data=buffer.getvalue()))
-                    )
-                llm_request.contents.append(Content(role="user", parts=user_parts))
+            user_parts: list[Part] = [Part(text=p)]
+            for img_obj in input_images:
+                buffer = BytesIO()
+                img_obj.save(buffer, format="PNG")
+                user_parts.append(
+                    Part(inline_data=Blob(mime_type="image/png", data=buffer.getvalue()))
+                )
 
-            llm = LlmAgent(
+            llm_result = await run_oneshot_llm(
+                invocation_ctx,
                 name="image_editing_nano_banana",
                 model="gemini-3.1-flash-image-preview", # "gemini-3-pro-image-preview",
                 instruction="Edit image(s) according to prompt.",
-                include_contents="none",
-                before_model_callback=before_model_callback,
+                user_parts=user_parts,
+                agent_cls=LlmAgent,
             )
 
-            text_message = ''
-            img_message = ''
+            text_message = llm_result.text
+            img_message = llm_result.image_data or ''
             usage = None
-            async for event in llm.run_async(invocation_ctx):
-                parsed_usage = parse_usage_obj(event)
-                if parsed_usage:
-                    usage = parsed_usage
-                if not event.content or not event.content.parts:
-                    continue
-                for part in event.content.parts:
-                    if part.text is not None:
-                        text_message = part.text
-                    elif part.inline_data is not None:
-                        img_message = part.inline_data.data
             if img_message is not None:
                 # result = {'status': "success", "message": img_message}
                 success_num = success_num + 1

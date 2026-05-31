@@ -7,8 +7,16 @@ from pathlib import Path
 from types import SimpleNamespace
 from unittest.mock import AsyncMock, patch
 
-from src.agents.experts.image_editing.image_editing_agent import ImageEditingAgent
-from src.agents.experts.image_generation.image_generation_agent import ImageGenerationAgent
+from src.agents.experts.image_editing.image_editing_agent import (
+    ImageEditingAgent,
+    ImageEditingOutput,
+    ImageEditingParameters,
+)
+from src.agents.experts.image_generation.image_generation_agent import (
+    ImageGenerationAgent,
+    ImageGenerationOutput,
+    ImageGenerationParameters,
+)
 from src.agents.experts.image_editing import tool as editing_tools
 from src.agents.experts.image_generation import tool as generation_tools
 from src.runtime.workspace import workspace_root
@@ -22,10 +30,58 @@ def _build_ctx(state: dict) -> SimpleNamespace:
             user_id="user_1",
             id="session_1",
         ),
+        _state_schema=None,
     )
 
 
 class ImageExpertProviderTests(unittest.IsolatedAsyncioTestCase):
+    def test_image_generation_parameters_normalize_provider_and_dashscope_options(self) -> None:
+        parameters = ImageGenerationParameters.model_validate(
+            {
+                "prompt": (" draw a cat ", "draw a dog"),
+                "provider": " DASHSCOPE ",
+                "model_name": "qwen-image-2.0-pro",
+                "size": "2048*2048",
+                "negative_prompt": " blur ",
+                "prompt_extend": "yes",
+                "watermark": "1",
+                "thinking_mode": "off",
+            }
+        )
+
+        self.assertEqual(parameters.prompts, ["draw a cat", "draw a dog"])
+        self.assertEqual(parameters.provider, "dashscope")
+        self.assertEqual(parameters.dashscope_model_name, "qwen-image-2.0-pro")
+        self.assertEqual(parameters.dashscope_size, "2048*2048")
+        self.assertEqual(parameters.dashscope_negative_prompt, "blur")
+        self.assertTrue(parameters.dashscope_prompt_extend)
+        self.assertTrue(parameters.dashscope_watermark)
+        self.assertFalse(parameters.dashscope_thinking_mode)
+
+    def test_image_generation_output_omits_missing_output_files(self) -> None:
+        output = ImageGenerationOutput(status="ERROR", message=" failed ").to_current_output()
+
+        self.assertEqual(output, {"status": "error", "message": "failed"})
+
+    def test_image_editing_parameters_normalize_prompt_and_provider(self) -> None:
+        parameters = ImageEditingParameters.model_validate(
+            {
+                "input_path": "inbox/cli/session_1/a.png",
+                "prompt": " make it blue ",
+                "provider": " SEEDREAM ",
+            }
+        )
+
+        self.assertEqual(parameters.raw_input_paths, "inbox/cli/session_1/a.png")
+        self.assertEqual(parameters.prompt_list, ["make it blue"])
+        self.assertEqual(parameters.provider, "seedream")
+        self.assertFalse(parameters.missing_required_fields)
+
+    def test_image_editing_output_omits_missing_output_files(self) -> None:
+        output = ImageEditingOutput(status="ERROR", message=" failed ").to_current_output()
+
+        self.assertEqual(output, {"status": "error", "message": "failed"})
+
     async def test_image_generation_uses_nano_banana_by_default(self) -> None:
         agent = ImageGenerationAgent(name="ImageGenerationAgent")
         ctx = _build_ctx({"current_parameters": {"prompt": "draw a cat"}, "step": 0})

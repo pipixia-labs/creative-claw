@@ -4,13 +4,132 @@ from typing import Any, AsyncGenerator
 
 from google.adk.agents.invocation_context import InvocationContext
 from google.adk.events import Event
+from pydantic import BaseModel, Field, field_validator, model_validator
 
 from src.agents.experts.base import CreativeExpert
 from src.agents.experts.image_understanding.tool import image_to_text_tool
+from src.agents.experts.schema_utils import (
+    as_non_empty_string_list,
+    clean_string,
+    current_output_dict,
+)
 from src.logger import logger
 
 
 _SUPPORTED_MODES = {"description", "style", "ocr", "all", "prompt"}
+
+
+class ImageUnderstandingParameters(BaseModel):
+    """Structured request contract read from ``current_parameters``."""
+
+    model_config = {"extra": "ignore"}
+
+    input_paths: list[str] = Field(default_factory=list)
+    mode: list[str] = Field(default_factory=list)
+
+    @model_validator(mode="before")
+    @classmethod
+    def _support_single_input_path(cls, value: Any) -> Any:
+        """Map legacy ``input_path`` onto the canonical ``input_paths`` list."""
+        if not isinstance(value, dict):
+            return {}
+        payload = dict(value)
+        if "input_paths" not in payload and "input_path" in payload:
+            payload["input_paths"] = payload["input_path"]
+        return payload
+
+    @field_validator("input_paths", mode="before")
+    @classmethod
+    def _normalize_input_paths(cls, value: Any) -> list[str]:
+        """Normalize image path inputs."""
+        return as_non_empty_string_list(value)
+
+    @field_validator("mode", mode="before")
+    @classmethod
+    def _normalize_modes(cls, value: Any) -> list[str]:
+        """Normalize mode inputs into lowercase values."""
+        return [item.lower() for item in as_non_empty_string_list(value)]
+
+    def modes_for_inputs(self) -> list[str]:
+        """Return modes expanded to match the number of input paths when possible."""
+        modes = list(self.mode)
+        if len(modes) == 1 and len(self.input_paths) > 1:
+            return modes * len(self.input_paths)
+        return modes
+
+
+class ImageUnderstandingResultItem(BaseModel):
+    """One normalized image-understanding result item."""
+
+    input_path: str
+    mode: str
+    status: str = "error"
+    message: str = ""
+    analysis_text: str = ""
+    basic_info: str = ""
+    provider: str = ""
+    model_name: str = ""
+
+    @field_validator(
+        "input_path",
+        "mode",
+        "status",
+        "message",
+        "analysis_text",
+        "basic_info",
+        "provider",
+        "model_name",
+        mode="before",
+    )
+    @classmethod
+    def _strip_text(cls, value: Any) -> str:
+        """Strip text output fields."""
+        return clean_string(value)
+
+    @field_validator("status")
+    @classmethod
+    def _normalize_status(cls, value: str) -> str:
+        """Normalize result status casing."""
+        return value.lower() or "error"
+
+    def to_result_dict(self) -> dict[str, Any]:
+        """Return the stable dictionary item stored in session state."""
+        return self.model_dump(mode="python")
+
+
+class ImageUnderstandingOutput(BaseModel):
+    """Structured ``current_output`` contract emitted by ``ImageUnderstandingAgent``."""
+
+    model_config = {"extra": "allow"}
+
+    status: str
+    message: str
+    message_for_user: str | None = None
+    output_text: str | None = None
+    results: list[dict[str, Any]] | None = None
+
+    @field_validator("status", "message", "message_for_user", "output_text", mode="before")
+    @classmethod
+    def _strip_text(cls, value: Any) -> str | None:
+        """Strip optional output text fields."""
+        if value is None:
+            return None
+        return clean_string(value)
+
+    @field_validator("status")
+    @classmethod
+    def _normalize_status(cls, value: str) -> str:
+        """Normalize output status casing."""
+        return value.lower() or "error"
+
+    def to_current_output(self) -> dict[str, Any]:
+        """Return the stable dictionary payload stored in session state."""
+        return current_output_dict(self)
+
+
+def _parse_image_understanding_parameters(raw_parameters: Any) -> ImageUnderstandingParameters:
+    """Parse image-understanding session parameters into a structured contract."""
+    return ImageUnderstandingParameters.model_validate(raw_parameters or {})
 
 
 class ImageUnderstandingAgent(CreativeExpert):
@@ -43,42 +162,36 @@ class ImageUnderstandingAgent(CreativeExpert):
         """
 
         logger.info(f"[{self.name}] Starting understanding images.")
-        current_parameters = ctx.session.state.get('current_parameters', {})
-        if ('input_path' not in current_parameters and 'input_paths' not in current_parameters) or ('mode' not in current_parameters):
+        raw_parameters = ctx.session.state.get("current_parameters", {})
+        has_input_key = isinstance(raw_parameters, dict) and (
+            "input_path" in raw_parameters or "input_paths" in raw_parameters
+        )
+        has_mode_key = isinstance(raw_parameters, dict) and "mode" in raw_parameters
+        current_parameters = _parse_image_understanding_parameters(raw_parameters)
+        if not has_input_key or not has_mode_key:
             error_text = f"Missing parameters provided to {self.name}, must include: input_path or input_paths, mode"
-            current_output = {"status": "error", "message": error_text}
+            current_output = ImageUnderstandingOutput(status="error", message=error_text).to_current_output()
             logger.error(error_text)
 
             yield self.format_event(error_text, {"current_output":current_output})
             return
 
-        input_paths = current_parameters.get("input_paths", current_parameters.get("input_path"))
-        if isinstance(input_paths, str):
-            input_paths = [input_paths]
-        input_paths = [str(path).strip() for path in (input_paths or []) if str(path).strip()]
+        input_paths = current_parameters.input_paths
         if not input_paths:
             error_text = f"Missing image inputs provided to {self.name}."
-            current_output = {"status": "error", "message": error_text}
+            current_output = ImageUnderstandingOutput(status="error", message=error_text).to_current_output()
             logger.error(error_text)
             yield self.format_event(error_text, {"current_output": current_output})
             return
 
-        raw_modes = current_parameters.get("mode")
-        if isinstance(raw_modes, str):
-            modes = [raw_modes.strip().lower()] * len(input_paths)
-        elif isinstance(raw_modes, list):
-            modes = [str(mode).strip().lower() for mode in raw_modes if str(mode).strip()]
-            if len(modes) == 1 and len(input_paths) > 1:
-                modes = modes * len(input_paths)
-        else:
-            modes = []
+        modes = current_parameters.modes_for_inputs()
 
         if len(modes) != len(input_paths):
             error_text = (
                 f"Invalid parameters provided to {self.name}: `mode` must contain exactly one value "
                 f"or match the number of input images ({len(input_paths)})."
             )
-            current_output = {"status": "error", "message": error_text}
+            current_output = ImageUnderstandingOutput(status="error", message=error_text).to_current_output()
             logger.error(error_text)
             yield self.format_event(error_text, {"current_output": current_output})
             return
@@ -89,7 +202,7 @@ class ImageUnderstandingAgent(CreativeExpert):
                 f"Invalid mode provided to {self.name}: {invalid_modes}. "
                 f"Supported modes are: {sorted(_SUPPORTED_MODES)}."
             )
-            current_output = {"status": "error", "message": error_text}
+            current_output = ImageUnderstandingOutput(status="error", message=error_text).to_current_output()
             logger.error(error_text)
             yield self.format_event(error_text, {"current_output": current_output})
             return
@@ -104,12 +217,12 @@ class ImageUnderstandingAgent(CreativeExpert):
         for path, mode, result in zip(input_paths, modes, result_list):
             if isinstance(result, Exception):
                 structured_results.append(
-                    {
-                        "input_path": path,
-                        "mode": mode,
-                        "status": "error",
-                        "message": f"{type(result).__name__}: {result}",
-                    }
+                    ImageUnderstandingResultItem(
+                        input_path=path,
+                        mode=mode,
+                        status="error",
+                        message=f"{type(result).__name__}: {result}",
+                    ).to_result_dict()
                 )
                 error_message_list.append(
                     f"image {path} {mode} failed, reason: {type(result).__name__}: {result}\n"
@@ -118,16 +231,16 @@ class ImageUnderstandingAgent(CreativeExpert):
             status = str(result.get("status", "")).strip().lower()
             message = str(result.get("message", "")).strip()
             structured_results.append(
-                {
-                    "input_path": str(result.get("input_path", path)).strip() or path,
-                    "mode": str(result.get("mode", mode)).strip() or mode,
-                    "status": status or "error",
-                    "message": message,
-                    "analysis_text": str(result.get("analysis_text", "")).strip(),
-                    "basic_info": str(result.get("basic_info", "")).strip(),
-                    "provider": str(result.get("provider", "")).strip(),
-                    "model_name": str(result.get("model_name", "")).strip(),
-                }
+                ImageUnderstandingResultItem(
+                    input_path=str(result.get("input_path", path)).strip() or path,
+                    mode=str(result.get("mode", mode)).strip() or mode,
+                    status=status or "error",
+                    message=message,
+                    analysis_text=result.get("analysis_text", ""),
+                    basic_info=result.get("basic_info", ""),
+                    provider=result.get("provider", ""),
+                    model_name=result.get("model_name", ""),
+                ).to_result_dict()
             )
             if status == 'success':
                 success_message_list.append(f"image {path} {mode}: {message}\n")
@@ -136,12 +249,12 @@ class ImageUnderstandingAgent(CreativeExpert):
 
         if len(error_message_list) == count:
             error_text = f"All {count} images description failed:\n\n" + '\n'.join(error_message_list)
-            current_output = {
-                "status": "error",
-                "message": error_text,
-                "message_for_user": error_text,
-                "results": structured_results,
-            }
+            current_output = ImageUnderstandingOutput(
+                status="error",
+                message=error_text,
+                message_for_user=error_text,
+                results=structured_results,
+            ).to_current_output()
             logger.error(error_text)
             yield self.format_event(
                 error_text,
@@ -155,13 +268,13 @@ class ImageUnderstandingAgent(CreativeExpert):
         message = f"Finished understanding {count} images with {len(success_message_list)} successful analyses.\n\n"
         output_text = message + '\n'.join(success_message_list + error_message_list)
 
-        current_output = {
-            "status": "success",
-            "message": message,
-            "message_for_user": message.strip(),
-            'output_text': output_text,
-            "results": structured_results,
-        }
+        current_output = ImageUnderstandingOutput(
+            status="success",
+            message=message,
+            message_for_user=message.strip(),
+            output_text=output_text,
+            results=structured_results,
+        ).to_current_output()
 
         yield self.format_event(
             output_text,
@@ -171,3 +284,11 @@ class ImageUnderstandingAgent(CreativeExpert):
             },
         )
         return
+
+
+__all__ = [
+    "ImageUnderstandingAgent",
+    "ImageUnderstandingOutput",
+    "ImageUnderstandingParameters",
+    "ImageUnderstandingResultItem",
+]

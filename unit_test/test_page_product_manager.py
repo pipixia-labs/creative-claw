@@ -7,7 +7,13 @@ from typing import Any
 from types import SimpleNamespace
 from unittest.mock import AsyncMock, patch
 
+from google.adk import Context, Workflow
 from google.adk.agents import LlmAgent
+from google.adk.artifacts import InMemoryArtifactService
+from google.adk.runners import Runner
+from google.adk.sessions import InMemorySessionService
+from google.adk.workflow import node
+from google.genai.types import Content, Part
 from pydantic import PrivateAttr
 
 from src.agents.experts.base import CreativeExpert
@@ -23,6 +29,8 @@ from src.productions.page.page_product_manager import (
     TEMPLATES_HTML_DIR,
     PageCodeGenerationAgent,
     PageProductManager,
+    PageProductRequest,
+    PageProductResult,
     ProductPageSkillRegistry,
     build_page_code_generation_constraints,
     build_page_code_generation_prompt,
@@ -30,6 +38,7 @@ from src.productions.page.page_product_manager import (
     load_page_templates_from_directory,
     select_page_template_match,
 )
+from src.productions.page.page_product_manager.page_product_manager import PAGE_PRODUCT_REQUEST_STATE_KEY
 from src.productions.page.page_product_manager import page_artifact_visual_validation
 from src.runtime.workspace import build_generated_output_path, resolve_workspace_path, workspace_relative_path
 from src.skills.registry import SkillRegistry
@@ -77,7 +86,63 @@ class _FakeImageGenerationAgent(CreativeExpert):
         yield self.format_event("Generated fake page image.", {"current_output": current_output})
 
 
+class _FakeState(dict):
+    """Minimal ADK state double for AgentTool-based product tests."""
+
+    def to_dict(self) -> dict[str, Any]:
+        """Return a plain dictionary snapshot."""
+        return dict(self)
+
+
+def _build_page_tool_context(state: dict[str, Any], *, user_id: str) -> SimpleNamespace:
+    """Build a fake ToolContext with the ADK 2.1 fields AgentTool requires."""
+    return SimpleNamespace(
+        state=_FakeState(state),
+        _invocation_context=SimpleNamespace(
+            app_name="creative-claw-page-test",
+            user_id=user_id,
+            credential_service=None,
+            plugin_manager=SimpleNamespace(plugins=[]),
+        ),
+    )
+
+
 class PageProductManagerTests(unittest.TestCase):
+    def test_page_product_request_schema_normalizes_public_contract(self) -> None:
+        request = PageProductRequest.model_validate(
+            {
+                "task": " 做一张活动海报 ",
+                "inputs": [{"path": "generated/source.md"}],
+                "output": None,
+                "ignored": "value",
+            }
+        )
+
+        self.assertEqual(
+            request.to_state_dict(),
+            {
+                "task": "做一张活动海报",
+                "inputs": [{"path": "generated/source.md"}],
+                "output": {},
+            },
+        )
+
+    def test_page_product_result_schema_builds_stable_dict_contract(self) -> None:
+        result = PageProductResult(
+            status=" success ",
+            product_line="wrong",
+            message=" 页面已完成 ",
+            final_file_paths=["generated/page.html"],
+        ).to_result_dict()
+
+        self.assertEqual(result["result_schema_version"], PAGE_PRODUCT_RESULT_SCHEMA_VERSION)
+        self.assertEqual(result["status"], "success")
+        self.assertEqual(result["product_line"], "page")
+        self.assertEqual(result["message"], "页面已完成")
+        self.assertEqual(result["final_file_paths"], ["generated/page.html"])
+        self.assertEqual(result["supporting_file_paths"], [])
+        self.assertEqual(result["progress"], [])
+
     def test_page_product_manager_is_llm_agent_with_private_tools(self) -> None:
         manager = PageProductManager()
 
@@ -360,7 +425,7 @@ class PageProductManagerTests(unittest.TestCase):
         )
 
         with patch(
-            "src.productions.page.page_product_manager.page_product_manager.dispatch_expert_call",
+            "src.productions.page.page_product_manager.page_product_manager.dispatch_expert_request",
             new=mocked_dispatch,
         ):
             result = asyncio.run(
@@ -373,6 +438,12 @@ class PageProductManagerTests(unittest.TestCase):
 
         self.assertEqual(result, expected_tool_result)
         mocked_dispatch.assert_awaited_once()
+        forwarded_request = mocked_dispatch.await_args.args[0]
+        self.assertEqual(forwarded_request.agent_name, "CodeGenerationExpert")
+        self.assertEqual(
+            forwarded_request.prompt,
+            '{"prompt":"Build a long image page","language":"html"}',
+        )
         self.assertEqual(
             tool_context.state["page_product_last_expert_result"],
             expected_tool_result,
@@ -667,16 +738,111 @@ class PageProductManagerTests(unittest.TestCase):
         self.assertEqual(result["status"], "error")
         self.assertIn("ADK invocation context", result["message"])
 
-    def test_run_product_request_uses_sequential_pipeline_and_registers_delivery(self) -> None:
+    def test_run_product_request_uses_adk_workflow_context(self) -> None:
         manager = PageProductManager()
-        tool_context = SimpleNamespace(
-            state={
-                "sid": "page-sequential-pipeline-test",
+        generation_output = {
+            "status": "success",
+            "message": "Generated html code at generated/page-workflow.html.",
+            "output_path": "generated/page-workflow.html",
+            "output_files": [
+                {
+                    "path": "generated/page-workflow.html",
+                    "description": "Page artifact generated by PageCodeGenerationAgent.",
+                    "source": "page_code_generation_agent",
+                }
+            ],
+            "language": "html",
+            "error_type": "",
+            "retryable": False,
+            "raw_error_summary": "",
+            "warnings": [],
+        }
+        mocked_generation = AsyncMock(return_value=generation_output)
+
+        async def _run_page_harness():
+            @node(name="PageProductWorkflowHarnessNode", rerun_on_resume=True)
+            async def page_product_harness(ctx: Context, node_input: str) -> dict[str, Any]:
+                return await manager.run_product_request(
+                    task=node_input,
+                    output={"template_id": "data-report"},
+                    tool_context=ctx,
+                )
+
+            workflow = Workflow(
+                name="PageProductWorkflowHarness",
+                edges=[("START", page_product_harness)],
+            )
+            session_service = InMemorySessionService()
+            artifact_service = InMemoryArtifactService()
+            runner = Runner(
+                node=workflow,
+                session_service=session_service,
+                artifact_service=artifact_service,
+            )
+            user_id = "user-page-workflow"
+            session_id = "session-page-workflow"
+            try:
+                await session_service.create_session(
+                    app_name=workflow.name,
+                    user_id=user_id,
+                    session_id=session_id,
+                    state={
+                        "sid": "page-workflow-test",
+                        "turn_index": 1,
+                        "step": 0,
+                        "expert_step": 0,
+                    },
+                )
+                async for _ in runner.run_async(
+                    user_id=user_id,
+                    session_id=session_id,
+                    new_message=Content(
+                        role="user",
+                        parts=[Part(text="根据 CSV 数据做一个数据周报网页。")],
+                    ),
+                ):
+                    pass
+                return await session_service.get_session(
+                    app_name=workflow.name,
+                    user_id=user_id,
+                    session_id=session_id,
+                )
+            finally:
+                await runner.close()
+
+        with (
+            patch.object(PageCodeGenerationAgent, "run_generation", new=mocked_generation),
+            patch(
+                "src.productions.page.page_product_manager.page_product_manager._validate_one_page_artifact",
+                side_effect=AssertionError("Page workflow delivery should skip visual validation."),
+            ),
+        ):
+            session = asyncio.run(_run_page_harness())
+
+        result = session.state["page_product_result"]
+        self.assertEqual(result["status"], "success")
+        self.assertEqual(result["final_file_paths"], ["generated/page-workflow.html"])
+        self.assertEqual(session.state["final_file_paths"], ["generated/page-workflow.html"])
+        self.assertEqual(
+            session.state[PAGE_PRODUCT_TEMPLATE_SELECTION_STATE_KEY]["template_id"],
+            "data-report",
+        )
+        self.assertEqual(session.state[PAGE_PRODUCT_DRAFT_STATE_KEY]["status"], "success")
+        self.assertEqual(session.state[PAGE_PRODUCT_MATERIALS_STATE_KEY]["status"], "success")
+        self.assertEqual(session.state[PAGE_PRODUCT_FINAL_DRAFT_STATE_KEY]["status"], "success")
+        self.assertEqual(session.state[PAGE_PRODUCT_HTML_GENERATION_STATE_KEY]["status"], "success")
+        mocked_generation.assert_awaited_once()
+
+    def test_run_product_request_uses_fixed_pipeline_and_registers_delivery(self) -> None:
+        manager = PageProductManager()
+        tool_context = _build_page_tool_context(
+            {
+                "sid": "page-fixed-pipeline-test",
                 "turn_index": 1,
                 "step": 0,
                 "expert_step": 0,
             },
-            _invocation_context=SimpleNamespace(user_id="user-page-pipeline"),
+            user_id="user-page-pipeline",
         )
         generation_output = {
             "status": "success",
@@ -715,6 +881,14 @@ class PageProductManagerTests(unittest.TestCase):
         self.assertEqual(result["status"], "success")
         self.assertEqual(result["product_line"], "page")
         self.assertEqual(result["final_file_paths"], ["generated/page-pipeline.html"])
+        self.assertEqual(
+            tool_context.state[PAGE_PRODUCT_REQUEST_STATE_KEY],
+            {
+                "task": "根据 CSV 数据做一个数据周报网页。",
+                "inputs": [],
+                "output": {"template_id": "data-report"},
+            },
+        )
         self.assertEqual(tool_context.state["final_file_paths"], ["generated/page-pipeline.html"])
         self.assertEqual(
             tool_context.state[PAGE_PRODUCT_TEMPLATE_SELECTION_STATE_KEY]["template_id"],
@@ -748,14 +922,14 @@ class PageProductManagerTests(unittest.TestCase):
 
     def test_run_product_request_uses_freeform_generation_when_no_template_matches(self) -> None:
         manager = PageProductManager()
-        tool_context = SimpleNamespace(
-            state={
+        tool_context = _build_page_tool_context(
+            {
                 "sid": "page-freeform-pipeline-test",
                 "turn_index": 1,
                 "step": 0,
                 "expert_step": 0,
             },
-            _invocation_context=SimpleNamespace(user_id="user-page-freeform"),
+            user_id="user-page-freeform",
         )
         generation_output = {
             "status": "success",
@@ -814,14 +988,14 @@ class PageProductManagerTests(unittest.TestCase):
     def test_run_product_request_does_not_generate_visual_materials_for_poster_by_default(self) -> None:
         manager = PageProductManager()
         image_agent = _FakeImageGenerationAgent()
-        tool_context = SimpleNamespace(
-            state={
+        tool_context = _build_page_tool_context(
+            {
                 "sid": "page-no-auto-image-test",
                 "turn_index": 1,
                 "step": 0,
                 "expert_step": 0,
             },
-            _invocation_context=SimpleNamespace(user_id="user-page-no-auto-image"),
+            user_id="user-page-no-auto-image",
         )
         generation_output = {
             "status": "success",
@@ -870,14 +1044,14 @@ class PageProductManagerTests(unittest.TestCase):
     def test_run_product_request_generates_visual_materials_before_html(self) -> None:
         manager = PageProductManager()
         image_agent = _FakeImageGenerationAgent()
-        tool_context = SimpleNamespace(
-            state={
+        tool_context = _build_page_tool_context(
+            {
                 "sid": "page-image-material-test",
                 "turn_index": 1,
                 "step": 0,
                 "expert_step": 0,
             },
-            _invocation_context=SimpleNamespace(user_id="user-page-image-material"),
+            user_id="user-page-image-material",
         )
         generation_output = {
             "status": "success",

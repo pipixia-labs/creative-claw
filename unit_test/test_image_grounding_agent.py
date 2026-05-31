@@ -2,7 +2,12 @@ import unittest
 from types import SimpleNamespace
 from unittest.mock import AsyncMock, patch
 
-from src.agents.experts.image_grounding.image_grounding_agent import ImageGroundingAgent
+from src.agents.experts.image_grounding.image_grounding_agent import (
+    ImageGroundingAgent,
+    ImageGroundingOutput,
+    ImageGroundingParameters,
+    ImageGroundingResultItem,
+)
 
 
 def _build_ctx(state: dict) -> SimpleNamespace:
@@ -17,6 +22,36 @@ def _build_ctx(state: dict) -> SimpleNamespace:
 
 
 class ImageGroundingAgentTests(unittest.IsolatedAsyncioTestCase):
+    def test_image_grounding_parameters_schema_normalizes_strings(self) -> None:
+        parameters = ImageGroundingParameters.model_validate(
+            {"input_path": " inbox/session/a.png ", "prompt": " person ", "model": " DINO-XSeek-1.0 "}
+        )
+
+        self.assertEqual(parameters.input_path, "inbox/session/a.png")
+        self.assertEqual(parameters.prompt, "person")
+        self.assertEqual(parameters.model, "DINO-XSeek-1.0")
+        self.assertFalse(parameters.missing_required_fields)
+
+    def test_image_grounding_result_schema_preserves_output_item_shape(self) -> None:
+        result = ImageGroundingResultItem.model_validate(
+            {
+                "input_path": "inbox/session/a.png",
+                "prompt": "person",
+                "status": "SUCCESS",
+                "message": "ok",
+                "objects": [{"bbox": [1, 2, 3, 4]}],
+                "bboxes": [[1, 2, 3, 4]],
+            }
+        ).to_result()
+
+        self.assertEqual(result["status"], "success")
+        self.assertEqual(result["objects"][0]["bbox"], [1, 2, 3, 4])
+
+    def test_image_grounding_output_schema_preserves_error_shape(self) -> None:
+        output = ImageGroundingOutput(status="error", message="boom")
+
+        self.assertEqual(output.to_current_output(), {"status": "error", "message": "boom"})
+
     async def test_agent_returns_structured_bbox_results(self) -> None:
         agent = ImageGroundingAgent(name="ImageGroundingAgent")
         ctx = _build_ctx(

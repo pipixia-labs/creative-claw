@@ -4,20 +4,18 @@ from __future__ import annotations
 
 import copy
 import os
+from contextlib import aclosing
 from pathlib import Path
 from typing import Any, AsyncGenerator
 
-from google.adk.agents import BaseAgent, LlmAgent, SequentialAgent
+from google.adk import Context, Workflow
+from google.adk.agents import BaseAgent, LlmAgent
 from google.adk.agents.invocation_context import InvocationContext
-from google.adk.apps import App
 from google.adk.artifacts import BaseArtifactService, InMemoryArtifactService
 from google.adk.events import Event
-from google.adk.memory import InMemoryMemoryService
-from google.adk.runners import Runner
-from google.adk.sessions import InMemorySessionService
 from google.adk.tools.tool_context import ToolContext
-from google.genai.types import Content, Part
-from pydantic import PrivateAttr
+from google.adk.workflow import node
+from pydantic import BaseModel, Field, PrivateAttr, ValidationError, field_validator
 
 from conf.llm import build_llm
 from conf.path import PROJECT_PATH
@@ -38,9 +36,18 @@ from src.productions.page.page_product_manager.product_page_skills import (
     ProductPageSkillRegistry,
 )
 from src.productions.page.page_product_manager.templates import select_page_template_match
-from src.runtime.expert_dispatcher import dispatch_expert_call
+from src.productions.schema_utils import (
+    clean_string,
+    default_empty_dict,
+    default_empty_list,
+    default_schema_version,
+    model_dump_dict,
+    require_non_empty_string,
+)
+from src.runtime.adk_compat import has_invocation_context
+from src.runtime.agent_tool_transport import run_agent_tool
+from src.runtime.expert_dispatcher import ExpertInvocationRequest, dispatch_expert_request
 from src.runtime.step_events import append_orchestration_step_event
-from src.runtime.tool_context_artifact_service import ToolContextArtifactService
 from src.runtime.workspace import (
     build_generated_output_path,
     build_workspace_file_record,
@@ -64,6 +71,118 @@ PAGE_PRODUCT_DRAFT_STATE_KEY = "page_content_draft"
 PAGE_PRODUCT_MATERIALS_STATE_KEY = "page_materials"
 PAGE_PRODUCT_FINAL_DRAFT_STATE_KEY = "page_final_draft"
 PAGE_PRODUCT_HTML_GENERATION_STATE_KEY = "page_html_generation"
+
+
+class PageProductRequest(BaseModel):
+    """Structured request contract for one PageProductManager run."""
+
+    model_config = {"extra": "ignore"}
+
+    task: str = Field(description="The content-first page task to complete.")
+    inputs: list[Any] = Field(default_factory=list)
+    output: dict[str, Any] = Field(default_factory=dict)
+
+    @field_validator("task", mode="before")
+    @classmethod
+    def _strip_task(cls, value: Any) -> str:
+        """Strip the user task before validation."""
+        return clean_string(value)
+
+    @field_validator("inputs", mode="before")
+    @classmethod
+    def _default_inputs(cls, value: Any) -> list[Any]:
+        """Default missing inputs to an empty list."""
+        return default_empty_list(value)
+
+    @field_validator("output", mode="before")
+    @classmethod
+    def _default_output(cls, value: Any) -> dict[str, Any]:
+        """Default missing output options to an empty dict."""
+        return default_empty_dict(value)
+
+    @field_validator("task")
+    @classmethod
+    def _require_task(cls, value: str) -> str:
+        """Require a non-empty Page task."""
+        return require_non_empty_string(value, field_name="task")
+
+    def to_state_dict(self) -> dict[str, Any]:
+        """Return the stable dictionary payload stored in session state."""
+        return model_dump_dict(self)
+
+
+class PageProductResult(BaseModel):
+    """Structured result contract emitted by PageProductManager."""
+
+    model_config = {"extra": "allow"}
+
+    result_schema_version: str = PAGE_PRODUCT_RESULT_SCHEMA_VERSION
+    status: str
+    product_line: str = "page"
+    message: str
+    final_file_paths: list[str] = Field(default_factory=list)
+    supporting_file_paths: list[str] = Field(default_factory=list)
+    progress: list[dict[str, Any]] = Field(default_factory=list)
+    active_skill: dict[str, Any] = Field(default_factory=dict)
+    experts: list[dict[str, Any]] = Field(default_factory=list)
+    expert_history: list[dict[str, Any]] = Field(default_factory=list)
+    last_expert_result: dict[str, Any] = Field(default_factory=dict)
+    code_generation_history: list[dict[str, Any]] = Field(default_factory=list)
+    last_code_generation_result: dict[str, Any] = Field(default_factory=dict)
+    generation: dict[str, Any] = Field(default_factory=dict)
+    validation: list[dict[str, Any]] = Field(default_factory=list)
+    output_files: list[dict[str, Any]] = Field(default_factory=list)
+    supporting_files: list[dict[str, Any]] = Field(default_factory=list)
+
+    @field_validator("result_schema_version", mode="before")
+    @classmethod
+    def _default_schema_version(cls, value: Any) -> str:
+        """Default missing result schema version."""
+        return default_schema_version(value, PAGE_PRODUCT_RESULT_SCHEMA_VERSION)
+
+    @field_validator("status", "product_line", "message", mode="before")
+    @classmethod
+    def _strip_text_fields(cls, value: Any) -> str:
+        """Normalize result text fields."""
+        return clean_string(value)
+
+    @field_validator("status")
+    @classmethod
+    def _require_status(cls, value: str) -> str:
+        """Require a non-empty product status."""
+        return require_non_empty_string(value, field_name="status")
+
+    @field_validator("message")
+    @classmethod
+    def _default_message(cls, value: str) -> str:
+        """Default empty product messages."""
+        return value or "Page product task completed."
+
+    @field_validator("product_line")
+    @classmethod
+    def _normalize_product_line(cls, value: str) -> str:
+        """Keep the public Page product-line marker stable."""
+        return "page"
+
+    def to_result_dict(self) -> dict[str, Any]:
+        """Return the stable dictionary contract exposed to callers."""
+        return model_dump_dict(self)
+
+
+def _parse_page_product_request(*, task: Any, inputs: Any, output: Any) -> PageProductRequest:
+    """Parse one Page product request into a structured contract."""
+    return PageProductRequest.model_validate(
+        {
+            "task": task,
+            "inputs": inputs,
+            "output": output,
+        }
+    )
+
+
+def _coerce_page_product_result(value: Any) -> PageProductResult:
+    """Parse one Page product result from the stable dictionary payload."""
+    return PageProductResult.model_validate(value)
 
 
 class PageProductManager(LlmAgent):
@@ -193,10 +312,13 @@ Always call `register_page_delivery` before finishing. It must contain a user-fa
         if tool_context is None:
             return _error_result("PageProductManager requires tool context.")
 
-        clean_task = str(task or "").strip()
-        if not clean_task:
-            return _error_result("PageProductManager requires a non-empty task.")
-        if not hasattr(tool_context, "_invocation_context"):
+        try:
+            request = _parse_page_product_request(task=task, inputs=inputs, output=output)
+        except ValidationError:
+            if not clean_string(task):
+                return _error_result("PageProductManager requires a non-empty task.")
+            return _error_result("PageProductManager requires inputs to be a list and output to be an object.")
+        if not has_invocation_context(tool_context):
             return _error_result("PageProductManager requires an ADK invocation context.")
 
         append_orchestration_step_event(
@@ -210,77 +332,60 @@ Always call `register_page_delivery` before finishing. It must contain a user-fa
         self._app_name = app_name
         self._artifact_service = artifact_service
 
-        invocation_context = tool_context._invocation_context
-        child_session_service = InMemorySessionService()
-        child_artifact_service = _resolve_child_artifact_service(
-            tool_context=tool_context,
-            fallback_service=artifact_service or InMemoryArtifactService(),
-        )
-        page_pipeline_agent = _build_page_pipeline_agent(
+        page_pipeline_stages = _build_page_pipeline_stages(
             page_code_generation_agent=self._page_code_generation_agent,
             expert_agents=self._available_page_expert_agents(),
         )
-        child_runner = _build_child_runner(
-            agent=page_pipeline_agent,
-            app_name=app_name,
-            session_service=child_session_service,
-            artifact_service=child_artifact_service,
-            invocation_context=invocation_context,
+        tool_context.state.update(
+            {
+                PAGE_PRODUCT_REQUEST_STATE_KEY: request.to_state_dict(),
+                PAGE_PRODUCT_EXPERTS_STATE_KEY: build_page_expert_listing(
+                    self._available_page_expert_agents()
+                ),
+            }
         )
-        child_state = _copy_state(tool_context.state)
-        child_state[PAGE_PRODUCT_REQUEST_STATE_KEY] = {
-            "task": clean_task,
-            "inputs": list(inputs or []),
-            "output": dict(output or {}),
-        }
-        child_state[PAGE_PRODUCT_EXPERTS_STATE_KEY] = build_page_expert_listing(
-            self._available_page_expert_agents()
-        )
-        child_state["app_name"] = app_name
 
         try:
-            child_session = await child_session_service.create_session(
-                app_name=app_name,
-                user_id=invocation_context.user_id,
-                state=child_state,
+            request_message = _build_page_product_user_message(
+                task=request.task,
+                inputs=request.inputs,
+                output=request.output,
             )
-            async for _event in child_runner.run_async(
-                user_id=child_session.user_id,
-                session_id=child_session.id,
-                new_message=Content(
-                    role="user",
-                    parts=[
-                        Part(
-                            text=_build_page_product_user_message(
-                                task=clean_task,
-                                inputs=list(inputs or []),
-                                output=dict(output or {}),
-                            )
-                        )
-                    ],
-                ),
-            ):
-                pass
-            final_session = await child_session_service.get_session(
-                app_name=app_name,
-                user_id=child_session.user_id,
-                session_id=child_session.id,
-            )
-            final_state = final_session.state if final_session is not None else child_state
+            if _supports_dynamic_workflow(tool_context):
+                await _run_page_pipeline_workflow(
+                    workflow=_build_page_pipeline_workflow(stages=page_pipeline_stages),
+                    request=request_message,
+                    tool_context=tool_context,
+                )
+            else:
+                await _run_page_pipeline_agent_tool(
+                    agent=_build_page_pipeline_agent(stages=page_pipeline_stages),
+                    request=request_message,
+                    tool_context=tool_context,
+                )
+            final_state = _copy_state(tool_context.state)
             result = final_state.get(PAGE_PRODUCT_RESULT_STATE_KEY)
             if not isinstance(result, dict):
                 result = _error_result(
                     "PageProductManager finished without registering a page delivery."
                 )
-            _copy_page_state_back(source=final_state, target=tool_context.state)
+                tool_context.state[PAGE_PRODUCT_RESULT_STATE_KEY] = result
+                tool_context.state["current_output"] = result
+            else:
+                try:
+                    result = _coerce_page_product_result(result).to_result_dict()
+                except ValidationError as exc:
+                    result = _error_result(
+                        f"PageProductManager registered an invalid page delivery: {exc.errors()[0]['msg']}"
+                    )
+                    tool_context.state[PAGE_PRODUCT_RESULT_STATE_KEY] = result
+                    tool_context.state["current_output"] = result
             return result
         except Exception as exc:
             result = _error_result(f"PageProductManager failed: {type(exc).__name__}: {exc}")
             tool_context.state[PAGE_PRODUCT_RESULT_STATE_KEY] = result
             tool_context.state["current_output"] = result
             return result
-        finally:
-            await child_runner.close()
 
     def list_product_page_skills(self, tool_context: ToolContext) -> dict[str, Any]:
         """List private product-page skills available to this product manager."""
@@ -349,13 +454,13 @@ Always call `register_page_delivery` before finishing. It must contain a user-fa
                 "allowed_experts": list(PAGE_PRODUCT_EXPERT_ALLOWLIST),
             }
 
-        invocation = await dispatch_expert_call(
-            agent_name=clean_agent_name,
-            prompt=str(prompt or "").strip(),
-            tool_context=tool_context,
-            expert_agents=page_expert_agents,
-            app_name=self._app_name,
-            artifact_service=self._artifact_service or InMemoryArtifactService(),
+        invocation = await dispatch_expert_request(
+            ExpertInvocationRequest(
+                agent_name=clean_agent_name,
+                prompt=str(prompt or "").strip(),
+                tool_context=tool_context,
+                expert_agents=page_expert_agents,
+            )
         )
         history = list(tool_context.state.get(PAGE_PRODUCT_EXPERT_HISTORY_STATE_KEY) or [])
         history.append(invocation.tool_result)
@@ -500,30 +605,28 @@ Always call `register_page_delivery` before finishing. It must contain a user-fa
         """Register the final page product result for orchestrator delivery."""
         normalized_paths = _normalize_final_paths(final_file_paths)
         supporting_paths = _normalize_final_paths(supporting_file_paths or [])
-        result = {
-            "result_schema_version": PAGE_PRODUCT_RESULT_SCHEMA_VERSION,
-            "status": str(status or "success").strip() or "success",
-            "product_line": "page",
-            "message": str(reply_text or "").strip() or "Page product task completed.",
-            "final_file_paths": normalized_paths,
-            "supporting_file_paths": supporting_paths,
-            "progress": list(tool_context.state.get(PAGE_PRODUCT_PROGRESS_STATE_KEY) or []),
-            "active_skill": tool_context.state.get(PAGE_PRODUCT_ACTIVE_SKILL_STATE_KEY) or {},
-            "experts": tool_context.state.get(PAGE_PRODUCT_EXPERTS_STATE_KEY) or [],
-            "expert_history": list(tool_context.state.get(PAGE_PRODUCT_EXPERT_HISTORY_STATE_KEY) or []),
-            "last_expert_result": tool_context.state.get(PAGE_PRODUCT_LAST_EXPERT_RESULT_STATE_KEY) or {},
-            "code_generation_history": list(
+        result = PageProductResult(
+            status=str(status or "success").strip() or "success",
+            message=str(reply_text or "").strip() or "Page product task completed.",
+            final_file_paths=normalized_paths,
+            supporting_file_paths=supporting_paths,
+            progress=list(tool_context.state.get(PAGE_PRODUCT_PROGRESS_STATE_KEY) or []),
+            active_skill=tool_context.state.get(PAGE_PRODUCT_ACTIVE_SKILL_STATE_KEY) or {},
+            experts=tool_context.state.get(PAGE_PRODUCT_EXPERTS_STATE_KEY) or [],
+            expert_history=list(tool_context.state.get(PAGE_PRODUCT_EXPERT_HISTORY_STATE_KEY) or []),
+            last_expert_result=tool_context.state.get(PAGE_PRODUCT_LAST_EXPERT_RESULT_STATE_KEY) or {},
+            code_generation_history=list(
                 tool_context.state.get(PAGE_PRODUCT_CODE_GENERATION_HISTORY_STATE_KEY) or []
             ),
-            "last_code_generation_result": tool_context.state.get(
+            last_code_generation_result=tool_context.state.get(
                 PAGE_PRODUCT_LAST_CODE_GENERATION_RESULT_STATE_KEY
             )
             or {},
-            "generation": tool_context.state.get("page_product_generation") or {},
-            "validation": tool_context.state.get("page_product_validation") or [],
-            "output_files": _file_records_for_paths(normalized_paths, state=tool_context.state),
-            "supporting_files": _file_records_for_paths(supporting_paths, state=tool_context.state),
-        }
+            generation=tool_context.state.get("page_product_generation") or {},
+            validation=tool_context.state.get("page_product_validation") or [],
+            output_files=_file_records_for_paths(normalized_paths, state=tool_context.state),
+            supporting_files=_file_records_for_paths(supporting_paths, state=tool_context.state),
+        ).to_result_dict()
         tool_context.state[PAGE_PRODUCT_RESULT_STATE_KEY] = result
         tool_context.state["product_line"] = "page"
         tool_context.state["current_output"] = result
@@ -572,25 +675,7 @@ def _build_page_product_user_message(
 
 def _error_result(message: str) -> dict[str, Any]:
     """Build a JSON-safe page product error result."""
-    return {
-        "result_schema_version": PAGE_PRODUCT_RESULT_SCHEMA_VERSION,
-        "status": "error",
-        "product_line": "page",
-        "message": message,
-        "final_file_paths": [],
-        "supporting_file_paths": [],
-        "progress": [],
-        "active_skill": {},
-        "experts": [],
-        "expert_history": [],
-        "last_expert_result": {},
-        "code_generation_history": [],
-        "last_code_generation_result": {},
-        "generation": {},
-        "validation": [],
-        "output_files": [],
-        "supporting_files": [],
-    }
+    return PageProductResult(status="error", message=message).to_result_dict()
 
 
 def _copy_state(state: Any) -> dict[str, Any]:
@@ -600,76 +685,29 @@ def _copy_state(state: Any) -> dict[str, Any]:
     return copy.deepcopy(dict(state))
 
 
-def _resolve_child_artifact_service(
-    *,
-    tool_context: ToolContext,
-    fallback_service: BaseArtifactService,
-) -> BaseArtifactService:
-    """Pick the artifact service for the internal PageProductManager runner."""
-    required_methods = ("save_artifact", "load_artifact", "list_artifacts")
-    if all(hasattr(tool_context, method_name) for method_name in required_methods):
-        return ToolContextArtifactService(tool_context)
-    return fallback_service
-
-
-def _build_child_runner(
+async def _run_page_pipeline_agent_tool(
     *,
     agent: BaseAgent,
-    app_name: str,
-    session_service: InMemorySessionService,
-    artifact_service: BaseArtifactService,
-    invocation_context: Any,
-) -> Runner:
-    """Create a child ADK runner for the page product manager."""
-    child_plugins = getattr(getattr(invocation_context, "plugin_manager", None), "plugins", None)
-    runner_kwargs = {
-        "app_name": app_name,
-        "session_service": session_service,
-        "artifact_service": artifact_service,
-        "memory_service": InMemoryMemoryService(),
-        "credential_service": getattr(invocation_context, "credential_service", None),
-    }
-    if child_plugins:
-        runner_kwargs["app"] = App(
-            name=app_name,
-            root_agent=agent,
-            plugins=list(child_plugins),
-        )
-    else:
-        runner_kwargs["agent"] = agent
-    return Runner(**runner_kwargs)
+    request: str,
+    tool_context: ToolContext,
+) -> None:
+    """Run the Page pipeline through ADK AgentTool."""
+    await run_agent_tool(agent=agent, request=request, tool_context=tool_context)
 
 
-def _copy_page_state_back(*, source: Any, target: Any) -> None:
-    """Copy page-product state from a child runner back to the parent state."""
-    source_state = dict(source)
-    for key, value in source_state.items():
-        if (
-            key.startswith("page_product")
-            or key.startswith("product_page")
-            or key
-            in {
-                PAGE_PRODUCT_TEMPLATE_SELECTION_STATE_KEY,
-                PAGE_PRODUCT_DRAFT_STATE_KEY,
-                PAGE_PRODUCT_MATERIALS_STATE_KEY,
-                PAGE_PRODUCT_FINAL_DRAFT_STATE_KEY,
-                PAGE_PRODUCT_HTML_GENERATION_STATE_KEY,
-            }
-            or key
-            in {
-                "current_output",
-                "last_product_result",
-                "product_line",
-                "final_response",
-                "final_file_paths",
-                "last_output_message",
-                "new_files",
-                "generated",
-                "files_history",
-                "orchestration_events",
-            }
-        ):
-            target[key] = value
+def _supports_dynamic_workflow(tool_context: ToolContext) -> bool:
+    """Return whether the current ADK context can run Workflow nodes directly."""
+    return callable(getattr(tool_context, "run_node", None))
+
+
+async def _run_page_pipeline_workflow(
+    *,
+    workflow: Workflow,
+    request: str,
+    tool_context: ToolContext,
+) -> None:
+    """Run the Page pipeline through ADK 2 dynamic Workflow."""
+    await tool_context.run_node(workflow, node_input=request, use_sub_branch=True)
 
 
 def _filter_page_expert_agents(
@@ -1259,24 +1297,66 @@ class _PageDeliveryAgent(CreativeExpert):
         )
 
 
+class _PagePipelineAgent(BaseAgent):
+    """Run Page product stages in a fixed order without deprecated workflow agents."""
+
+    async def _run_async_impl(self, ctx: InvocationContext) -> AsyncGenerator[Event, None]:
+        """Execute child stages sequentially with the shared ADK invocation context."""
+        for sub_agent in self.sub_agents:
+            async with aclosing(sub_agent.run_async(ctx)) as events:
+                async for event in events:
+                    yield event
+                    if ctx.should_pause_invocation(event):
+                        return
+
+
 def _build_page_pipeline_agent(
+    *,
+    stages: list[BaseAgent],
+) -> BaseAgent:
+    """Build the fixed-order Page product pipeline fallback agent."""
+    return _PagePipelineAgent(
+        name="PageProductPipeline",
+        description="Runs the Page product workflow in a fixed ADK sequence.",
+        sub_agents=stages,
+    )
+
+
+def _build_page_pipeline_workflow(
+    *,
+    stages: list[BaseAgent],
+) -> Workflow:
+    """Build the ADK 2 dynamic Workflow used by the Page product pipeline."""
+
+    @node(name="PageProductPipelineNode", rerun_on_resume=True)
+    async def run_page_pipeline(ctx: Context, node_input: str) -> dict[str, Any]:
+        """Run Page stages with ADK Workflow dynamic node scheduling."""
+        for stage in stages:
+            await ctx.run_node(stage)
+        result = _copy_state(ctx.state).get(PAGE_PRODUCT_RESULT_STATE_KEY)
+        return result if isinstance(result, dict) else {}
+
+    return Workflow(
+        name="PageProductWorkflow",
+        description="Runs the Page product workflow with ADK 2 dynamic nodes.",
+        edges=[("START", run_page_pipeline)],
+    )
+
+
+def _build_page_pipeline_stages(
     *,
     page_code_generation_agent: PageCodeGenerationAgent,
     expert_agents: dict[str, BaseAgent] | None = None,
-) -> SequentialAgent:
-    """Build the fixed-order Page product pipeline."""
-    return SequentialAgent(
-        name="PageProductPipeline",
-        description="Runs the Page product workflow in a fixed ADK sequence.",
-        sub_agents=[
-            _PageTemplateSelectionAgent(),
-            _PageDraftAgent(),
-            _PageMaterialPreparationAgent(expert_agents=expert_agents),
-            _PageFinalDraftAgent(),
-            _PageHtmlGenerationAgent(page_code_generation_agent),
-            _PageDeliveryAgent(),
-        ],
-    )
+) -> list[BaseAgent]:
+    """Build the Page product pipeline stages in their required order."""
+    return [
+        _PageTemplateSelectionAgent(),
+        _PageDraftAgent(),
+        _PageMaterialPreparationAgent(expert_agents=expert_agents),
+        _PageFinalDraftAgent(),
+        _PageHtmlGenerationAgent(page_code_generation_agent),
+        _PageDeliveryAgent(),
+    ]
 
 
 def _page_request_from_state(state: dict[str, Any]) -> dict[str, Any]:

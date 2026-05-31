@@ -34,7 +34,7 @@ from src.productions.design.design_product_manager.brief_form import (
 )
 from src.productions.page.page_product_manager import PageProductManager
 from src.productions.ppt.ppt_product_manager import PptProductManager
-from src.runtime.expert_dispatcher import dispatch_expert_call
+from src.runtime.expert_dispatcher import ExpertInvocationRequest, dispatch_expert_request
 from src.runtime.expert_registry import build_expert_contract_summary
 from src.runtime.product_results import (
     is_completed_product_result,
@@ -43,6 +43,7 @@ from src.runtime.product_results import (
     is_terminal_product_result,
     slim_product_result,
 )
+from src.runtime.product_protocol import ProductToolRequest
 from src.runtime.step_events import (
     ASSISTANT_DELTA_KIND_THINKING_PLACEHOLDER,
     CreativeClawStepEventPlugin,
@@ -1959,12 +1960,19 @@ Expert parameter contracts:
         tool_context: ToolContext | None = None,
     ) -> dict[str, Any]:
         """Hand the user's PPT task and real document inputs to PptProductManager."""
+        request = ProductToolRequest(
+            product_line="ppt",
+            task=task,
+            inputs=inputs,
+            output=output,
+        )
+        manager_kwargs = request.to_manager_kwargs()
 
         async def _runner() -> dict[str, Any]:
             result = await self.ppt_product_manager.run_product_request(
-                task=task,
-                inputs=inputs or [],
-                output=output or {},
+                task=manager_kwargs["task"],
+                inputs=manager_kwargs["inputs"],
+                output=manager_kwargs["output"],
                 tool_context=tool_context,
                 expert_agents=self.expert_agents,
                 app_name=self.app_name,
@@ -1976,11 +1984,7 @@ Expert parameter contracts:
             tool_context=tool_context,
             tool_name="run_ppt_product",
             stage="ppt_product_planning",
-            args={
-                "task": task,
-                "inputs": inputs or [],
-                "output": output or {},
-            },
+            args=request.to_event_args(),
             runner=_runner,
         )
 
@@ -1992,12 +1996,19 @@ Expert parameter contracts:
         tool_context: ToolContext | None = None,
     ) -> dict[str, Any]:
         """Hand one concise design product task to DesignProductManager."""
+        request = ProductToolRequest(
+            product_line="design",
+            task=task,
+            inputs=inputs,
+            output=output,
+        )
+        manager_kwargs = request.to_manager_kwargs()
 
         async def _runner() -> dict[str, Any]:
             result = await self.design_product_manager.run_product_request(
-                task=task,
-                inputs=inputs or [],
-                output=output or {},
+                task=manager_kwargs["task"],
+                inputs=manager_kwargs["inputs"],
+                output=manager_kwargs["output"],
                 tool_context=tool_context,
                 expert_agents=self.expert_agents,
                 app_name=self.app_name,
@@ -2009,11 +2020,7 @@ Expert parameter contracts:
             tool_context=tool_context,
             tool_name="run_design_product",
             stage="design_planning",
-            args={
-                "task": task,
-                "inputs": inputs or [],
-                "output": output or {},
-            },
+            args=request.to_event_args(),
             runner=_runner,
         )
 
@@ -2025,12 +2032,19 @@ Expert parameter contracts:
         tool_context: ToolContext | None = None,
     ) -> dict[str, Any]:
         """Hand one concise content-first page task to PageProductManager."""
+        request = ProductToolRequest(
+            product_line="page",
+            task=task,
+            inputs=inputs,
+            output=output,
+        )
+        manager_kwargs = request.to_manager_kwargs()
 
         async def _runner() -> dict[str, Any]:
             result = await self.page_product_manager.run_product_request(
-                task=task,
-                inputs=inputs or [],
-                output=output or {},
+                task=manager_kwargs["task"],
+                inputs=manager_kwargs["inputs"],
+                output=manager_kwargs["output"],
                 tool_context=tool_context,
                 expert_agents=self.expert_agents,
                 app_name=self.app_name,
@@ -2042,11 +2056,7 @@ Expert parameter contracts:
             tool_context=tool_context,
             tool_name="run_page_product",
             stage="page_planning",
-            args={
-                "task": task,
-                "inputs": inputs or [],
-                "output": output or {},
-            },
+            args=request.to_event_args(),
             runner=_runner,
         )
 
@@ -2092,13 +2102,13 @@ Expert parameter contracts:
             tool_name="invoke_agent",
             stage="expert_execution",
             args={"agent_name": agent_name, "prompt": prompt},
-            runner=lambda: dispatch_expert_call(
-                agent_name=agent_name,
-                prompt=prompt,
-                tool_context=tool_context,
-                expert_agents=self.expert_agents,
-                app_name=self.app_name,
-                artifact_service=self.artifact_service,
+            runner=lambda: dispatch_expert_request(
+                ExpertInvocationRequest(
+                    agent_name=agent_name,
+                    prompt=prompt,
+                    tool_context=tool_context,
+                    expert_agents=self.expert_agents,
+                )
             ),
         )
         if invocation.assistant_text_streamed:

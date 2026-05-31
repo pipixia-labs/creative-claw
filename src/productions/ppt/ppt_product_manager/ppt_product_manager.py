@@ -16,15 +16,12 @@ from urllib.error import HTTPError, URLError
 from urllib.parse import unquote, urlparse
 from urllib.request import Request, urlopen
 
-from google.adk.apps import App
-from google.adk.agents import BaseAgent, LlmAgent, SequentialAgent
+from google.adk import Context, Workflow
+from google.adk.agents import BaseAgent, LlmAgent
 from google.adk.artifacts import BaseArtifactService, InMemoryArtifactService
-from google.adk.memory import InMemoryMemoryService
-from google.adk.runners import Runner
-from google.adk.sessions import InMemorySessionService
 from google.adk.tools.tool_context import ToolContext
-from google.genai.types import Content, Part
-from pydantic import PrivateAttr
+from google.adk.workflow import node
+from pydantic import PrivateAttr, ValidationError
 
 from conf.llm import build_llm
 from conf.path import PROJECT_PATH
@@ -61,9 +58,10 @@ from src.productions.ppt.schemas import (
     DeckContentPlan,
     DeliveryManifest,
     EditabilityRequirement,
-    PptProductResult,
     PptDesignConfirmation,
     PptDesignStrategy,
+    PptProductRequest,
+    PptProductResult,
     PptSvgExecutionPlan,
     PptSvgPageResult,
     QualityReviewResult,
@@ -75,8 +73,9 @@ from src.productions.ppt.schemas import (
     TemplateRequirement,
 )
 from src.productions.ppt.schemas.contracts import PPT_PRODUCT_RESULT_SCHEMA_VERSION
-from src.runtime.expert_dispatcher import dispatch_expert_call
-from src.runtime.tool_context_artifact_service import ToolContextArtifactService
+from src.runtime.expert_dispatcher import ExpertInvocationRequest, dispatch_expert_request
+from src.runtime.agent_tool_transport import run_agent_tool, supports_agent_tool_context
+from src.runtime.adk_compat import has_invocation_context, invocation_app_name
 from src.runtime.workspace import (
     build_workspace_file_record,
     generated_session_dir,
@@ -91,6 +90,7 @@ from src.tools.builtin_tools import BuiltinToolbox
 
 PPT_CONFIRMED_REQUIREMENT_STATE_KEY = "ppt_confirmed_requirement"
 PPT_PRODUCT_RESULT_STATE_KEY = "ppt_product_result"
+PPT_PRODUCT_REQUEST_STATE_KEY = "ppt_product_request"
 PPT_WORKFLOW_STATE_KEY = "ppt_workflow_state"
 PPT_STAGE_AWAITING_REQUIREMENT_CONFIRMATION = "awaiting_requirement_confirmation"
 PPT_STAGE_AWAITING_CONTENT_PLAN_CONFIRMATION = "awaiting_content_plan_confirmation"
@@ -99,6 +99,8 @@ PPT_WORKFLOW_WAITING_SINCE_TURN_KEY = "waiting_since_turn_index"
 PPT_WORKFLOW_LAST_CONSUMED_TURN_KEY = "last_consumed_turn_index"
 PPT_REQUIREMENT_ANALYSIS_BASE_KEY = "ppt_requirement_analysis_base"
 PPT_REQUIREMENT_ANALYSIS_AGENT_MESSAGE_KEY = "ppt_requirement_analysis_agent_message"
+PPT_REQUIREMENT_CONFIRMATION_WORKFLOW_OUTPUT_KEY = "ppt_requirement_confirmation_workflow_output"
+PPT_CONTENT_PLAN_CONFIRMATION_WORKFLOW_OUTPUT_KEY = "ppt_content_plan_confirmation_workflow_output"
 PPT_PRODUCT_SKILLS_STATE_KEY = "product_ppt_skills"
 PPT_PRODUCT_ACTIVE_SKILL_STATE_KEY = "active_product_ppt_skill"
 PPT_SYSTEM_SELECTION_STATE_KEY = "ppt_system_selection"
@@ -148,6 +150,18 @@ PPT_REMOTE_SOURCE_KNOWN_EXTENSIONS = {
     ".yaml",
     ".yml",
 }
+
+
+def _ppt_product_error_result(message: str, *, next_actions: list[str] | None = None) -> dict[str, Any]:
+    """Build a schema-valid PPT product error result."""
+    return PptProductResult(
+        status="error",
+        phase="ppt_product_request",
+        message=str(message or "").strip() or "PPT product request failed.",
+        selected_route="html",
+        warnings=[str(message or "").strip()] if str(message or "").strip() else [],
+        next_actions=list(next_actions or []),
+    ).model_dump(mode="json")
 
 
 class PptProductManager(LlmAgent):
@@ -398,34 +412,6 @@ Return structured status, current phase, selected route, warnings, next actions,
             output_key=PPT_SYSTEM_SELECTION_AGENT_MESSAGE_KEY,
         )
 
-    def build_html_mvp_workflow(self) -> SequentialAgent:
-        """Build the intended ADK SequentialAgent skeleton for the HTML MVP route."""
-        requirement_agent = LlmAgent(
-            name="PptRequirementAnalysisAgent",
-            model=build_llm(),
-            instruction=(
-                "Normalize the user PPT request into ConfirmedRequirement. "
-                "Use source understanding when available and do not plan individual slides."
-            ),
-            output_key=PPT_CONFIRMED_REQUIREMENT_STATE_KEY,
-            include_contents="none",
-        )
-        content_agent = self.content_planner.build_agent()
-        quality_agent = LlmAgent(
-            name="PptQualityDeliveryAgent",
-            model=build_llm(),
-            instruction=(
-                "Review PPT route artifacts and prepare a DeliveryManifest. "
-                "For the current skeleton, report not_run when no route output exists."
-            ),
-            output_key="ppt_quality_delivery",
-            include_contents="none",
-        )
-        return SequentialAgent(
-            name="PptHtmlMvpSequentialAgent",
-            sub_agents=[requirement_agent, content_agent, quality_agent],
-        )
-
     def save_ppt_confirmed_requirement_json(
         self,
         requirement_json: dict[str, Any],
@@ -438,7 +424,9 @@ Return structured status, current phase, selected route, warnings, next actions,
         if not isinstance(raw_payload, dict):
             raise ValueError("requirement_json must be a JSON object.")
 
-        base_payload = dict(tool_context.state.get(PPT_REQUIREMENT_ANALYSIS_BASE_KEY) or {})
+        base_payload = dict(
+            tool_context.state.get(PPT_REQUIREMENT_ANALYSIS_BASE_KEY) or {}
+        )
         fallback_requirement = ConfirmedRequirement.model_validate(
             base_payload.get("fallback_requirement") or {}
         )
@@ -539,30 +527,18 @@ Return structured status, current phase, selected route, warnings, next actions,
         artifact_service: BaseArtifactService | None,
     ) -> ConfirmedRequirement:
         """Run the internal requirement agent, falling back to deterministic JSON patches."""
-        if not hasattr(tool_context, "_invocation_context"):
+        if not _supports_agent_tool_context(tool_context):
             tool_context.state["ppt_requirement_analysis_output"] = {
                 "status": "fallback",
-                "message": "Requirement analysis agent skipped because no ADK invocation context was available.",
+                "message": "Requirement analysis agent skipped because no ADK AgentTool-compatible context was available.",
                 "source": "deterministic_fallback",
             }
             return fallback_requirement
 
-        invocation_context = tool_context._invocation_context
-        child_session_service = InMemorySessionService()
-        child_artifact_service = _resolve_child_artifact_service(
-            tool_context=tool_context,
-            fallback_service=artifact_service or InMemoryArtifactService(),
-        )
+        # AgentTool inherits app and artifact context from the parent invocation.
+        _ = app_name, artifact_service
         requirement_agent = self.build_requirement_analysis_agent()
-        child_runner = _build_child_runner(
-            agent=requirement_agent,
-            app_name=app_name,
-            session_service=child_session_service,
-            artifact_service=child_artifact_service,
-            invocation_context=invocation_context,
-        )
-        child_state = _copy_state(tool_context.state)
-        child_state[PPT_REQUIREMENT_ANALYSIS_BASE_KEY] = {
+        agent_state = {
             "mode": mode,
             "task": task,
             "raw_inputs": raw_inputs,
@@ -575,38 +551,21 @@ Return structured status, current phase, selected route, warnings, next actions,
         }
 
         try:
-            child_session = await child_session_service.create_session(
-                app_name=app_name,
-                user_id=invocation_context.user_id,
-                state=child_state,
-            )
-            async for _event in child_runner.run_async(
-                user_id=child_session.user_id,
-                session_id=child_session.id,
-                new_message=Content(
-                    role="user",
-                    parts=[
-                        Part(
-                            text=_build_requirement_analysis_user_message(
-                                mode=mode,
-                                task=task,
-                                raw_inputs=raw_inputs,
-                                output=output,
-                                fallback_requirement=fallback_requirement,
-                                existing_requirement=existing_requirement,
-                                user_revision=user_revision,
-                            )
-                        )
-                    ],
+            await _run_ppt_internal_agent_tool(
+                agent=requirement_agent,
+                request=_build_requirement_analysis_user_message(
+                    mode=mode,
+                    task=task,
+                    raw_inputs=raw_inputs,
+                    output=output,
+                    fallback_requirement=fallback_requirement,
+                    existing_requirement=existing_requirement,
+                    user_revision=user_revision,
                 ),
-            ):
-                pass
-            final_session = await child_session_service.get_session(
-                app_name=app_name,
-                user_id=child_session.user_id,
-                session_id=child_session.id,
+                tool_context=tool_context,
+                initial_state={PPT_REQUIREMENT_ANALYSIS_BASE_KEY: agent_state},
             )
-            final_state = final_session.state if final_session is not None else child_state
+            final_state = _copy_state(tool_context.state)
             requirement_payload = final_state.get(PPT_CONFIRMED_REQUIREMENT_STATE_KEY)
             if not requirement_payload:
                 raise ValueError("PptRequirementAnalysisAgent did not save ConfirmedRequirement.")
@@ -629,8 +588,6 @@ Return structured status, current phase, selected route, warnings, next actions,
                 "source": "deterministic_fallback",
             }
             return fallback_requirement
-        finally:
-            await child_runner.close()
 
     async def select_ppt_system_with_agent(
         self,
@@ -656,25 +613,13 @@ Return structured status, current phase, selected route, warnings, next actions,
             return self._persist_system_selection(tool_context, selected)
 
         fallback_selection = self._build_default_system_selection(requirement)
-        if not hasattr(tool_context, "_invocation_context"):
+        if not _supports_agent_tool_context(tool_context):
             return self._persist_system_selection(tool_context, fallback_selection)
 
-        invocation_context = tool_context._invocation_context
-        child_session_service = InMemorySessionService()
-        child_artifact_service = _resolve_child_artifact_service(
-            tool_context=tool_context,
-            fallback_service=artifact_service or InMemoryArtifactService(),
-        )
+        # AgentTool inherits app and artifact context from the parent invocation.
+        _ = app_name, artifact_service
         selection_agent = self.build_system_selection_agent()
-        child_runner = _build_child_runner(
-            agent=selection_agent,
-            app_name=app_name,
-            session_service=child_session_service,
-            artifact_service=child_artifact_service,
-            invocation_context=invocation_context,
-        )
-        child_state = _copy_state(tool_context.state)
-        child_state[PPT_SYSTEM_SELECTION_BASE_KEY] = {
+        agent_state = {
             "task": task,
             "output": output,
             "confirmed_requirement": requirement.model_dump(mode="json"),
@@ -683,35 +628,18 @@ Return structured status, current phase, selected route, warnings, next actions,
         }
 
         try:
-            child_session = await child_session_service.create_session(
-                app_name=app_name,
-                user_id=invocation_context.user_id,
-                state=child_state,
-            )
-            async for _event in child_runner.run_async(
-                user_id=child_session.user_id,
-                session_id=child_session.id,
-                new_message=Content(
-                    role="user",
-                    parts=[
-                        Part(
-                            text=_build_system_selection_user_message(
-                                task=task,
-                                output=output,
-                                requirement=requirement,
-                                route_summaries=self.list_registered_routes(),
-                            )
-                        )
-                    ],
+            await _run_ppt_internal_agent_tool(
+                agent=selection_agent,
+                request=_build_system_selection_user_message(
+                    task=task,
+                    output=output,
+                    requirement=requirement,
+                    route_summaries=self.list_registered_routes(),
                 ),
-            ):
-                pass
-            final_session = await child_session_service.get_session(
-                app_name=app_name,
-                user_id=child_session.user_id,
-                session_id=child_session.id,
+                tool_context=tool_context,
+                initial_state={PPT_SYSTEM_SELECTION_BASE_KEY: agent_state},
             )
-            final_state = final_session.state if final_session is not None else child_state
+            final_state = _copy_state(tool_context.state)
             selection_payload = final_state.get(PPT_SYSTEM_SELECTION_STATE_KEY)
             if not selection_payload:
                 raise ValueError("PptSystemSelectionAgent did not save a selection.")
@@ -735,8 +663,6 @@ Return structured status, current phase, selected route, warnings, next actions,
                 ).strip(),
             }
             return self._persist_system_selection(tool_context, selection)
-        finally:
-            await child_runner.close()
 
     async def run_product_request(
         self,
@@ -755,22 +681,24 @@ Return structured status, current phase, selected route, warnings, next actions,
     ) -> dict[str, Any]:
         """Accept one PPT product task and return the current structured status."""
         if tool_context is None:
-            return {
-                "status": "error",
-                "message": "PptProductManager requires tool context.",
-                "result_schema_version": PPT_PRODUCT_RESULT_SCHEMA_VERSION,
-            }
+            return _ppt_product_error_result("PptProductManager requires tool context.")
 
-        clean_task = str(task or "").strip()
-        if not clean_task:
-            return {
-                "status": "error",
-                "message": "PptProductManager requires a non-empty task.",
-                "result_schema_version": PPT_PRODUCT_RESULT_SCHEMA_VERSION,
-            }
+        try:
+            request = PptProductRequest.model_validate(
+                {
+                    "task": task,
+                    "inputs": inputs,
+                    "output": output,
+                }
+            )
+        except ValidationError:
+            if not str(task or "").strip():
+                return _ppt_product_error_result("PptProductManager requires a non-empty task.")
+            return _ppt_product_error_result("PptProductManager requires output to be an object.")
 
         available_expert_agents = self._resolve_ppt_expert_agents(expert_agents)
-        output_options = dict(output or {})
+        clean_task = request.task
+        output_options = request.output
         if not self._should_auto_confirm(output_options):
             workflow_state = self._get_workflow_state(tool_context.state)
             if self._is_pending_confirmation_stage(workflow_state.get("stage")):
@@ -784,9 +712,10 @@ Return structured status, current phase, selected route, warnings, next actions,
                     content_plan_builder=content_plan_builder,
                     asset_resolver=asset_resolver,
                 )
+            tool_context.state[PPT_PRODUCT_REQUEST_STATE_KEY] = request.to_state_dict()
             return await self._start_interactive_product_request(
                 task=clean_task,
-                inputs=inputs,
+                inputs=request.inputs,
                 output=output_options,
                 tool_context=tool_context,
                 app_name=app_name,
@@ -794,8 +723,9 @@ Return structured status, current phase, selected route, warnings, next actions,
                 system_selection_builder=system_selection_builder,
             )
 
+        tool_context.state[PPT_PRODUCT_REQUEST_STATE_KEY] = request.to_state_dict()
         try:
-            raw_inputs = self._normalize_raw_inputs(inputs)
+            raw_inputs = self._normalize_raw_inputs(request.inputs)
             source_inputs = self._normalize_source_inputs(raw_inputs)
             source_inputs = self._stage_source_inputs_for_workspace(source_inputs, tool_context.state)
             source_converter = source_converter or self._build_source_converter(
@@ -1122,6 +1052,42 @@ Return structured status, current phase, selected route, warnings, next actions,
         content_plan_builder: Any | None,
     ) -> dict[str, Any]:
         """Handle the first confirmation gate and then prepare a content plan."""
+        if self._is_confirmation_text(user_response) and _supports_dynamic_workflow(tool_context):
+            return await _run_ppt_requirement_confirmation_workflow(
+                manager=self,
+                user_response=user_response,
+                workflow_state=workflow_state,
+                tool_context=tool_context,
+                expert_agents=expert_agents,
+                app_name=app_name,
+                artifact_service=artifact_service,
+                source_converter=source_converter,
+                content_plan_builder=content_plan_builder,
+            )
+        return await self._continue_after_requirement_confirmation_direct(
+            user_response=user_response,
+            workflow_state=workflow_state,
+            tool_context=tool_context,
+            expert_agents=expert_agents,
+            app_name=app_name,
+            artifact_service=artifact_service,
+            source_converter=source_converter,
+            content_plan_builder=content_plan_builder,
+        )
+
+    async def _continue_after_requirement_confirmation_direct(
+        self,
+        *,
+        user_response: str,
+        workflow_state: dict[str, Any],
+        tool_context: ToolContext,
+        expert_agents: dict[str, BaseAgent],
+        app_name: str,
+        artifact_service: InMemoryArtifactService | None,
+        source_converter: Any | None,
+        content_plan_builder: Any | None,
+    ) -> dict[str, Any]:
+        """Run the first-confirmation business logic without a Workflow wrapper."""
         if not self._is_confirmation_text(user_response):
             return await self._revise_requirement_confirmation(
                 user_response=user_response,
@@ -1261,6 +1227,42 @@ Return structured status, current phase, selected route, warnings, next actions,
         asset_resolver: Any | None,
     ) -> dict[str, Any]:
         """Handle the second confirmation gate and then resolve assets plus route output."""
+        if self._is_confirmation_text(user_response) and _supports_dynamic_workflow(tool_context):
+            return await _run_ppt_content_plan_confirmation_workflow(
+                manager=self,
+                user_response=user_response,
+                workflow_state=workflow_state,
+                tool_context=tool_context,
+                expert_agents=expert_agents,
+                app_name=app_name,
+                artifact_service=artifact_service,
+                content_plan_builder=content_plan_builder,
+                asset_resolver=asset_resolver,
+            )
+        return await self._continue_after_content_plan_confirmation_direct(
+            user_response=user_response,
+            workflow_state=workflow_state,
+            tool_context=tool_context,
+            expert_agents=expert_agents,
+            app_name=app_name,
+            artifact_service=artifact_service,
+            content_plan_builder=content_plan_builder,
+            asset_resolver=asset_resolver,
+        )
+
+    async def _continue_after_content_plan_confirmation_direct(
+        self,
+        *,
+        user_response: str,
+        workflow_state: dict[str, Any],
+        tool_context: ToolContext,
+        expert_agents: dict[str, BaseAgent],
+        app_name: str,
+        artifact_service: InMemoryArtifactService | None,
+        content_plan_builder: Any | None,
+        asset_resolver: Any | None,
+    ) -> dict[str, Any]:
+        """Run the second-confirmation business logic without a Workflow wrapper."""
         requirement = ConfirmedRequirement.model_validate(workflow_state.get("confirmed_requirement") or {})
         system_selection = self._get_workflow_system_selection(workflow_state, requirement, tool_context)
         requirement = self._apply_system_selection_to_requirement(requirement, system_selection)
@@ -1933,10 +1935,10 @@ Return structured status, current phase, selected route, warnings, next actions,
             "runtime_path": skill_runtime_path,
         }
 
-        if not hasattr(tool_context, "_invocation_context"):
+        if not _supports_agent_tool_context(tool_context):
             tool_context.state["ppt_private_skill_execution_output"] = {
                 "status": "fallback",
-                "message": "PptProductManager skill runner skipped because no ADK invocation context was available.",
+                "message": "PptProductManager skill runner skipped because no ADK AgentTool-compatible context was available.",
                 "source": "deterministic_fallback",
             }
             if not _private_skill_allows_html_fallback(requirement, selection):
@@ -1957,22 +1959,9 @@ Return structured status, current phase, selected route, warnings, next actions,
                 tool_context=tool_context,
             )
 
-        invocation_context = tool_context._invocation_context
-        child_session_service = InMemorySessionService()
-        child_artifact_service = _resolve_child_artifact_service(
-            tool_context=tool_context,
-            fallback_service=artifact_service or InMemoryArtifactService(),
-        )
-        child_runner = _build_child_runner(
-            agent=self,
-            app_name=app_name,
-            session_service=child_session_service,
-            artifact_service=child_artifact_service,
-            invocation_context=invocation_context,
-        )
-        child_state = _copy_state(tool_context.state)
-        self._ensure_private_skill_source_files_visible(child_state, requirement)
-        child_state["ppt_product_manager_skill_run_base"] = {
+        agent_state = _copy_state(tool_context.state)
+        self._ensure_private_skill_source_files_visible(agent_state, requirement)
+        agent_state["ppt_product_manager_skill_run_base"] = {
             "confirmed_requirement": requirement.model_dump(mode="json"),
             "deck_content_plan": content_plan.model_dump(mode="json"),
             "system_selection": selection,
@@ -1983,7 +1972,7 @@ Return structured status, current phase, selected route, warnings, next actions,
             },
             "available_experts": sorted((expert_agents or {}).keys()),
         }
-        child_state["ppt_private_skill_execution_base"] = {
+        agent_state["ppt_private_skill_execution_base"] = {
             "confirmed_requirement": requirement.model_dump(mode="json"),
             "deck_content_plan": content_plan.model_dump(mode="json"),
             "system_selection": selection,
@@ -2003,40 +1992,22 @@ Return structured status, current phase, selected route, warnings, next actions,
         self._skill_runtime_app_name = app_name
         self._skill_runtime_artifact_service = artifact_service
         final_state: dict[str, Any] | None = None
-        child_session: Any | None = None
         pptx_snapshot: WorkspacePptxSnapshot | None = None
         try:
             pptx_snapshot = _snapshot_workspace_pptx_files()
-            child_session = await child_session_service.create_session(
-                app_name=app_name,
-                user_id=invocation_context.user_id,
-                state=child_state,
-            )
-            async for _event in child_runner.run_async(
-                user_id=child_session.user_id,
-                session_id=child_session.id,
-                new_message=Content(
-                    role="user",
-                    parts=[
-                        Part(
-                            text=_build_product_manager_skill_run_user_message(
-                                requirement=requirement,
-                                content_plan=content_plan,
-                                system_selection=selection,
-                                skill_content=skill_content,
-                                available_experts=sorted((expert_agents or {}).keys()),
-                            )
-                        )
-                    ],
+            await _run_ppt_internal_agent_tool(
+                agent=self,
+                request=_build_product_manager_skill_run_user_message(
+                    requirement=requirement,
+                    content_plan=content_plan,
+                    system_selection=selection,
+                    skill_content=skill_content,
+                    available_experts=sorted((expert_agents or {}).keys()),
                 ),
-            ):
-                pass
-            final_session = await child_session_service.get_session(
-                app_name=app_name,
-                user_id=child_session.user_id,
-                session_id=child_session.id,
+                tool_context=tool_context,
+                initial_state=agent_state,
             )
-            final_state = final_session.state if final_session is not None else child_state
+            final_state = _copy_state(tool_context.state)
             private_build = self._resolve_or_recover_private_skill_build(
                 final_state,
                 skill_name=skill_name,
@@ -2056,16 +2027,8 @@ Return structured status, current phase, selected route, warnings, next actions,
             }
             return private_build
         except Exception as exc:
-            if final_state is None and child_session is not None:
-                try:
-                    final_session = await child_session_service.get_session(
-                        app_name=app_name,
-                        user_id=child_session.user_id,
-                        session_id=child_session.id,
-                    )
-                    final_state = final_session.state if final_session is not None else child_state
-                except Exception:
-                    final_state = child_state
+            if final_state is None:
+                final_state = _copy_state(tool_context.state)
             if isinstance(final_state, dict):
                 private_build = self._resolve_or_recover_private_skill_build(
                     final_state,
@@ -2127,7 +2090,6 @@ Return structured status, current phase, selected route, warnings, next actions,
                 self._skill_runtime_app_name,
                 self._skill_runtime_artifact_service,
             ) = previous_runtime
-            await child_runner.close()
 
     @classmethod
     def _resolve_or_recover_private_skill_build(
@@ -2842,15 +2804,13 @@ Return structured status, current phase, selected route, warnings, next actions,
                     f"Available experts: {', '.join(sorted(available_experts)) or 'none'}."
                 ),
             }
-        if not hasattr(tool_context, "_invocation_context"):
+        if not has_invocation_context(tool_context):
             return {
                 "status": "error",
                 "message": "invoke_ppt_expert requires an ADK invocation context.",
             }
         artifact_service = self._skill_runtime_artifact_service or InMemoryArtifactService()
-        app_name = self._skill_runtime_app_name or str(
-            getattr(getattr(tool_context, "_invocation_context", None), "app_name", "creative_claw")
-        )
+        app_name = self._skill_runtime_app_name or invocation_app_name(tool_context)
 
         if clean_agent_name == PPT_HTML_PAGE_GENERATION_EXPERT_NAME:
             return await self._invoke_html_page_generation_expert(
@@ -2862,13 +2822,13 @@ Return structured status, current phase, selected route, warnings, next actions,
             )
 
         try:
-            invocation = await dispatch_expert_call(
-                agent_name=clean_agent_name,
-                prompt=str(prompt or ""),
-                tool_context=tool_context,
-                expert_agents=available_experts,
-                app_name=app_name,
-                artifact_service=artifact_service,
+            invocation = await dispatch_expert_request(
+                ExpertInvocationRequest(
+                    agent_name=clean_agent_name,
+                    prompt=str(prompt or ""),
+                    tool_context=tool_context,
+                    expert_agents=available_experts,
+                )
             )
         except Exception as exc:
             payload = {
@@ -3353,7 +3313,7 @@ Return structured status, current phase, selected route, warnings, next actions,
             content_plan=content_plan,
             output_dir=self._build_route_output_dir(tool_context.state, route=requirement.route),
             tool_context=tool_context,
-            app_name=str(getattr(getattr(tool_context, "_invocation_context", None), "app_name", "creative_claw")),
+            app_name=invocation_app_name(tool_context),
             artifact_service=None,
             expert_agents=self._resolve_ppt_expert_agents(),
         )
@@ -4221,17 +4181,17 @@ Return structured status, current phase, selected route, warnings, next actions,
         if (
             "AnythingToMD" in expert_agents
             and artifact_service is not None
-            and hasattr(tool_context, "_invocation_context")
+            and has_invocation_context(tool_context)
         ):
 
             async def _dispatch_converter(source_input: SourceInput, parameters: dict[str, Any]) -> dict[str, Any]:
-                invocation = await dispatch_expert_call(
-                    agent_name="AnythingToMD",
-                    prompt=json.dumps(parameters, ensure_ascii=False),
-                    tool_context=tool_context,
-                    expert_agents=expert_agents,
-                    app_name=app_name,
-                    artifact_service=artifact_service,
+                invocation = await dispatch_expert_request(
+                    ExpertInvocationRequest(
+                        agent_name="AnythingToMD",
+                        prompt=json.dumps(parameters, ensure_ascii=False),
+                        tool_context=tool_context,
+                        expert_agents=expert_agents,
+                    )
                 )
                 return invocation.current_output
 
@@ -5364,6 +5324,172 @@ def _copy_state(state: Any) -> dict[str, Any]:
     return copy.deepcopy(dict(state))
 
 
+def _supports_agent_tool_context(tool_context: ToolContext) -> bool:
+    """Return whether the context can safely run an ADK AgentTool child agent."""
+    return supports_agent_tool_context(tool_context)
+
+
+async def _run_ppt_internal_agent_tool(
+    *,
+    agent: LlmAgent,
+    request: str,
+    tool_context: ToolContext,
+    initial_state: dict[str, Any] | None = None,
+) -> None:
+    """Run a small PPT product-internal agent through ADK AgentTool."""
+    await run_agent_tool(
+        agent=agent,
+        request=request,
+        tool_context=tool_context,
+        initial_state=initial_state,
+    )
+
+
+def _supports_dynamic_workflow(tool_context: ToolContext) -> bool:
+    """Return whether the current ADK context can run Workflow nodes directly."""
+    return callable(getattr(tool_context, "run_node", None))
+
+
+async def _run_ppt_requirement_confirmation_workflow(
+    *,
+    manager: PptProductManager,
+    user_response: str,
+    workflow_state: dict[str, Any],
+    tool_context: ToolContext,
+    expert_agents: dict[str, BaseAgent],
+    app_name: str,
+    artifact_service: InMemoryArtifactService | None,
+    source_converter: Any | None,
+    content_plan_builder: Any | None,
+) -> dict[str, Any]:
+    """Run the first PPT confirmation continuation through ADK Workflow."""
+    workflow = _build_ppt_requirement_confirmation_workflow(
+        manager=manager,
+        expert_agents=expert_agents,
+        app_name=app_name,
+        artifact_service=artifact_service,
+        source_converter=source_converter,
+        content_plan_builder=content_plan_builder,
+    )
+    result = await tool_context.run_node(
+        workflow,
+        node_input={
+            "user_response": user_response,
+            "workflow_state": copy.deepcopy(workflow_state),
+        },
+        use_sub_branch=True,
+    )
+    return dict(result) if isinstance(result, dict) else {}
+
+
+def _build_ppt_requirement_confirmation_workflow(
+    *,
+    manager: PptProductManager,
+    expert_agents: dict[str, BaseAgent],
+    app_name: str,
+    artifact_service: InMemoryArtifactService | None,
+    source_converter: Any | None,
+    content_plan_builder: Any | None,
+) -> Workflow:
+    """Build the ADK 2 dynamic Workflow for the first PPT confirmation gate."""
+
+    @node(name="PptRequirementConfirmationNode", rerun_on_resume=True)
+    async def run_requirement_confirmation(ctx: Context, node_input: dict[str, Any]) -> dict[str, Any]:
+        """Continue after requirement confirmation using the existing phase logic."""
+        result = await manager._continue_after_requirement_confirmation_direct(
+            user_response=str(node_input.get("user_response") or ""),
+            workflow_state=dict(node_input.get("workflow_state") or {}),
+            tool_context=ctx,
+            expert_agents=expert_agents,
+            app_name=app_name,
+            artifact_service=artifact_service,
+            source_converter=source_converter,
+            content_plan_builder=content_plan_builder,
+        )
+        ctx.state[PPT_REQUIREMENT_CONFIRMATION_WORKFLOW_OUTPUT_KEY] = {
+            "status": str(result.get("status") or ""),
+            "source": "adk_workflow",
+            "stage": PPT_STAGE_AWAITING_REQUIREMENT_CONFIRMATION,
+        }
+        return result
+
+    return Workflow(
+        name="PptRequirementConfirmationWorkflow",
+        description="Continues a PPT workflow from requirement confirmation to content-plan confirmation.",
+        edges=[("START", run_requirement_confirmation)],
+    )
+
+
+async def _run_ppt_content_plan_confirmation_workflow(
+    *,
+    manager: PptProductManager,
+    user_response: str,
+    workflow_state: dict[str, Any],
+    tool_context: ToolContext,
+    expert_agents: dict[str, BaseAgent],
+    app_name: str,
+    artifact_service: InMemoryArtifactService | None,
+    content_plan_builder: Any | None,
+    asset_resolver: Any | None,
+) -> dict[str, Any]:
+    """Run the second PPT confirmation continuation through ADK Workflow."""
+    workflow = _build_ppt_content_plan_confirmation_workflow(
+        manager=manager,
+        expert_agents=expert_agents,
+        app_name=app_name,
+        artifact_service=artifact_service,
+        content_plan_builder=content_plan_builder,
+        asset_resolver=asset_resolver,
+    )
+    result = await tool_context.run_node(
+        workflow,
+        node_input={
+            "user_response": user_response,
+            "workflow_state": copy.deepcopy(workflow_state),
+        },
+        use_sub_branch=True,
+    )
+    return dict(result) if isinstance(result, dict) else {}
+
+
+def _build_ppt_content_plan_confirmation_workflow(
+    *,
+    manager: PptProductManager,
+    expert_agents: dict[str, BaseAgent],
+    app_name: str,
+    artifact_service: InMemoryArtifactService | None,
+    content_plan_builder: Any | None,
+    asset_resolver: Any | None,
+) -> Workflow:
+    """Build the ADK 2 dynamic Workflow for the second PPT confirmation gate."""
+
+    @node(name="PptContentPlanConfirmationNode", rerun_on_resume=True)
+    async def run_content_plan_confirmation(ctx: Context, node_input: dict[str, Any]) -> dict[str, Any]:
+        """Continue after content-plan confirmation using the existing phase logic."""
+        result = await manager._continue_after_content_plan_confirmation_direct(
+            user_response=str(node_input.get("user_response") or ""),
+            workflow_state=dict(node_input.get("workflow_state") or {}),
+            tool_context=ctx,
+            expert_agents=expert_agents,
+            app_name=app_name,
+            artifact_service=artifact_service,
+            content_plan_builder=content_plan_builder,
+            asset_resolver=asset_resolver,
+        )
+        ctx.state[PPT_CONTENT_PLAN_CONFIRMATION_WORKFLOW_OUTPUT_KEY] = {
+            "status": str(result.get("status") or ""),
+            "source": "adk_workflow",
+            "stage": PPT_STAGE_AWAITING_CONTENT_PLAN_CONFIRMATION,
+        }
+        return result
+
+    return Workflow(
+        name="PptContentPlanConfirmationWorkflow",
+        description="Continues a PPT workflow from content-plan confirmation to final delivery.",
+        edges=[("START", run_content_plan_confirmation)],
+    )
+
+
 def _normalize_ppt_final_file_paths(paths: list[Any]) -> list[str]:
     """Normalize final PPT product file paths into workspace-relative strings."""
     normalized: list[str] = []
@@ -5378,43 +5504,3 @@ def _normalize_ppt_final_file_paths(paths: list[Any]) -> list[str]:
         if normalized_path and normalized_path not in normalized:
             normalized.append(normalized_path)
     return normalized
-
-
-def _resolve_child_artifact_service(
-    *,
-    tool_context: ToolContext,
-    fallback_service: BaseArtifactService,
-) -> BaseArtifactService:
-    """Pick the artifact service for the internal requirement-analysis runner."""
-    required_methods = ("save_artifact", "load_artifact", "list_artifacts")
-    if all(hasattr(tool_context, method_name) for method_name in required_methods):
-        return ToolContextArtifactService(tool_context)
-    return fallback_service
-
-
-def _build_child_runner(
-    *,
-    agent: LlmAgent,
-    app_name: str,
-    session_service: InMemorySessionService,
-    artifact_service: BaseArtifactService,
-    invocation_context: Any,
-) -> Runner:
-    """Create a child ADK runner for an internal PPT product agent."""
-    child_plugins = getattr(getattr(invocation_context, "plugin_manager", None), "plugins", None)
-    runner_kwargs = {
-        "app_name": app_name,
-        "session_service": session_service,
-        "artifact_service": artifact_service,
-        "memory_service": InMemoryMemoryService(),
-        "credential_service": getattr(invocation_context, "credential_service", None),
-    }
-    if child_plugins:
-        runner_kwargs["app"] = App(
-            name=app_name,
-            root_agent=agent,
-            plugins=list(child_plugins),
-        )
-    else:
-        runner_kwargs["agent"] = agent
-    return Runner(**runner_kwargs)

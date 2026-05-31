@@ -8,14 +8,9 @@ from pathlib import Path
 from typing import Any
 
 from google.adk.agents import BaseAgent, LlmAgent
-from google.adk.apps import App
-from google.adk.artifacts import BaseArtifactService, InMemoryArtifactService
-from google.adk.memory import InMemoryMemoryService
-from google.adk.runners import Runner
-from google.adk.sessions import InMemorySessionService
+from google.adk.artifacts import BaseArtifactService
 from google.adk.tools.tool_context import ToolContext
-from google.genai.types import Content, Part
-from pydantic import PrivateAttr
+from pydantic import BaseModel, Field, PrivateAttr, ValidationError, field_validator
 
 from conf.llm import build_llm
 from conf.path import PROJECT_PATH
@@ -41,9 +36,18 @@ from src.productions.design.design_product_manager.product_design_skills import 
     ProductDesignSkillRegistry,
 )
 from src.productions.design.design_product_manager.validation import validate_design_artifacts
-from src.runtime.expert_dispatcher import dispatch_expert_call
+from src.productions.schema_utils import (
+    clean_string,
+    default_empty_dict,
+    default_empty_list,
+    default_schema_version,
+    model_dump_dict,
+    require_non_empty_string,
+)
+from src.runtime.expert_dispatcher import ExpertInvocationRequest, dispatch_expert_request
+from src.runtime.agent_tool_transport import run_agent_tool, supports_agent_tool_context
+from src.runtime.adk_compat import get_invocation_context, has_invocation_context
 from src.runtime.step_events import append_orchestration_step_event
-from src.runtime.tool_context_artifact_service import ToolContextArtifactService
 from src.runtime.workspace import (
     build_generated_output_path,
     build_workspace_file_record,
@@ -68,6 +72,129 @@ DESIGN_PRODUCT_SELECTED_DESIGN_SYSTEM_STATE_KEY = "design_product_selected_desig
 def _clear_state_value(state: Any, key: str) -> None:
     """Clear one session state value through the public ADK State API."""
     state[key] = None
+
+
+class DesignProductRequest(BaseModel):
+    """Structured request contract for one DesignProductManager run."""
+
+    model_config = {"extra": "ignore", "arbitrary_types_allowed": True}
+
+    task: str = Field(description="The design product task to complete.")
+    inputs: Any = Field(default_factory=list)
+    output: dict[str, Any] = Field(default_factory=dict)
+
+    @field_validator("task", mode="before")
+    @classmethod
+    def _strip_task(cls, value: Any) -> str:
+        """Strip the user task before validation."""
+        return clean_string(value)
+
+    @field_validator("inputs", mode="before")
+    @classmethod
+    def _default_inputs(cls, value: Any) -> Any:
+        """Default missing inputs to an empty list while preserving caller shape."""
+        return default_empty_list(value)
+
+    @field_validator("output", mode="before")
+    @classmethod
+    def _default_output(cls, value: Any) -> dict[str, Any]:
+        """Default missing output options to an empty dict."""
+        return default_empty_dict(value)
+
+    @field_validator("task")
+    @classmethod
+    def _require_task(cls, value: str) -> str:
+        """Require a non-empty Design task."""
+        return require_non_empty_string(value, field_name="task")
+
+    def normalized_inputs(self) -> Any:
+        """Return the public input shape normalized for prompts and session state."""
+        return _normalize_design_inputs(self.inputs)
+
+    def to_state_dict(
+        self,
+        *,
+        task: str | None = None,
+        inputs: Any | None = None,
+    ) -> dict[str, Any]:
+        """Return the stable dictionary payload stored in session state."""
+        payload = model_dump_dict(self)
+        payload["task"] = clean_string(self.task if task is None else task)
+        payload["inputs"] = copy.deepcopy(self.normalized_inputs() if inputs is None else inputs)
+        payload["output"] = copy.deepcopy(self.output)
+        return payload
+
+
+class DesignProductResult(BaseModel):
+    """Structured result contract emitted by DesignProductManager."""
+
+    model_config = {"extra": "allow"}
+
+    result_schema_version: str = DESIGN_PRODUCT_RESULT_SCHEMA_VERSION
+    status: str
+    product_line: str = "design"
+    message: str
+    final_file_paths: list[str] = Field(default_factory=list)
+    progress: list[dict[str, Any]] = Field(default_factory=list)
+    active_skill: dict[str, Any] = Field(default_factory=dict)
+    experts: list[dict[str, Any]] = Field(default_factory=list)
+    expert_history: list[dict[str, Any]] = Field(default_factory=list)
+    last_expert_result: dict[str, Any] = Field(default_factory=dict)
+    code_generation_history: list[dict[str, Any]] = Field(default_factory=list)
+    last_code_generation_result: dict[str, Any] = Field(default_factory=dict)
+    generation: dict[str, Any] = Field(default_factory=dict)
+    validation: list[dict[str, Any]] = Field(default_factory=list)
+    output_files: list[dict[str, Any]] = Field(default_factory=list)
+
+    @field_validator("result_schema_version", mode="before")
+    @classmethod
+    def _default_schema_version(cls, value: Any) -> str:
+        """Default missing result schema version."""
+        return default_schema_version(value, DESIGN_PRODUCT_RESULT_SCHEMA_VERSION)
+
+    @field_validator("status", "product_line", "message", mode="before")
+    @classmethod
+    def _strip_text_fields(cls, value: Any) -> str:
+        """Normalize result text fields."""
+        return clean_string(value)
+
+    @field_validator("status")
+    @classmethod
+    def _require_status(cls, value: str) -> str:
+        """Require a non-empty product status."""
+        return require_non_empty_string(value, field_name="status")
+
+    @field_validator("message")
+    @classmethod
+    def _default_message(cls, value: str) -> str:
+        """Default empty product messages."""
+        return value or "Design product task completed."
+
+    @field_validator("product_line")
+    @classmethod
+    def _normalize_product_line(cls, value: str) -> str:
+        """Keep the public Design product-line marker stable."""
+        return "design"
+
+    def to_result_dict(self) -> dict[str, Any]:
+        """Return the stable dictionary contract exposed to callers."""
+        return model_dump_dict(self)
+
+
+def _parse_design_product_request(*, task: Any, inputs: Any, output: Any) -> DesignProductRequest:
+    """Parse one Design product request into a structured contract."""
+    return DesignProductRequest.model_validate(
+        {
+            "task": task,
+            "inputs": inputs,
+            "output": output,
+        }
+    )
+
+
+def _coerce_design_product_result(value: Any) -> DesignProductResult:
+    """Parse one Design product result from the stable dictionary payload."""
+    return DesignProductResult.model_validate(value)
 
 
 class DesignProductManager(LlmAgent):
@@ -160,7 +287,8 @@ Own design product tasks end to end. You are not a thin wrapper around the orche
 - Use CodeGenerationExpert only for supporting non-final code snippets or auxiliary code files when the design-specific generator is not appropriate.
 - Use ImageUnderstandingAgent for uploaded reference images, screenshots, visual style analysis, OCR, and reverse-prompt extraction.
 - Use ImageGenerationAgent only when the design needs new bitmap assets such as hero images, poster visuals, illustrations, or backgrounds.
-- Use AnythingToMD for user-provided local documents, spreadsheets, or slide files that should become Markdown design input.
+- Use AnythingToMD only for user-provided source documents that need extraction into Markdown before design work, especially PDFs, scanned or image-heavy documents, DOCX files, slide decks, spreadsheets, and other dense document inputs.
+- Do not use AnythingToMD for HTML, TXT, Markdown, or ordinary image files just because they are available. Treat those as direct design inputs or visual references; use ImageUnderstandingAgent for image understanding when needed.
 - Use SearchAgent only when external visual or textual reference is genuinely needed.
 - Do not call experts outside the private allowlist.
 
@@ -170,7 +298,7 @@ Own design product tasks end to end. You are not a thin wrapper around the orche
 - DesignCodeGenerationAgent is the default and preferred producer of final code-backed design artifacts.
 - Use `invoke_design_code_generation` for final standalone HTML, landing pages, dashboards, app screen prototypes, interactive tools, HTML posters/cards, HTML decks, and CSS/JS/HTML design artifacts.
 - Do not use `save_design_artifact` to create the main final HTML or code artifact. Use it only for auxiliary files or already-complete small supporting files.
-- Other private experts are supporting experts. AnythingToMD prepares source material, ImageUnderstandingAgent analyzes visual references, SearchAgent gathers external references, and ImageGenerationAgent creates image assets for the final code-backed artifact.
+- Other private experts are supporting experts. AnythingToMD prepares user-provided source material only, ImageUnderstandingAgent analyzes visual references, SearchAgent gathers external references, and ImageGenerationAgent creates image assets for the final code-backed artifact.
 - ImageGenerationAgent output is normally an intermediate asset, not the primary final design product. If image assets are generated, pass their workspace paths and intended usage to `invoke_design_code_generation`.
 - If the user asks only for a standalone image, treat it as a design asset request and prefer producing a code-backed final artifact when the request belongs to the design product line.
 
@@ -182,7 +310,8 @@ Own design product tasks end to end. You are not a thin wrapper around the orche
 5. Decide whether the task has enough information. Lock the design medium, content structure, visual direction, design system, scale, and whether the user expects style exploration. If it does not have enough information, return a clarification result through `register_design_delivery` without generating a file.
 6. Generate final code-backed design artifacts through `invoke_design_code_generation`. Use `save_design_artifact` only when you already have complete supporting file content.
 7. Validate generated files with `validate_design_artifact`.
-8. Finish by calling `register_design_delivery`.
+8. After generation and validation, do not use AnythingToMD to inspect or verify generated design outputs. The generated text, structure, and images are already known to this product workflow; rely on `validate_design_artifact` and then register delivery.
+9. Finish by calling `register_design_delivery`.
 
 # Design artifact generation contract
 - Treat generated HTML as a design canvas, not a production application.
@@ -228,12 +357,16 @@ Always call `register_design_delivery` before finishing. It must contain a user-
         if tool_context is None:
             return _error_result("DesignProductManager requires tool context.")
 
-        clean_task = str(task or "").strip()
-        if not clean_task:
-            return _error_result("DesignProductManager requires a non-empty task.")
-        if not hasattr(tool_context, "_invocation_context"):
+        try:
+            request = _parse_design_product_request(task=task, inputs=inputs, output=output)
+        except ValidationError:
+            if not clean_string(task):
+                return _error_result("DesignProductManager requires a non-empty task.")
+            return _error_result("DesignProductManager requires output to be an object.")
+        if not has_invocation_context(tool_context):
             return _error_result("DesignProductManager requires an ADK invocation context.")
-        normalized_inputs = _normalize_design_inputs(inputs)
+        clean_task = request.task
+        normalized_inputs = request.normalized_inputs()
 
         append_orchestration_step_event(
             tool_context.state,
@@ -264,13 +397,19 @@ Always call `register_design_delivery` before finishing. It must contain a user-
             else:
                 _clear_state_value(tool_context.state, DESIGN_PRODUCT_SELECTED_DESIGN_SYSTEM_STATE_KEY)
         elif _should_request_web_brief_form(tool_context.state):
-            invocation_context = tool_context._invocation_context
+            invocation_context = get_invocation_context(tool_context)
             try:
-                form_message = await self._brief_form_expert.generate_form(
-                    task=clean_task,
-                    app_name=app_name,
-                    user_id=invocation_context.user_id,
-                )
+                if _supports_dynamic_workflow(tool_context):
+                    form_message = await self._brief_form_expert.generate_form_with_workflow(
+                        task=clean_task,
+                        tool_context=tool_context,
+                    )
+                else:
+                    form_message = await self._brief_form_expert.generate_form(
+                        task=clean_task,
+                        app_name=app_name,
+                        user_id=invocation_context.user_id,
+                    )
             except Exception as exc:
                 return _error_result(
                     f"Design brief form generation failed: {type(exc).__name__}: {exc}"
@@ -292,64 +431,51 @@ Always call `register_design_delivery` before finishing. It must contain a user-
         self._app_name = app_name
         self._artifact_service = artifact_service
 
-        invocation_context = tool_context._invocation_context
-        child_session_service = InMemorySessionService()
-        child_artifact_service = _resolve_child_artifact_service(
-            tool_context=tool_context,
-            fallback_service=artifact_service or InMemoryArtifactService(),
+        if not _supports_agent_tool_context(tool_context):
+            return _error_result(
+                "DesignProductManager requires an ADK invocation context with AgentTool-compatible state."
+            )
+
+        # AgentTool inherits app, artifact, credential, and plugin context from the parent run.
+        _ = artifact_service
+        agent_state = _copy_state(tool_context.state)
+        agent_state[DESIGN_PRODUCT_REQUEST_STATE_KEY] = request.to_state_dict(
+            task=clean_task,
+            inputs=normalized_inputs,
         )
-        child_runner = _build_child_runner(
-            agent=self,
-            app_name=app_name,
-            session_service=child_session_service,
-            artifact_service=child_artifact_service,
-            invocation_context=invocation_context,
-        )
-        child_state = _copy_state(tool_context.state)
-        child_state[DESIGN_PRODUCT_REQUEST_STATE_KEY] = {
-            "task": clean_task,
-            "inputs": copy.deepcopy(normalized_inputs),
-            "output": dict(output or {}),
-        }
-        child_state[DESIGN_PRODUCT_EXPERTS_STATE_KEY] = build_design_expert_listing(
+        agent_state[DESIGN_PRODUCT_EXPERTS_STATE_KEY] = build_design_expert_listing(
             self._available_design_expert_agents()
         )
-        child_state["app_name"] = app_name
+        agent_state["app_name"] = app_name
 
         try:
-            child_session = await child_session_service.create_session(
-                app_name=app_name,
-                user_id=invocation_context.user_id,
-                state=child_state,
-            )
-            async for _event in child_runner.run_async(
-                user_id=child_session.user_id,
-                session_id=child_session.id,
-                new_message=Content(
-                    role="user",
-                    parts=[
-                        Part(
-                            text=_build_design_product_user_message(
-                                task=clean_task,
-                                inputs=normalized_inputs,
-                                output=dict(output or {}),
-                            )
-                        )
-                    ],
+            await _run_design_product_agent_tool(
+                agent=self,
+                request=_build_design_product_user_message(
+                    task=clean_task,
+                    inputs=normalized_inputs,
+                    output=request.output,
                 ),
-            ):
-                pass
-            final_session = await child_session_service.get_session(
-                app_name=app_name,
-                user_id=child_session.user_id,
-                session_id=child_session.id,
+                tool_context=tool_context,
+                initial_state=agent_state,
             )
-            final_state = final_session.state if final_session is not None else child_state
+            final_state = _copy_state(tool_context.state)
             result = final_state.get(DESIGN_PRODUCT_RESULT_STATE_KEY)
             if not isinstance(result, dict):
                 result = _error_result(
                     "DesignProductManager finished without registering a design delivery."
                 )
+                final_state[DESIGN_PRODUCT_RESULT_STATE_KEY] = result
+                final_state["current_output"] = result
+            else:
+                try:
+                    result = _coerce_design_product_result(result).to_result_dict()
+                except ValidationError as exc:
+                    result = _error_result(
+                        f"DesignProductManager registered an invalid design delivery: {exc.errors()[0]['msg']}"
+                    )
+                final_state[DESIGN_PRODUCT_RESULT_STATE_KEY] = result
+                final_state["current_output"] = result
             _copy_design_state_back(source=final_state, target=tool_context.state)
             return result
         except Exception as exc:
@@ -357,8 +483,6 @@ Always call `register_design_delivery` before finishing. It must contain a user-
             tool_context.state[DESIGN_PRODUCT_RESULT_STATE_KEY] = result
             tool_context.state["current_output"] = result
             return result
-        finally:
-            await child_runner.close()
 
     def list_product_design_skills(self, tool_context: ToolContext) -> dict[str, Any]:
         """List private product-design skills available to this product manager."""
@@ -410,16 +534,16 @@ Always call `register_design_delivery` before finishing. It must contain a user-
                 "allowed_experts": list(DESIGN_PRODUCT_EXPERT_ALLOWLIST),
             }
 
-        invocation = await dispatch_expert_call(
-            agent_name=clean_agent_name,
-            prompt=_resolve_design_input_aliases_in_prompt(
-                str(prompt or "").strip(),
-                tool_context.state,
-            ),
-            tool_context=tool_context,
-            expert_agents=design_expert_agents,
-            app_name=self._app_name,
-            artifact_service=self._artifact_service or InMemoryArtifactService(),
+        invocation = await dispatch_expert_request(
+            ExpertInvocationRequest(
+                agent_name=clean_agent_name,
+                prompt=_resolve_design_input_aliases_in_prompt(
+                    str(prompt or "").strip(),
+                    tool_context.state,
+                ),
+                tool_context=tool_context,
+                expert_agents=design_expert_agents,
+            )
         )
         history = list(tool_context.state.get(DESIGN_PRODUCT_EXPERT_HISTORY_STATE_KEY) or [])
         history.append(invocation.tool_result)
@@ -586,28 +710,26 @@ Always call `register_design_delivery` before finishing. It must contain a user-
     ) -> dict[str, Any]:
         """Register the final design product result for orchestrator delivery."""
         normalized_paths = _normalize_final_paths(final_file_paths)
-        result = {
-            "result_schema_version": DESIGN_PRODUCT_RESULT_SCHEMA_VERSION,
-            "status": str(status or "success").strip() or "success",
-            "product_line": "design",
-            "message": str(reply_text or "").strip() or "Design product task completed.",
-            "final_file_paths": normalized_paths,
-            "progress": list(tool_context.state.get(DESIGN_PRODUCT_PROGRESS_STATE_KEY) or []),
-            "active_skill": tool_context.state.get(DESIGN_PRODUCT_ACTIVE_SKILL_STATE_KEY) or {},
-            "experts": tool_context.state.get(DESIGN_PRODUCT_EXPERTS_STATE_KEY) or [],
-            "expert_history": list(tool_context.state.get(DESIGN_PRODUCT_EXPERT_HISTORY_STATE_KEY) or []),
-            "last_expert_result": tool_context.state.get(DESIGN_PRODUCT_LAST_EXPERT_RESULT_STATE_KEY) or {},
-            "code_generation_history": list(
+        result = DesignProductResult(
+            status=str(status or "success").strip() or "success",
+            message=str(reply_text or "").strip() or "Design product task completed.",
+            final_file_paths=normalized_paths,
+            progress=list(tool_context.state.get(DESIGN_PRODUCT_PROGRESS_STATE_KEY) or []),
+            active_skill=tool_context.state.get(DESIGN_PRODUCT_ACTIVE_SKILL_STATE_KEY) or {},
+            experts=tool_context.state.get(DESIGN_PRODUCT_EXPERTS_STATE_KEY) or [],
+            expert_history=list(tool_context.state.get(DESIGN_PRODUCT_EXPERT_HISTORY_STATE_KEY) or []),
+            last_expert_result=tool_context.state.get(DESIGN_PRODUCT_LAST_EXPERT_RESULT_STATE_KEY) or {},
+            code_generation_history=list(
                 tool_context.state.get(DESIGN_PRODUCT_CODE_GENERATION_HISTORY_STATE_KEY) or []
             ),
-            "last_code_generation_result": tool_context.state.get(
+            last_code_generation_result=tool_context.state.get(
                 DESIGN_PRODUCT_LAST_CODE_GENERATION_RESULT_STATE_KEY
             )
             or {},
-            "generation": tool_context.state.get("design_product_generation") or {},
-            "validation": tool_context.state.get("design_product_validation") or [],
-            "output_files": _file_records_for_paths(normalized_paths, state=tool_context.state),
-        }
+            generation=tool_context.state.get("design_product_generation") or {},
+            validation=tool_context.state.get("design_product_validation") or [],
+            output_files=_file_records_for_paths(normalized_paths, state=tool_context.state),
+        ).to_result_dict()
         tool_context.state[DESIGN_PRODUCT_RESULT_STATE_KEY] = result
         tool_context.state["current_output"] = result
         tool_context.state["last_product_result"] = result
@@ -803,50 +925,22 @@ def _strip_json_code_fence(text: str) -> str:
 
 def _error_result(message: str) -> dict[str, Any]:
     """Build a JSON-safe design product error result."""
-    return {
-        "result_schema_version": DESIGN_PRODUCT_RESULT_SCHEMA_VERSION,
-        "status": "error",
-        "product_line": "design",
-        "message": message,
-        "final_file_paths": [],
-        "progress": [],
-        "active_skill": {},
-        "experts": [],
-        "expert_history": [],
-        "last_expert_result": {},
-        "code_generation_history": [],
-        "last_code_generation_result": {},
-        "generation": {},
-        "validation": [],
-        "output_files": [],
-    }
+    return DesignProductResult(status="error", message=message).to_result_dict()
 
 
 def _brief_form_result(form_message: str) -> dict[str, Any]:
     """Build a DesignProductManager result that asks the Web UI for form answers."""
-    return {
-        "result_schema_version": DESIGN_PRODUCT_RESULT_SCHEMA_VERSION,
-        "status": "needs_input",
-        "product_line": "design",
-        "message": form_message,
-        "final_file_paths": [],
-        "progress": [
+    return DesignProductResult(
+        status="needs_input",
+        message=form_message,
+        progress=[
             {
                 "stage": "brief_form",
                 "status": "needs_input",
                 "message": "已生成设计需求确认表单，等待用户在 Web 前端提交。",
             }
         ],
-        "active_skill": {},
-        "experts": [],
-        "expert_history": [],
-        "last_expert_result": {},
-        "code_generation_history": [],
-        "last_code_generation_result": {},
-        "generation": {},
-        "validation": [],
-        "output_files": [],
-    }
+    ).to_result_dict()
 
 
 def _should_request_web_brief_form(state: Any) -> bool:
@@ -967,44 +1061,30 @@ def _copy_state(state: Any) -> dict[str, Any]:
     return copy.deepcopy(dict(state))
 
 
-def _resolve_child_artifact_service(
-    *,
-    tool_context: ToolContext,
-    fallback_service: BaseArtifactService,
-) -> BaseArtifactService:
-    """Pick the artifact service for the internal DesignProductManager runner."""
-    required_methods = ("save_artifact", "load_artifact", "list_artifacts")
-    if all(hasattr(tool_context, method_name) for method_name in required_methods):
-        return ToolContextArtifactService(tool_context)
-    return fallback_service
+def _supports_agent_tool_context(tool_context: ToolContext) -> bool:
+    """Return whether the context can safely run an ADK AgentTool child agent."""
+    return supports_agent_tool_context(tool_context)
 
 
-def _build_child_runner(
+def _supports_dynamic_workflow(tool_context: ToolContext) -> bool:
+    """Return whether the current ADK context can run Workflow nodes directly."""
+    return callable(getattr(tool_context, "run_node", None))
+
+
+async def _run_design_product_agent_tool(
     *,
     agent: LlmAgent,
-    app_name: str,
-    session_service: InMemorySessionService,
-    artifact_service: BaseArtifactService,
-    invocation_context: Any,
-) -> Runner:
-    """Create a child ADK runner for the design product manager."""
-    child_plugins = getattr(getattr(invocation_context, "plugin_manager", None), "plugins", None)
-    runner_kwargs = {
-        "app_name": app_name,
-        "session_service": session_service,
-        "artifact_service": artifact_service,
-        "memory_service": InMemoryMemoryService(),
-        "credential_service": getattr(invocation_context, "credential_service", None),
-    }
-    if child_plugins:
-        runner_kwargs["app"] = App(
-            name=app_name,
-            root_agent=agent,
-            plugins=list(child_plugins),
-        )
-    else:
-        runner_kwargs["agent"] = agent
-    return Runner(**runner_kwargs)
+    request: str,
+    tool_context: ToolContext,
+    initial_state: dict[str, Any] | None = None,
+) -> None:
+    """Run DesignProductManager internally through ADK AgentTool."""
+    await run_agent_tool(
+        agent=agent,
+        request=request,
+        tool_context=tool_context,
+        initial_state=initial_state,
+    )
 
 
 def _copy_design_state_back(*, source: Any, target: Any) -> None:
@@ -1117,4 +1197,6 @@ def _file_records_for_paths(paths: list[str], *, state: Any) -> list[dict[str, A
 __all__ = [
     "DESIGN_PRODUCT_RESULT_SCHEMA_VERSION",
     "DesignProductManager",
+    "DesignProductRequest",
+    "DesignProductResult",
 ]

@@ -3,13 +3,13 @@ from typing import Any
 
 from PIL import Image
 from google.adk.agents import LlmAgent
-from google.adk.agents.callback_context import CallbackContext
 from google.adk.agents.invocation_context import InvocationContext
-from google.adk.models import LiteLlm, LlmRequest
-from google.genai.types import Content, Part
+from google.adk.models import LiteLlm
+from google.genai.types import Part
 
 from conf.api import API_CONFIG
 from src.logger import logger
+from src.runtime.llm_oneshot import run_oneshot_llm
 from src.runtime.workspace import load_local_file_part, resolve_workspace_path, workspace_relative_path
 
 _DASHSCOPE_QWEN_VL_MODEL_NAME = "qwen-vl-plus-latest"
@@ -127,17 +127,6 @@ def _build_analysis_prompt(mode: str) -> str:
     return prompts_map.get(mode, prompts_map["description"])
 
 
-def _extract_final_response_text(parts: list[Any]) -> str:
-    """Return visible model text from final response parts, ignoring thought parts."""
-    for part in parts:
-        if getattr(part, "thought", False):
-            continue
-        text = str(getattr(part, "text", "") or "").strip()
-        if text:
-            return text
-    return ""
-
-
 def _looks_like_missing_image_response(text: str) -> bool:
     """Return whether an analysis response says the model did not receive the image."""
     normalized = " ".join(str(text or "").lower().split())
@@ -177,32 +166,6 @@ async def image_to_text_tool(ctx: InvocationContext, input_path: str, mode: str 
         image_part = load_local_file_part(resolved_path)
         prompt_text = _build_analysis_prompt(normalized_mode)
 
-        def before_model_callback(
-            callback_context: CallbackContext,
-            llm_request: LlmRequest,
-        ) -> None:
-            """Inject the image and the current analysis prompt into the request."""
-            llm_request.contents.append(
-                Content(
-                    role="user",
-                    parts=[
-                        Part(text=prompt_text),
-                        image_part,
-                    ],
-                )
-            )
-
-        llm = LlmAgent(
-            name="ImageUnderstandingToolAgent",
-            model=_build_image_understanding_model(),
-            instruction=(
-                "You are a professional image analyst. "
-                "Follow the requested mode exactly and return a clear, faithful result."
-            ),
-            include_contents="none",
-            before_model_callback=before_model_callback,
-        )
-
         logger.info(
             "[{}] called: path='{}', resolved_path='{}', mode='{}'",
             tool_name_for_log,
@@ -210,12 +173,21 @@ async def image_to_text_tool(ctx: InvocationContext, input_path: str, mode: str 
             resolved_path,
             normalized_mode,
         )
-        output_text = ""
-        async for event in llm.run_async(ctx):
-            if event.is_final_response() and event.content and event.content.parts:
-                generated_text = _extract_final_response_text(list(event.content.parts))
-                if generated_text:
-                    output_text = generated_text
+        llm_result = await run_oneshot_llm(
+            ctx,
+            name="ImageUnderstandingToolAgent",
+            model=_build_image_understanding_model(),
+            instruction=(
+                "You are a professional image analyst. "
+                "Follow the requested mode exactly and return a clear, faithful result."
+            ),
+            user_parts=[
+                Part(text=prompt_text),
+                image_part,
+            ],
+            agent_cls=LlmAgent,
+        )
+        output_text = llm_result.final_text or llm_result.text
 
         if not output_text:
             return {

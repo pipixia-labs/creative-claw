@@ -14,6 +14,7 @@ def _build_ctx(state: dict) -> SimpleNamespace:
             user_id="user_1",
             id="session_1",
         ),
+        _state_schema=None,
     )
 
 

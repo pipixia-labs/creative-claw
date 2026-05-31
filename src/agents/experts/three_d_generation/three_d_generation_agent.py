@@ -9,7 +9,7 @@ from typing_extensions import override
 
 from google.adk.agents.invocation_context import InvocationContext
 from google.adk.events import Event
-from pydantic import PrivateAttr
+from pydantic import BaseModel, Field, PrivateAttr, field_validator
 
 from src.agents.experts.base import CreativeExpert
 from src.agents.experts.three_d_generation.prompt_optimizer import (
@@ -18,8 +18,124 @@ from src.agents.experts.three_d_generation.prompt_optimizer import (
     optimize_3d_prompt,
 )
 from src.agents.experts.three_d_generation import tool as generation_tools
+from src.agents.experts.schema_utils import (
+    as_non_empty_string_list,
+    clean_string,
+    current_output_dict,
+)
 from src.logger import logger
 from src.runtime.workspace import build_workspace_file_record
+
+
+def _normalize_3d_prompt(raw_prompt: Any) -> str:
+    """Normalize one prompt value into a single string."""
+    if isinstance(raw_prompt, list):
+        prompt_list = [str(item).strip() for item in raw_prompt if str(item).strip()]
+        if len(prompt_list) > 1:
+            raise ValueError("3DGeneration currently supports only one prompt at a time.")
+        return prompt_list[0] if prompt_list else ""
+    return clean_string(raw_prompt)
+
+
+def _normalize_3d_input_paths(current_parameters: dict[str, Any]) -> list[str]:
+    """Normalize input image paths from current parameters."""
+    input_paths = current_parameters.get("input_paths", current_parameters.get("input_path", []))
+    return as_non_empty_string_list(input_paths)
+
+
+def _normalize_3d_image_urls(current_parameters: dict[str, Any]) -> list[str]:
+    """Normalize input image URLs from current parameters."""
+    urls: list[str] = []
+    for key in ("image_url", "image_urls"):
+        urls.extend(as_non_empty_string_list(current_parameters.get(key, [])))
+    return urls
+
+
+class ThreeDGenerationParameters(BaseModel):
+    """Structured request contract read from ``current_parameters``."""
+
+    raw_parameters: dict[str, Any] = Field(default_factory=dict)
+    provider: str = "hy3d"
+    prompt: str = ""
+    input_paths: list[str] = Field(default_factory=list)
+    image_urls: list[str] = Field(default_factory=list)
+
+    @classmethod
+    def from_raw(cls, raw_parameters: Any) -> "ThreeDGenerationParameters":
+        """Parse raw session parameters while preserving existing normalization errors."""
+        current_parameters = dict(raw_parameters) if isinstance(raw_parameters, dict) else {}
+        provider = clean_string(current_parameters.get("provider", "hy3d")).lower() or "hy3d"
+        return cls(
+            raw_parameters=current_parameters,
+            provider=provider,
+            prompt=_normalize_3d_prompt(current_parameters.get("prompt", "")),
+            input_paths=_normalize_3d_input_paths(current_parameters),
+            image_urls=_normalize_3d_image_urls(current_parameters),
+        )
+
+
+class ThreeDGenerationResultItem(BaseModel):
+    """One generated 3D file entry stored in ``three_d_generation_results``."""
+
+    path: str
+    name: str
+    type: str = ""
+    preview_image_url: str = ""
+    url: str = ""
+
+    @field_validator("path", "name", "type", "preview_image_url", "url", mode="before")
+    @classmethod
+    def _strip_string(cls, value: Any) -> str:
+        return clean_string(value)
+
+    def to_result(self) -> dict[str, Any]:
+        """Return the stable dictionary item stored in ADK session state."""
+        return self.model_dump(mode="python")
+
+
+class ThreeDGenerationOutput(BaseModel):
+    """Structured ``current_output`` contract emitted by ``ThreeDGenerationAgent``."""
+
+    status: str
+    message: str
+    output_files: list[dict[str, Any]] | None = None
+    provider: str | None = None
+    model_name: str | None = None
+    job_id: str | None = None
+    generate_type: str | None = None
+    file_format: str | None = None
+    subdivision_level: str | None = None
+    resolution: str | None = None
+    result_files: list[dict[str, Any]] | None = None
+    prompt_optimization: dict[str, Any] | None = None
+    optimized_prompt: str | None = None
+
+    @field_validator("status", mode="before")
+    @classmethod
+    def _normalize_status(cls, value: Any) -> str:
+        return clean_string(value).lower() or "error"
+
+    @field_validator(
+        "message",
+        "provider",
+        "model_name",
+        "job_id",
+        "generate_type",
+        "file_format",
+        "subdivision_level",
+        "resolution",
+        "optimized_prompt",
+        mode="before",
+    )
+    @classmethod
+    def _strip_optional_string(cls, value: Any) -> str | None:
+        if value is None:
+            return None
+        return clean_string(value)
+
+    def to_current_output(self) -> dict[str, Any]:
+        """Return the stable dictionary payload stored in ADK session state."""
+        return current_output_dict(self)
 
 
 class ThreeDGenerationAgent(CreativeExpert):
@@ -35,31 +151,17 @@ class ThreeDGenerationAgent(CreativeExpert):
     @staticmethod
     def _normalize_prompt(raw_prompt: Any) -> str:
         """Normalize one prompt value into a single string."""
-        if isinstance(raw_prompt, list):
-            prompt_list = [str(item).strip() for item in raw_prompt if str(item).strip()]
-            if len(prompt_list) > 1:
-                raise ValueError("3DGeneration currently supports only one prompt at a time.")
-            return prompt_list[0] if prompt_list else ""
-        return str(raw_prompt or "").strip()
+        return _normalize_3d_prompt(raw_prompt)
 
     @staticmethod
     def _normalize_input_paths(current_parameters: dict[str, Any]) -> list[str]:
         """Normalize input image paths from current parameters."""
-        input_paths = current_parameters.get("input_paths", current_parameters.get("input_path", []))
-        if isinstance(input_paths, str):
-            input_paths = [input_paths]
-        return [str(path).strip() for path in input_paths if str(path).strip()]
+        return _normalize_3d_input_paths(current_parameters)
 
     @staticmethod
     def _normalize_image_urls(current_parameters: dict[str, Any]) -> list[str]:
         """Normalize input image URLs from current parameters."""
-        urls: list[str] = []
-        for key in ("image_url", "image_urls"):
-            raw_urls = current_parameters.get(key, [])
-            if isinstance(raw_urls, str):
-                raw_urls = [raw_urls]
-            urls.extend(str(url).strip() for url in raw_urls if str(url).strip())
-        return urls
+        return _normalize_3d_image_urls(current_parameters)
 
     @staticmethod
     def _optional_bool(current_parameters: dict[str, Any], *keys: str) -> bool | None:
@@ -131,18 +233,20 @@ class ThreeDGenerationAgent(CreativeExpert):
     @override
     async def _run_async_impl(self, ctx: InvocationContext) -> AsyncGenerator[Event, None]:
         """Run the 3D generation expert with normalized session parameters."""
-        current_parameters = ctx.session.state.get("current_parameters", {})
-        provider = str(current_parameters.get("provider", "hy3d")).strip().lower() or "hy3d"
-
         try:
-            prompt = self._normalize_prompt(current_parameters.get("prompt", ""))
-            input_paths = self._normalize_input_paths(current_parameters)
-            image_urls = self._normalize_image_urls(current_parameters)
+            request = ThreeDGenerationParameters.from_raw(ctx.session.state.get("current_parameters", {}))
         except ValueError as exc:
             error_text = f"{self._public_name} parameter normalization failed: {exc}"
             logger.error(error_text)
-            yield self.format_event(error_text, {"current_output": {"status": "error", "message": error_text}})
+            current_output = ThreeDGenerationOutput(status="error", message=error_text).to_current_output()
+            yield self.format_event(error_text, {"current_output": current_output})
             return
+
+        current_parameters = request.raw_parameters
+        provider = request.provider
+        prompt = request.prompt
+        input_paths = request.input_paths
+        image_urls = request.image_urls
 
         if provider not in {"hy3d", "seed3d", "hyper3d", "hitem3d"}:
             error_text = (
@@ -150,7 +254,8 @@ class ThreeDGenerationAgent(CreativeExpert):
                 "`hyper3d`, and `hitem3d`."
             )
             logger.error(error_text)
-            yield self.format_event(error_text, {"current_output": {"status": "error", "message": error_text}})
+            current_output = ThreeDGenerationOutput(status="error", message=error_text).to_current_output()
+            yield self.format_event(error_text, {"current_output": current_output})
             return
 
         generate_type = ""
@@ -159,7 +264,8 @@ class ThreeDGenerationAgent(CreativeExpert):
             if len(input_paths) + len(image_urls) != 1:
                 error_text = f"{self._public_name} provider `seed3d` requires exactly one image source."
                 logger.error(error_text)
-                yield self.format_event(error_text, {"current_output": {"status": "error", "message": error_text}})
+                current_output = ThreeDGenerationOutput(status="error", message=error_text).to_current_output()
+                yield self.format_event(error_text, {"current_output": current_output})
                 return
             image_url = image_urls[0] if image_urls else None
 
@@ -205,7 +311,8 @@ class ThreeDGenerationAgent(CreativeExpert):
             if len(input_paths) + len(image_urls) > 5:
                 error_text = f"{self._public_name} provider `hyper3d` supports at most 5 images."
                 logger.error(error_text)
-                yield self.format_event(error_text, {"current_output": {"status": "error", "message": error_text}})
+                current_output = ThreeDGenerationOutput(status="error", message=error_text).to_current_output()
+                yield self.format_event(error_text, {"current_output": current_output})
                 return
 
             hyper3d_prompt = prompt
@@ -274,7 +381,8 @@ class ThreeDGenerationAgent(CreativeExpert):
                     "do not pass a free-form prompt."
                 )
                 logger.error(error_text)
-                yield self.format_event(error_text, {"current_output": {"status": "error", "message": error_text}})
+                current_output = ThreeDGenerationOutput(status="error", message=error_text).to_current_output()
+                yield self.format_event(error_text, {"current_output": current_output})
                 return
             if input_paths:
                 error_text = (
@@ -282,12 +390,14 @@ class ThreeDGenerationAgent(CreativeExpert):
                     "`image_url` or `image_urls`, not local input paths."
                 )
                 logger.error(error_text)
-                yield self.format_event(error_text, {"current_output": {"status": "error", "message": error_text}})
+                current_output = ThreeDGenerationOutput(status="error", message=error_text).to_current_output()
+                yield self.format_event(error_text, {"current_output": current_output})
                 return
             if not image_urls or len(image_urls) > 4:
                 error_text = f"{self._public_name} provider `hitem3d` requires 1 to 4 image URLs."
                 logger.error(error_text)
-                yield self.format_event(error_text, {"current_output": {"status": "error", "message": error_text}})
+                current_output = ThreeDGenerationOutput(status="error", message=error_text).to_current_output()
+                yield self.format_event(error_text, {"current_output": current_output})
                 return
 
             result = await generation_tools.hitem3d_generate_tool(
@@ -336,12 +446,14 @@ class ThreeDGenerationAgent(CreativeExpert):
             if len(input_paths) > 1:
                 error_text = f"{self._public_name} provider `hy3d` supports at most one input image."
                 logger.error(error_text)
-                yield self.format_event(error_text, {"current_output": {"status": "error", "message": error_text}})
+                current_output = ThreeDGenerationOutput(status="error", message=error_text).to_current_output()
+                yield self.format_event(error_text, {"current_output": current_output})
                 return
             if image_urls:
                 error_text = f"{self._public_name} provider `hy3d` does not support `image_url` inputs."
                 logger.error(error_text)
-                yield self.format_event(error_text, {"current_output": {"status": "error", "message": error_text}})
+                current_output = ThreeDGenerationOutput(status="error", message=error_text).to_current_output()
+                yield self.format_event(error_text, {"current_output": current_output})
                 return
             generate_type = generation_tools.normalize_generate_type(
                 current_parameters.get("generate_type", generation_tools.DEFAULT_GENERATE_TYPE)
@@ -351,7 +463,8 @@ class ThreeDGenerationAgent(CreativeExpert):
                     f"{self._public_name} requires `generate_type=sketch` when both prompt and input image are provided."
                 )
                 logger.error(error_text)
-                yield self.format_event(error_text, {"current_output": {"status": "error", "message": error_text}})
+                current_output = ThreeDGenerationOutput(status="error", message=error_text).to_current_output()
+                yield self.format_event(error_text, {"current_output": current_output})
                 return
 
             hy3d_prompt = prompt
@@ -398,19 +511,21 @@ class ThreeDGenerationAgent(CreativeExpert):
             )
 
         if result["status"] == "error":
-            current_output = {
-                "status": "error",
-                "message": result["message"],
-                "provider": result.get("provider", provider),
-                "model_name": result.get("model_name", ""),
-                "job_id": result.get("job_id", ""),
-            }
+            prompt_optimization_payload = None
             if prompt_optimization_result is not None:
-                current_output["prompt_optimization"] = {
+                prompt_optimization_payload = {
                     "used_llm": prompt_optimization_result.used_llm,
                     "model_name": prompt_optimization_result.model_name,
                     "message": prompt_optimization_result.message,
                 }
+            current_output = ThreeDGenerationOutput(
+                status="error",
+                message=result["message"],
+                provider=result.get("provider", provider),
+                model_name=result.get("model_name", ""),
+                job_id=result.get("job_id", ""),
+                prompt_optimization=prompt_optimization_payload,
+            ).to_current_output()
             logger.error("{} execution failed: {}", self._public_name, result["message"])
             yield self.format_event(result["message"], {"current_output": current_output})
             return
@@ -443,13 +558,13 @@ class ThreeDGenerationAgent(CreativeExpert):
                 )
             )
             structured_results.append(
-                {
-                    "path": output_files[-1]["path"],
-                    "name": artifact_name,
-                    "type": file_info.get("type", ""),
-                    "preview_image_url": file_info.get("preview_image_url", ""),
-                    "url": file_info.get("url", ""),
-                }
+                ThreeDGenerationResultItem(
+                    path=output_files[-1]["path"],
+                    name=artifact_name,
+                    type=file_info.get("type", ""),
+                    preview_image_url=file_info.get("preview_image_url", ""),
+                    url=file_info.get("url", ""),
+                ).to_result()
             )
 
         file_names = ", ".join(file_info["name"] for file_info in output_files)
@@ -457,26 +572,30 @@ class ThreeDGenerationAgent(CreativeExpert):
             f"{self._public_name} completed {provider_name} job {result.get('job_id', '')} with "
             f"{len(output_files)} file(s): {file_names}"
         )
-        current_output = {
-            "status": "success",
-            "message": message,
-            "output_files": output_files,
-            "provider": provider_name,
-            "model_name": result.get("model_name", ""),
-            "job_id": result.get("job_id", ""),
-            "generate_type": result.get("generate_type", generate_type),
-            "file_format": result.get("file_format", ""),
-            "subdivision_level": result.get("subdivision_level", ""),
-            "resolution": result.get("resolution", ""),
-            "result_files": structured_results,
-        }
+        prompt_optimization_payload = None
+        optimized_prompt = None
         if prompt_optimization_result is not None:
-            current_output["prompt_optimization"] = {
+            prompt_optimization_payload = {
                 "used_llm": prompt_optimization_result.used_llm,
                 "model_name": prompt_optimization_result.model_name,
                 "message": prompt_optimization_result.message,
             }
-            current_output["optimized_prompt"] = prompt_optimization_result.prompt
+            optimized_prompt = prompt_optimization_result.prompt
+        current_output = ThreeDGenerationOutput(
+            status="success",
+            message=message,
+            output_files=output_files,
+            provider=provider_name,
+            model_name=result.get("model_name", ""),
+            job_id=result.get("job_id", ""),
+            generate_type=result.get("generate_type", generate_type),
+            file_format=result.get("file_format", ""),
+            subdivision_level=result.get("subdivision_level", ""),
+            resolution=result.get("resolution", ""),
+            result_files=structured_results,
+            prompt_optimization=prompt_optimization_payload,
+            optimized_prompt=optimized_prompt,
+        ).to_current_output()
         logger.info(message)
         yield self.format_event(
             message,
@@ -485,3 +604,11 @@ class ThreeDGenerationAgent(CreativeExpert):
                 "three_d_generation_results": structured_results,
             },
         )
+
+
+__all__ = [
+    "ThreeDGenerationAgent",
+    "ThreeDGenerationOutput",
+    "ThreeDGenerationParameters",
+    "ThreeDGenerationResultItem",
+]

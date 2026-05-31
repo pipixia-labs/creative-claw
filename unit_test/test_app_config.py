@@ -359,6 +359,35 @@ class AppConfigTests(unittest.TestCase):
 
             self.assertEqual(resolve_structured_output_mode(), "native")
 
+    def test_structured_output_mode_auto_keeps_native_for_gemini(self) -> None:
+        with tempfile.TemporaryDirectory() as tmp_dir, patch.dict(
+            os.environ,
+            {"CREATIVE_CLAW_HOME": tmp_dir},
+            clear=False,
+        ):
+            config = CreativeClawConfig(workspace=str(get_config_path().parent / "workspace"))
+            config.llm.provider = "gemini"
+            config.llm.model = "gemini-2.5-flash"
+            save_app_config(config)
+            load_app_config(reload=True)
+
+            self.assertEqual(resolve_structured_output_mode(), "native")
+
+    def test_structured_output_mode_can_force_prompt_json_for_native_provider(self) -> None:
+        with tempfile.TemporaryDirectory() as tmp_dir, patch.dict(
+            os.environ,
+            {"CREATIVE_CLAW_HOME": tmp_dir},
+            clear=False,
+        ):
+            config = CreativeClawConfig(workspace=str(get_config_path().parent / "workspace"))
+            config.llm.provider = "openai"
+            config.llm.model = "gpt-5.4"
+            config.llm.structured_output_mode = "prompt_json"
+            save_app_config(config)
+            load_app_config(reload=True)
+
+            self.assertEqual(resolve_structured_output_mode(), "prompt_json")
+
     def test_structured_output_mode_can_force_native(self) -> None:
         with tempfile.TemporaryDirectory() as tmp_dir, patch.dict(
             os.environ,

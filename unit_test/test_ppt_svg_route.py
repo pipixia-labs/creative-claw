@@ -5,21 +5,37 @@ import unittest
 import zipfile
 from pathlib import Path
 from types import SimpleNamespace
+from typing import AsyncGenerator
+from unittest.mock import patch
 
+from google.adk import Context, Workflow
+from google.adk.artifacts import InMemoryArtifactService
+from google.adk.models import BaseLlm
+from google.adk.models.llm_request import LlmRequest
+from google.adk.models.llm_response import LlmResponse
+from google.adk.runners import Runner
+from google.adk.sessions import InMemorySessionService
+from google.adk.workflow import node
+from google.genai.types import Content, FunctionCall, Part
 from PIL import Image
 from pptx import Presentation
+from pydantic import PrivateAttr
 
 from src.productions.ppt.ppt_product_manager import PptProductManager
 from src.productions.ppt.routes.svg import (
+    PPT_DESIGN_STRATEGY_STATE_KEY,
+    PPT_SVG_EXECUTION_PLAN_STATE_KEY,
     PPT_SVG_ROUTE_GENERATED_PAGES_KEY,
     SVG_DELIVERY_STAGE,
     SVG_ROUTE_STAGE_SEQUENCE,
     build_default_svg_design_strategy,
     build_ppt_design_strategy_expert,
     build_ppt_svg_deck_executor_expert,
+    build_svg_design_strategy_with_agent,
     build_svg_route,
     check_svg_pages_quality,
     export_svg_pages_to_pptx,
+    generate_svg_pages_with_agent,
     prepare_svg_route_paths,
 )
 from src.productions.ppt.routes.svg import route as svg_route
@@ -31,6 +47,62 @@ from src.productions.ppt.templates.svg import (
     select_svg_layout_template_match,
 )
 from src.runtime.workspace import resolve_workspace_path, workspace_root
+
+
+class _SvgRouteToolCallingFakeLlm(BaseLlm):
+    """Fake SVG-route model that drives a planned sequence of route tools."""
+
+    _function_calls: list[FunctionCall] = PrivateAttr()
+    _requests: list[LlmRequest] = PrivateAttr(default_factory=list)
+
+    def __init__(self, *, function_calls: list[FunctionCall]) -> None:
+        super().__init__(model="fake-ppt-svg-route")
+        self._function_calls = function_calls
+
+    @property
+    def requests(self) -> list[LlmRequest]:
+        return self._requests
+
+    async def generate_content_async(
+        self,
+        llm_request: LlmRequest,
+        stream: bool = False,
+    ) -> AsyncGenerator[LlmResponse, None]:
+        self._requests.append(llm_request)
+        call_index = len(self._requests) - 1
+        if call_index < len(self._function_calls):
+            yield LlmResponse(
+                content=Content(
+                    role="model",
+                    parts=[Part(function_call=self._function_calls[call_index])],
+                )
+            )
+            return
+        yield LlmResponse(
+            content=Content(
+                role="model",
+                parts=[Part(text="SVG route agent completed.")],
+            )
+        )
+
+
+def _function_declaration_names(llm_request: LlmRequest) -> list[str]:
+    names: list[str] = []
+    for tool in llm_request.config.tools or []:
+        for declaration in tool.function_declarations or []:
+            if declaration.name:
+                names.append(declaration.name)
+    return names
+
+
+def _simple_svg(title: str, *, width: int = 1280, height: int = 720) -> str:
+    return (
+        f"<svg xmlns='http://www.w3.org/2000/svg' width='{width}' height='{height}' "
+        f"viewBox='0 0 {width} {height}'>"
+        "<rect x='0' y='0' width='100%' height='100%' fill='#FFFFFF'/>"
+        f"<text x='72' y='120' font-size='40' fill='#172033'>{title}</text>"
+        "</svg>"
+    )
 
 
 class PptSvgRouteTests(unittest.TestCase):
@@ -525,6 +597,233 @@ class PptSvgRouteTests(unittest.TestCase):
                     svg_content="<svg xmlns='http://www.w3.org/2000/svg' width='1280' height='720' viewBox='0 0 1280 720'><foreignObject /></svg>",
                     tool_context=tool_context,
                 )
+
+
+class PptSvgRouteAgentToolTests(unittest.IsolatedAsyncioTestCase):
+    async def test_svg_design_strategy_agenttool_main_path_saves_strategy(self) -> None:
+        manager = PptProductManager()
+        requirement = manager.prepare_confirmed_requirement(
+            task="做一个 2 页 SVG route 产品介绍 PPT。",
+            inputs=[],
+            output={"format": "pptx", "route": "svg", "slide_count": 2},
+        )
+        content_plan = manager.build_initial_deck_content_plan(requirement)
+        content_plan.pages = content_plan.pages[:2]
+        template_match = select_svg_layout_template_match(
+            requirement=requirement,
+            content_plan=content_plan,
+        )
+        fallback = build_default_svg_design_strategy(
+            requirement=requirement,
+            content_plan=content_plan,
+            template_match=template_match,
+        )
+        fake_llm = _SvgRouteToolCallingFakeLlm(
+            function_calls=[
+                FunctionCall(
+                    name="save_ppt_design_strategy",
+                    args={
+                        "strategy_json": fallback.strategy.model_dump(mode="json"),
+                        "confirmation_json": fallback.confirmation.model_dump(mode="json"),
+                    },
+                ),
+                FunctionCall(
+                    name="save_ppt_svg_execution_plan",
+                    args={
+                        "execution_plan_json": fallback.execution_plan.model_dump(mode="json"),
+                    },
+                ),
+            ]
+        )
+        session_service = InMemorySessionService()
+        artifact_service = InMemoryArtifactService()
+
+        with tempfile.TemporaryDirectory(dir=workspace_root()) as tmpdir:
+            paths = prepare_svg_route_paths(Path(tmpdir) / "svg_route")
+            with patch.object(svg_route, "build_llm", return_value=fake_llm):
+                design_agent = build_ppt_design_strategy_expert(
+                    save_design_strategy_tool=manager.save_ppt_design_strategy,
+                    save_svg_execution_plan_tool=manager.save_ppt_svg_execution_plan,
+                )
+
+            @node(name="PptSvgDesignAgentToolHarnessNode", rerun_on_resume=True)
+            async def design_harness(ctx: Context, node_input: str) -> dict:
+                result = await build_svg_design_strategy_with_agent(
+                    requirement=requirement,
+                    content_plan=content_plan,
+                    template_match=template_match,
+                    paths=paths,
+                    tool_context=ctx,
+                    app_name="creative_claw",
+                    artifact_service=artifact_service,
+                    design_strategy_agent=design_agent,
+                )
+                ctx.state["svg_design_generation_mode_for_test"] = result.generation_mode
+                return {"generation_mode": result.generation_mode}
+
+            workflow = Workflow(
+                name="PptSvgDesignAgentToolHarness",
+                edges=[("START", design_harness)],
+            )
+            runner = Runner(
+                node=workflow,
+                session_service=session_service,
+                artifact_service=artifact_service,
+            )
+            user_id = "user-ppt-svg-design"
+            session_id = "session-ppt-svg-design"
+
+            try:
+                await session_service.create_session(
+                    app_name=workflow.name,
+                    user_id=user_id,
+                    session_id=session_id,
+                    state={
+                        "sid": "ppt-svg-design-agenttool-test",
+                        "turn_index": 1,
+                        "step": 1,
+                    },
+                )
+                async for _ in runner.run_async(
+                    user_id=user_id,
+                    session_id=session_id,
+                    new_message=Content(role="user", parts=[Part(text="Build design")]),
+                ):
+                    pass
+                session = await session_service.get_session(
+                    app_name=workflow.name,
+                    user_id=user_id,
+                    session_id=session_id,
+                )
+            finally:
+                await runner.close()
+
+        self.assertIsNotNone(session)
+        self.assertEqual(session.state["svg_design_generation_mode_for_test"], "llm_agent_design_strategy")
+        self.assertEqual(session.state[PPT_DESIGN_STRATEGY_STATE_KEY]["style_name"], fallback.strategy.style_name)
+        self.assertEqual(
+            session.state[PPT_SVG_EXECUTION_PLAN_STATE_KEY]["canvas_width"],
+            fallback.execution_plan.canvas_width,
+        )
+        first_request_tools = _function_declaration_names(fake_llm.requests[0])
+        self.assertIn("save_ppt_design_strategy", first_request_tools)
+        self.assertIn("save_ppt_svg_execution_plan", first_request_tools)
+
+    async def test_svg_deck_executor_agenttool_main_path_saves_pages(self) -> None:
+        manager = PptProductManager()
+        requirement = manager.prepare_confirmed_requirement(
+            task="做一个 2 页 SVG route 产品介绍 PPT。",
+            inputs=[],
+            output={"format": "pptx", "route": "svg", "slide_count": 2},
+        )
+        content_plan = manager.build_initial_deck_content_plan(requirement)
+        content_plan.pages = content_plan.pages[:2]
+        template_match = select_svg_layout_template_match(
+            requirement=requirement,
+            content_plan=content_plan,
+        )
+        design_stage = build_default_svg_design_strategy(
+            requirement=requirement,
+            content_plan=content_plan,
+            template_match=template_match,
+        )
+        width = design_stage.execution_plan.canvas_width
+        height = design_stage.execution_plan.canvas_height
+        function_calls: list[FunctionCall] = []
+        for page in content_plan.pages:
+            function_calls.append(FunctionCall(name="read_ppt_svg_execution_plan", args={}))
+            function_calls.append(
+                FunctionCall(
+                    name="save_ppt_svg_page",
+                    args={
+                        "slide_number": page.slide_number,
+                        "svg_content": _simple_svg(page.title, width=width, height=height),
+                        "file_name": f"slide_{page.slide_number:03d}.svg",
+                        "title": page.title,
+                        "page_type": page.page_type,
+                        "page_rhythm": "anchor" if page.slide_number == 1 else "dense",
+                    },
+                )
+            )
+        fake_llm = _SvgRouteToolCallingFakeLlm(function_calls=function_calls)
+        session_service = InMemorySessionService()
+        artifact_service = InMemoryArtifactService()
+
+        with tempfile.TemporaryDirectory(dir=workspace_root()) as tmpdir:
+            paths = prepare_svg_route_paths(Path(tmpdir) / "svg_route")
+            with patch.object(svg_route, "build_llm", return_value=fake_llm):
+                executor_agent = build_ppt_svg_deck_executor_expert(
+                    read_svg_execution_plan_tool=manager.read_ppt_svg_execution_plan,
+                    save_svg_page_tool=manager.save_ppt_svg_page,
+                )
+
+            @node(name="PptSvgExecutorAgentToolHarnessNode", rerun_on_resume=True)
+            async def executor_harness(ctx: Context, node_input: str) -> dict:
+                result = await generate_svg_pages_with_agent(
+                    requirement=requirement,
+                    content_plan=content_plan,
+                    design_stage=design_stage,
+                    paths=paths,
+                    tool_context=ctx,
+                    app_name="creative_claw",
+                    artifact_service=artifact_service,
+                    svg_executor_agent=executor_agent,
+                )
+                ctx.state["svg_executor_generation_mode_for_test"] = result.generation_mode
+                ctx.state["svg_executor_saved_paths_exist_for_test"] = [
+                    resolve_workspace_path(page.svg_path).exists()
+                    for page in result.svg_pages
+                ]
+                return {
+                    "generation_mode": result.generation_mode,
+                    "page_count": len(result.svg_pages),
+                }
+
+            workflow = Workflow(
+                name="PptSvgExecutorAgentToolHarness",
+                edges=[("START", executor_harness)],
+            )
+            runner = Runner(
+                node=workflow,
+                session_service=session_service,
+                artifact_service=artifact_service,
+            )
+            user_id = "user-ppt-svg-executor"
+            session_id = "session-ppt-svg-executor"
+
+            try:
+                await session_service.create_session(
+                    app_name=workflow.name,
+                    user_id=user_id,
+                    session_id=session_id,
+                    state={
+                        "sid": "ppt-svg-executor-agenttool-test",
+                        "turn_index": 1,
+                        "step": 1,
+                    },
+                )
+                async for _ in runner.run_async(
+                    user_id=user_id,
+                    session_id=session_id,
+                    new_message=Content(role="user", parts=[Part(text="Generate SVG pages")]),
+                ):
+                    pass
+                session = await session_service.get_session(
+                    app_name=workflow.name,
+                    user_id=user_id,
+                    session_id=session_id,
+                )
+            finally:
+                await runner.close()
+
+        self.assertIsNotNone(session)
+        self.assertEqual(session.state["svg_executor_generation_mode_for_test"], "llm_agent_svg")
+        saved_pages = session.state[PPT_SVG_ROUTE_GENERATED_PAGES_KEY]
+        self.assertEqual(len(saved_pages), len(content_plan.pages))
+        self.assertTrue(all(session.state["svg_executor_saved_paths_exist_for_test"]))
+        first_request_tools = _function_declaration_names(fake_llm.requests[0])
+        self.assertIn("read_ppt_svg_execution_plan", first_request_tools)
+        self.assertIn("save_ppt_svg_page", first_request_tools)
 
 
 if __name__ == "__main__":

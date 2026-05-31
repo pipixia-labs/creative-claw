@@ -3,10 +3,22 @@ import tempfile
 import unittest
 from pathlib import Path
 from types import SimpleNamespace
+from typing import AsyncGenerator
+from unittest.mock import patch
 
+from google.adk import Context, Workflow
+from google.adk.artifacts import InMemoryArtifactService
+from google.adk.models import BaseLlm
+from google.adk.models.llm_request import LlmRequest
+from google.adk.models.llm_response import LlmResponse
+from google.adk.runners import Runner
+from google.adk.sessions import InMemorySessionService
+from google.adk.workflow import node
+from google.genai.types import Content, FunctionCall, Part
 from PIL import Image
 from pptx import Presentation
 from pptx.enum.shapes import MSO_SHAPE_TYPE
+from pydantic import PrivateAttr
 
 from src.productions.ppt.ppt_product_manager import PptProductManager
 from src.productions.ppt.schemas import DeckPageAsset
@@ -41,6 +53,58 @@ def _write_route_test_image(tmpdir: Path) -> str:
     image_path = tmpdir / "slide_asset.png"
     Image.new("RGB", (640, 360), "#2457D6").save(image_path)
     return str(image_path)
+
+
+class _HtmlPageGenerationToolCallingFakeLlm(BaseLlm):
+    """Fake HTML-route model that drives the real page-save tool."""
+
+    _pages: list[dict[str, object]] = PrivateAttr()
+    _requests: list[LlmRequest] = PrivateAttr(default_factory=list)
+
+    def __init__(self, *, pages: list[dict[str, object]]) -> None:
+        super().__init__(model="fake-ppt-html-page-generator")
+        self._pages = pages
+
+    @property
+    def requests(self) -> list[LlmRequest]:
+        return self._requests
+
+    async def generate_content_async(
+        self,
+        llm_request: LlmRequest,
+        stream: bool = False,
+    ) -> AsyncGenerator[LlmResponse, None]:
+        self._requests.append(llm_request)
+        if len(self._requests) == 1:
+            yield LlmResponse(
+                content=Content(
+                    role="model",
+                    parts=[
+                        Part(
+                            function_call=FunctionCall(
+                                name="save_html_route_pages",
+                                args={"pages": self._pages},
+                            )
+                        )
+                    ],
+                )
+            )
+            return
+        yield LlmResponse(
+            content=Content(
+                role="model",
+                parts=[Part(text="PptHtmlPageGenerationExpert saved HTML pages.")],
+            )
+        )
+
+
+def _function_declaration_names(llm_request: LlmRequest) -> list[str]:
+    names: list[str] = []
+    for tool in llm_request.config.tools or []:
+        for declaration in tool.function_declarations or []:
+            if declaration.name:
+                names.append(declaration.name)
+    return names
 
 
 class PptHtmlRouteTests(unittest.TestCase):
@@ -613,6 +677,192 @@ class PptHtmlRouteTests(unittest.TestCase):
             self.assertFalse(pptx_stage.conversion_report["fallback_used"])
             self.assertTrue(pptx_stage.conversion_report["pages"][0]["errors"])
             self.assertFalse(pptx_stage.pptx_path.exists())
+
+
+class PptHtmlRouteAgentToolTests(unittest.IsolatedAsyncioTestCase):
+    async def test_html_page_generation_agenttool_main_path_saves_pages(self) -> None:
+        manager = PptProductManager()
+        requirement = manager.prepare_confirmed_requirement(
+            task="做一个 2 页 PPTX，用于产品发布。",
+            inputs=[],
+            output={"format": "pptx", "slide_count": 2},
+        )
+        content_plan = manager.build_initial_deck_content_plan(requirement)
+        content_plan.pages = content_plan.pages[:2]
+        generated_pages = [
+            {
+                "slide_number": page.slide_number,
+                "html": (
+                    "<section>"
+                    f"<h1 style='position:absolute;left:80px;top:64px;width:860px;height:72px;font-size:42px;'>{page.title}</h1>"
+                    f"<p style='position:absolute;left:84px;top:160px;width:760px;height:48px;font-size:24px;'>{page.key_takeaway}</p>"
+                    "</section>"
+                ),
+            }
+            for page in content_plan.pages
+        ]
+        fake_llm = _HtmlPageGenerationToolCallingFakeLlm(pages=generated_pages)
+        session_service = InMemorySessionService()
+        artifact_service = InMemoryArtifactService()
+
+        with tempfile.TemporaryDirectory(dir=workspace_root()) as tmpdir:
+            paths = prepare_html_route_paths(Path(tmpdir) / "html_route")
+            template = prepare_html_template(template_id="", aspect_ratio="16:9").template
+            with patch.object(html_route_module, "build_llm", return_value=fake_llm):
+                page_generation_agent = build_ppt_html_page_generation_expert()
+
+            @node(name="PptHtmlRouteAgentToolHarnessNode", rerun_on_resume=True)
+            async def html_route_harness(ctx: Context, node_input: str) -> dict:
+                result = await html_route_module.generate_html_pages_with_agent(
+                    content_plan=content_plan,
+                    template=template,
+                    paths=paths,
+                    tool_context=ctx,
+                    app_name="creative_claw",
+                    artifact_service=artifact_service,
+                    page_generation_agent=page_generation_agent,
+                )
+                ctx.state["html_route_generation_mode_for_test"] = result.generation_mode
+                ctx.state["html_route_warnings_for_test"] = list(result.warnings)
+                return {
+                    "generation_mode": result.generation_mode,
+                    "page_count": len(result.html_pages),
+                }
+
+            workflow = Workflow(
+                name="PptHtmlRouteAgentToolHarness",
+                edges=[("START", html_route_harness)],
+            )
+            runner = Runner(
+                node=workflow,
+                session_service=session_service,
+                artifact_service=artifact_service,
+            )
+            user_id = "user-ppt-html-route"
+            session_id = "session-ppt-html-route"
+
+            try:
+                await session_service.create_session(
+                    app_name=workflow.name,
+                    user_id=user_id,
+                    session_id=session_id,
+                    state={
+                        "sid": "ppt-html-route-agenttool-test",
+                        "turn_index": 1,
+                        "step": 1,
+                    },
+                )
+                async for _ in runner.run_async(
+                    user_id=user_id,
+                    session_id=session_id,
+                    new_message=Content(role="user", parts=[Part(text="Generate HTML pages")]),
+                ):
+                    pass
+                session = await session_service.get_session(
+                    app_name=workflow.name,
+                    user_id=user_id,
+                    session_id=session_id,
+                )
+            finally:
+                await runner.close()
+
+        self.assertIsNotNone(session)
+        self.assertEqual(session.state["html_route_generation_mode_for_test"], "llm_agent_html")
+        saved_pages = session.state[HTML_PAGE_GENERATION_PAGES_KEY]
+        self.assertEqual(len(saved_pages), len(content_plan.pages))
+        self.assertIn('class="slide generated-slide', saved_pages[0]["html"])
+        self.assertIn('data-slide-number="01"', saved_pages[0]["html"])
+        self.assertIn(
+            "PptHtmlPageGenerationExpert saved HTML pages.",
+            session.state[html_route_module.HTML_PAGE_GENERATION_AGENT_MESSAGE_KEY],
+        )
+        self.assertGreaterEqual(len(fake_llm.requests), 2)
+        first_request_tools = _function_declaration_names(fake_llm.requests[0])
+        self.assertIn("save_html_route_pages", first_request_tools)
+        self.assertFalse(
+            any("PptHtmlPageGenerationExpert fallback" in warning for warning in session.state["html_route_warnings_for_test"])
+        )
+
+    async def test_run_html_page_generation_expert_uses_transient_route_paths(self) -> None:
+        manager = PptProductManager()
+        requirement = manager.prepare_confirmed_requirement(
+            task="做一个 2 页 PPTX，用于产品发布。",
+            inputs=[],
+            output={"format": "pptx", "slide_count": 2},
+        )
+        content_plan = manager.build_initial_deck_content_plan(requirement)
+        content_plan.pages = content_plan.pages[:2]
+        generated_pages = [
+            {
+                "slide_number": page.slide_number,
+                "html": f"<section><h1>{page.title}</h1><p>{page.key_takeaway}</p></section>",
+            }
+            for page in content_plan.pages
+        ]
+        fake_llm = _HtmlPageGenerationToolCallingFakeLlm(pages=generated_pages)
+        session_service = InMemorySessionService()
+        artifact_service = InMemoryArtifactService()
+        template = prepare_html_template(template_id="", aspect_ratio="16:9").template
+        with patch.object(html_route_module, "build_llm", return_value=fake_llm):
+            page_generation_agent = build_ppt_html_page_generation_expert()
+
+        @node(name="PptHtmlRouteStandaloneAgentToolHarnessNode", rerun_on_resume=True)
+        async def standalone_harness(ctx: Context, node_input: str) -> dict:
+            pages = await html_route_module.run_html_page_generation_expert(
+                content_plan=content_plan,
+                template=template,
+                tool_context=ctx,
+                app_name="creative_claw",
+                artifact_service=artifact_service,
+                page_generation_agent=page_generation_agent,
+            )
+            ctx.state["html_route_standalone_page_count_for_test"] = len(pages)
+            return {"page_count": len(pages)}
+
+        workflow = Workflow(
+            name="PptHtmlRouteStandaloneAgentToolHarness",
+            edges=[("START", standalone_harness)],
+        )
+        runner = Runner(
+            node=workflow,
+            session_service=session_service,
+            artifact_service=artifact_service,
+        )
+        user_id = "user-ppt-html-route-standalone"
+        session_id = "session-ppt-html-route-standalone"
+
+        try:
+            await session_service.create_session(
+                app_name=workflow.name,
+                user_id=user_id,
+                session_id=session_id,
+                state={
+                    "sid": "ppt-html-route-standalone-agenttool-test",
+                    "turn_index": 1,
+                    "step": 7,
+                },
+            )
+            async for _ in runner.run_async(
+                user_id=user_id,
+                session_id=session_id,
+                new_message=Content(role="user", parts=[Part(text="Generate HTML pages")]),
+            ):
+                pass
+            session = await session_service.get_session(
+                app_name=workflow.name,
+                user_id=user_id,
+                session_id=session_id,
+            )
+        finally:
+            await runner.close()
+
+        self.assertIsNotNone(session)
+        self.assertEqual(
+            session.state["html_route_standalone_page_count_for_test"],
+            len(content_plan.pages),
+        )
+        self.assertEqual(len(session.state[HTML_PAGE_GENERATION_PAGES_KEY]), len(content_plan.pages))
+        self.assertIn("save_html_route_pages", _function_declaration_names(fake_llm.requests[0]))
 
 
 if __name__ == "__main__":

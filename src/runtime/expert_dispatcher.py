@@ -8,26 +8,23 @@ from dataclasses import dataclass
 from typing import Any
 
 from google.adk.agents import BaseAgent
-from google.adk.apps import App
-from google.adk.artifacts import BaseArtifactService, InMemoryArtifactService
-from google.adk.memory import InMemoryMemoryService
-from google.adk.runners import Runner
-from google.adk.sessions import InMemorySessionService
+from google.adk.artifacts import InMemoryArtifactService
 from google.adk.tools.tool_context import ToolContext
-from google.genai.types import Content, Part
 
+from src.runtime.agent_tool_transport import run_agent_tool
 from src.runtime.expert_registry import (
     build_fallback_parameters,
     normalize_expert_output,
     validate_expert_parameters,
 )
 from src.runtime.runtime_trace import trace_runtime_event
-from src.runtime.tool_context_artifact_service import ToolContextArtifactService
 from src.runtime.workspace import (
     build_workspace_file_record,
     normalize_file_references,
     resolve_workspace_path,
 )
+
+_MISSING = object()
 
 _NON_FORWARDABLE_STATE_KEYS = {
     "app_name",
@@ -61,6 +58,16 @@ _NON_FORWARDABLE_STATE_KEYS = {
 
 
 @dataclass(slots=True)
+class ExpertInvocationRequest:
+    """Inputs required to invoke one expert through Creative Claw dispatch."""
+
+    agent_name: str
+    prompt: str
+    tool_context: ToolContext
+    expert_agents: dict[str, BaseAgent]
+
+
+@dataclass(slots=True)
 class ExpertInvocationResult:
     """Normalized result returned from one expert invocation."""
 
@@ -70,6 +77,40 @@ class ExpertInvocationResult:
     state_delta: dict[str, Any]
     tool_result: dict[str, Any]
     assistant_text_streamed: bool = False
+
+
+@dataclass(slots=True)
+class _ExpertAgentRunResult:
+    """Raw ADK AgentTool run result before parent-state merge."""
+
+    current_output: dict[str, Any]
+    forwarded_state_delta: dict[str, Any]
+    assistant_text_streamed: bool = False
+
+
+@dataclass(slots=True)
+class _ExpertToolResult:
+    """Structured tool result before conversion to the public dict contract."""
+
+    agent_name: str
+    status: str
+    message: str
+    output_text: str
+    output_files: list[dict[str, Any]]
+    structured_data: dict[str, Any]
+    parameters: dict[str, Any]
+
+    def to_dict(self) -> dict[str, Any]:
+        """Return the stable dict payload exposed to agents and product code."""
+        return {
+            "agent_name": self.agent_name,
+            "status": self.status,
+            "message": self.message,
+            "output_text": self.output_text,
+            "output_files": copy.deepcopy(self.output_files),
+            "structured_data": copy.deepcopy(self.structured_data),
+            "parameters": copy.deepcopy(self.parameters),
+        }
 
 
 def _strip_code_fence(text: str) -> str:
@@ -213,15 +254,6 @@ def _normalize_output_files(
     return normalized_files
 
 
-def _filter_parent_state_for_child_session(parent_state: dict[str, Any]) -> dict[str, Any]:
-    """Build the child expert state from parent state without ADK internals."""
-    return {
-        key: copy.deepcopy(value)
-        for key, value in parent_state.items()
-        if not str(key).startswith("_adk")
-    }
-
-
 def _extract_forwardable_state_delta(state_delta: dict[str, Any]) -> dict[str, Any]:
     """Keep only child state keys that are safe to merge back into the parent."""
     return {
@@ -231,106 +263,88 @@ def _extract_forwardable_state_delta(state_delta: dict[str, Any]) -> dict[str, A
     }
 
 
-def _resolve_child_artifact_service(
+def _state_delta_between(
+    before: dict[str, Any],
+    after: dict[str, Any],
+) -> dict[str, Any]:
+    """Return keys whose values changed after an ADK AgentTool child run."""
+    changed: dict[str, Any] = {}
+    for key, value in after.items():
+        if before.get(key, _MISSING) != value:
+            changed[key] = copy.deepcopy(value)
+    return changed
+
+
+def _restore_non_forwardable_parent_state(
     *,
     tool_context: ToolContext,
-    fallback_service: BaseArtifactService,
-) -> BaseArtifactService:
-    """Pick the artifact service used by the child expert runner."""
-    required_methods = ("save_artifact", "load_artifact", "list_artifacts")
-    if all(hasattr(tool_context, method_name) for method_name in required_methods):
-        return ToolContextArtifactService(tool_context)
-    return fallback_service
+    parent_state: dict[str, Any],
+    changed_delta: dict[str, Any],
+) -> None:
+    """Undo direct AgentTool writes that Creative Claw merges explicitly later."""
+    restore_delta: dict[str, Any] = {}
+    for key in changed_delta:
+        if str(key).startswith("_adk") or key in _NON_FORWARDABLE_STATE_KEYS:
+            restore_delta[key] = copy.deepcopy(parent_state.get(key))
+    if restore_delta:
+        tool_context.state.update(restore_delta)
 
 
-def _build_child_runner(
+async def _run_agent_tool_expert_session(
     *,
     agent: BaseAgent,
-    app_name: str,
-    session_service: InMemorySessionService,
-    artifact_service: BaseArtifactService,
-    invocation_context,
-) -> Runner:
-    """Create one child expert runner using ADK's preferred App-based path."""
-    child_plugins = getattr(getattr(invocation_context, "plugin_manager", None), "plugins", None)
-    runner_kwargs = {
-        "app_name": app_name,
-        "session_service": session_service,
-        "artifact_service": artifact_service,
-        "memory_service": InMemoryMemoryService(),
-        "credential_service": getattr(invocation_context, "credential_service", None),
-    }
-    if child_plugins:
-        runner_kwargs["app"] = App(
-            name=app_name,
-            root_agent=agent,
-            plugins=list(child_plugins),
-        )
-    else:
-        runner_kwargs["agent"] = agent
-    return Runner(**runner_kwargs)
-
-
-async def _run_child_expert_session(
-    *,
     agent_name: str,
     normalized_parameters: dict[str, Any],
     parent_state: dict[str, Any],
-    user_id: str,
-    app_name: str,
-    child_session_service: InMemorySessionService,
-    child_runner: Runner,
-) -> tuple[dict[str, Any], dict[str, Any], bool]:
-    """Run one child expert session and collect current output plus forwarded state."""
-    child_state = _filter_parent_state_for_child_session(parent_state)
-    child_state["current_parameters"] = normalized_parameters
-
-    child_session = await child_session_service.create_session(
-        app_name=app_name,
-        user_id=user_id,
-        state=child_state,
-    )
-
+    tool_context: ToolContext,
+) -> _ExpertAgentRunResult:
+    """Run one expert via ADK AgentTool and collect filtered child state."""
     forwarded_state_delta: dict[str, Any] = {}
-    run_kwargs = {
-        "user_id": child_session.user_id,
-        "session_id": child_session.id,
-        "new_message": Content(
-            role="user",
-            parts=[
-                Part(
-                    text=(
-                        f"Execute delegated expert task for {agent_name}. "
-                        "Use the parameters stored in session current_parameters."
-                    )
-                )
-            ],
-        ),
-    }
+    changed_delta: dict[str, Any] = {}
     try:
-        async for event in child_runner.run_async(**run_kwargs):
-            if event.actions and event.actions.state_delta:
-                forwarded_state_delta.update(
-                    _extract_forwardable_state_delta(event.actions.state_delta)
-                )
-        final_child_session = await child_session_service.get_session(
-            app_name=app_name,
-            user_id=child_session.user_id,
-            session_id=child_session.id,
+        tool_context.state.update({"current_parameters": normalized_parameters})
+        agent_tool_result = await run_agent_tool(
+            agent=agent,
+            request=(
+                f"Execute delegated expert task for {agent_name}. "
+                "Use the parameters stored in session current_parameters."
+            ),
+            tool_context=tool_context,
         )
-        child_state = final_child_session.state if final_child_session is not None else child_state
-        current_output = child_state.get("current_output") or {
-            "status": "error",
-            "message": f"{agent_name} did not produce current_output.",
-        }
+        state_after = tool_context.state.to_dict()
+        changed_delta = _state_delta_between(parent_state, state_after)
+        forwarded_state_delta = _extract_forwardable_state_delta(changed_delta)
+        current_output = state_after.get("current_output")
+        if not current_output:
+            output_text = str(agent_tool_result or "").strip()
+            current_output = (
+                {
+                    "status": "success",
+                    "message": f"{agent_name} finished.",
+                    "output_text": output_text,
+                }
+                if output_text
+                else {
+                    "status": "error",
+                    "message": f"{agent_name} did not produce current_output.",
+                }
+            )
     except Exception as exc:
+        changed_delta = _state_delta_between(parent_state, tool_context.state.to_dict())
         current_output = {
             "status": "error",
             "message": f"{agent_name} execution failed: {type(exc).__name__}: {exc}",
         }
     finally:
-        await child_runner.close()
-    return current_output, forwarded_state_delta, False
+        _restore_non_forwardable_parent_state(
+            tool_context=tool_context,
+            parent_state=parent_state,
+            changed_delta=changed_delta,
+        )
+    return _ExpertAgentRunResult(
+        current_output=current_output,
+        forwarded_state_delta=forwarded_state_delta,
+    )
 
 
 def _build_tool_result(
@@ -339,8 +353,8 @@ def _build_tool_result(
     current_output: dict[str, Any],
     forwarded_state_delta: dict[str, Any],
     normalized_parameters: dict[str, Any],
-    normalized_files: list[dict[str, str]],
-) -> dict[str, Any]:
+    normalized_files: list[dict[str, Any]],
+) -> _ExpertToolResult:
     """Build the tool result returned to the orchestrator model."""
     normalized_output = normalize_expert_output(
         agent_name,
@@ -355,15 +369,15 @@ def _build_tool_result(
     for key, value in forwarded_state_delta.items():
         if key not in _NON_FORWARDABLE_STATE_KEYS and key not in structured_data:
             structured_data[key] = value
-    return {
-        "agent_name": agent_name,
-        "status": normalized_output["status"],
-        "message": normalized_output["message"],
-        "output_text": normalized_output.get("output_text", ""),
-        "output_files": normalized_files,
-        "structured_data": structured_data,
-        "parameters": normalized_parameters,
-    }
+    return _ExpertToolResult(
+        agent_name=agent_name,
+        status=str(normalized_output["status"]),
+        message=str(normalized_output["message"]),
+        output_text=str(normalized_output.get("output_text", "") or ""),
+        output_files=normalized_files,
+        structured_data=structured_data,
+        parameters=normalized_parameters,
+    )
 
 
 def _build_state_delta(
@@ -408,6 +422,7 @@ def _build_state_delta(
         normalized_parameters=normalized_parameters,
         normalized_files=normalized_files,
     )
+    tool_result_payload = tool_result.to_dict()
 
     state_delta = dict(inherited_delta)
     state_delta.update(
@@ -415,8 +430,8 @@ def _build_state_delta(
             "current_parameters": normalized_parameters,
             "current_output": current_output,
             "last_output_message": message,
-            "last_expert_result": tool_result,
-            "expert_history": expert_history + [tool_result],
+            "last_expert_result": tool_result_payload,
+            "expert_history": expert_history + [tool_result_payload],
             "summary_history": summary_history + [f"{agent_name}: {message}"],
             "message_history": message_history + [message],
         }
@@ -434,7 +449,7 @@ def _build_state_delta(
         state_delta["new_files"] = []
         state_delta["files_history"] = files_history + [[]]
 
-    return state_delta, tool_result
+    return state_delta, tool_result_payload
 
 
 async def dispatch_expert_call(
@@ -446,7 +461,24 @@ async def dispatch_expert_call(
     app_name: str,
     artifact_service: InMemoryArtifactService,
 ) -> ExpertInvocationResult:
-    """Run one expert in a child session and merge the result into the parent state."""
+    """Run one expert and merge the result into the parent state."""
+    del app_name, artifact_service
+    return await dispatch_expert_request(
+        ExpertInvocationRequest(
+            agent_name=agent_name,
+            prompt=prompt,
+            tool_context=tool_context,
+            expert_agents=expert_agents,
+        )
+    )
+
+
+async def dispatch_expert_request(request: ExpertInvocationRequest) -> ExpertInvocationResult:
+    """Run one expert request and merge the result into the parent state."""
+    agent_name = request.agent_name
+    prompt = request.prompt
+    tool_context = request.tool_context
+    expert_agents = request.expert_agents
     if agent_name not in expert_agents:
         trace_runtime_event(
             "expert.error",
@@ -478,36 +510,20 @@ async def dispatch_expert_call(
         },
     )
 
-    invocation_context = tool_context._invocation_context
-    child_session_service = InMemorySessionService()
-    child_artifact_service = _resolve_child_artifact_service(
-        tool_context=tool_context,
-        fallback_service=artifact_service,
-    )
-    child_runner = _build_child_runner(
+    agent_run = await _run_agent_tool_expert_session(
         agent=expert_agents[agent_name],
-        app_name=app_name,
-        session_service=child_session_service,
-        artifact_service=child_artifact_service,
-        invocation_context=invocation_context,
-    )
-
-    current_output, forwarded_state_delta, assistant_text_streamed = await _run_child_expert_session(
         agent_name=agent_name,
         normalized_parameters=normalized_parameters,
         parent_state=parent_state,
-        user_id=invocation_context.user_id,
-        app_name=app_name,
-        child_session_service=child_session_service,
-        child_runner=child_runner,
+        tool_context=tool_context,
     )
 
     state_delta, tool_result = _build_state_delta(
         parent_state=parent_state,
-        forwarded_state_delta=forwarded_state_delta,
+        forwarded_state_delta=agent_run.forwarded_state_delta,
         agent_name=agent_name,
         normalized_parameters=normalized_parameters,
-        current_output=current_output,
+        current_output=agent_run.current_output,
     )
     tool_context.state.update(state_delta)
     trace_runtime_event(
@@ -524,8 +540,8 @@ async def dispatch_expert_call(
     return ExpertInvocationResult(
         agent_name=agent_name,
         normalized_parameters=normalized_parameters,
-        current_output=current_output,
+        current_output=agent_run.current_output,
         state_delta=state_delta,
         tool_result=tool_result,
-        assistant_text_streamed=assistant_text_streamed,
+        assistant_text_streamed=agent_run.assistant_text_streamed,
     )

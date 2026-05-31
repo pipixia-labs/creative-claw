@@ -8,7 +8,11 @@ from unittest.mock import patch
 from openpyxl import Workbook
 from pptx import Presentation
 
-from src.agents.experts.anything_to_md.anything_to_md_expert import AnythingToMDExpert
+from src.agents.experts.anything_to_md.anything_to_md_expert import (
+    AnythingToMDExpert,
+    AnythingToMDOutput,
+    AnythingToMDParameters,
+)
 from src.agents.experts.anything_to_md.tool import convert_anything_to_markdown
 from src.runtime.expert_dispatcher import normalize_invoke_agent_parameters
 from src.runtime.workspace import workspace_relative_path, workspace_root
@@ -26,6 +30,28 @@ def _build_ctx(state: dict) -> SimpleNamespace:
 
 
 class AnythingToMDExpertTests(unittest.IsolatedAsyncioTestCase):
+    def test_anything_to_md_parameters_schema_preserves_converter_contract(self) -> None:
+        parameters = AnythingToMDParameters.model_validate(
+            {"input_path": "inbox/cli/source.pdf", "max_rows": 10}
+        ).to_converter_parameters(
+            session_id="session_1",
+            turn_index=2,
+            step=3,
+            expert_step=4,
+        )
+
+        self.assertEqual(parameters["input_path"], "inbox/cli/source.pdf")
+        self.assertEqual(parameters["max_rows"], 10)
+        self.assertEqual(parameters["__session_id"], "session_1")
+        self.assertEqual(parameters["__turn_index"], 2)
+        self.assertEqual(parameters["__step"], 3)
+        self.assertEqual(parameters["__expert_step"], 4)
+
+    def test_anything_to_md_output_schema_preserves_error_shape(self) -> None:
+        output = AnythingToMDOutput(status="error", message="boom")
+
+        self.assertEqual(output.to_current_output(), {"status": "error", "message": "boom"})
+
     def test_normalize_requires_structured_payload(self) -> None:
         with self.assertRaisesRegex(ValueError, "requires structured invoke_agent parameters"):
             normalize_invoke_agent_parameters(

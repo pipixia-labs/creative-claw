@@ -18,6 +18,8 @@ from src.productions.page.page_product_manager.page_product_manager import (
     PAGE_PRODUCT_RESULT_SCHEMA_VERSION,
     PAGE_PRODUCT_TEMPLATE_SELECTION_STATE_KEY,
     PageProductManager,
+    PageProductRequest,
+    PageProductResult,
 )
 from src.productions.page.page_product_manager.product_page_skills import (
     PRODUCT_PAGE_SKILLS_DIR,
@@ -48,6 +50,8 @@ __all__ = [
     "TEMPLATES_HTML_DIR",
     "PageCodeGenerationAgent",
     "PageProductManager",
+    "PageProductRequest",
+    "PageProductResult",
     "PageTemplate",
     "PageTemplateMatch",
     "PageTemplateRegistry",

@@ -2,13 +2,24 @@ import base64
 import json
 import os
 import unittest
+from pathlib import Path
 from types import SimpleNamespace
-from unittest.mock import patch
+from unittest.mock import AsyncMock, patch
 
 from src.agents.experts.music_generation import tool as music_tool
-from src.agents.experts.music_generation.music_generation_expert import MusicGenerationExpert
+from src.agents.experts.music_generation.music_generation_expert import (
+    MusicGenerationExpert,
+    MusicGenerationOutput,
+    MusicGenerationParameters,
+    MusicGenerationResultItem,
+)
 from src.agents.experts.speech_synthesis import tool as speech_tool
-from src.agents.experts.speech_synthesis.speech_synthesis_expert import SpeechSynthesisExpert
+from src.agents.experts.speech_synthesis.speech_synthesis_expert import (
+    SpeechSynthesisExpert,
+    SpeechSynthesisOutput,
+    SpeechSynthesisParameters,
+    SpeechSynthesisResultItem,
+)
 
 
 def _build_ctx(state: dict) -> SimpleNamespace:
@@ -148,6 +159,41 @@ class SpeechSynthesisToolTests(unittest.IsolatedAsyncioTestCase):
 
 
 class SpeechSynthesisExpertTests(unittest.IsolatedAsyncioTestCase):
+    def test_speech_synthesis_parameters_schema_normalizes_public_contract(self) -> None:
+        parameters = SpeechSynthesisParameters.model_validate(
+            {
+                "text": " hello ",
+                "audio_format": "ogg",
+                "sample_rate": "48000",
+                "language": "zh-CN",
+                "enable_timestamp": "true",
+            }
+        )
+
+        self.assertEqual(parameters.text, "hello")
+        self.assertEqual(parameters.audio_format, "mp3")
+        self.assertEqual(parameters.sample_rate_value, 48000)
+        self.assertEqual(parameters.explicit_language, "zh-CN")
+        self.assertTrue(parameters.enable_timestamp)
+
+    def test_speech_synthesis_result_schema_preserves_item_shape(self) -> None:
+        result = SpeechSynthesisResultItem.model_validate(
+            {
+                "output_path": " generated/speech.mp3 ",
+                "audio_format": "mp3",
+                "usage": {"characters": 5},
+                "sentence_count": 1,
+            }
+        ).to_result()
+
+        self.assertEqual(result["output_path"], "generated/speech.mp3")
+        self.assertEqual(result["usage"], {"characters": 5})
+
+    def test_speech_synthesis_output_schema_preserves_error_shape(self) -> None:
+        output = SpeechSynthesisOutput(status="error", message="boom")
+
+        self.assertEqual(output.to_current_output(), {"status": "error", "message": "boom"})
+
     async def test_speech_synthesis_requires_text_or_ssml(self) -> None:
         agent = SpeechSynthesisExpert(name="SpeechSynthesisExpert")
         ctx = _build_ctx({"current_parameters": {}})
@@ -157,6 +203,67 @@ class SpeechSynthesisExpertTests(unittest.IsolatedAsyncioTestCase):
         current_output = events[0].actions.state_delta["current_output"]
         self.assertEqual(current_output["status"], "error")
         self.assertIn("must include: text or ssml", current_output["message"])
+
+    async def test_speech_synthesis_expert_emits_output_file(self) -> None:
+        agent = SpeechSynthesisExpert(name="SpeechSynthesisExpert")
+        ctx = _build_ctx(
+            {
+                "current_parameters": {
+                    "text": "hello world",
+                    "audio_format": "wav",
+                    "sample_rate": "16000",
+                    "voice_name": "解说小明",
+                },
+                "turn_index": 1,
+                "step": 2,
+                "expert_step": 3,
+            }
+        )
+
+        with (
+            patch(
+                "src.agents.experts.speech_synthesis.speech_synthesis_expert.speech_synthesis_tool",
+                new=AsyncMock(
+                    return_value={
+                        "status": "success",
+                        "message": b"audio-bytes",
+                        "speaker": "zh_male_jieshuoxiaoming_uranus_bigtts",
+                        "voice_name": "解说小明 2.0",
+                        "model_name": "seed-tts-2.0",
+                        "usage": {"characters": 11},
+                        "log_id": "log-1",
+                        "sentences": [{"text": "hello world"}],
+                        "provider": "bytedance_tts",
+                    }
+                ),
+            ) as tool_mock,
+            patch(
+                "src.agents.experts.speech_synthesis.speech_synthesis_expert.save_binary_output",
+                return_value=Path("/tmp/session_1_speech.wav"),
+            ),
+            patch(
+                "src.agents.experts.speech_synthesis.speech_synthesis_expert.build_workspace_file_record",
+                return_value={
+                    "name": "session_1_speech.wav",
+                    "path": "generated/session_1/session_1_speech.wav",
+                    "source": "expert",
+                },
+            ),
+        ):
+            events = [event async for event in agent._run_async_impl(ctx)]
+
+        tool_mock.assert_awaited_once()
+        tool_kwargs = tool_mock.await_args.kwargs
+        self.assertEqual(tool_kwargs["text"], "hello world")
+        self.assertEqual(tool_kwargs["audio_format"], "wav")
+        self.assertEqual(tool_kwargs["sample_rate"], 16000)
+        current_output = events[0].actions.state_delta["current_output"]
+        self.assertEqual(current_output["status"], "success")
+        self.assertEqual(current_output["results"][0]["sentence_count"], 1)
+        self.assertEqual(
+            events[0].actions.state_delta["speech_synthesis_results"][0]["output_path"],
+            "generated/session_1/session_1_speech.wav",
+        )
 
 
 class MusicGenerationToolTests(unittest.IsolatedAsyncioTestCase):
@@ -201,6 +308,45 @@ class MusicGenerationToolTests(unittest.IsolatedAsyncioTestCase):
 
 
 class MusicGenerationExpertTests(unittest.IsolatedAsyncioTestCase):
+    def test_music_generation_parameters_schema_normalizes_public_contract(self) -> None:
+        parameters = MusicGenerationParameters.model_validate(
+            {
+                "prompt": " cinematic ",
+                "lyrics": " ",
+                "audio_format": "aac",
+                "sample_rate": "48000",
+                "bitrate": "128000",
+                "model": "",
+            }
+        )
+
+        self.assertEqual(parameters.prompt, "cinematic")
+        self.assertTrue(parameters.instrumental)
+        self.assertEqual(parameters.audio_format, "mp3")
+        self.assertEqual(parameters.sample_rate_value, 48000)
+        self.assertEqual(parameters.bitrate_value, 128000)
+        self.assertEqual(parameters.model_name, "music-2.5")
+
+    def test_music_generation_result_schema_preserves_item_shape(self) -> None:
+        result = MusicGenerationResultItem.model_validate(
+            {
+                "output_path": " generated/music.mp3 ",
+                "audio_format": "mp3",
+                "instrumental": True,
+                "lyrics_used": " [Inst] ",
+                "provider": "minimax",
+                "model_name": "music-2.5",
+            }
+        ).to_result()
+
+        self.assertEqual(result["output_path"], "generated/music.mp3")
+        self.assertEqual(result["lyrics_used"], "[Inst]")
+
+    def test_music_generation_output_schema_preserves_error_shape(self) -> None:
+        output = MusicGenerationOutput(status="error", message="boom")
+
+        self.assertEqual(output.to_current_output(), {"status": "error", "message": "boom"})
+
     async def test_music_generation_requires_prompt(self) -> None:
         agent = MusicGenerationExpert(name="MusicGenerationExpert")
         ctx = _build_ctx({"current_parameters": {"instrumental": True}})
@@ -210,6 +356,64 @@ class MusicGenerationExpertTests(unittest.IsolatedAsyncioTestCase):
         current_output = events[0].actions.state_delta["current_output"]
         self.assertEqual(current_output["status"], "error")
         self.assertIn("must include: prompt", current_output["message"])
+
+    async def test_music_generation_expert_emits_output_file(self) -> None:
+        agent = MusicGenerationExpert(name="MusicGenerationExpert")
+        ctx = _build_ctx(
+            {
+                "current_parameters": {
+                    "prompt": "cinematic orchestral background music",
+                    "instrumental": True,
+                    "audio_format": "wav",
+                    "sample_rate": "48000",
+                },
+                "turn_index": 1,
+                "step": 2,
+                "expert_step": 3,
+            }
+        )
+
+        with (
+            patch(
+                "src.agents.experts.music_generation.music_generation_expert.music_generation_tool",
+                new=AsyncMock(
+                    return_value={
+                        "status": "success",
+                        "message": b"music-bytes",
+                        "instrumental": True,
+                        "lyrics_used": "[Inst]",
+                        "provider": "minimax",
+                        "model_name": "music-2.5",
+                    }
+                ),
+            ) as tool_mock,
+            patch(
+                "src.agents.experts.music_generation.music_generation_expert.save_binary_output",
+                return_value=Path("/tmp/session_1_music.wav"),
+            ),
+            patch(
+                "src.agents.experts.music_generation.music_generation_expert.build_workspace_file_record",
+                return_value={
+                    "name": "session_1_music.wav",
+                    "path": "generated/session_1/session_1_music.wav",
+                    "source": "expert",
+                },
+            ),
+        ):
+            events = [event async for event in agent._run_async_impl(ctx)]
+
+        tool_mock.assert_awaited_once()
+        tool_kwargs = tool_mock.await_args.kwargs
+        self.assertEqual(tool_kwargs["prompt"], "cinematic orchestral background music")
+        self.assertEqual(tool_kwargs["audio_format"], "wav")
+        self.assertEqual(tool_kwargs["sample_rate"], 48000)
+        current_output = events[0].actions.state_delta["current_output"]
+        self.assertEqual(current_output["status"], "success")
+        self.assertEqual(current_output["results"][0]["lyrics_used"], "[Inst]")
+        self.assertEqual(
+            events[0].actions.state_delta["music_generation_results"][0]["output_path"],
+            "generated/session_1/session_1_music.wav",
+        )
 
 
 if __name__ == "__main__":

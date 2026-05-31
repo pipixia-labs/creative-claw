@@ -2,6 +2,10 @@ import unittest
 from types import SimpleNamespace
 from unittest.mock import patch
 
+from src.agents.experts.basic_operations_agent import (
+    BasicOperationOutput,
+    BasicOperationParameters,
+)
 from src.agents.experts.audio_basic_operations.audio_basic_operations_agent import (
     AudioBasicOperationsAgent,
 )
@@ -26,6 +30,28 @@ def _build_ctx(state: dict) -> SimpleNamespace:
 
 
 class BasicOperationsExpertTests(unittest.IsolatedAsyncioTestCase):
+    def test_basic_operation_parameters_schema_preserves_runner_contract(self) -> None:
+        parameters = BasicOperationParameters.model_validate(
+            {"operation": "info", "input_path": "inbox/cli/sample.png"}
+        ).to_runner_parameters(
+            session_id="session_1",
+            turn_index=2,
+            step=3,
+            expert_step=4,
+        )
+
+        self.assertEqual(parameters["operation"], "info")
+        self.assertEqual(parameters["input_path"], "inbox/cli/sample.png")
+        self.assertEqual(parameters["__session_id"], "session_1")
+        self.assertEqual(parameters["__turn_index"], 2)
+        self.assertEqual(parameters["__step"], 3)
+        self.assertEqual(parameters["__expert_step"], 4)
+
+    def test_basic_operation_output_schema_preserves_minimal_error_shape(self) -> None:
+        output = BasicOperationOutput(status="error", message="boom")
+
+        self.assertEqual(output.to_current_output(), {"status": "error", "message": "boom"})
+
     async def test_image_basic_operations_info_returns_structured_output(self) -> None:
         agent = ImageBasicOperationsAgent(name="ImageBasicOperations")
         ctx = _build_ctx(

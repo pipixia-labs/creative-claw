@@ -7,7 +7,11 @@ from unittest.mock import AsyncMock, patch
 
 from google.genai.types import Content, Part
 
-from src.agents.experts.code_generation.code_generation_expert import CodeGenerationExpert
+from src.agents.experts.code_generation.code_generation_expert import (
+    CodeGenerationExpert,
+    CodeGenerationOutput,
+    CodeGenerationParameters,
+)
 from src.agents.experts.code_generation.tool import code_generation_tool, strip_code_fence
 from src.runtime.expert_dispatcher import normalize_invoke_agent_parameters
 from src.runtime.expert_registry import build_expert_contract_summary
@@ -48,6 +52,43 @@ class _FakePartsEvent:
 class CodeGenerationExpertTests(unittest.IsolatedAsyncioTestCase):
     def test_strip_code_fence_removes_surrounding_fence(self) -> None:
         self.assertEqual(strip_code_fence("```html\n<div>ok</div>\n```"), "<div>ok</div>")
+
+    def test_code_generation_parameters_schema_normalizes_public_contract(self) -> None:
+        parameters = CodeGenerationParameters.model_validate(
+            {
+                "prompt": "  Build a dashboard  ",
+                "language": "",
+                "output_path": " generated/design/dashboard.html ",
+                "context_files": " src/context.md ",
+                "constraints": (" single file ", ""),
+            }
+        )
+
+        self.assertEqual(parameters.prompt, "Build a dashboard")
+        self.assertEqual(parameters.language, "html")
+        self.assertEqual(parameters.output_path, "generated/design/dashboard.html")
+        self.assertEqual(parameters.context_files, [" src/context.md "])
+        self.assertEqual(parameters.constraints, [" single file "])
+
+    def test_code_generation_output_schema_preserves_current_output_contract(self) -> None:
+        current_output = CodeGenerationOutput.from_tool_result(
+            {
+                "status": " SUCCESS ",
+                "message": " Generated html code. ",
+                "output_files": [{"path": "generated/design/dashboard.html"}],
+                "language": " html ",
+                "output_path": " generated/design/dashboard.html ",
+                "provider": " google_adk ",
+                "model_name": " fake-model ",
+            }
+        ).to_current_output()
+
+        self.assertEqual(current_output["status"], "success")
+        self.assertEqual(current_output["message"], "Generated html code.")
+        self.assertEqual(current_output["output_text"], "Generated html code.")
+        self.assertEqual(current_output["output_files"], [{"path": "generated/design/dashboard.html"}])
+        self.assertEqual(current_output["language"], "html")
+        self.assertEqual(current_output["retryable"], False)
 
     def test_registry_accepts_code_generation_parameters(self) -> None:
         parameters = normalize_invoke_agent_parameters(
@@ -393,6 +434,8 @@ class CodeGenerationExpertTests(unittest.IsolatedAsyncioTestCase):
                     "prompt": "Build a dashboard",
                     "language": "html",
                     "output_path": "generated/design/dashboard.html",
+                    "context_files": "generated/context.md",
+                    "constraints": ["single file"],
                 }
             }
         )
@@ -420,7 +463,7 @@ class CodeGenerationExpertTests(unittest.IsolatedAsyncioTestCase):
                     "warnings": [],
                 }
             ),
-        ):
+        ) as mocked_generation:
             events = [event async for event in agent._run_async_impl(ctx)]
 
         current_output = events[0].actions.state_delta["current_output"]
@@ -429,6 +472,8 @@ class CodeGenerationExpertTests(unittest.IsolatedAsyncioTestCase):
         self.assertEqual(current_output["error_type"], "")
         self.assertFalse(current_output["retryable"])
         self.assertEqual(events[0].actions.state_delta["code_generation_results"]["language"], "html")
+        self.assertEqual(mocked_generation.await_args.kwargs["context_files"], ["generated/context.md"])
+        self.assertEqual(mocked_generation.await_args.kwargs["constraints"], ["single file"])
 
 
 if __name__ == "__main__":

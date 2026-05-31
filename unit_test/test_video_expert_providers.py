@@ -9,7 +9,11 @@ from unittest.mock import AsyncMock, MagicMock, patch
 from PIL import Image
 
 from src.agents.experts.video_generation import tool as video_tools
-from src.agents.experts.video_generation.video_generation_agent import VideoGenerationAgent
+from src.agents.experts.video_generation.video_generation_agent import (
+    VideoGenerationAgent,
+    VideoGenerationOutput,
+    VideoGenerationParameters,
+)
 from src.runtime.workspace import workspace_root
 
 
@@ -25,6 +29,34 @@ def _build_ctx(state: dict) -> SimpleNamespace:
 
 
 class VideoExpertProviderTests(unittest.IsolatedAsyncioTestCase):
+    def test_video_generation_parameters_normalize_dashscope_url_inputs(self) -> None:
+        parameters = VideoGenerationParameters.model_validate(
+            {
+                "prompt": " animate this ",
+                "provider": " DASHSCOPE ",
+                "mode": "first_frame",
+                "image_url": " https://example.com/frame.png ",
+                "prompt_extend": "yes",
+                "watermark": "true",
+            }
+        )
+
+        self.assertEqual(parameters.prompt_list, ["animate this"])
+        self.assertEqual(parameters.provider, "dashscope")
+        self.assertEqual(parameters.mode, "first_frame")
+        self.assertEqual(parameters.input_urls, ["https://example.com/frame.png"])
+        self.assertEqual(parameters.input_paths, [])
+        self.assertEqual(parameters.dashscope_model_name, "wan2.7-i2v")
+        self.assertEqual(parameters.resolution, "720p")
+        self.assertEqual(parameters.duration_seconds, 5)
+        self.assertTrue(parameters.watermark)
+        self.assertTrue(parameters.prompt_extend(prompt_rewrite="off"))
+
+    def test_video_generation_output_omits_missing_output_files(self) -> None:
+        output = VideoGenerationOutput(status="ERROR", message=" failed ").to_current_output()
+
+        self.assertEqual(output, {"status": "error", "message": "failed"})
+
     async def test_video_generation_uses_seedance_by_default(self) -> None:
         agent = VideoGenerationAgent(name="VideoGenerationAgent")
         ctx = _build_ctx({"current_parameters": {"prompt": "draw a cat video"}, "step": 0})

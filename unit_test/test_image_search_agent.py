@@ -2,7 +2,7 @@ import unittest
 from types import SimpleNamespace
 from unittest.mock import AsyncMock, patch
 
-from src.agents.experts.search.search_agent import SearchAgent
+from src.agents.experts.search.search_agent import SearchAgent, SearchOutput, SearchParameters
 from src.runtime.workspace import workspace_root
 
 
@@ -14,10 +14,24 @@ def _build_ctx(state: dict) -> SimpleNamespace:
             user_id="user_1",
             id="session_1",
         ),
+        _state_schema=None,
     )
 
 
 class SearchAgentTests(unittest.IsolatedAsyncioTestCase):
+    def test_search_parameters_schema_preserves_mode_fallback_contract(self) -> None:
+        parameters = SearchParameters.model_validate({"query": "poster", "mode": "weird", "count": 3})
+
+        self.assertEqual(parameters.query, "poster")
+        self.assertEqual(parameters.count, 3)
+        self.assertFalse(parameters.has_valid_mode)
+        self.assertEqual(parameters.normalized_mode, "all")
+
+    def test_search_output_schema_preserves_current_output_shape(self) -> None:
+        output = SearchOutput(status="success", message="ok")
+
+        self.assertEqual(output.to_current_output(), {"status": "success", "message": "ok"})
+
     async def test_agent_rejects_missing_required_parameters(self) -> None:
         agent = SearchAgent(name="SearchAgent")
         ctx = _build_ctx({"current_parameters": {"query": "cat"}, "step": 0})

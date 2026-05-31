@@ -9,13 +9,8 @@ import re
 from typing import Any
 
 from google.adk.agents import BaseAgent, LlmAgent
-from google.adk.apps import App
-from google.adk.artifacts import BaseArtifactService, InMemoryArtifactService
-from google.adk.memory import InMemoryMemoryService
-from google.adk.runners import Runner
-from google.adk.sessions import InMemorySessionService
+from google.adk.artifacts import BaseArtifactService
 from google.adk.tools.tool_context import ToolContext
-from google.genai.types import Content, Part
 
 from conf.llm import build_llm
 from src.productions.ppt.schemas import (
@@ -26,9 +21,10 @@ from src.productions.ppt.schemas import (
     DeckPagePlan,
     SourceUnderstanding,
 )
-from src.runtime.expert_dispatcher import dispatch_expert_call
+from src.runtime.adk_compat import has_invocation_context
+from src.runtime.agent_tool_transport import run_agent_tool, supports_agent_tool_context
+from src.runtime.expert_dispatcher import ExpertInvocationRequest, dispatch_expert_request
 from src.runtime.step_events import append_orchestration_step_event
-from src.runtime.tool_context_artifact_service import ToolContextArtifactService
 from src.runtime.workspace import normalize_workspace_markdown_image_paths, resolve_workspace_path
 
 PPT_CONTENT_PLANNING_OUTPUT_KEY = "ppt_deck_content_plan"
@@ -109,55 +105,25 @@ class PptContentPlanner:
         artifact_service: BaseArtifactService | None,
     ) -> DeckContentPlan:
         """Run the ADK content planning agent, falling back to deterministic planning."""
-        if not hasattr(tool_context, "_invocation_context"):
+        if not _supports_agent_tool_context(tool_context):
             return self._build_fallback_plan(
                 requirement,
                 tool_context=tool_context,
-                warning="Content planning agent skipped because no ADK invocation context was available.",
+                warning="Content planning agent skipped because no ADK AgentTool-compatible context was available.",
             )
 
-        invocation_context = tool_context._invocation_context
-        child_session_service = InMemorySessionService()
-        child_artifact_service = _resolve_child_artifact_service(
-            tool_context=tool_context,
-            fallback_service=artifact_service or InMemoryArtifactService(),
-        )
+        # AgentTool inherits app and artifact context from the parent invocation.
+        _ = app_name, artifact_service
         planner_agent = self.build_agent()
-        child_runner = _build_child_runner(
-            agent=planner_agent,
-            app_name=app_name,
-            session_service=child_session_service,
-            artifact_service=child_artifact_service,
-            invocation_context=invocation_context,
-        )
-        child_state = _copy_state(tool_context.state)
-        child_state["ppt_confirmed_requirement"] = requirement.model_dump(mode="json")
+        tool_context.state["ppt_confirmed_requirement"] = requirement.model_dump(mode="json")
 
         try:
-            child_session = await child_session_service.create_session(
-                app_name=app_name,
-                user_id=invocation_context.user_id,
-                state=child_state,
+            await _run_content_planning_agent_tool(
+                agent=planner_agent,
+                request=_build_content_planning_user_message(requirement),
+                tool_context=tool_context,
             )
-            async for _event in child_runner.run_async(
-                user_id=child_session.user_id,
-                session_id=child_session.id,
-                new_message=Content(
-                    role="user",
-                    parts=[
-                        Part(
-                            text=_build_content_planning_user_message(requirement)
-                        )
-                    ],
-                ),
-            ):
-                pass
-            final_session = await child_session_service.get_session(
-                app_name=app_name,
-                user_id=child_session.user_id,
-                session_id=child_session.id,
-            )
-            final_state = final_session.state if final_session is not None else child_state
+            final_state = _copy_state(tool_context.state)
             markdown_plan = final_state.get(PPT_CONTENT_PLANNING_MARKDOWN_KEY)
             if not markdown_plan:
                 raise ValueError("PptContentPlanningAgent did not save a Markdown deck plan.")
@@ -183,8 +149,6 @@ class PptContentPlanner:
                 tool_context=tool_context,
                 warning=f"Content planning agent fallback: {type(exc).__name__}: {exc}",
             )
-        finally:
-            await child_runner.close()
 
     async def resolve_plan_assets(
         self,
@@ -405,13 +369,13 @@ class PptContentPlanner:
         ):
             return _mark_asset_failed(asset, f"{agent_name} is not available for PPT asset resolution.")
 
-        invocation = await dispatch_expert_call(
-            agent_name=agent_name,
-            prompt=json.dumps(parameters, ensure_ascii=False),
-            tool_context=tool_context,
-            expert_agents=expert_agents,
-            app_name=app_name,
-            artifact_service=artifact_service,
+        invocation = await dispatch_expert_request(
+            ExpertInvocationRequest(
+                agent_name=agent_name,
+                prompt=json.dumps(parameters, ensure_ascii=False),
+                tool_context=tool_context,
+                expert_agents=expert_agents,
+            )
         )
         current_output = invocation.current_output
         output_files = list(current_output.get("output_files") or invocation.tool_result.get("output_files") or [])
@@ -1674,7 +1638,7 @@ def _can_dispatch_expert(
     return (
         agent_name in expert_agents
         and artifact_service is not None
-        and hasattr(tool_context, "_invocation_context")
+        and has_invocation_context(tool_context)
         and hasattr(tool_context.state, "to_dict")
     )
 
@@ -1905,44 +1869,19 @@ def _copy_state(state: Any) -> dict[str, Any]:
     return copy.deepcopy(dict(state))
 
 
-def _resolve_child_artifact_service(
-    *,
-    tool_context: ToolContext,
-    fallback_service: BaseArtifactService,
-) -> BaseArtifactService:
-    """Pick the artifact service for the internal content-planning runner."""
-    required_methods = ("save_artifact", "load_artifact", "list_artifacts")
-    if all(hasattr(tool_context, method_name) for method_name in required_methods):
-        return ToolContextArtifactService(tool_context)
-    return fallback_service
+def _supports_agent_tool_context(tool_context: ToolContext) -> bool:
+    """Return whether the context can safely run an ADK AgentTool child agent."""
+    return supports_agent_tool_context(tool_context)
 
 
-def _build_child_runner(
+async def _run_content_planning_agent_tool(
     *,
     agent: LlmAgent,
-    app_name: str,
-    session_service: InMemorySessionService,
-    artifact_service: BaseArtifactService,
-    invocation_context: Any,
-) -> Runner:
-    """Create a child ADK runner for the internal content-planning agent."""
-    child_plugins = getattr(getattr(invocation_context, "plugin_manager", None), "plugins", None)
-    runner_kwargs = {
-        "app_name": app_name,
-        "session_service": session_service,
-        "artifact_service": artifact_service,
-        "memory_service": InMemoryMemoryService(),
-        "credential_service": getattr(invocation_context, "credential_service", None),
-    }
-    if child_plugins:
-        runner_kwargs["app"] = App(
-            name=app_name,
-            root_agent=agent,
-            plugins=list(child_plugins),
-        )
-    else:
-        runner_kwargs["agent"] = agent
-    return Runner(**runner_kwargs)
+    request: str,
+    tool_context: ToolContext,
+) -> None:
+    """Run the content-planning agent through ADK AgentTool."""
+    await run_agent_tool(agent=agent, request=request, tool_context=tool_context)
 
 
 def _append_asset_resolution_progress(

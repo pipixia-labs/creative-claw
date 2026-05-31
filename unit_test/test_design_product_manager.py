@@ -2,11 +2,21 @@ import asyncio
 import json
 import unittest
 from types import SimpleNamespace
+from typing import AsyncGenerator
 from unittest.mock import AsyncMock, patch
 
+from google.adk import Context, Workflow
 from google.adk.agents import LlmAgent
-from google.adk.events import Event, EventActions
+from google.adk.artifacts import InMemoryArtifactService
+from google.adk.models import BaseLlm
+from google.adk.models.llm_request import LlmRequest
+from google.adk.models.llm_response import LlmResponse
+from google.adk.runners import Runner
+from google.adk.sessions import InMemorySessionService
 from google.adk.sessions import State
+from google.adk.workflow import node
+from google.genai.types import Content, FunctionCall, Part
+from pydantic import PrivateAttr
 
 from src.productions.design.design_product_manager import (
     DESIGN_BRIEF_FORM_SCHEMA_VERSION,
@@ -17,6 +27,8 @@ from src.productions.design.design_product_manager import (
     build_design_code_generation_constraints,
     build_design_code_generation_prompt,
     DesignProductManager,
+    DesignProductRequest,
+    DesignProductResult,
     ProductDesignSkillRegistry,
     normalize_question_form_block,
     parse_form_answers,
@@ -24,6 +36,7 @@ from src.productions.design.design_product_manager import (
 )
 from src.productions.design.design_product_manager.design_product_manager import (
     DESIGN_PRODUCT_REQUEST_STATE_KEY,
+    DESIGN_PRODUCT_RESULT_STATE_KEY,
 )
 from src.productions.design.design_product_manager.brief_form import (
     DESIGN_BRIEF_FORM_PENDING_TASK_STATE_KEY,
@@ -32,6 +45,56 @@ from src.productions.design.design_product_manager.brief_form import (
 from src.productions.design.design_systems import list_design_systems
 from src.runtime.workspace import resolve_workspace_path
 from src.skills.registry import SkillRegistry
+
+
+class _DesignProductManagerToolCallingFakeLlm(BaseLlm):
+    """Fake design product model that drives a planned tool sequence."""
+
+    _function_calls: list[FunctionCall] = PrivateAttr()
+    _final_text: str = PrivateAttr()
+    _requests: list[LlmRequest] = PrivateAttr(default_factory=list)
+
+    def __init__(
+        self,
+        *,
+        function_calls: list[FunctionCall],
+        final_text: str,
+    ) -> None:
+        super().__init__(model="fake-design-product-manager")
+        self._function_calls = function_calls
+        self._final_text = final_text
+
+    @property
+    def requests(self) -> list[LlmRequest]:
+        return self._requests
+
+    async def generate_content_async(
+        self,
+        llm_request: LlmRequest,
+        stream: bool = False,
+    ) -> AsyncGenerator[LlmResponse, None]:
+        self._requests.append(llm_request)
+        call_index = len(self._requests) - 1
+        if call_index < len(self._function_calls):
+            yield LlmResponse(
+                content=Content(
+                    role="model",
+                    parts=[Part(function_call=self._function_calls[call_index])],
+                )
+            )
+            return
+        yield LlmResponse(
+            content=Content(role="model", parts=[Part(text=self._final_text)])
+        )
+
+
+def _function_declaration_names(llm_request: LlmRequest) -> list[str]:
+    names: list[str] = []
+    for tool in llm_request.config.tools or []:
+        for declaration in tool.function_declarations or []:
+            if declaration.name:
+                names.append(declaration.name)
+    return names
 
 
 def _design_system_option_ids(question: dict) -> list[str]:
@@ -73,6 +136,10 @@ class DesignProductManagerTests(unittest.TestCase):
         self.assertIn("CodeGenerationExpert", manager.instruction)
         self.assertIn("default and preferred producer", manager.instruction)
         self.assertIn("ImageGenerationAgent output is normally an intermediate asset", manager.instruction)
+        self.assertIn("Use AnythingToMD only for user-provided source documents", manager.instruction)
+        self.assertIn("especially PDFs, scanned or image-heavy documents", manager.instruction)
+        self.assertIn("Do not use AnythingToMD for HTML, TXT, Markdown, or ordinary image files", manager.instruction)
+        self.assertIn("do not use AnythingToMD to inspect or verify generated design outputs", manager.instruction)
         self.assertIn("friendly aliases", manager.instruction)
         self.assertIn("do not pass alias keys", manager.instruction)
         self.assertIn("Do not use `save_design_artifact` to create the main final HTML", manager.instruction)
@@ -86,6 +153,57 @@ class DesignProductManagerTests(unittest.TestCase):
         self.assertIn("SCREENS", manager.instruction)
         self.assertIn("VARIANTS", manager.instruction)
         self.assertIn("philosophy, hierarchy, execution, specificity, and restraint", manager.instruction)
+
+    def test_design_product_request_schema_preserves_public_input_shape(self) -> None:
+        request = DesignProductRequest.model_validate(
+            {
+                "task": "  设计一个产品页。 ",
+                "inputs": {
+                    "product_image": "generated/product-bear.png",
+                    "model_glb": {"path": "generated/product-bear.glb"},
+                },
+                "output": None,
+            }
+        )
+
+        self.assertEqual(request.task, "设计一个产品页。")
+        self.assertEqual(
+            request.normalized_inputs(),
+            {
+                "product_image": "generated/product-bear.png",
+                "model_glb": {"path": "generated/product-bear.glb"},
+            },
+        )
+        self.assertEqual(
+            request.to_state_dict(),
+            {
+                "task": "设计一个产品页。",
+                "inputs": {
+                    "product_image": "generated/product-bear.png",
+                    "model_glb": {"path": "generated/product-bear.glb"},
+                },
+                "output": {},
+            },
+        )
+
+    def test_design_product_result_schema_builds_stable_dict_contract(self) -> None:
+        result = DesignProductResult.model_validate(
+            {
+                "status": " success ",
+                "product_line": "other",
+                "message": "  设计产物已完成。 ",
+                "final_file_paths": ["generated/design.html"],
+            }
+        ).to_result_dict()
+
+        self.assertEqual(result["result_schema_version"], DESIGN_PRODUCT_RESULT_SCHEMA_VERSION)
+        self.assertEqual(result["status"], "success")
+        self.assertEqual(result["product_line"], "design")
+        self.assertEqual(result["message"], "设计产物已完成。")
+        self.assertEqual(result["final_file_paths"], ["generated/design.html"])
+        self.assertEqual(result["progress"], [])
+        self.assertEqual(result["active_skill"], {})
+        self.assertEqual(result["output_files"], [])
 
     def test_design_code_generation_prompt_uses_design_canvas_contract(self) -> None:
         prompt = build_design_code_generation_prompt("Design a mobile ordering flow.")
@@ -461,7 +579,7 @@ class DesignProductManagerTests(unittest.TestCase):
         )
 
         with patch(
-            "src.productions.design.design_product_manager.design_product_manager.dispatch_expert_call",
+            "src.productions.design.design_product_manager.design_product_manager.dispatch_expert_request",
             new=mocked_dispatch,
         ):
             result = asyncio.run(
@@ -474,6 +592,12 @@ class DesignProductManagerTests(unittest.TestCase):
 
         self.assertEqual(result, expected_tool_result)
         mocked_dispatch.assert_awaited_once()
+        forwarded_request = mocked_dispatch.await_args.args[0]
+        self.assertEqual(forwarded_request.agent_name, "CodeGenerationExpert")
+        self.assertEqual(
+            forwarded_request.prompt,
+            '{"prompt":"Build a landing page","language":"html"}',
+        )
         self.assertEqual(
             tool_context.state["design_product_last_expert_result"],
             expected_tool_result,
@@ -503,7 +627,7 @@ class DesignProductManagerTests(unittest.TestCase):
         )
 
         with patch(
-            "src.productions.design.design_product_manager.design_product_manager.dispatch_expert_call",
+            "src.productions.design.design_product_manager.design_product_manager.dispatch_expert_request",
             new=mocked_dispatch,
         ):
             result = asyncio.run(
@@ -515,7 +639,7 @@ class DesignProductManagerTests(unittest.TestCase):
             )
 
         self.assertEqual(result, expected_tool_result)
-        forwarded_prompt = json.loads(mocked_dispatch.await_args.kwargs["prompt"])
+        forwarded_prompt = json.loads(mocked_dispatch.await_args.args[0].prompt)
         self.assertEqual(forwarded_prompt["input_path"], "generated/product-bear.png")
 
     def test_invoke_design_code_generation_uses_private_agent(self) -> None:
@@ -728,6 +852,21 @@ class DesignProductManagerTests(unittest.TestCase):
         self.assertEqual(result["status"], "error")
         self.assertIn("ADK invocation context", result["message"])
 
+    def test_run_product_request_rejects_non_object_output(self) -> None:
+        manager = DesignProductManager()
+        tool_context = SimpleNamespace(state={})
+
+        result = asyncio.run(
+            manager.run_product_request(
+                task="设计一个 landing page。",
+                output=["html"],
+                tool_context=tool_context,
+            )
+        )
+
+        self.assertEqual(result["status"], "error")
+        self.assertIn("output to be an object", result["message"])
+
     def test_run_product_request_emits_start_progress_for_valid_design_request(self) -> None:
         manager = DesignProductManager()
         tool_context = SimpleNamespace(
@@ -788,6 +927,82 @@ class DesignProductManagerTests(unittest.TestCase):
         )
         self.assertEqual(tool_context.state["final_file_paths"], [])
 
+    def test_web_design_product_request_uses_workflow_for_real_adk_context(self) -> None:
+        form_message = (
+            "<cc-question-form>\n"
+            '{"id":"design-brief","version":"design-brief-form-v1","title":"确认需求","questions":['
+            '{"id":"goal","label":"目标","type":"short_text","required":true}'
+            "]}\n"
+            "</cc-question-form>"
+        )
+        fake_llm = _DesignProductManagerToolCallingFakeLlm(
+            function_calls=[],
+            final_text=form_message,
+        )
+        manager = DesignProductManager()
+        manager._brief_form_expert = DesignBriefFormExpert(model=fake_llm)
+        session_service = InMemorySessionService()
+        artifact_service = InMemoryArtifactService()
+
+        @node(name="DesignBriefFormWorkflowHarnessNode", rerun_on_resume=True)
+        async def design_harness(ctx: Context, node_input: str) -> dict:
+            return await manager.run_product_request(
+                task="设计一个 AI 产品落地页。",
+                tool_context=ctx,
+                app_name="creative_claw",
+                artifact_service=artifact_service,
+            )
+
+        workflow = Workflow(
+            name="DesignBriefFormWorkflowHarness",
+            edges=[("START", design_harness)],
+        )
+        runner = Runner(
+            node=workflow,
+            session_service=session_service,
+            artifact_service=artifact_service,
+        )
+        user_id = "user-design-brief-workflow"
+        session_id = "session-design-brief-workflow"
+
+        async def _run():
+            try:
+                await session_service.create_session(
+                    app_name=workflow.name,
+                    user_id=user_id,
+                    session_id=session_id,
+                    state={"channel": "web"},
+                )
+                async for _ in runner.run_async(
+                    user_id=user_id,
+                    session_id=session_id,
+                    new_message=Content(role="user", parts=[Part(text="Run design brief form")]),
+                ):
+                    pass
+                return await session_service.get_session(
+                    app_name=workflow.name,
+                    user_id=user_id,
+                    session_id=session_id,
+                )
+            finally:
+                await runner.close()
+
+        with patch.object(
+            DesignBriefFormExpert,
+            "generate_form",
+            new=AsyncMock(side_effect=AssertionError("fallback generate_form should not run")),
+        ):
+            session = asyncio.run(_run())
+
+        self.assertIsNotNone(session)
+        self.assertEqual(session.state["design_product_result"]["status"], "needs_input")
+        self.assertEqual(session.state[DESIGN_BRIEF_FORM_PENDING_TASK_STATE_KEY], "设计一个 AI 产品落地页。")
+        self.assertIn("<cc-question-form>", session.state[DESIGN_BRIEF_FORM_STATE_KEY]["message"])
+        self.assertIn("design_system_reference", session.state[DESIGN_BRIEF_FORM_STATE_KEY]["message"])
+        self.assertEqual(session.state["final_file_paths"], [])
+        self.assertGreaterEqual(len(fake_llm.requests), 1)
+        self.assertIn("# Available design system catalog", fake_llm.requests[0].contents[0].parts[0].text)
+
     def test_run_product_request_preserves_dict_inputs_for_child_runner(self) -> None:
         manager = DesignProductManager()
         result_payload = {
@@ -813,43 +1028,13 @@ class DesignProductManagerTests(unittest.TestCase):
         )
         captured = {}
 
-        class _FakeChildRunner:
-            def __init__(self, *, app_name, session_service) -> None:
-                self.app_name = app_name
-                self.session_service = session_service
-
-            async def run_async(self, *, user_id, session_id, new_message):
-                captured["message"] = new_message.parts[0].text
-                session = await self.session_service.get_session(
-                    app_name=self.app_name,
-                    user_id=user_id,
-                    session_id=session_id,
-                )
-                captured["request_inputs"] = session.state[DESIGN_PRODUCT_REQUEST_STATE_KEY]["inputs"]
-                await self.session_service.append_event(
-                    session,
-                    Event(
-                        author="unit_test",
-                        actions=EventActions(
-                            state_delta={
-                                "design_product_result": result_payload,
-                                "final_response": result_payload["message"],
-                                "final_file_paths": [],
-                            }
-                        ),
-                    ),
-                )
-                if False:
-                    yield Event(author="unit_test")
-
-            async def close(self) -> None:
-                pass
-
-        def _fake_build_child_runner(**kwargs):
-            return _FakeChildRunner(
-                app_name=kwargs["app_name"],
-                session_service=kwargs["session_service"],
-            )
+        async def _fake_agent_tool_transport(**kwargs):
+            captured["message"] = kwargs["request"]
+            captured["request_inputs"] = kwargs["initial_state"][DESIGN_PRODUCT_REQUEST_STATE_KEY]["inputs"]
+            captured["request_output"] = kwargs["initial_state"][DESIGN_PRODUCT_REQUEST_STATE_KEY]["output"]
+            tool_context.state[DESIGN_PRODUCT_RESULT_STATE_KEY] = result_payload
+            tool_context.state["final_response"] = result_payload["message"]
+            tool_context.state["final_file_paths"] = []
 
         inputs = {
             "product_image": "generated/product-bear.png",
@@ -859,8 +1044,8 @@ class DesignProductManagerTests(unittest.TestCase):
             },
         }
         with patch(
-            "src.productions.design.design_product_manager.design_product_manager._build_child_runner",
-            side_effect=_fake_build_child_runner,
+            "src.productions.design.design_product_manager.design_product_manager._run_design_product_agent_tool",
+            _fake_agent_tool_transport,
         ):
             result = asyncio.run(
                 manager.run_product_request(
@@ -872,9 +1057,86 @@ class DesignProductManagerTests(unittest.TestCase):
 
         self.assertEqual(result["status"], "success")
         self.assertEqual(captured["request_inputs"], inputs)
+        self.assertEqual(captured["request_output"], {})
         self.assertIn('"product_image": "generated/product-bear.png"', captured["message"])
         self.assertIn('"path": "generated/product-bear.glb"', captured["message"])
         self.assertNotIn("['product_image'", captured["message"])
+
+    def test_run_product_request_agenttool_main_path_registers_delivery(self) -> None:
+        fake_llm = _DesignProductManagerToolCallingFakeLlm(
+            function_calls=[
+                FunctionCall(
+                    name="register_design_delivery",
+                    args={
+                        "status": "success",
+                        "reply_text": "设计产物已完成。",
+                        "final_file_paths": [],
+                    },
+                )
+            ],
+            final_text="DesignProductManager registered the design delivery.",
+        )
+        manager = DesignProductManager(model=fake_llm)
+        session_service = InMemorySessionService()
+        artifact_service = InMemoryArtifactService()
+
+        @node(name="DesignProductAgentToolHarnessNode", rerun_on_resume=True)
+        async def design_harness(ctx: Context, node_input: str) -> dict:
+            return await manager.run_product_request(
+                task="设计一个 SaaS 设置页。",
+                inputs={"reference_image": "generated/reference.png"},
+                output={"format": "html"},
+                tool_context=ctx,
+                app_name="creative_claw",
+                artifact_service=artifact_service,
+            )
+
+        workflow = Workflow(
+            name="DesignProductAgentToolHarness",
+            edges=[("START", design_harness)],
+        )
+        runner = Runner(
+            node=workflow,
+            session_service=session_service,
+            artifact_service=artifact_service,
+        )
+        user_id = "user-design-agenttool"
+        session_id = "session-design-agenttool"
+
+        async def _run():
+            try:
+                await session_service.create_session(
+                    app_name=workflow.name,
+                    user_id=user_id,
+                    session_id=session_id,
+                    state={"channel": "cli"},
+                )
+                async for _ in runner.run_async(
+                    user_id=user_id,
+                    session_id=session_id,
+                    new_message=Content(role="user", parts=[Part(text="Run design product")]),
+                ):
+                    pass
+                return await session_service.get_session(
+                    app_name=workflow.name,
+                    user_id=user_id,
+                    session_id=session_id,
+                )
+            finally:
+                await runner.close()
+
+        session = asyncio.run(_run())
+
+        self.assertIsNotNone(session)
+        self.assertEqual(session.state["design_product_result"]["status"], "success")
+        self.assertEqual(session.state["design_product_result"]["message"], "设计产物已完成。")
+        self.assertEqual(session.state["current_output"]["status"], "success")
+        self.assertEqual(session.state["final_file_paths"], [])
+        self.assertNotIn("DesignProductManager failed", session.state["design_product_result"]["message"])
+        first_request_tools = _function_declaration_names(fake_llm.requests[0])
+        self.assertIn("register_design_delivery", first_request_tools)
+        self.assertIn("invoke_design_code_generation", first_request_tools)
+        self.assertGreaterEqual(len(fake_llm.requests), 2)
 
     def test_submitted_web_form_answers_clear_pending_brief_form_state(self) -> None:
         manager = DesignProductManager()
@@ -916,46 +1178,14 @@ class DesignProductManagerTests(unittest.TestCase):
             _invocation_context=SimpleNamespace(user_id="user-1"),
         )
 
-        class _FakeChildRunner:
-            def __init__(self, *, app_name, session_service) -> None:
-                self.app_name = app_name
-                self.session_service = session_service
-                self.closed = False
-
-            async def run_async(self, *, user_id, session_id, new_message):
-                session = await self.session_service.get_session(
-                    app_name=self.app_name,
-                    user_id=user_id,
-                    session_id=session_id,
-                )
-                await self.session_service.append_event(
-                    session,
-                    Event(
-                        author="unit_test",
-                        actions=EventActions(
-                            state_delta={
-                                "design_product_result": result_payload,
-                                "final_response": result_payload["message"],
-                                "final_file_paths": [],
-                            }
-                        ),
-                    ),
-                )
-                if False:
-                    yield Event(author="unit_test")
-
-            async def close(self) -> None:
-                self.closed = True
-
-        def _fake_build_child_runner(**kwargs):
-            return _FakeChildRunner(
-                app_name=kwargs["app_name"],
-                session_service=kwargs["session_service"],
-            )
+        async def _fake_agent_tool_transport(**kwargs):
+            tool_context.state[DESIGN_PRODUCT_RESULT_STATE_KEY] = result_payload
+            tool_context.state["final_response"] = result_payload["message"]
+            tool_context.state["final_file_paths"] = []
 
         with patch(
-            "src.productions.design.design_product_manager.design_product_manager._build_child_runner",
-            side_effect=_fake_build_child_runner,
+            "src.productions.design.design_product_manager.design_product_manager._run_design_product_agent_tool",
+            _fake_agent_tool_transport,
         ):
             result = asyncio.run(
                 manager.run_product_request(

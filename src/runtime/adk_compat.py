@@ -8,6 +8,7 @@ origin metadata, only this file should need to change.
 from __future__ import annotations
 
 from pathlib import Path
+from typing import Any
 
 from google.adk.agents import BaseAgent
 
@@ -23,3 +24,18 @@ def annotate_agent_origin(agent: BaseAgent, *, app_name: str, origin_path: Path)
     setattr(agent, "_adk_origin_app_name", app_name)
     setattr(agent, "_adk_origin_path", origin_path)
     return agent
+
+
+def has_invocation_context(runtime_context: Any) -> bool:
+    """Return whether a ToolContext-like object exposes ADK invocation context."""
+    return hasattr(runtime_context, "_invocation_context")
+
+
+def get_invocation_context(runtime_context: Any) -> Any:
+    """Return the ADK invocation context behind a ToolContext-like object."""
+    return getattr(runtime_context, "_invocation_context", runtime_context)
+
+
+def invocation_app_name(runtime_context: Any, default: str = "creative_claw") -> str:
+    """Return the invocation app name when ADK exposes it."""
+    return str(getattr(get_invocation_context(runtime_context), "app_name", default))

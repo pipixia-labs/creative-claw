@@ -4,6 +4,8 @@ from __future__ import annotations
 
 from typing import Any
 
+from pydantic import BaseModel, Field, field_validator
+
 _PPT_CONFIRMATION_STATUSES = {
     "awaiting_requirement_confirmation",
     "awaiting_content_plan_confirmation",
@@ -26,19 +28,45 @@ _TERMINAL_PRODUCT_ERROR_STATUSES = {
 }
 
 
+class ProductToolResult(BaseModel):
+    """Stable slim result envelope returned by Orchestrator product tools."""
+
+    model_config = {"extra": "ignore"}
+
+    result_schema_version: str = ""
+    status: str = ""
+    product_line: str = ""
+    message: str = ""
+    final_file_paths: list[str] = Field(default_factory=list)
+
+    @field_validator("result_schema_version", "status", "product_line", "message", mode="before")
+    @classmethod
+    def _strip_text_fields(cls, value: Any) -> str:
+        """Normalize product tool result text fields."""
+        return str(value or "").strip()
+
+    @field_validator("final_file_paths", mode="before")
+    @classmethod
+    def _normalize_final_file_paths(cls, value: Any) -> list[str]:
+        """Normalize product final paths into non-empty strings."""
+        return _string_list(value)
+
+    def to_dict(self) -> dict[str, Any]:
+        """Return the stable dictionary payload exposed to parent agent logic."""
+        slim = self.model_dump(mode="python")
+        return {key: value for key, value in slim.items() if value not in ("", None)}
+
+
 def slim_product_result(result: dict[str, Any]) -> dict[str, Any]:
     """Return a compact user-facing product result for parent tool responses."""
     payload = dict(result) if isinstance(result, dict) else {}
-    product_line = str(payload.get("product_line") or "").strip()
-    status = str(payload.get("status") or "").strip()
-    slim: dict[str, Any] = {
-        "result_schema_version": str(payload.get("result_schema_version") or "").strip(),
-        "status": status,
-        "product_line": product_line,
-        "message": _build_user_message(payload),
-        "final_file_paths": _extract_final_file_paths(payload),
-    }
-    return {key: value for key, value in slim.items() if value not in ("", None)}
+    return ProductToolResult(
+        result_schema_version=payload.get("result_schema_version"),
+        status=payload.get("status"),
+        product_line=payload.get("product_line"),
+        message=_build_user_message(payload),
+        final_file_paths=_extract_final_file_paths(payload),
+    ).to_dict()
 
 
 def is_product_confirmation_result(result: Any) -> bool:
@@ -112,7 +140,7 @@ def _string_list(value: Any) -> list[str]:
     if isinstance(value, str):
         return [value] if value.strip() else []
     if isinstance(value, list):
-        return [str(item).strip() for item in value if str(item).strip()]
+        return [str(item).strip() for item in value if item is not None and str(item).strip()]
     return []
 
 
@@ -121,5 +149,6 @@ __all__ = [
     "is_completed_page_product_result",
     "is_product_confirmation_result",
     "is_terminal_product_result",
+    "ProductToolResult",
     "slim_product_result",
 ]

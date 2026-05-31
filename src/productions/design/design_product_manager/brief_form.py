@@ -7,12 +7,14 @@ import random
 import re
 from typing import Any
 
+from google.adk import Context, Workflow
 from google.adk.agents import LlmAgent
 from google.adk.apps import App
 from google.adk.artifacts import InMemoryArtifactService
 from google.adk.memory import InMemoryMemoryService
 from google.adk.runners import Runner
 from google.adk.sessions import InMemorySessionService
+from google.adk.workflow import node
 from google.genai.types import Content, Part
 
 from conf.llm import build_llm
@@ -136,7 +138,6 @@ class DesignBriefFormExpert(LlmAgent):
         user_id: str,
     ) -> str:
         """Run this private LLM agent and return one validated form block."""
-        design_system_catalog = _format_design_system_catalog_for_prompt()
         session_service = InMemorySessionService()
         session = await session_service.create_session(app_name=app_name, user_id=user_id, state={})
         runner = Runner(
@@ -153,16 +154,7 @@ class DesignBriefFormExpert(LlmAgent):
                 session_id=session.id,
                 new_message=Content(
                     role="user",
-                    parts=[
-                        Part(
-                            text=(
-                                "Create the question form for this design request.\n\n"
-                                f"# User design request\n{str(task or '').strip()}"
-                                "\n\n# Available design system catalog\n"
-                                f"{design_system_catalog}"
-                            )
-                        )
-                    ],
+                    parts=[Part(text=_build_design_brief_form_prompt(task))],
                 ),
             ):
                 content = getattr(event, "content", None)
@@ -175,6 +167,20 @@ class DesignBriefFormExpert(LlmAgent):
 
         raw = "\n".join(chunks).strip()
         return self.normalize_question_form_block(raw)
+
+    async def generate_form_with_workflow(
+        self,
+        *,
+        task: str,
+        tool_context: Any,
+    ) -> str:
+        """Run this expert through ADK 2 Workflow and return one validated form block."""
+        raw = await tool_context.run_node(
+            _build_design_brief_form_workflow(agent=self),
+            node_input=_build_design_brief_form_prompt(task),
+            use_sub_branch=True,
+        )
+        return self.normalize_question_form_block(str(raw or "").strip())
 
     @staticmethod
     def normalize_question_form_block(raw: str) -> str:
@@ -306,6 +312,31 @@ def build_task_with_form_answers(*, original_task: str, answer_payload: dict[str
     return DesignBriefFormExpert.build_task_with_form_answers(
         original_task=original_task,
         answer_payload=answer_payload,
+    )
+
+
+def _build_design_brief_form_workflow(*, agent: LlmAgent) -> Workflow:
+    """Build the ADK 2 dynamic Workflow used for Web design brief forms."""
+
+    @node(name="DesignBriefFormWorkflowNode", rerun_on_resume=True)
+    async def run_brief_form_agent(ctx: Context, node_input: str) -> str:
+        """Run the form agent as a Workflow child node."""
+        return str(await ctx.run_node(agent, node_input=node_input) or "").strip()
+
+    return Workflow(
+        name="DesignBriefFormWorkflow",
+        description="Generates a Web design brief form through ADK 2 Workflow.",
+        edges=[("START", run_brief_form_agent)],
+    )
+
+
+def _build_design_brief_form_prompt(task: str) -> str:
+    """Build the user prompt passed to the design brief form expert."""
+    return (
+        "Create the question form for this design request.\n\n"
+        f"# User design request\n{str(task or '').strip()}"
+        "\n\n# Available design system catalog\n"
+        f"{_format_design_system_catalog_for_prompt()}"
     )
 
 

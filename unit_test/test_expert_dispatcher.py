@@ -13,10 +13,24 @@ from google.genai.types import Content, Part
 from src.runtime.step_events import configure_step_event_publisher
 from src.runtime.expert_registry import build_expert_contract_summary
 from src.runtime.expert_dispatcher import (
+    ExpertInvocationRequest,
     dispatch_expert_call,
+    dispatch_expert_request,
     normalize_invoke_agent_parameters,
 )
 from src.runtime.tool_context import route_context
+
+
+def _build_tool_context(parent_state: State) -> SimpleNamespace:
+    return SimpleNamespace(
+        state=parent_state,
+        _invocation_context=SimpleNamespace(
+            app_name="creative-claw-test",
+            user_id="user-1",
+            credential_service=None,
+            plugin_manager=SimpleNamespace(plugins=[]),
+        ),
+    )
 
 
 class _FakeExpertAgent(BaseAgent):
@@ -299,10 +313,7 @@ class ExpertDispatcherTests(unittest.IsolatedAsyncioTestCase):
             },
             {},
         )
-        tool_context = SimpleNamespace(
-            state=parent_state,
-            _invocation_context=SimpleNamespace(user_id="user-1"),
-        )
+        tool_context = _build_tool_context(parent_state)
         result = await dispatch_expert_call(
             agent_name="KnowledgeAgent",
             prompt='{"prompt":"analyze the request"}',
@@ -322,6 +333,65 @@ class ExpertDispatcherTests(unittest.IsolatedAsyncioTestCase):
         self.assertEqual(parent_state["custom_key"], "custom-value")
         self.assertEqual(result.tool_result["structured_data"]["custom_key"], "custom-value")
 
+    async def test_dispatch_expert_request_uses_typed_request_boundary(self) -> None:
+        parent_state = State(
+            {
+                "step": 0,
+                "files_history": [],
+                "summary_history": [],
+                "text_history": [],
+                "message_history": [],
+                "expert_history": [],
+            },
+            {},
+        )
+        tool_context = _build_tool_context(parent_state)
+        result = await dispatch_expert_request(
+            ExpertInvocationRequest(
+                agent_name="KnowledgeAgent",
+                prompt='{"prompt":"analyze the request"}',
+                tool_context=tool_context,
+                expert_agents={"KnowledgeAgent": _FakeExpertAgent(name="KnowledgeAgent")},
+            )
+        )
+
+        self.assertEqual(result.agent_name, "KnowledgeAgent")
+        self.assertEqual(result.normalized_parameters["prompt"], "analyze the request")
+        self.assertIsInstance(result.tool_result, dict)
+        self.assertEqual(result.tool_result["status"], "success")
+        self.assertEqual(parent_state["current_output"]["message"], "expert finished")
+        self.assertIsInstance(parent_state["last_expert_result"], dict)
+
+    async def test_dispatch_expert_request_uses_agent_tool_text_when_output_state_missing(self) -> None:
+        parent_state = State(
+            {
+                "files_history": [],
+                "summary_history": [],
+                "text_history": [],
+                "message_history": [],
+                "expert_history": [],
+            },
+            {},
+        )
+        tool_context = _build_tool_context(parent_state)
+
+        async def _fake_run_agent_tool(**kwargs):
+            return "plain child result"
+
+        with patch("src.runtime.expert_dispatcher.run_agent_tool", new=_fake_run_agent_tool):
+            result = await dispatch_expert_request(
+                ExpertInvocationRequest(
+                    agent_name="KnowledgeAgent",
+                    prompt='{"prompt":"summarize"}',
+                    tool_context=tool_context,
+                    expert_agents={"KnowledgeAgent": _FakeExpertAgent(name="KnowledgeAgent")},
+                )
+            )
+
+        self.assertEqual(result.current_output["status"], "success")
+        self.assertEqual(result.current_output["output_text"], "plain child result")
+        self.assertEqual(parent_state["text_history"][-1], "plain child result")
+
     async def test_dispatch_expert_call_filters_internal_parent_state_before_child_run(self) -> None:
         artifact_service = InMemoryArtifactService()
         parent_state = State(
@@ -337,10 +407,7 @@ class ExpertDispatcherTests(unittest.IsolatedAsyncioTestCase):
             },
             {},
         )
-        tool_context = SimpleNamespace(
-            state=parent_state,
-            _invocation_context=SimpleNamespace(user_id="user-1"),
-        )
+        tool_context = _build_tool_context(parent_state)
         result = await dispatch_expert_call(
             agent_name="KnowledgeAgent",
             prompt='{"prompt":"inspect the session"}',
@@ -370,10 +437,7 @@ class ExpertDispatcherTests(unittest.IsolatedAsyncioTestCase):
             },
             {},
         )
-        tool_context = SimpleNamespace(
-            state=parent_state,
-            _invocation_context=SimpleNamespace(user_id="user-1"),
-        )
+        tool_context = _build_tool_context(parent_state)
         expert = _StreamingTextExpertAgent(name="KnowledgeAgent")
         published = []
 

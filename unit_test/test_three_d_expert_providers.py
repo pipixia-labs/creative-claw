@@ -15,6 +15,9 @@ from src.agents.experts.three_d_generation.prompt_optimizer import (
 )
 from src.agents.experts.three_d_generation.three_d_generation_agent import (
     ThreeDGenerationAgent,
+    ThreeDGenerationOutput,
+    ThreeDGenerationParameters,
+    ThreeDGenerationResultItem,
 )
 from src.runtime.workspace import workspace_root
 
@@ -31,6 +34,46 @@ def _build_ctx(state: dict) -> SimpleNamespace:
 
 
 class ThreeDGenerationAgentTests(unittest.IsolatedAsyncioTestCase):
+    def test_3d_generation_parameters_normalize_common_inputs(self) -> None:
+        parameters = ThreeDGenerationParameters.from_raw(
+            {
+                "provider": " HYPER3D ",
+                "prompt": [" full-body robot "],
+                "input_path": " inbox/cli/session_1/front.png ",
+                "image_urls": [" https://example.com/side.png ", ""],
+            }
+        )
+
+        self.assertEqual(parameters.provider, "hyper3d")
+        self.assertEqual(parameters.prompt, "full-body robot")
+        self.assertEqual(parameters.input_paths, ["inbox/cli/session_1/front.png"])
+        self.assertEqual(parameters.image_urls, ["https://example.com/side.png"])
+        self.assertEqual(parameters.raw_parameters["provider"], " HYPER3D ")
+
+    def test_3d_generation_parameters_reject_multiple_prompts(self) -> None:
+        with self.assertRaisesRegex(ValueError, "only one prompt"):
+            ThreeDGenerationParameters.from_raw({"prompt": ["front view", "side view"]})
+
+    def test_3d_generation_output_and_result_item_normalize_to_dicts(self) -> None:
+        result_item = ThreeDGenerationResultItem(
+            path=" generated/a.glb ",
+            name=" a.glb ",
+            type=" glb ",
+            preview_image_url=" https://example.com/preview.png ",
+            url=" https://example.com/a.glb ",
+        ).to_result()
+        output = ThreeDGenerationOutput(
+            status="SUCCESS",
+            message=" done ",
+            result_files=[result_item],
+        ).to_current_output()
+
+        self.assertEqual(result_item["path"], "generated/a.glb")
+        self.assertEqual(result_item["name"], "a.glb")
+        self.assertEqual(output["status"], "success")
+        self.assertEqual(output["message"], "done")
+        self.assertNotIn("output_files", output)
+
     async def test_3d_generation_uses_hy3d_by_default(self) -> None:
         agent = ThreeDGenerationAgent(name="ThreeDGenerationAgent", public_name="3DGeneration")
         ctx = _build_ctx(

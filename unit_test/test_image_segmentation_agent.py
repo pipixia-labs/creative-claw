@@ -2,7 +2,12 @@ import unittest
 from types import SimpleNamespace
 from unittest.mock import AsyncMock, patch
 
-from src.agents.experts.image_segmentation.image_segmentation_agent import ImageSegmentationAgent
+from src.agents.experts.image_segmentation.image_segmentation_agent import (
+    ImageSegmentationAgent,
+    ImageSegmentationOutput,
+    ImageSegmentationParameters,
+    ImageSegmentationResultItem,
+)
 
 
 def _build_ctx(state: dict) -> SimpleNamespace:
@@ -17,6 +22,45 @@ def _build_ctx(state: dict) -> SimpleNamespace:
 
 
 class ImageSegmentationAgentTests(unittest.IsolatedAsyncioTestCase):
+    def test_image_segmentation_parameters_schema_normalizes_public_contract(self) -> None:
+        parameters = ImageSegmentationParameters.model_validate(
+            {
+                "input_path": " inbox/session/a.png ",
+                "prompt": " person ",
+                "model": "",
+                "threshold": "0.4",
+            }
+        )
+
+        self.assertEqual(parameters.input_path, "inbox/session/a.png")
+        self.assertEqual(parameters.prompt, "person")
+        self.assertEqual(parameters.model_name, "DINO-X-1.0")
+        self.assertEqual(parameters.threshold_value, 0.4)
+        self.assertFalse(parameters.missing_required_fields)
+
+    def test_image_segmentation_result_schema_preserves_output_item_shape(self) -> None:
+        result = ImageSegmentationResultItem.model_validate(
+            {
+                "input_path": "inbox/session/a.png",
+                "prompt": "person",
+                "status": "SUCCESS",
+                "message": "ok",
+                "objects": [{"bbox": [1, 2, 3, 4]}],
+                "bboxes": [[1, 2, 3, 4]],
+                "threshold": 0.3,
+                "mask_path": "generated/session_1/mask.png",
+            }
+        ).to_result()
+
+        self.assertEqual(result["status"], "success")
+        self.assertEqual(result["threshold"], 0.3)
+        self.assertEqual(result["mask_path"], "generated/session_1/mask.png")
+
+    def test_image_segmentation_output_schema_preserves_error_shape(self) -> None:
+        output = ImageSegmentationOutput(status="error", message="boom")
+
+        self.assertEqual(output.to_current_output(), {"status": "error", "message": "boom"})
+
     async def test_agent_returns_mask_file_and_structured_results(self) -> None:
         agent = ImageSegmentationAgent(name="ImageSegmentationAgent")
         ctx = _build_ctx(

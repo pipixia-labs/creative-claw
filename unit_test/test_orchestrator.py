@@ -2,16 +2,22 @@ import json
 import shlex
 import tempfile
 import unittest
+import warnings
 from pathlib import Path
 from types import SimpleNamespace
+from typing import AsyncGenerator
 from unittest.mock import AsyncMock, patch
 
 from google.adk.agents.run_config import StreamingMode
 from google.adk.artifacts import InMemoryArtifactService
 from google.adk.events import Event
+from google.adk.models import BaseLlm
+from google.adk.models.llm_request import LlmRequest
+from google.adk.models.llm_response import LlmResponse
 from google.adk.sessions import InMemorySessionService
 from google.adk.sessions.state import State
-from google.genai.types import Content, Part
+from google.genai.types import Content, FunctionCall, Part
+from pydantic import PrivateAttr
 
 from conf.system import SYS_CONFIG
 from src.agents.experts.image_grounding.image_grounding_agent import ImageGroundingAgent
@@ -37,6 +43,50 @@ from src.runtime.adk_compat import annotate_agent_origin
 from src.runtime.step_events import configure_step_event_publisher
 from src.runtime.tool_context import route_context
 from src.runtime.workspace import build_workspace_file_record, workspace_relative_path, workspace_root
+
+
+class _SetModelResponseFakeLlm(BaseLlm):
+    """Fake non-native model that completes through ADK's set_model_response tool."""
+
+    _requests: list[LlmRequest] = PrivateAttr(default_factory=list)
+
+    @property
+    def requests(self) -> list[LlmRequest]:
+        """Return captured ADK model requests."""
+        return self._requests
+
+    async def generate_content_async(
+        self,
+        llm_request: LlmRequest,
+        stream: bool = False,
+    ) -> AsyncGenerator[LlmResponse, None]:
+        self._requests.append(llm_request)
+        yield LlmResponse(
+            content=Content(
+                role="model",
+                parts=[
+                    Part(
+                        function_call=FunctionCall(
+                            name="set_model_response",
+                            args={
+                                "reply_text": "结构化输出已完成。",
+                                "final_file_paths": [],
+                            },
+                        )
+                    )
+                ],
+            )
+        )
+
+
+def _function_declaration_names(llm_request: LlmRequest) -> list[str]:
+    """Return function declaration names sent to the model request."""
+    names: list[str] = []
+    for tool in llm_request.config.tools or []:
+        for declaration in tool.function_declarations or []:
+            if declaration.name:
+                names.append(declaration.name)
+    return names
 
 
 class OrchestratorTests(unittest.TestCase):
@@ -1336,6 +1386,61 @@ class OrchestratorCallbackTests(unittest.IsolatedAsyncioTestCase):
         self.assertEqual(session.state["final_response"], "Here is the final image.")
         self.assertEqual(session.state["final_file_paths"], [relative_path])
 
+    async def test_native_structured_output_uses_adk_set_model_response_smoke(self) -> None:
+        session_service = InMemorySessionService()
+        artifact_service = InMemoryArtifactService()
+        fake_llm = _SetModelResponseFakeLlm(model="fake-non-native")
+        with (
+            patch(
+                "src.agents.orchestrator.orchestrator_agent.resolve_structured_output_mode",
+                return_value="native",
+            ),
+            patch(
+                "src.agents.orchestrator.orchestrator_agent.build_llm",
+                return_value=fake_llm,
+            ),
+        ):
+            orchestrator = Orchestrator(
+                session_service=session_service,
+                artifact_service=artifact_service,
+                expert_agents={},
+            )
+        orchestrator.uid = "user-structured-smoke"
+        orchestrator.sid = "session-structured-smoke"
+
+        await session_service.create_session(
+            app_name=SYS_CONFIG.app_name,
+            user_id=orchestrator.uid,
+            session_id=orchestrator.sid,
+            state={"orchestration_events": []},
+        )
+
+        with warnings.catch_warnings():
+            warnings.filterwarnings(
+                "ignore",
+                message=r"\[EXPERIMENTAL\].*JSON_SCHEMA_FOR_FUNC_DECL",
+                category=UserWarning,
+            )
+            result = await orchestrator.run_until_done()
+
+        self.assertEqual(result["final_response"], "结构化输出已完成。")
+        self.assertEqual(result["final_file_paths"], [])
+        self.assertEqual(len(fake_llm.requests), 1)
+        llm_request = fake_llm.requests[0]
+        self.assertIsNone(llm_request.config.response_schema)
+        self.assertIn("set_model_response", _function_declaration_names(llm_request))
+        self.assertIn("set_model_response", str(llm_request.config.system_instruction))
+
+        session = await session_service.get_session(
+            app_name=SYS_CONFIG.app_name,
+            user_id=orchestrator.uid,
+            session_id=orchestrator.sid,
+        )
+        self.assertEqual(
+            session.state[ORCHESTRATOR_FINAL_RESPONSE_OUTPUT_KEY],
+            {"reply_text": "结构化输出已完成。", "final_file_paths": []},
+        )
+
     async def test_run_until_done_falls_back_when_final_response_path_is_untracked(self) -> None:
         session_service = InMemorySessionService()
         artifact_service = InMemoryArtifactService()
@@ -1798,7 +1903,12 @@ class OrchestratorInvokeAgentIntegrationTests(unittest.IsolatedAsyncioTestCase):
                 },
                 {},
             ),
-            _invocation_context=SimpleNamespace(user_id="user-1"),
+            _invocation_context=SimpleNamespace(
+                app_name=SYS_CONFIG.app_name,
+                user_id="user-1",
+                credential_service=None,
+                plugin_manager=SimpleNamespace(plugins=[]),
+            ),
         )
         with tempfile.TemporaryDirectory(dir=workspace_root()) as tmpdir:
             image_path = Path(tmpdir) / "grounding_input.png"

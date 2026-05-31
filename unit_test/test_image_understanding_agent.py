@@ -2,7 +2,12 @@ import unittest
 from types import SimpleNamespace
 from unittest.mock import AsyncMock, patch
 
-from src.agents.experts.image_understanding.image_understanding_agent import ImageUnderstandingAgent
+from src.agents.experts.image_understanding.image_understanding_agent import (
+    ImageUnderstandingAgent,
+    ImageUnderstandingOutput,
+    ImageUnderstandingParameters,
+    ImageUnderstandingResultItem,
+)
 
 
 def _build_ctx(state: dict) -> SimpleNamespace:
@@ -17,6 +22,48 @@ def _build_ctx(state: dict) -> SimpleNamespace:
 
 
 class ImageUnderstandingAgentValidationTests(unittest.IsolatedAsyncioTestCase):
+    def test_image_understanding_parameters_schema_normalizes_public_contract(self) -> None:
+        parameters = ImageUnderstandingParameters.model_validate(
+            {
+                "input_path": " inbox/session/a.png ",
+                "mode": " PROMPT ",
+            }
+        )
+
+        self.assertEqual(parameters.input_paths, ["inbox/session/a.png"])
+        self.assertEqual(parameters.mode, ["prompt"])
+        self.assertEqual(parameters.modes_for_inputs(), ["prompt"])
+
+    def test_image_understanding_parameters_repeats_single_mode_for_multiple_inputs(self) -> None:
+        parameters = ImageUnderstandingParameters.model_validate(
+            {
+                "input_paths": ["inbox/session/a.png", "inbox/session/b.png"],
+                "mode": [" OCR "],
+            }
+        )
+
+        self.assertEqual(parameters.modes_for_inputs(), ["ocr", "ocr"])
+
+    def test_image_understanding_output_schema_preserves_error_contract(self) -> None:
+        item = ImageUnderstandingResultItem(
+            input_path=" inbox/session/a.png ",
+            mode=" PROMPT ",
+            status=" SUCCESS ",
+            message=" ok ",
+        ).to_result_dict()
+        current_output = ImageUnderstandingOutput(
+            status="error",
+            message=" failed ",
+            results=[item],
+        ).to_current_output()
+
+        self.assertEqual(item["input_path"], "inbox/session/a.png")
+        self.assertEqual(item["mode"], "PROMPT")
+        self.assertEqual(item["status"], "success")
+        self.assertEqual(current_output["status"], "error")
+        self.assertEqual(current_output["message"], "failed")
+        self.assertEqual(current_output["results"][0]["message"], "ok")
+
     async def test_agent_accepts_prompt_mode(self) -> None:
         agent = ImageUnderstandingAgent(name="ImageUnderstandingAgent")
         ctx = _build_ctx(

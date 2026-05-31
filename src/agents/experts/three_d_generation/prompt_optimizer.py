@@ -3,16 +3,13 @@
 from __future__ import annotations
 
 from dataclasses import dataclass
-from typing import Any
 
 from google.adk.agents import LlmAgent
-from google.adk.agents.callback_context import CallbackContext
 from google.adk.agents.invocation_context import InvocationContext
-from google.adk.models import LlmRequest
-from google.genai.types import Content, Part
 
 from conf.llm import build_llm, resolve_llm_model_name
 from src.logger import logger
+from src.runtime.llm_oneshot import run_oneshot_llm
 
 PROMPT_OPTIMIZER_AGENT_NAME = "ThreeDPromptOptimizerAgent"
 GENERAL_3D_QUALITY_MARKER = "3D asset quality requirements:"
@@ -105,13 +102,6 @@ def _build_optimizer_request(
     )
 
 
-def _extract_final_text(event: Any) -> str:
-    """Return final text from one ADK event, or an empty string."""
-    if not event.is_final_response() or not event.content or not event.content.parts:
-        return ""
-    return next((str(part.text).strip() for part in event.content.parts if part.text), "")
-
-
 def _strip_fences_and_labels(text: str) -> str:
     """Remove common wrapper text from LLM output while preserving prompt content."""
     cleaned = str(text or "").strip()
@@ -162,30 +152,18 @@ async def optimize_3d_prompt(
         max_characters=max_characters,
     )
 
-    def before_model_callback(
-        callback_context: CallbackContext,
-        llm_request: LlmRequest,
-    ) -> None:
-        """Inject the current optimization request into the private LLM call."""
-        llm_request.contents.append(Content(role="user", parts=[Part(text=request_text)]))
-
     model_name = ""
     try:
         model_name = resolve_llm_model_name()
-        llm = LlmAgent(
+        llm_result = await run_oneshot_llm(
+            ctx,
             name=PROMPT_OPTIMIZER_AGENT_NAME,
             model=build_llm(),
             instruction=_OPTIMIZER_INSTRUCTION,
-            include_contents="none",
-            before_model_callback=before_model_callback,
+            user_text=request_text,
+            agent_cls=LlmAgent,
         )
-
-        optimized_prompt = ""
-        async for event in llm.run_async(ctx):
-            generated_text = _extract_final_text(event)
-            if generated_text:
-                optimized_prompt = generated_text
-
+        optimized_prompt = llm_result.final_text or llm_result.text
         optimized_prompt = limit_prompt_length(
             _strip_fences_and_labels(optimized_prompt),
             max_characters=max_characters,

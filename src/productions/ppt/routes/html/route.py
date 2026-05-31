@@ -12,13 +12,8 @@ from pathlib import Path
 from typing import Any
 
 from google.adk.agents import BaseAgent, LlmAgent
-from google.adk.apps import App
-from google.adk.artifacts import BaseArtifactService, InMemoryArtifactService
-from google.adk.memory import InMemoryMemoryService
-from google.adk.runners import Runner
-from google.adk.sessions import InMemorySessionService
+from google.adk.artifacts import BaseArtifactService
 from google.adk.tools.tool_context import ToolContext
-from google.genai.types import Content, Part
 from PIL import Image, ImageDraw, ImageFont
 from pptx import Presentation
 from pptx.dml.color import RGBColor
@@ -36,8 +31,12 @@ from src.productions.ppt.schemas import (
 )
 from src.productions.ppt.routes.html.html_to_pptx import convert_html_pages_to_pptx
 from src.productions.ppt.templates.html_registry import load_html_template_package
-from src.runtime.tool_context_artifact_service import ToolContextArtifactService
-from src.runtime.workspace import resolve_workspace_path, workspace_relative_path
+from src.runtime.agent_tool_transport import run_agent_tool, supports_agent_tool_context
+from src.runtime.workspace import (
+    generated_session_dir,
+    resolve_workspace_path,
+    workspace_relative_path,
+)
 
 _COLOR_BG = RGBColor(247, 248, 251)
 _COLOR_INK = RGBColor(23, 32, 51)
@@ -307,7 +306,7 @@ async def generate_html_pages_with_agent(
     """Generate per-slide HTML with an ADK page-generation agent, falling back deterministically."""
     if template.template_id != _FREE_DESIGN_TEMPLATE_ID:
         return generate_html_pages(content_plan=content_plan, template=template, paths=paths)
-    if tool_context is None or not hasattr(tool_context, "_invocation_context"):
+    if tool_context is None or not _supports_agent_tool_context(tool_context):
         return generate_html_pages(content_plan=content_plan, template=template, paths=paths)
     if page_generation_agent is None:
         return generate_html_pages(content_plan=content_plan, template=template, paths=paths)
@@ -656,67 +655,36 @@ async def _run_html_page_generation_agent(
     page_generation_agent: BaseAgent,
 ) -> list[_GeneratedHtmlPage]:
     """Run the child page-generation agent and return saved HTML fragments."""
-    invocation_context = tool_context._invocation_context
-    child_session_service = InMemorySessionService()
-    child_artifact_service = _resolve_child_artifact_service(
-        tool_context=tool_context,
-        fallback_service=artifact_service or InMemoryArtifactService(),
+    # AgentTool inherits app and artifact context from the parent invocation.
+    _ = app_name, artifact_service
+    tool_context.state[HTML_PAGE_GENERATION_CONTENT_PLAN_KEY] = content_plan.model_dump(
+        mode="json"
     )
-    child_runner = _build_child_runner(
+    await _run_html_page_generation_agent_tool(
         agent=page_generation_agent,
-        app_name=app_name,
-        session_service=child_session_service,
-        artifact_service=child_artifact_service,
-        invocation_context=invocation_context,
+        request=_build_html_page_generation_user_message(
+            content_plan=content_plan,
+            template=template,
+            paths=paths,
+        ),
+        tool_context=tool_context,
     )
-    child_state = _copy_state(tool_context.state)
-    child_state[HTML_PAGE_GENERATION_CONTENT_PLAN_KEY] = content_plan.model_dump(mode="json")
-    try:
-        child_session = await child_session_service.create_session(
-            app_name=app_name,
-            user_id=invocation_context.user_id,
-            state=child_state,
+    final_state = _copy_state(tool_context.state)
+    pages_payload = final_state.get(HTML_PAGE_GENERATION_PAGES_KEY)
+    if not pages_payload:
+        raise ValueError(
+            f"{getattr(page_generation_agent, 'name', PPT_HTML_PAGE_GENERATION_EXPERT_NAME)} "
+            "did not save HTML route pages."
         )
-        async for _event in child_runner.run_async(
-            user_id=child_session.user_id,
-            session_id=child_session.id,
-            new_message=Content(
-                role="user",
-                parts=[
-                    Part(
-                        text=_build_html_page_generation_user_message(
-                            content_plan=content_plan,
-                            template=template,
-                            paths=paths,
-                        )
-                    )
-                ],
-            ),
-        ):
-            pass
-        final_session = await child_session_service.get_session(
-            app_name=app_name,
-            user_id=child_session.user_id,
-            session_id=child_session.id,
+    normalized_pages = _normalize_agent_page_fragments(pages_payload, content_plan=content_plan)
+    tool_context.state[HTML_PAGE_GENERATION_PAGES_KEY] = [
+        page.model_dump(mode="json") for page in normalized_pages
+    ]
+    if final_state.get(HTML_PAGE_GENERATION_AGENT_MESSAGE_KEY):
+        tool_context.state[HTML_PAGE_GENERATION_AGENT_MESSAGE_KEY] = str(
+            final_state.get(HTML_PAGE_GENERATION_AGENT_MESSAGE_KEY)
         )
-        final_state = final_session.state if final_session is not None else child_state
-        pages_payload = final_state.get(HTML_PAGE_GENERATION_PAGES_KEY)
-        if not pages_payload:
-            raise ValueError(
-                f"{getattr(page_generation_agent, 'name', PPT_HTML_PAGE_GENERATION_EXPERT_NAME)} "
-                "did not save HTML route pages."
-            )
-        normalized_pages = _normalize_agent_page_fragments(pages_payload, content_plan=content_plan)
-        tool_context.state[HTML_PAGE_GENERATION_PAGES_KEY] = [
-            page.model_dump(mode="json") for page in normalized_pages
-        ]
-        if final_state.get(HTML_PAGE_GENERATION_AGENT_MESSAGE_KEY):
-            tool_context.state[HTML_PAGE_GENERATION_AGENT_MESSAGE_KEY] = str(
-                final_state.get(HTML_PAGE_GENERATION_AGENT_MESSAGE_KEY)
-            )
-        return normalized_pages
-    finally:
-        await child_runner.close()
+    return normalized_pages
 
 
 async def run_html_page_generation_expert(
@@ -732,6 +700,7 @@ async def run_html_page_generation_expert(
     pages = await _run_html_page_generation_agent(
         content_plan=content_plan,
         template=template,
+        paths=_build_transient_html_page_generation_paths(tool_context.state),
         tool_context=tool_context,
         app_name=app_name,
         artifact_service=artifact_service,
@@ -946,44 +915,37 @@ def _copy_state(state: Any) -> dict[str, Any]:
     return copy.deepcopy(dict(state))
 
 
-def _resolve_child_artifact_service(
-    *,
-    tool_context: ToolContext,
-    fallback_service: BaseArtifactService,
-) -> BaseArtifactService:
-    """Pick the artifact service for an internal route runner."""
-    required_methods = ("save_artifact", "load_artifact", "list_artifacts")
-    if all(hasattr(tool_context, method_name) for method_name in required_methods):
-        return ToolContextArtifactService(tool_context)
-    return fallback_service
+def _build_transient_html_page_generation_paths(state: Any) -> HtmlRoutePaths:
+    """Build route paths for standalone HTML page-generation expert calls."""
+    state_dict = _copy_state(state)
+    session_id = str(state_dict.get("sid") or "default").strip() or "default"
+    try:
+        turn_index = int(state_dict.get("turn_index", 0) or 0)
+    except (TypeError, ValueError):
+        turn_index = 0
+    try:
+        step = int(state_dict.get("step", 0) or 0)
+    except (TypeError, ValueError):
+        step = 0
+    return prepare_html_route_paths(
+        generated_session_dir(session_id, turn_index=turn_index)
+        / f"ppt_html_page_generation_step_{step}"
+    )
 
 
-def _build_child_runner(
+def _supports_agent_tool_context(tool_context: ToolContext) -> bool:
+    """Return whether the context can safely run an ADK AgentTool child agent."""
+    return supports_agent_tool_context(tool_context)
+
+
+async def _run_html_page_generation_agent_tool(
     *,
     agent: BaseAgent,
-    app_name: str,
-    session_service: InMemorySessionService,
-    artifact_service: BaseArtifactService,
-    invocation_context: Any,
-) -> Runner:
-    """Create a child ADK runner for the HTML page-generation agent."""
-    child_plugins = getattr(getattr(invocation_context, "plugin_manager", None), "plugins", None)
-    runner_kwargs = {
-        "app_name": app_name,
-        "session_service": session_service,
-        "artifact_service": artifact_service,
-        "memory_service": InMemoryMemoryService(),
-        "credential_service": getattr(invocation_context, "credential_service", None),
-    }
-    if child_plugins:
-        runner_kwargs["app"] = App(
-            name=app_name,
-            root_agent=agent,
-            plugins=list(child_plugins),
-        )
-    else:
-        runner_kwargs["agent"] = agent
-    return Runner(**runner_kwargs)
+    request: str,
+    tool_context: ToolContext,
+) -> None:
+    """Run the HTML page-generation agent through ADK AgentTool."""
+    await run_agent_tool(agent=agent, request=request, tool_context=tool_context)
 
 
 def _append_html_page_generation_warning(state: Any, warning: str) -> None:

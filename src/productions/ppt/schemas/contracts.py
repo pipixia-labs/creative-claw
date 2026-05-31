@@ -7,6 +7,14 @@ from typing import Any, Literal
 
 from pydantic import BaseModel, Field, field_validator, model_validator
 
+from src.productions.schema_utils import (
+    clean_string as _clean_string,
+    default_empty_dict,
+    default_empty_list,
+    model_dump_dict,
+    require_non_empty_string,
+)
+
 PPT_PRODUCT_RESULT_SCHEMA_VERSION = "ppt-product-result-v1"
 # Standard page types are template-level requirements, not a global deck-plan
 # requirement. A template package may opt into these page types later.
@@ -50,9 +58,42 @@ DeckPageAssetSourceKind = Literal[
 DeckPageAssetStatus = Literal["pending", "ready", "failed"]
 
 
-def _clean_string(value: str) -> str:
-    """Normalize one user-facing schema string."""
-    return str(value or "").strip()
+class PptProductRequest(BaseModel):
+    """Top-level structured request accepted by `PptProductManager`."""
+
+    model_config = {"extra": "ignore", "arbitrary_types_allowed": True}
+
+    task: str = Field(description="The PPT product task or confirmation response.")
+    inputs: Any = Field(default_factory=list)
+    output: dict[str, Any] = Field(default_factory=dict)
+
+    @field_validator("task", mode="before")
+    @classmethod
+    def _strip_task(cls, value: Any) -> str:
+        """Strip the task text before validation."""
+        return _clean_string(value)
+
+    @field_validator("inputs", mode="before")
+    @classmethod
+    def _default_inputs(cls, value: Any) -> Any:
+        """Default missing inputs to an empty list without changing caller shape."""
+        return default_empty_list(value)
+
+    @field_validator("output", mode="before")
+    @classmethod
+    def _default_output(cls, value: Any) -> dict[str, Any]:
+        """Default missing output options to an empty dict."""
+        return default_empty_dict(value)
+
+    @field_validator("task")
+    @classmethod
+    def _require_task(cls, value: str) -> str:
+        """Require a non-empty PPT task or confirmation response."""
+        return require_non_empty_string(value, field_name="task")
+
+    def to_state_dict(self) -> dict[str, Any]:
+        """Return the stable dictionary payload used for request tracing."""
+        return model_dump_dict(self)
 
 
 class SourceInput(BaseModel):

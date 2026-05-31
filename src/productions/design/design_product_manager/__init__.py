@@ -16,6 +16,8 @@ from src.productions.design.design_product_manager.brief_form import (
 from src.productions.design.design_product_manager.design_product_manager import (
     DESIGN_PRODUCT_RESULT_SCHEMA_VERSION,
     DesignProductManager,
+    DesignProductRequest,
+    DesignProductResult,
 )
 from src.productions.design.design_product_manager.design_product_experts import (
     DESIGN_PRODUCT_EXPERT_ALLOWLIST,
@@ -48,6 +50,8 @@ __all__ = [
     "DesignCodeGenerationAgent",
     "DesignBriefFormExpert",
     "DesignProductManager",
+    "DesignProductRequest",
+    "DesignProductResult",
     "DesignSchemaValidationError",
     "PRODUCT_DESIGN_SKILLS_DIR",
     "ProductDesignSkillInfo",

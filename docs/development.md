@@ -43,6 +43,24 @@ Product-line tools return deterministic user-facing results for confirmations, s
 
 The outer orchestrator should still drain the ADK `run_async` event stream naturally after capturing that deterministic result. Do not return directly from inside the runner event loop, because closing ADK's async generators early can interrupt tracing cleanup and leave the Web UI without a final event.
 
+### Product Tool Protocol
+
+The Orchestrator-to-product-manager boundary is intentionally narrower than each product manager's internal schema. Orchestrator product tools should build a `ProductToolRequest` before calling Page, Design, or PPT. This keeps common tool argument defaulting, step-event arguments, and product-line metadata in one runtime boundary.
+
+Product managers still own product-specific request and result schemas. Page, Design, and PPT may normalize inputs differently, keep different result schema versions, and persist richer state payloads in their own session keys. Do not move product-specific fields such as PPT `confirmed_requirement`, Design brief-form state, or Page template selection into the runtime tool envelope.
+
+The parent-facing tool result should remain slim and user-facing. Use `slim_product_result(...)` / `ProductToolResult` for the parent agent response, and keep rich delivery manifests, progress, expert history, route builds, and validation records in product session state.
+
+### PPT Workflow Migration Guardrails
+
+PPT's main flow should migrate toward ADK 2 dynamic Workflow in small slices, not through a rewrite of the current state machine. A dynamic parent node that calls `ctx.run_node(...)` must use `rerun_on_resume=True` so ADK can checkpoint completed child nodes during resume.
+
+Prefer ADK node outputs for data passed directly to the next node, and session state for durable product lifecycle state that must survive confirmation turns, route execution, and channel handoff. Confirmation gates should stay explicit and resumable; do not hide them behind generic fallback success paths.
+
+The current PPT Workflow skeleton covers the two human confirmation gates: requirement confirmation and content-plan confirmation. These Workflow nodes delegate into direct phase methods that still own the existing business logic; revision turns intentionally remain on the direct path until their branch behavior is tested separately.
+
+Migrate source preparation, content planning, system selection, route execution, and final delivery as separate nodes only after each phase has real ADK Runner/Workflow tests proving the main path is not relying on fallback. Route execution has file side effects, so it must keep deterministic output directories or existing-output detection before relying on ADK resume semantics.
+
 ### Code Artifact Finalization
 
 Code-backed artifacts should be submitted through a structured save tool whenever possible, not inferred from assistant prose. The shared code artifact runtime provides a private `save_code_artifact` boundary for Design, Page, and CodeGeneration flows.
@@ -455,6 +473,9 @@ This route depends on the signed-in ChatGPT/Codex account permissions and does n
 DeepSeek V4 models use the existing `deepseek` provider and remain backed by ADK `LiteLlm`.
 The runtime builds `LiteLlm(model="deepseek/deepseek-v4-pro", api_base="https://api.deepseek.com", ...)` or `LiteLlm(model="deepseek/deepseek-v4-flash", api_base="https://api.deepseek.com", ...)`.
 The default DeepSeek `api_base` is the official OpenAI-compatible endpoint `https://api.deepseek.com`; override `providers.deepseek.api_base` only if you use a proxy.
+DeepSeek currently stays in Orchestrator `prompt_json` structured-output mode when `llm.structured_output_mode` is `auto`.
+Live ADK 2.1 smoke checks showed OpenAI and Gemini can complete `output_schema + tools`, while DeepSeek rejects structured `response_format` with `This response_format type is unavailable now`.
+Do not remove the prompt-JSON compatibility path globally while DeepSeek remains a supported text provider; force `structured_output_mode="native"` only for targeted provider debugging.
 
 ```json
 {

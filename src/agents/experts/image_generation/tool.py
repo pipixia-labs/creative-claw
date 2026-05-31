@@ -9,16 +9,14 @@ from typing import Any, AsyncGenerator
 import requests
 from google.adk.agents.invocation_context import InvocationContext
 from google.adk.agents import LlmAgent
-from google.adk.agents.callback_context import CallbackContext
-from google.adk.models import LlmRequest
 from google.genai import types
-from google.genai.types import Content, Part
 from openai import OpenAI
 
 from conf.api import API_CONFIG
 from conf.llm import build_llm
 from conf.system import SYS_CONFIG
 from src.logger import logger
+from src.runtime.llm_oneshot import run_oneshot_llm
 
 _OPENAI_GPT_IMAGE_MODEL = "gpt-image-2"
 _DASHSCOPE_API_BASE = "https://dashscope.aliyuncs.com/api/v1"
@@ -283,26 +281,17 @@ async def prompt_enhancement_tool(ctx: InvocationContext, prompt: str) -> dict[s
     Be careful! In this case, you must ensure that the newly generated prompt is strictly consistent with the original prompt, without losing or changing any semantic content.
     """
 
-    def before_model_callback(callback_context: CallbackContext, llm_request: LlmRequest):
-        user_prompt = f"This is the original prompt entered by the user: {prompt}, please polish or enhance it."
-        llm_request.contents.append(Content(role='user', parts=[Part(text=user_prompt)]))
-
-    
-    llm = LlmAgent(
-        name="prompt_enhancement",
-        model=build_llm(),
-        instruction=system_prompt,
-        include_contents='none',
-        before_model_callback=before_model_callback
-    )
-    
     try:
-        enhanced_prompt = None
-        async for event in llm.run_async(ctx):
-            if event.is_final_response() and event.content and event.content.parts:
-                generated_text = next((part.text for part in event.content.parts if part.text), None)
-                if generated_text:
-                    enhanced_prompt = generated_text
+        user_prompt = f"This is the original prompt entered by the user: {prompt}, please polish or enhance it."
+        llm_result = await run_oneshot_llm(
+            ctx,
+            name="prompt_enhancement",
+            model=build_llm(),
+            instruction=system_prompt,
+            user_text=user_prompt,
+            agent_cls=LlmAgent,
+        )
+        enhanced_prompt = llm_result.final_text or llm_result.text
         if enhanced_prompt:
             return {
                 'status': 'success',
@@ -341,17 +330,12 @@ async def gemini_image_generation(
     try:
         normalized_ratio = _normalize_aspect_ratio(aspect_ratio)
 
-        def before_model_callback(
-            callback_context: CallbackContext,
-            llm_request: LlmRequest,
-        ) -> None:
-            llm_request.contents.append(Content(role="user", parts=[Part(text=prompt)]))
-
-        llm = LlmAgent(
+        llm_result = await run_oneshot_llm(
+            ctx,
             name="media_gemini_image_generation",
             model="gemini-3.1-flash-image-preview",
             instruction="Generate an image according to the prompt.",
-            include_contents="none",
+            user_text=prompt,
             generate_content_config=types.GenerateContentConfig(
                 response_modalities=["TEXT", "IMAGE"],
                 image_config=types.ImageConfig(
@@ -359,20 +343,10 @@ async def gemini_image_generation(
                     image_size=resolution,
                 ),
             ),
-            before_model_callback=before_model_callback,
+            agent_cls=LlmAgent,
         )
 
-        text_message = ""
-        image_data: bytes | None = None
-        async for event in llm.run_async(ctx):
-            if not event.content or not event.content.parts:
-                continue
-            for part in event.content.parts:
-                if part.text is not None:
-                    text_message = part.text
-                elif part.inline_data is not None:
-                    image_data = part.inline_data.data
-
+        image_data = llm_result.image_data
         if image_data:
             return ImageGenerationResult(
                 status="success",
@@ -383,7 +357,7 @@ async def gemini_image_generation(
 
         return ImageGenerationResult(
             status="error",
-            message=text_message or "gemini returned no image",
+            message=llm_result.text or "gemini returned no image",
             provider="gemini",
             model_name="gemini-3.1-flash-image-preview",
         )

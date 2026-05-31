@@ -16,6 +16,7 @@ from google.genai.types import Content, Part
 from conf.llm import build_llm, resolve_llm_model_name
 from conf.path import PROJECT_PATH
 from src.logger import logger
+from src.runtime.adk_compat import get_invocation_context
 from src.runtime.workspace import (
     build_generated_output_path,
     resolve_workspace_path,
@@ -184,7 +185,7 @@ async def generate_code_artifact(
     output_source: str = "expert",
 ) -> dict[str, Any]:
     """Generate one code artifact with the configured LLM and write it to workspace."""
-    run_context = _invocation_context(runtime_context)
+    run_context = get_invocation_context(runtime_context)
     state = _runtime_state(runtime_context, run_context)
     normalized_language = normalize_code_language(language)
     relative_output_path = str(output_path or "").strip()
@@ -403,11 +404,6 @@ def _is_final_response_event(event: Any) -> bool:
     """Return whether an ADK event reports itself as a final response."""
     is_final_response = getattr(event, "is_final_response", None)
     return bool(callable(is_final_response) and is_final_response())
-
-
-def _invocation_context(runtime_context: Any) -> Any:
-    """Return the ADK invocation context behind a tool context when present."""
-    return getattr(runtime_context, "_invocation_context", runtime_context)
 
 
 def _runtime_state(runtime_context: Any, run_context: Any) -> dict[str, Any]:
