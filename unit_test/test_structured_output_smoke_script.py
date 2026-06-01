@@ -24,6 +24,30 @@ class StructuredOutputSmokeScriptTests(unittest.IsolatedAsyncioTestCase):
         self.assertIn("prompt_json", results[0]["reason"])
         mocked_run.assert_not_awaited()
 
+    async def test_native_provider_runs_without_force_native(self) -> None:
+        args = SimpleNamespace(
+            models=["openai/gpt-5.4"],
+            prompt="smoke",
+            max_llm_calls=1,
+            verbose=False,
+            force_native=False,
+        )
+        expected = {
+            "model": "openai/gpt-5.4",
+            "status": "success",
+            "function_calls": ["get_structured_output_smoke_status"],
+        }
+
+        with patch.object(smoke, "run_smoke_case", new=AsyncMock(return_value=expected)) as mocked_run:
+            results = await smoke.run_all(args)
+
+        self.assertEqual(results, [expected])
+        mocked_run.assert_awaited_once_with(
+            model_reference="openai/gpt-5.4",
+            prompt="smoke",
+            max_llm_calls=1,
+        )
+
     async def test_force_native_runs_unsupported_provider(self) -> None:
         args = SimpleNamespace(
             models=["deepseek/deepseek-v4-pro"],

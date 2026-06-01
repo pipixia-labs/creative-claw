@@ -76,12 +76,14 @@ from src.productions.ppt.schemas import (
     PptContentPlanRevisionResult,
     PptContentPlanningResult,
     PptFinalDeliveryResult,
+    PptPrivateSkillBuild,
     PptPrivateSkillDeliveryResult,
     PptPrivateSkillExecutionResult,
     PptRequirementAnalysisResult,
     PptRequirementRevisionResult,
     PptRouteExecutionResult,
     PptSystemSelectionResult,
+    PptWorkflowState,
     SourceUnderstanding,
 )
 from src.productions.ppt.routes.html import PPT_HTML_PAGE_GENERATION_EXPERT_NAME
@@ -380,6 +382,64 @@ class PptProductManagerTests(unittest.IsolatedAsyncioTestCase):
                 "output": {},
             },
         )
+
+    def test_ppt_workflow_state_schema_preserves_dict_contract(self) -> None:
+        workflow_state = PptWorkflowState.model_validate(
+            {
+                "workflow_id": " workflow-1 ",
+                "stage": " awaiting_requirement_confirmation ",
+                "revision": "2",
+                "waiting_since_turn_index": "3",
+                "confirmed_requirement": {"topic": "产品发布"},
+                "raw_inputs": None,
+                "debug_marker": "kept",
+            }
+        ).to_state_dict()
+
+        self.assertEqual(workflow_state["workflow_id"], "workflow-1")
+        self.assertEqual(workflow_state["stage"], "awaiting_requirement_confirmation")
+        self.assertEqual(workflow_state["revision"], 2)
+        self.assertEqual(workflow_state["waiting_since_turn_index"], 3)
+        self.assertEqual(workflow_state["confirmed_requirement"]["topic"], "产品发布")
+        self.assertEqual(workflow_state["debug_marker"], "kept")
+        self.assertNotIn("raw_inputs", workflow_state)
+
+    def test_private_skill_build_schema_preserves_dict_result_contract(self) -> None:
+        private_build = PptPrivateSkillBuild.model_validate(
+            {
+                "status": " success ",
+                "source": " save_ppt_private_skill_html ",
+                "output_path": " generated/session/private.html ",
+                "output_files": [{"path": "generated/session/private.html"}],
+                "extra_private_field": "kept",
+            }
+        ).to_state_dict()
+
+        execution = PptPrivateSkillExecutionResult.model_validate(
+            {
+                "skill_name": " magazine ",
+                "output_format": " html ",
+                "input_signature": " sig ",
+                "private_build": private_build,
+            }
+        )
+        delivery = PptPrivateSkillDeliveryResult.model_validate(
+            {
+                "product_result": {
+                    "status": "success",
+                    "phase": "private_skill_delivery",
+                    "message": "done",
+                    "selected_route": "html",
+                },
+                "private_build": private_build,
+            }
+        )
+
+        self.assertIsInstance(execution.private_build, dict)
+        self.assertEqual(execution.skill_name, "magazine")
+        self.assertEqual(execution.private_build["source"], "save_ppt_private_skill_html")
+        self.assertEqual(execution.private_build["extra_private_field"], "kept")
+        self.assertEqual(delivery.private_build["output_path"], "generated/session/private.html")
 
     def test_ppt_adk_confirmation_response_maps_to_text_protocol(self) -> None:
         confirm_response = PptAdkConfirmationResponse.model_validate(
@@ -3080,6 +3140,50 @@ Visual:
             route_build.pptx_path,
         )
         self.assertIn("route warning", result.product_result.warnings)
+
+    async def test_route_final_delivery_phase_failure_does_not_register_final_pptx(self) -> None:
+        manager = PptProductManager()
+        requirement = manager.prepare_confirmed_requirement(
+            task="做一个 5 页 PPTX 产品介绍。",
+            inputs=[],
+            output={"format": "pptx"},
+        )
+        content_plan = manager.build_initial_deck_content_plan(requirement)
+        tool_context = SimpleNamespace(state={"sid": "ppt-final-delivery-failure-test", "turn_index": 1, "step": 1})
+        output_dir = manager._build_route_output_dir(tool_context.state, route=requirement.route)
+        html_path = output_dir / "deck.html"
+        html_path.write_text("<html></html>", encoding="utf-8")
+        route_build = HtmlRouteBuildPackage(
+            template=HtmlTemplatePackage(template_id="workflow-test", label="Workflow Test"),
+            html_deck_path=workspace_relative_path(html_path),
+            preview_paths=[],
+            pptx_path="",
+            quality_report_path="",
+            build_log_path="",
+            warnings=["html to pptx conversion failed"],
+        )
+        route_execution = PptRouteExecutionResult(
+            route=requirement.route,
+            output_dir=workspace_relative_path(output_dir),
+            input_signature=manager._route_execution_input_signature(requirement, content_plan),
+            route_build=route_build,
+        )
+
+        result = manager._finalize_route_delivery_phase(
+            requirement=requirement,
+            content_plan=content_plan,
+            route_execution=route_execution,
+            tool_context=tool_context,
+        )
+
+        self.assertEqual(result.product_result.status, "generation_failed")
+        self.assertEqual(result.delivery_manifest.final_pptx, "")
+        self.assertNotIn("final_file_paths", tool_context.state)
+        self.assertIn(workspace_relative_path(html_path), [record["path"] for record in result.output_files])
+        self.assertEqual(
+            tool_context.state["ppt_final_delivery_result"]["product_result"]["status"],
+            "generation_failed",
+        )
 
     async def test_route_final_delivery_phase_is_idempotent_for_same_outputs(self) -> None:
         manager = PptProductManager()

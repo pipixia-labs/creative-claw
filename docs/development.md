@@ -503,7 +503,14 @@ This route depends on the signed-in ChatGPT/Codex account permissions and does n
 DeepSeek V4 models use the existing `deepseek` provider and remain backed by ADK `LiteLlm`.
 The runtime builds `LiteLlm(model="deepseek/deepseek-v4-pro", api_base="https://api.deepseek.com", ...)` or `LiteLlm(model="deepseek/deepseek-v4-flash", api_base="https://api.deepseek.com", ...)`.
 The default DeepSeek `api_base` is the official OpenAI-compatible endpoint `https://api.deepseek.com`; override `providers.deepseek.api_base` only if you use a proxy.
-DeepSeek currently stays in Orchestrator `prompt_json` structured-output mode when `llm.structured_output_mode` is `auto`.
+
+Orchestrator final-response strategy is provider-aware:
+
+- Providers marked with native structured-output support, including OpenAI and Gemini, use ADK `output_schema + tools`.
+- Providers without verified native structured-output support use `prompt_json` compatibility mode when `llm.structured_output_mode` is `auto`.
+- Explicit model references such as `deepseek/deepseek-v4-pro` override the configured default provider when resolving this strategy.
+
+DeepSeek currently stays in Orchestrator `prompt_json` mode in `auto`.
 Live ADK 2.1 smoke checks showed OpenAI and Gemini can complete `output_schema + tools`, while DeepSeek rejects structured `response_format` with `This response_format type is unavailable now`.
 Do not remove the prompt-JSON compatibility path globally while DeepSeek remains a supported text provider; force `structured_output_mode="native"` only for targeted provider debugging.
 
@@ -849,6 +856,22 @@ Supported across the CLI chat, local Web chat, Telegram, and Feishu channels:
 - `/new`
 
 ## Tests
+
+ADK 2.x and PPT workflow changes should keep the regression matrix evidence-based:
+
+- Run focused schema/protocol tests first when touching product request/result/session contracts.
+- Run Orchestrator structured-output tests when touching final-response parsing, `output_schema`, or provider selection.
+- Run runtime PPT HITL smoke tests when touching confirmation, resume, or artifact delivery.
+- Run Web channel PPT HITL tests only in an environment that can bind a local WebSocket port.
+- Run the full `unit_test` suite before release or push when the change crosses product, runtime, and channel boundaries.
+
+Known intermittent observations from ADK 2.1 migration validation:
+
+- Web channel tests can fail in restricted sandboxes when binding `127.0.0.1:0`; rerun with local socket permission before treating this as a product bug.
+- A single full-suite workspace snapshot assertion in `test_exec_command_records_created_workspace_files` was not reproducible when the owning test and Orchestrator suite were rerun sequentially.
+- A single full-suite `exec_command` stdout collection failure was not reproducible when the exact test was rerun directly.
+
+Do not change core workspace or shell-output logic for those intermittent cases without a reproducible failing path and isolated evidence.
 
 Focused regression suite:
 

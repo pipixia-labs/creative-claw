@@ -80,6 +80,7 @@ from src.productions.ppt.schemas import (
     PptSystemSelectionResult,
     PptSvgExecutionPlan,
     PptSvgPageResult,
+    PptWorkflowState,
     QualityReviewResult,
     ReferenceAsset,
     SlideCountPolicy,
@@ -195,6 +196,21 @@ PPT_REMOTE_SOURCE_KNOWN_EXTENSIONS = {
     ".yaml",
     ".yml",
 }
+
+
+def _coerce_ppt_workflow_state_payload(value: Any) -> dict[str, Any]:
+    """Validate PPT workflow state while preserving dictionary session storage."""
+    if not isinstance(value, dict):
+        return {}
+    try:
+        return PptWorkflowState.model_validate(value).to_state_dict()
+    except Exception:
+        return dict(value)
+
+
+def _persist_ppt_workflow_state(state: Any, workflow_state: dict[str, Any]) -> None:
+    """Persist normalized PPT workflow state into an ADK state mapping."""
+    state[PPT_WORKFLOW_STATE_KEY] = _coerce_ppt_workflow_state_payload(workflow_state)
 
 
 def _ppt_product_error_result(message: str, *, next_actions: list[str] | None = None) -> dict[str, Any]:
@@ -1199,7 +1215,7 @@ Return structured status, current phase, selected route, warnings, next actions,
             }
             self._mark_confirmation_waiting(workflow_state, tool_context.state)
             result = self._build_requirement_confirmation_result(requirement, workflow_state)
-            tool_context.state[PPT_WORKFLOW_STATE_KEY] = workflow_state
+            _persist_ppt_workflow_state(tool_context.state, workflow_state)
             return self._persist_product_result(tool_context, result)
         except Exception as exc:
             result = PptProductResult(
@@ -1280,7 +1296,7 @@ Return structured status, current phase, selected route, warnings, next actions,
         ):
             result = self._build_route_not_implemented_result(requirement, route_registration)
             workflow_state["stage"] = PPT_STAGE_COMPLETED
-            tool_context.state[PPT_WORKFLOW_STATE_KEY] = workflow_state
+            _persist_ppt_workflow_state(tool_context.state, workflow_state)
             return self._persist_product_result(tool_context, result)
 
         raw_inputs = list(workflow_state.get("raw_inputs") or [])
@@ -1321,7 +1337,7 @@ Return structured status, current phase, selected route, warnings, next actions,
             }
         )
         self._mark_confirmation_waiting(workflow_state, tool_context.state)
-        tool_context.state[PPT_WORKFLOW_STATE_KEY] = workflow_state
+        _persist_ppt_workflow_state(tool_context.state, workflow_state)
         result = self._build_content_plan_confirmation_result(requirement, content_plan, workflow_state)
         return self._persist_product_result(tool_context, result)
 
@@ -1375,7 +1391,7 @@ Return structured status, current phase, selected route, warnings, next actions,
         )
         self._mark_confirmation_waiting(workflow_state, tool_context.state)
         tool_context.state[PPT_CONFIRMED_REQUIREMENT_STATE_KEY] = requirement.model_dump(mode="json")
-        tool_context.state[PPT_WORKFLOW_STATE_KEY] = workflow_state
+        _persist_ppt_workflow_state(tool_context.state, workflow_state)
         result = self._build_requirement_confirmation_result(requirement, workflow_state)
         return self._persist_product_result(tool_context, result)
 
@@ -1455,7 +1471,7 @@ Return structured status, current phase, selected route, warnings, next actions,
             )
             self._mark_confirmation_waiting(workflow_state, tool_context.state)
             tool_context.state[PPT_CONFIRMED_REQUIREMENT_STATE_KEY] = revised_requirement.model_dump(mode="json")
-            tool_context.state[PPT_WORKFLOW_STATE_KEY] = workflow_state
+            _persist_ppt_workflow_state(tool_context.state, workflow_state)
             result = self._build_content_plan_confirmation_result(revised_requirement, content_plan, workflow_state)
             return self._persist_product_result(tool_context, result)
 
@@ -1479,7 +1495,7 @@ Return structured status, current phase, selected route, warnings, next actions,
                     "system_selection": system_selection,
                 }
             )
-            tool_context.state[PPT_WORKFLOW_STATE_KEY] = workflow_state
+            _persist_ppt_workflow_state(tool_context.state, workflow_state)
             private_delivery = await self._run_private_skill_delivery_phase(
                 requirement=requirement,
                 content_plan=content_plan,
@@ -1522,7 +1538,7 @@ Return structured status, current phase, selected route, warnings, next actions,
                 "system_selection": system_selection,
             }
         )
-        tool_context.state[PPT_WORKFLOW_STATE_KEY] = workflow_state
+        _persist_ppt_workflow_state(tool_context.state, workflow_state)
         return self._persist_product_result(tool_context, delivery.product_result)
 
     async def _continue_from_adk_tool_confirmation(
@@ -1759,8 +1775,7 @@ Return structured status, current phase, selected route, warnings, next actions,
     @staticmethod
     def _get_workflow_state(state: dict[str, Any]) -> dict[str, Any]:
         """Return the persisted PPT workflow state if it is a dictionary."""
-        workflow_state = state.get(PPT_WORKFLOW_STATE_KEY)
-        return dict(workflow_state) if isinstance(workflow_state, dict) else {}
+        return _coerce_ppt_workflow_state_payload(state.get(PPT_WORKFLOW_STATE_KEY))
 
     @staticmethod
     def _is_pending_confirmation_stage(stage: Any) -> bool:
@@ -7207,7 +7222,7 @@ def _build_ppt_initial_request_workflow(
             "system_selection": system_selection,
         }
         manager._mark_confirmation_waiting(workflow_state, ctx.state)
-        ctx.state[PPT_WORKFLOW_STATE_KEY] = workflow_state
+        _persist_ppt_workflow_state(ctx.state, workflow_state)
         product_result = manager._build_requirement_confirmation_result(requirement, workflow_state)
         result = manager._persist_product_result(ctx, product_result)
         ctx.state[PPT_INITIAL_REQUEST_WORKFLOW_OUTPUT_KEY] = {
@@ -7318,7 +7333,7 @@ def _build_ppt_requirement_confirmation_workflow(
             )
             manager._mark_confirmation_waiting(workflow_state, ctx.state)
             ctx.state[PPT_CONFIRMED_REQUIREMENT_STATE_KEY] = requirement.model_dump(mode="json")
-            ctx.state[PPT_WORKFLOW_STATE_KEY] = workflow_state
+            _persist_ppt_workflow_state(ctx.state, workflow_state)
             product_result = manager._build_requirement_confirmation_result(requirement, workflow_state)
             result = manager._persist_product_result(ctx, product_result)
             ctx.state[PPT_REQUIREMENT_CONFIRMATION_WORKFLOW_OUTPUT_KEY] = {
@@ -7340,7 +7355,7 @@ def _build_ppt_requirement_confirmation_workflow(
         ):
             product_result = manager._build_route_not_implemented_result(requirement, route_registration)
             workflow_state["stage"] = PPT_STAGE_COMPLETED
-            ctx.state[PPT_WORKFLOW_STATE_KEY] = workflow_state
+            _persist_ppt_workflow_state(ctx.state, workflow_state)
             result = manager._persist_product_result(ctx, product_result)
             ctx.state[PPT_REQUIREMENT_CONFIRMATION_WORKFLOW_OUTPUT_KEY] = {
                 "status": str(result.get("status") or ""),
@@ -7386,7 +7401,7 @@ def _build_ppt_requirement_confirmation_workflow(
             }
         )
         manager._mark_confirmation_waiting(workflow_state, ctx.state)
-        ctx.state[PPT_WORKFLOW_STATE_KEY] = workflow_state
+        _persist_ppt_workflow_state(ctx.state, workflow_state)
         product_result = manager._build_content_plan_confirmation_result(requirement, content_plan, workflow_state)
         result = manager._persist_product_result(ctx, product_result)
         ctx.state[PPT_REQUIREMENT_CONFIRMATION_WORKFLOW_OUTPUT_KEY] = {
@@ -7478,7 +7493,7 @@ def _build_ppt_content_plan_confirmation_workflow(
             )
             manager._mark_confirmation_waiting(workflow_state, ctx.state)
             ctx.state[PPT_CONFIRMED_REQUIREMENT_STATE_KEY] = revised_requirement.model_dump(mode="json")
-            ctx.state[PPT_WORKFLOW_STATE_KEY] = workflow_state
+            _persist_ppt_workflow_state(ctx.state, workflow_state)
             product_result = manager._build_content_plan_confirmation_result(
                 revised_requirement,
                 content_plan,
@@ -7515,7 +7530,7 @@ def _build_ppt_content_plan_confirmation_workflow(
                     "system_selection": system_selection,
                 }
             )
-            ctx.state[PPT_WORKFLOW_STATE_KEY] = workflow_state
+            _persist_ppt_workflow_state(ctx.state, workflow_state)
             private_delivery = await manager._run_private_skill_delivery_phase(
                 requirement=requirement,
                 content_plan=content_plan,
@@ -7564,7 +7579,7 @@ def _build_ppt_content_plan_confirmation_workflow(
                 "system_selection": system_selection,
             }
         )
-        ctx.state[PPT_WORKFLOW_STATE_KEY] = workflow_state
+        _persist_ppt_workflow_state(ctx.state, workflow_state)
         result = manager._persist_product_result(ctx, delivery.product_result)
         ctx.state[PPT_CONTENT_PLAN_CONFIRMATION_WORKFLOW_OUTPUT_KEY] = {
             "status": str(result.get("status") or ""),

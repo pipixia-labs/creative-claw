@@ -1750,6 +1750,38 @@ class OrchestratorCallbackTests(unittest.IsolatedAsyncioTestCase):
             },
         )
 
+    async def test_run_until_done_does_not_recover_non_resume_summary_error(self) -> None:
+        session_service = InMemorySessionService()
+        orchestrator = Orchestrator(
+            session_service=session_service,
+            artifact_service=InMemoryArtifactService(),
+            expert_agents={},
+        )
+        orchestrator.uid = "user-summary-error"
+        orchestrator.sid = "session-summary-error"
+
+        await session_service.create_session(
+            app_name=SYS_CONFIG.app_name,
+            user_id=orchestrator.uid,
+            session_id=orchestrator.sid,
+            state={
+                "user_prompt": "继续",
+                "orchestration_events": [],
+                "ppt_product_result": {
+                    "status": "awaiting_content_plan_confirmation",
+                    "message": "请确认 PPT 内容规划。",
+                },
+            },
+        )
+
+        with patch.object(
+            orchestrator,
+            "run_agent_and_log_events",
+            new=AsyncMock(side_effect=RuntimeError("provider summary failed")),
+        ):
+            with self.assertRaisesRegex(RuntimeError, "provider summary failed"):
+                await orchestrator.run_until_done()
+
 
 class OrchestratorStreamResponseTests(unittest.IsolatedAsyncioTestCase):
     async def test_run_agent_and_log_events_persists_adk_ppt_confirmation_request(self) -> None:

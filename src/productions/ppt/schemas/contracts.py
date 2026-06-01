@@ -63,6 +63,11 @@ PptAdkConfirmationStage = Literal[
     "awaiting_requirement_confirmation",
     "awaiting_content_plan_confirmation",
 ]
+PptWorkflowStage = Literal[
+    "awaiting_requirement_confirmation",
+    "awaiting_content_plan_confirmation",
+    "completed",
+]
 
 
 class PptProductRequest(BaseModel):
@@ -269,6 +274,87 @@ class PptAdkConfirmationResponse(BaseModel):
             "approve",
             "approved",
         }
+
+
+class PptWorkflowState(BaseModel):
+    """Dictionary-compatible state contract for an interactive PPT workflow."""
+
+    model_config = {"extra": "allow", "arbitrary_types_allowed": True}
+
+    workflow_id: str = ""
+    stage: PptWorkflowStage
+    revision: int = 0
+    confirmation_id: str = ""
+    waiting_since_turn_index: int | None = None
+    task: str = ""
+    raw_inputs: list[Any] = Field(default_factory=list)
+    output: dict[str, Any] = Field(default_factory=dict)
+    confirmed_requirement: dict[str, Any] = Field(default_factory=dict)
+    system_selection: dict[str, Any] = Field(default_factory=dict)
+    source_materials: dict[str, Any] = Field(default_factory=dict)
+    deck_content_plan: dict[str, Any] = Field(default_factory=dict)
+    deck_content_plan_markdown: str = ""
+    route_build: dict[str, Any] = Field(default_factory=dict)
+    private_skill_build: dict[str, Any] = Field(default_factory=dict)
+
+    @field_validator(
+        "workflow_id",
+        "stage",
+        "confirmation_id",
+        "task",
+        "deck_content_plan_markdown",
+        mode="before",
+    )
+    @classmethod
+    def _strip_text(cls, value: Any) -> str:
+        """Strip text-like workflow-state fields."""
+        return _clean_string(value)
+
+    @field_validator("revision", mode="before")
+    @classmethod
+    def _normalize_revision(cls, value: Any) -> int:
+        """Normalize workflow revision to a non-negative integer."""
+        try:
+            return max(0, int(value or 0))
+        except (TypeError, ValueError):
+            return 0
+
+    @field_validator("waiting_since_turn_index", mode="before")
+    @classmethod
+    def _normalize_waiting_since_turn_index(cls, value: Any) -> int | None:
+        """Normalize optional waiting-turn metadata."""
+        if value in (None, ""):
+            return None
+        try:
+            return max(0, int(value))
+        except (TypeError, ValueError):
+            return None
+
+    @field_validator("raw_inputs", mode="before")
+    @classmethod
+    def _normalize_raw_inputs(cls, value: Any) -> list[Any]:
+        """Preserve raw input shape as a list for workflow continuation."""
+        return default_empty_list(value)
+
+    @field_validator(
+        "output",
+        "confirmed_requirement",
+        "system_selection",
+        "source_materials",
+        "deck_content_plan",
+        "route_build",
+        "private_skill_build",
+        mode="before",
+    )
+    @classmethod
+    def _normalize_dict_fields(cls, value: Any) -> dict[str, Any]:
+        """Default non-dict workflow payloads to empty dictionaries."""
+        return default_empty_dict(value)
+
+    def to_state_dict(self) -> dict[str, Any]:
+        """Return the compact dictionary payload stored in ADK session state."""
+        payload = self.model_dump(mode="json")
+        return {key: value for key, value in payload.items() if value not in ("", None, [], {})}
 
 
 class SourceInput(BaseModel):
@@ -960,6 +1046,57 @@ class PptFinalDeliveryResult(BaseModel):
     output_files: list[dict[str, Any]] = Field(default_factory=list)
 
 
+class PptPrivateSkillBuild(BaseModel):
+    """Dictionary-compatible artifact contract produced by a private PPT skill."""
+
+    model_config = {"extra": "allow"}
+
+    status: str = ""
+    source: str = ""
+    skill_name: str = ""
+    output_format: str = ""
+    artifact_type: str = ""
+    output_path: str = ""
+    pptx_path: str = ""
+    html_path: str = ""
+    description: str = ""
+    execution_warning: str = ""
+    output_files: list[dict[str, Any]] = Field(default_factory=list)
+
+    @field_validator(
+        "status",
+        "source",
+        "skill_name",
+        "output_format",
+        "artifact_type",
+        "output_path",
+        "pptx_path",
+        "html_path",
+        "description",
+        "execution_warning",
+        mode="before",
+    )
+    @classmethod
+    def _strip_text(cls, value: Any) -> str:
+        """Strip text-like private-skill build fields."""
+        return _clean_string(value)
+
+    @field_validator("output_files", mode="before")
+    @classmethod
+    def _normalize_output_files(cls, value: Any) -> list[dict[str, Any]]:
+        """Normalize private-skill output file records."""
+        if value is None:
+            return []
+        if not isinstance(value, list):
+            return []
+        return [dict(item) for item in value if isinstance(item, dict)]
+
+    def to_state_dict(self) -> dict[str, Any]:
+        """Return the compact dictionary payload stored in ADK session state."""
+        payload = self.model_dump(mode="json")
+        return {key: value for key, value in payload.items() if value not in ("", None, [], {})}
+
+
 class PptPrivateSkillExecutionResult(BaseModel):
     """Private-skill execution phase result for a PPT product run."""
 
@@ -976,6 +1113,16 @@ class PptPrivateSkillExecutionResult(BaseModel):
         """Strip string labels in private-skill execution metadata."""
         return _clean_string(value)
 
+    @field_validator("private_build", mode="before")
+    @classmethod
+    def _normalize_private_build(cls, value: Any) -> dict[str, Any]:
+        """Validate private-skill build metadata while preserving dict storage."""
+        if isinstance(value, PptPrivateSkillBuild):
+            return value.to_state_dict()
+        if isinstance(value, dict):
+            return PptPrivateSkillBuild.model_validate(value).to_state_dict()
+        return {}
+
 
 class PptPrivateSkillDeliveryResult(BaseModel):
     """Private-skill delivery phase result for a PPT product run."""
@@ -984,6 +1131,16 @@ class PptPrivateSkillDeliveryResult(BaseModel):
     private_build: dict[str, Any] = Field(default_factory=dict)
     delivery_manifest: DeliveryManifest = Field(default_factory=DeliveryManifest)
     output_files: list[dict[str, Any]] = Field(default_factory=list)
+
+    @field_validator("private_build", mode="before")
+    @classmethod
+    def _normalize_private_build(cls, value: Any) -> dict[str, Any]:
+        """Validate private-skill build metadata while preserving dict storage."""
+        if isinstance(value, PptPrivateSkillBuild):
+            return value.to_state_dict()
+        if isinstance(value, dict):
+            return PptPrivateSkillBuild.model_validate(value).to_state_dict()
+        return {}
 
 
 def validate_deck_content_plan(plan: DeckContentPlan) -> None:
