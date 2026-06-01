@@ -68,6 +68,14 @@ def parse_args() -> argparse.Namespace:
         action="store_true",
         help="Show provider and ADK warning/traceback output instead of compact JSON only.",
     )
+    parser.add_argument(
+        "--structured-first-confirmation",
+        action="store_true",
+        help=(
+            "Send the first confirmation through runtime metadata "
+            "ppt_confirmation_response instead of relying only on plain text."
+        ),
+    )
     return parser.parse_args()
 
 
@@ -77,12 +85,16 @@ async def run_provider_case(
     task: str,
     slides: int,
     turn_timeout: float,
+    structured_first_confirmation: bool,
 ) -> dict[str, Any]:
     """Run one live Orchestrator provider through the PPT multi-turn HITL path."""
     model_label = resolve_llm_model_name(model_reference or None)
     runtime = CreativeClawRuntime(llm_model=model_reference)
     session_key = f"provider-ppt-hitl-{_safe_label(model_label)}"
     sender_id = f"{session_key}-user"
+    first_confirmation_metadata = {"product_line": "ppt", "adk_hitl": True}
+    if structured_first_confirmation:
+        first_confirmation_metadata["ppt_confirmation_response"] = {"action": "confirm"}
 
     with RuntimePptSmokePatch(task=task, slide_count=slides).install_phase_stubs():
         turns = [
@@ -102,7 +114,7 @@ async def run_provider_case(
                 sender_id=sender_id,
                 session_key=session_key,
                 timeout=turn_timeout,
-                metadata={"product_line": "ppt", "adk_hitl": True},
+                metadata=first_confirmation_metadata,
             ),
             await _run_turn(
                 runtime,
@@ -145,6 +157,7 @@ async def run_provider_case(
         "product_status": state.get("ppt_product_result", {}).get("status"),
         "final_file_paths": final_file_paths,
         "final_files_exist": final_files_exist,
+        "structured_first_confirmation": structured_first_confirmation,
     }
 
 
@@ -215,6 +228,7 @@ async def run_all(args: argparse.Namespace) -> list[dict[str, Any]]:
                     task=args.task,
                     slides=args.slides,
                     turn_timeout=args.turn_timeout,
+                    structured_first_confirmation=args.structured_first_confirmation,
                 )
             results.append(result)
         except Exception as exc:

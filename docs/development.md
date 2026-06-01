@@ -51,13 +51,43 @@ Product managers still own product-specific request and result schemas. Page, De
 
 The parent-facing tool result should remain slim and user-facing. Use `slim_product_result(...)` / `ProductToolResult` for the parent agent response, and keep rich delivery manifests, progress, expert history, route builds, and validation records in product session state.
 
+### PPT ADK HITL Bridge
+
+PPT confirmation remains an explicit product boundary. Runtime channels enable the ADK-native path by setting `adk_hitl=true`; the Orchestrator then asks the PPT product tool for an advanced ADK tool confirmation and stores the pending `adk_request_confirmation` call in session state.
+
+The user-facing experience still accepts normal text such as `确认` or a revision sentence. Structured channels should prefer `ppt_confirmation_response` metadata with the PPT schema shape:
+
+```json
+{
+  "action": "confirm",
+  "confirmation_id": "workflow:requirement:1:1",
+  "stage": "awaiting_requirement_confirmation"
+}
+```
+
+For revisions, send `{"action":"revise","message":"..."}`. The runtime writes this metadata to session state for the current turn, and the Orchestrator resumes the ADK confirmation with a `FunctionResponse(name="adk_request_confirmation", response={"confirmed":true,"payload":...})`. If structured metadata is absent, the same bridge derives the payload from the ordinary text reply.
+
+Web responses expose `metadata.ppt_confirmation_request` on final confirmation messages so the browser can render confirm/revise controls without parsing Markdown text. WebSocket clients can send either a top-level `ppt_confirmation` event or a normal `chat` event with nested `pptConfirmation`; both are validated through `PptAdkConfirmationResponse` before reaching the runtime.
+
+Provider validation for this path uses:
+
+```bash
+python scripts/run_runtime_ppt_hitl_provider_smoke.py \
+  --structured-first-confirmation \
+  --model openai/gpt-5.4 \
+  --model gemini/gemini-2.5-flash \
+  --model deepseek/deepseek-v4-pro
+```
+
+The smoke leaves heavyweight PPT rendering/planning deterministic while keeping the Orchestrator provider live, so it validates provider tool calls, ADK confirmation resume, runtime state, and final artifact registration.
+
 ### PPT Workflow Migration Guardrails
 
 PPT's main flow should migrate toward ADK 2 dynamic Workflow in small slices, not through a rewrite of the current state machine. A dynamic parent node that calls `ctx.run_node(...)` must use `rerun_on_resume=True` so ADK can checkpoint completed child nodes during resume.
 
 Prefer ADK node outputs for data passed directly to the next node, and session state for durable product lifecycle state that must survive confirmation turns, route execution, and channel handoff. Confirmation gates should stay explicit and resumable; do not hide them behind generic fallback success paths.
 
-The current PPT Workflow skeleton covers the two human confirmation gates: requirement confirmation and content-plan confirmation. These Workflow nodes delegate into direct phase methods that still own the existing business logic; revision turns intentionally remain on the direct path until their branch behavior is tested separately.
+The current PPT Workflow skeleton covers the two human confirmation gates plus tested revision branches. These Workflow nodes delegate into direct phase methods that still own the existing business logic; the Workflow layer owns branch sequencing and ADK node visibility rather than duplicating product policy.
 
 Migrate source preparation, content planning, system selection, route execution, and final delivery as separate nodes only after each phase has real ADK Runner/Workflow tests proving the main path is not relying on fallback. Route execution has file side effects, so it must keep deterministic output directories or existing-output detection before relying on ADK resume semantics.
 

@@ -537,6 +537,12 @@ class CreativeClawRuntime:
         state_delta["new_files"] = state_delta["uploaded"]
         state_delta["orchestration_events"] = current_session.state.get("orchestration_events", [])
         state_delta.update(persistent_product_state)
+        structured_ppt_confirmation_response = inbound.metadata.get("ppt_confirmation_response")
+        state_delta["ppt_confirmation_response"] = (
+            dict(structured_ppt_confirmation_response)
+            if isinstance(structured_ppt_confirmation_response, dict)
+            else None
+        )
 
         event = Event(
             author="channel_gateway",

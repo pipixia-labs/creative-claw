@@ -761,6 +761,27 @@ class OrchestratorTests(unittest.TestCase):
         self.assertEqual(payload["confirmation_id"], "workflow:content:2:1")
         self.assertEqual(payload["stage"], "awaiting_content_plan_confirmation")
 
+    def test_build_ppt_adk_confirmation_response_payload_from_structured_input(self) -> None:
+        pending_request = {
+            "payload": {
+                "confirmation_id": "workflow:requirement:1:1",
+                "stage": "awaiting_requirement_confirmation",
+            }
+        }
+
+        payload = _build_ppt_adk_confirmation_response_payload(
+            user_response={
+                "action": "revise",
+                "message": "改成 4 页，受众: 研发负责人。",
+            },
+            pending_request=pending_request,
+        )
+
+        self.assertEqual(payload["action"], "revise")
+        self.assertEqual(payload["message"], "改成 4 页，受众: 研发负责人。")
+        self.assertEqual(payload["confirmation_id"], "workflow:requirement:1:1")
+        self.assertEqual(payload["stage"], "awaiting_requirement_confirmation")
+
 
 class OrchestratorCallbackTests(unittest.IsolatedAsyncioTestCase):
     async def test_before_model_callback_includes_workspace_file_history_without_new_upload(self) -> None:

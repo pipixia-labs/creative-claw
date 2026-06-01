@@ -616,6 +616,57 @@ class RuntimeSessionTests(unittest.IsolatedAsyncioTestCase):
         self.assertEqual(len(smoke.fake_llms), 2)
         self.assertEqual(len(smoke.fake_llms[0].requests), 1)
 
+    async def test_run_message_cli_ppt_adk_hitl_smoke_resumes_from_structured_revision(self) -> None:
+        runtime = CreativeClawRuntime()
+        task = "做一个 3 页 PPTX，用于产品发布，受众为管理层。"
+        revision = "改成 4 页，受众: 研发负责人。"
+        chat_id = "ppt-adk-structured-revision-smoke"
+
+        with RuntimePptSmokePatch(task=task).install():
+            first_events = [
+                event
+                async for event in runtime.run_message(
+                    InboundMessage(channel="cli", sender_id="cli-user", chat_id=chat_id, text=task)
+                )
+            ]
+            session_id = first_events[-1].metadata["session_id"]
+
+            second_events = [
+                event
+                async for event in runtime.run_message(
+                    InboundMessage(
+                        channel="cli",
+                        sender_id="cli-user",
+                        chat_id=chat_id,
+                        text="确认",
+                        metadata={
+                            "ppt_confirmation_response": {
+                                "action": "revise",
+                                "message": revision,
+                                "stage": "awaiting_requirement_confirmation",
+                            }
+                        },
+                    )
+                )
+            ]
+
+        self.assertIn("请确认 PPT 需求参数", second_events[-1].text)
+        session = await runtime.session_service.get_session(
+            app_name=SYS_CONFIG.app_name,
+            user_id="cli-user",
+            session_id=session_id,
+        )
+        self.assertIsNone(session.state.get(PPT_ADK_PENDING_CONFIRMATION_STATE_KEY))
+        self.assertEqual(
+            session.state["ppt_product_result"]["status"],
+            "awaiting_requirement_confirmation",
+        )
+        revised_requirement = session.state["ppt_confirmed_requirement"]
+        self.assertEqual(revised_requirement["slide_count_policy"]["target"], 4)
+        self.assertIn("研发负责人", revised_requirement["audience"])
+        self.assertIn(revision, revised_requirement["request_brief"])
+        self.assertEqual(session.state["ppt_confirmation_response"]["action"], "revise")
+
     async def test_run_message_cli_ppt_adk_hitl_smoke_revises_requirement_then_delivers(self) -> None:
         runtime = CreativeClawRuntime()
         task = "做一个 3 页 PPTX，用于产品发布，受众为管理层。"

@@ -694,10 +694,10 @@ def _format_adk_ppt_confirmation_reply(request: dict[str, Any]) -> str:
 
 def _build_ppt_adk_confirmation_response_payload(
     *,
-    user_response: str,
+    user_response: Any,
     pending_request: dict[str, Any],
 ) -> dict[str, Any]:
-    """Map ordinary user confirmation text into the PPT ADK confirmation schema."""
+    """Map user confirmation input into the PPT ADK confirmation schema."""
     response = PptAdkConfirmationResponse.model_validate(user_response)
     response_payload = response.model_dump(mode="json")
     request_payload = pending_request.get("payload")
@@ -2504,8 +2504,14 @@ Expert parameter contracts:
             function_call_id = str(pending_adk_confirmation.get("function_call_id") or "").strip()
             if resume_invocation_id and function_call_id:
                 resumed_adk_ppt_confirmation = True
+                structured_confirmation_response = current_session.state.get("ppt_confirmation_response")
+                user_response: Any = (
+                    structured_confirmation_response
+                    if isinstance(structured_confirmation_response, dict)
+                    else str(current_session.state.get("user_prompt") or "")
+                )
                 response_payload = _build_ppt_adk_confirmation_response_payload(
-                    user_response=str(current_session.state.get("user_prompt") or ""),
+                    user_response=user_response,
                     pending_request=pending_adk_confirmation,
                 )
                 resume_message = Content(

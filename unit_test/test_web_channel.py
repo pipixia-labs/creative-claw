@@ -958,6 +958,89 @@ class WebChannelRuntimePptSmokeTests(unittest.IsolatedAsyncioTestCase):
         artifact = third_final["artifacts"][0]
         self.assertTrue(artifact["path"].endswith(".pptx"))
 
+    async def test_web_channel_ppt_structured_revision_smoke_reaches_final_delivery(self) -> None:
+        task = "做一个 3 页 PPTX，用于产品发布，受众为管理层。"
+        revision = "改成 4 页，受众: 研发负责人。"
+        session_key = "ppt-web-structured-revision-smoke"
+
+        with RuntimePptSmokePatch(task=task).install():
+            async with websockets.connect(f"ws://127.0.0.1:{self.channel._port}/ws?session_id={session_key}") as websocket:
+                ready = json.loads(await asyncio.wait_for(websocket.recv(), timeout=5))
+                self.assertEqual(ready["type"], "ready")
+
+                first_final = await self._send_chat_and_wait_for_final(
+                    websocket,
+                    task,
+                    run_id="ppt-web-structured-revision-1",
+                )
+                first_request = first_final["metadata"]["ppt_confirmation_request"]
+                self.assertEqual(first_request["confirmation_type"], "requirement")
+
+                second_final = await self._send_payload_and_wait_for_final(
+                    websocket,
+                    {
+                        "type": "ppt_confirmation",
+                        "action": "revise",
+                        "message": revision,
+                        "confirmationId": first_request["confirmation_id"],
+                        "stage": first_request["stage"],
+                        "runId": "ppt-web-structured-revision-2",
+                    },
+                    run_id="ppt-web-structured-revision-2",
+                )
+                self.assertIn("请确认 PPT 需求参数", second_final["content"])
+                second_request = second_final["metadata"]["ppt_confirmation_request"]
+                self.assertEqual(second_request["confirmation_type"], "requirement")
+
+                third_final = await self._send_payload_and_wait_for_final(
+                    websocket,
+                    {
+                        "type": "ppt_confirmation",
+                        "action": "confirm",
+                        "confirmationId": second_request["confirmation_id"],
+                        "stage": second_request["stage"],
+                        "runId": "ppt-web-structured-revision-3",
+                    },
+                    run_id="ppt-web-structured-revision-3",
+                )
+                self.assertIn("请确认 PPT 内容规划", third_final["content"])
+                third_request = third_final["metadata"]["ppt_confirmation_request"]
+                self.assertEqual(third_request["confirmation_type"], "content_plan")
+
+                fourth_final = await self._send_payload_and_wait_for_final(
+                    websocket,
+                    {
+                        "type": "chat",
+                        "content": "",
+                        "pptConfirmation": {
+                            "action": "confirm",
+                            "confirmationId": third_request["confirmation_id"],
+                            "stage": third_request["stage"],
+                        },
+                        "runId": "ppt-web-structured-revision-4",
+                    },
+                    run_id="ppt-web-structured-revision-4",
+                )
+
+        self.assertIn(
+            "HTML route generated the PPTX after requirement and content-plan confirmation.",
+            fourth_final["content"],
+        )
+        self.assertEqual(len(fourth_final["artifacts"]), 1)
+        artifact = fourth_final["artifacts"][0]
+        self.assertTrue(artifact["path"].endswith(".pptx"))
+
+        runtime_session_id = self.runtime._session_keys[f"web:{session_key}"]
+        session = await self.runtime.session_service.get_session(
+            app_name=SYS_CONFIG.app_name,
+            user_id=ready["clientId"],
+            session_id=runtime_session_id,
+        )
+        self.assertEqual(session.state["ppt_product_result"]["status"], "success")
+        self.assertEqual(session.state["ppt_workflow_state"]["stage"], "completed")
+        self.assertEqual(session.state["ppt_confirmed_requirement"]["slide_count_policy"]["target"], 4)
+        self.assertIn("研发负责人", session.state["ppt_confirmed_requirement"]["audience"])
+
     async def _send_chat_and_wait_for_final(
         self,
         websocket,
