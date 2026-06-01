@@ -1665,6 +1665,70 @@ class OrchestratorCallbackTests(unittest.IsolatedAsyncioTestCase):
         self.assertEqual(result["final_response"], "fallback final text")
         self.assertEqual(result["final_file_paths"], [])
 
+    async def test_run_until_done_recovers_resumed_ppt_confirmation_after_summary_error(self) -> None:
+        session_service = InMemorySessionService()
+        orchestrator = Orchestrator(
+            session_service=session_service,
+            artifact_service=InMemoryArtifactService(),
+            expert_agents={},
+        )
+        orchestrator.uid = "user-resumed-ppt"
+        orchestrator.sid = "session-resumed-ppt"
+
+        await session_service.create_session(
+            app_name=SYS_CONFIG.app_name,
+            user_id=orchestrator.uid,
+            session_id=orchestrator.sid,
+            state={
+                "user_prompt": "确认",
+                "orchestration_events": [],
+                PPT_ADK_PENDING_CONFIRMATION_STATE_KEY: {
+                    "invocation_id": "invocation-1",
+                    "function_call_id": "confirm-call-1",
+                    "payload": {
+                        "product_line": "ppt",
+                        "stage": "awaiting_requirement_confirmation",
+                        "confirmation_id": "workflow:requirement:1",
+                    },
+                },
+                "ppt_workflow_state": {
+                    "stage": "awaiting_content_plan_confirmation",
+                    "confirmation_id": "workflow:content_plan:1",
+                },
+                "ppt_product_result": {
+                    "status": "awaiting_content_plan_confirmation",
+                    "message": "请确认 PPT 内容规划。",
+                    "confirmation_request": {
+                        "type": "content_plan",
+                        "expected_user_action": "回复“确认”继续。",
+                    },
+                },
+            },
+        )
+
+        with patch.object(
+            orchestrator,
+            "run_agent_and_log_events",
+            new=AsyncMock(side_effect=RuntimeError("provider summary failed")),
+        ):
+            result = await orchestrator.run_until_done()
+
+        self.assertEqual(result["final_response"], "请确认 PPT 内容规划。")
+        self.assertEqual(result["final_file_paths"], [])
+        session = await session_service.get_session(
+            app_name=SYS_CONFIG.app_name,
+            user_id=orchestrator.uid,
+            session_id=orchestrator.sid,
+        )
+        self.assertIsNone(session.state.get(PPT_ADK_PENDING_CONFIRMATION_STATE_KEY))
+        self.assertEqual(
+            session.state[ORCHESTRATOR_FINAL_RESPONSE_OUTPUT_KEY],
+            {
+                "reply_text": "请确认 PPT 内容规划。",
+                "final_file_paths": [],
+            },
+        )
+
 
 class OrchestratorStreamResponseTests(unittest.IsolatedAsyncioTestCase):
     async def test_run_agent_and_log_events_persists_adk_ppt_confirmation_request(self) -> None:

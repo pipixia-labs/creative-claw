@@ -76,6 +76,17 @@ class WebchatStaticAssetTests(unittest.TestCase):
         self.assertIn("activeAssistantStream.content = \"\";", app_js)
         self.assertIn("activeAssistantStream.hasThinkingPlaceholder ? \"\" : activeAssistantStream.content", app_js)
 
+    def test_webchat_supports_structured_ppt_confirmation_controls(self) -> None:
+        app_js = Path("src/webchat/static/app.js").read_text(encoding="utf-8")
+        styles_css = Path("src/webchat/static/styles.css").read_text(encoding="utf-8")
+
+        self.assertIn("payload.metadata?.ppt_confirmation_request", app_js)
+        self.assertIn("function renderPptConfirmationControls", app_js)
+        self.assertIn('type: "ppt_confirmation"', app_js)
+        self.assertIn("confirmationId: request.confirmation_id", app_js)
+        self.assertIn(".cc-ppt-confirmation", styles_css)
+        self.assertIn(".cc-ppt-confirmation-textarea", styles_css)
+
     def test_markdown_resource_urls_use_workspace_route(self) -> None:
         app_js = Path("src/webchat/static/app.js").read_text(encoding="utf-8")
 
@@ -611,6 +622,53 @@ class WebChannelTests(unittest.IsolatedAsyncioTestCase):
             with contextlib.suppress(FileNotFoundError):
                 generated_file.unlink()
 
+    async def test_web_channel_accepts_structured_ppt_confirmation_payloads(self) -> None:
+        async with websockets.connect(f"ws://127.0.0.1:{self.channel._port}/ws?session_id=ppt-hitl-input") as websocket:
+            ready = json.loads(await asyncio.wait_for(websocket.recv(), timeout=2))
+            self.assertEqual(ready["type"], "ready")
+
+            await websocket.send(
+                json.dumps(
+                    {
+                        "type": "ppt_confirmation",
+                        "action": "confirm",
+                        "confirmationId": "requirement-1",
+                        "stage": "awaiting_requirement_confirmation",
+                        "runId": "ppt-confirm-1",
+                    }
+                )
+            )
+            await self._recv_until(websocket, "task_started")
+            inbound = await asyncio.wait_for(self._consume_inbound(), timeout=2)
+            self.assertEqual(inbound.text, "确认")
+            self.assertEqual(inbound.metadata["ppt_confirmation_response"]["action"], "confirm")
+            self.assertEqual(inbound.metadata["ppt_confirmation_response"]["confirmation_id"], "requirement-1")
+            await self._recv_until(websocket, "task_finished")
+
+            await websocket.send(
+                json.dumps(
+                    {
+                        "type": "chat",
+                        "content": "",
+                        "pptConfirmation": {
+                            "action": "revise",
+                            "message": "改成 5 页，并强化结论页。",
+                            "stage": "awaiting_content_plan_confirmation",
+                        },
+                        "runId": "ppt-confirm-2",
+                    }
+                )
+            )
+            await self._recv_until(websocket, "task_started")
+            inbound = await asyncio.wait_for(self._consume_inbound(), timeout=2)
+            self.assertEqual(inbound.text, "改成 5 页，并强化结论页。")
+            self.assertEqual(inbound.metadata["ppt_confirmation_response"]["action"], "revise")
+            self.assertEqual(
+                inbound.metadata["ppt_confirmation_response"]["stage"],
+                "awaiting_content_plan_confirmation",
+            )
+            await self._recv_until(websocket, "task_finished")
+
     async def test_web_channel_streams_question_form_messages(self) -> None:
         form_message = (
             '<cc-question-form id="design-brief" version="design-brief-form-v1">\n'
@@ -810,9 +868,17 @@ class WebChannelRuntimePptSmokeTests(unittest.IsolatedAsyncioTestCase):
 
                 first_final = await self._send_chat_and_wait_for_final(websocket, task, run_id="ppt-web-smoke-1")
                 self.assertIn("请确认 PPT 需求参数", first_final["content"])
+                self.assertEqual(
+                    first_final["metadata"]["ppt_confirmation_request"]["confirmation_type"],
+                    "requirement",
+                )
 
                 second_final = await self._send_chat_and_wait_for_final(websocket, "确认", run_id="ppt-web-smoke-2")
                 self.assertIn("请确认 PPT 内容规划", second_final["content"])
+                self.assertEqual(
+                    second_final["metadata"]["ppt_confirmation_request"]["confirmation_type"],
+                    "content_plan",
+                )
 
                 third_final = await self._send_chat_and_wait_for_final(websocket, "确认", run_id="ppt-web-smoke-3")
 
@@ -840,6 +906,58 @@ class WebChannelRuntimePptSmokeTests(unittest.IsolatedAsyncioTestCase):
         self.assertEqual(session.state["final_file_paths"], [artifact["path"]])
         self.assertTrue(resolve_workspace_path(artifact["path"]).is_file())
 
+    async def test_web_channel_ppt_structured_hitl_smoke_reaches_final_delivery(self) -> None:
+        task = "做一个 3 页 PPTX，用于产品发布，受众为管理层。"
+        session_key = "ppt-web-structured-smoke"
+
+        with RuntimePptSmokePatch(task=task).install():
+            async with websockets.connect(f"ws://127.0.0.1:{self.channel._port}/ws?session_id={session_key}") as websocket:
+                ready = json.loads(await asyncio.wait_for(websocket.recv(), timeout=5))
+                self.assertEqual(ready["type"], "ready")
+
+                first_final = await self._send_chat_and_wait_for_final(
+                    websocket,
+                    task,
+                    run_id="ppt-web-structured-1",
+                )
+                self.assertIn("请确认 PPT 需求参数", first_final["content"])
+
+                second_final = await self._send_payload_and_wait_for_final(
+                    websocket,
+                    {
+                        "type": "ppt_confirmation",
+                        "action": "confirm",
+                        "confirmationId": first_final["metadata"]["ppt_confirmation_request"]["confirmation_id"],
+                        "stage": first_final["metadata"]["ppt_confirmation_request"]["stage"],
+                        "runId": "ppt-web-structured-2",
+                    },
+                    run_id="ppt-web-structured-2",
+                )
+                self.assertIn("请确认 PPT 内容规划", second_final["content"])
+
+                third_final = await self._send_payload_and_wait_for_final(
+                    websocket,
+                    {
+                        "type": "chat",
+                        "content": "",
+                        "pptConfirmation": {
+                            "action": "confirm",
+                            "confirmationId": second_final["metadata"]["ppt_confirmation_request"]["confirmation_id"],
+                            "stage": second_final["metadata"]["ppt_confirmation_request"]["stage"],
+                        },
+                        "runId": "ppt-web-structured-3",
+                    },
+                    run_id="ppt-web-structured-3",
+                )
+
+        self.assertIn(
+            "HTML route generated the PPTX after requirement and content-plan confirmation.",
+            third_final["content"],
+        )
+        self.assertEqual(len(third_final["artifacts"]), 1)
+        artifact = third_final["artifacts"][0]
+        self.assertTrue(artifact["path"].endswith(".pptx"))
+
     async def _send_chat_and_wait_for_final(
         self,
         websocket,
@@ -847,7 +965,20 @@ class WebChannelRuntimePptSmokeTests(unittest.IsolatedAsyncioTestCase):
         *,
         run_id: str,
     ) -> dict[str, object]:
-        await websocket.send(json.dumps({"type": "chat", "content": content, "runId": run_id}))
+        return await self._send_payload_and_wait_for_final(
+            websocket,
+            {"type": "chat", "content": content, "runId": run_id},
+            run_id=run_id,
+        )
+
+    async def _send_payload_and_wait_for_final(
+        self,
+        websocket,
+        payload: dict[str, object],
+        *,
+        run_id: str,
+    ) -> dict[str, object]:
+        await websocket.send(json.dumps(payload, ensure_ascii=False))
         final_message: dict[str, object] | None = None
         while True:
             payload = json.loads(await asyncio.wait_for(websocket.recv(), timeout=10))

@@ -22,9 +22,11 @@ from src.productions.design.design_product_manager.brief_form import (
     DESIGN_BRIEF_FORM_PENDING_TASK_STATE_KEY,
     DESIGN_BRIEF_FORM_STATE_KEY,
 )
+from src.productions.ppt.schemas import PptAdkConfirmationRequest
 from src.runtime.cancellation import TaskCancelledError, get_cancellation_manager
 from src.runtime.expert_registry import build_expert_agents
 from src.runtime.models import InboundMessage, WorkflowEvent
+from src.runtime.product_results import is_product_confirmation_result
 from src.runtime.progress_events import build_progress_metadata, progress_text_from_metadata
 from src.runtime.runtime_trace import trace_runtime_event
 from src.runtime.step_events import reset_step_event_history, step_event_streaming_active
@@ -176,11 +178,12 @@ def _build_orchestration_progress_event(
 class CreativeClawRuntime:
     """Run Creative Claw workflow for normalized channel messages."""
 
-    def __init__(self) -> None:
+    def __init__(self, *, llm_model: str = "") -> None:
         self.session_service = InMemorySessionService()
         self.artifact_service = InMemoryArtifactService()
         self._session_keys: dict[str, str] = {}
         self.expert_agents = build_expert_agents(app_name=SYS_CONFIG.app_name)
+        self.llm_model = str(llm_model or "").strip()
 
         self.workspace_root = workspace_root()
         self.generated_dir = generated_root()
@@ -302,6 +305,7 @@ class CreativeClawRuntime:
                 expert_agents=self.expert_agents,
                 app_name=SYS_CONFIG.app_name,
                 save_dir=str(self.generated_dir),
+                llm_model=self.llm_model,
             )
             orchestrator_agent.uid = user_id
             orchestrator_agent.sid = session_id
@@ -593,15 +597,19 @@ class CreativeClawRuntime:
                     final_summary = f"{final_summary}\nExecution history:\n{history_text}"
 
         final_turn_index = turn_index if turn_index is not None else int(final_session.state.get("turn_index", 0) or 0)
+        metadata: dict[str, object] = {
+            "session_id": session_id,
+            "turn_index": final_turn_index,
+            "display_style": "final",
+        }
+        ppt_confirmation_request = _build_ppt_confirmation_request_metadata(final_session.state)
+        if ppt_confirmation_request:
+            metadata["ppt_confirmation_request"] = ppt_confirmation_request
         return WorkflowEvent(
             event_type="final",
             text=final_summary,
             artifact_paths=artifact_paths,
-            metadata={
-                "session_id": session_id,
-                "turn_index": final_turn_index,
-                "display_style": "final",
-            },
+            metadata=metadata,
         )
 
 
@@ -633,3 +641,47 @@ def _resolve_final_artifact_paths(selected_paths: object) -> list[str]:
         seen_paths.add(resolved_text)
         artifact_paths.append(resolved_text)
     return artifact_paths
+
+
+def _build_ppt_confirmation_request_metadata(state: dict[str, object]) -> dict[str, object] | None:
+    """Build browser-facing PPT confirmation metadata from runtime state."""
+    pending_adk_request = state.get(PPT_ADK_PENDING_CONFIRMATION_STATE_KEY)
+    if isinstance(pending_adk_request, dict):
+        payload = pending_adk_request.get("payload")
+        if isinstance(payload, dict):
+            return dict(payload)
+
+    product_result = _select_ppt_confirmation_product_result(state)
+    if product_result is None:
+        return None
+
+    workflow_state = state.get("ppt_workflow_state")
+    workflow_state = workflow_state if isinstance(workflow_state, dict) else {}
+    confirmation_request = product_result.get("confirmation_request")
+    confirmation_request = confirmation_request if isinstance(confirmation_request, dict) else {}
+    stage = str(product_result.get("status") or workflow_state.get("stage") or "").strip()
+    confirmation_type = str(confirmation_request.get("type") or "").strip()
+    if not confirmation_type:
+        confirmation_type = "content_plan" if "content_plan" in stage else "requirement"
+
+    try:
+        return PptAdkConfirmationRequest(
+            workflow_id=str(workflow_state.get("workflow_id") or confirmation_request.get("workflow_id") or ""),
+            confirmation_id=str(workflow_state.get("confirmation_id") or ""),
+            stage=stage,
+            confirmation_type=confirmation_type,
+            message=str(product_result.get("message") or ""),
+            summary_markdown=str(confirmation_request.get("summary_markdown") or ""),
+            expected_user_action=str(confirmation_request.get("expected_user_action") or ""),
+        ).model_dump(mode="json")
+    except Exception:
+        return None
+
+
+def _select_ppt_confirmation_product_result(state: dict[str, object]) -> dict[str, object] | None:
+    """Return the current PPT product confirmation result, if one is active."""
+    for key in ("ppt_product_result", "last_product_result", "current_output"):
+        candidate = state.get(key)
+        if is_product_confirmation_result(candidate):
+            return candidate
+    return None

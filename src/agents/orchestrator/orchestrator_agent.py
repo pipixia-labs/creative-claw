@@ -2525,15 +2525,25 @@ Expert parameter contracts:
                 )
                 await self._clear_adk_ppt_confirmation_request(current_session)
 
-        raw_final_response = await self.run_agent_and_log_events(
-            user_id=self.uid,
-            session_id=self.sid,
-            invocation_id=resume_invocation_id or None,
-            new_message=resume_message
-            or self.build_runner_message(
-                "Review the current state, use built-in tools or invoke_agent when helpful, and answer the user directly once the task is complete."
-            ),
-        )
+        try:
+            raw_final_response = await self.run_agent_and_log_events(
+                user_id=self.uid,
+                session_id=self.sid,
+                invocation_id=resume_invocation_id or None,
+                new_message=resume_message
+                or self.build_runner_message(
+                    "Review the current state, use built-in tools or invoke_agent when helpful, and answer the user directly once the task is complete."
+                ),
+            )
+        except Exception:
+            if not resumed_adk_ppt_confirmation:
+                raise
+            raw_final_response = await self._recover_resumed_ppt_confirmation_reply(
+                user_id=self.uid,
+                session_id=self.sid,
+            )
+            if not raw_final_response:
+                raise
 
         current_session = await self.session_service.get_session(
             app_name=self.app_name,
@@ -2654,3 +2664,31 @@ Expert parameter contracts:
             "assistant_text_streamed": self._last_run_streamed_reply_text,
             "new_orchestration_events": orchestration_events[previous_event_count:],
         }
+
+    async def _recover_resumed_ppt_confirmation_reply(
+        self,
+        *,
+        user_id: str,
+        session_id: str,
+    ) -> str:
+        """Recover a deterministic PPT confirmation reply after ADK resume."""
+        current_session = await self.session_service.get_session(
+            app_name=self.app_name,
+            user_id=user_id,
+            session_id=session_id,
+        )
+        if current_session is None:
+            return ""
+        confirmation_result = _select_ppt_product_confirmation_state_result(current_session.state)
+        if confirmation_result is None:
+            return ""
+        confirmation_reply = str(confirmation_result.get("message") or "").strip()
+        if not confirmation_reply:
+            return ""
+        await self._persist_structured_final_response(
+            user_id=user_id,
+            session_id=session_id,
+            reply_text=confirmation_reply,
+            final_file_paths=[],
+        )
+        return confirmation_reply

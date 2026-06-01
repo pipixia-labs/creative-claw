@@ -35,6 +35,7 @@ from src.productions.design.design_systems import (
     read_design_system,
     resolve_design_system_preview,
 )
+from src.productions.ppt.schemas import PptAdkConfirmationResponse
 from src.runtime.cancellation import get_cancellation_manager
 from src.runtime.process_sessions import ProcessKillSummary
 from src.runtime import InboundMessage, MessageAttachment
@@ -83,6 +84,7 @@ MODEL_PACKAGE_NAME_PATTERN = re.compile(
     r"(^|[._/\-])(3d|hy3d|seed3d|hyper3d|hitem3d|model|mesh)([._/\-]|$)",
     re.IGNORECASE,
 )
+PPT_CONFIRMATION_EVENT_TYPES = {"ppt_confirmation", "ppt_hitl_response"}
 
 
 @dataclass(slots=True)
@@ -176,6 +178,28 @@ def _should_stream_assistant_payload(payload: dict[str, Any]) -> bool:
     if payload.get("metadata", {}).get("disable_stream"):
         return False
     return True
+
+
+def _extract_ppt_confirmation_payload(event_type: str, payload: dict[str, Any]) -> dict[str, Any] | None:
+    """Return a browser-supplied PPT confirmation payload, if present."""
+    if event_type in PPT_CONFIRMATION_EVENT_TYPES:
+        return dict(payload)
+    if event_type != "chat":
+        return None
+    raw_payload = payload.get("pptConfirmation")
+    if raw_payload is None:
+        raw_payload = payload.get("ppt_confirmation")
+    return dict(raw_payload) if isinstance(raw_payload, dict) else None
+
+
+def _normalize_ppt_confirmation_response(raw_payload: dict[str, Any]) -> PptAdkConfirmationResponse:
+    """Validate a structured browser PPT confirmation response."""
+    payload = dict(raw_payload)
+    if "confirmationId" in payload and "confirmation_id" not in payload:
+        payload["confirmation_id"] = payload["confirmationId"]
+    if "content" in payload and "message" not in payload:
+        payload["message"] = payload["content"]
+    return PptAdkConfirmationResponse.model_validate(payload)
 
 
 def _chunk_text(text: str, size: int) -> list[str]:
@@ -795,6 +819,10 @@ class WebChannel(BaseChannel):
             await self._handle_stop(conn, payload)
             return
 
+        if event_type in PPT_CONFIRMATION_EVENT_TYPES:
+            await self._dispatch_chat_task(conn, payload)
+            return
+
         if event_type != "chat":
             await self._send_to(conn, {"type": "error", "message": "Unsupported event type"})
             return
@@ -816,9 +844,10 @@ class WebChannel(BaseChannel):
             )
             return
 
-        content = str(payload.get("content") or "").strip()
-        if not content:
-            await self._send_to(conn, {"type": "error", "message": "Message content is required"})
+        try:
+            content, inbound_metadata = self._chat_content_and_metadata(payload)
+        except ValueError as exc:
+            await self._send_to(conn, {"type": "error", "message": str(exc)})
             return
 
         try:
@@ -834,7 +863,7 @@ class WebChannel(BaseChannel):
             chat_id=conn.session_id,
         )
         task = asyncio.create_task(
-            self._run_chat_task(conn, content, run_id, attachments),
+            self._run_chat_task(conn, content, run_id, attachments, inbound_metadata),
             name=f"web-chat-{conn.session_id}-{run_id}",
         )
         active = _ActiveRun(task=task, run_id=run_id, session_id=conn.session_id)
@@ -853,10 +882,13 @@ class WebChannel(BaseChannel):
         content: str,
         run_id: str,
         attachments: list[MessageAttachment] | None = None,
+        metadata: dict[str, Any] | None = None,
     ) -> None:
         """Run one chat task and emit lifecycle events."""
         reason = "completed"
         try:
+            inbound_metadata = {"client_id": conn.client_id, "run_id": run_id}
+            inbound_metadata.update(dict(metadata or {}))
             await self.inbound_handler(
                 InboundMessage(
                     channel=self.name,
@@ -864,7 +896,7 @@ class WebChannel(BaseChannel):
                     chat_id=conn.session_id,
                     text=content,
                     attachments=list(attachments or []),
-                    metadata={"client_id": conn.client_id, "run_id": run_id},
+                    metadata=inbound_metadata,
                 )
             )
         except asyncio.CancelledError:
@@ -908,6 +940,25 @@ class WebChannel(BaseChannel):
                     conn.session_id,
                     {"type": "task_finished", "runId": run_id, "reason": reason},
                 )
+
+    def _chat_content_and_metadata(self, payload: dict[str, Any]) -> tuple[str, dict[str, Any]]:
+        """Return runtime text and metadata for normal chat or structured PPT HITL input."""
+        event_type = str(payload.get("type") or "").strip()
+        confirmation_payload = _extract_ppt_confirmation_payload(event_type, payload)
+        if confirmation_payload is not None:
+            try:
+                response = _normalize_ppt_confirmation_response(confirmation_payload)
+            except Exception as exc:
+                raise ValueError(f"Invalid PPT confirmation response: {exc}") from exc
+            content = response.to_user_response().strip()
+            if not content:
+                raise ValueError("PPT confirmation response is empty.")
+            return content, {"ppt_confirmation_response": response.model_dump(mode="json")}
+
+        content = str(payload.get("content") or "").strip()
+        if not content:
+            raise ValueError("Message content is required")
+        return content, {}
 
     def _attachments_from_chat_payload(self, payload: dict[str, Any]) -> list[MessageAttachment]:
         """Normalize browser attachment records from one chat payload."""

@@ -1789,6 +1789,85 @@ button {
   border-color: transparent;
 }
 
+.cc-ppt-confirmation {
+  display: grid;
+  gap: 9px;
+  margin-top: 14px;
+  padding-top: 12px;
+  border-top: 1px solid rgba(32, 32, 32, 0.08);
+  font-family: var(--font-ui);
+}
+
+.cc-ppt-confirmation-actions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+  align-items: center;
+}
+
+.cc-ppt-confirmation-button {
+  min-height: 34px;
+  padding: 0 13px;
+  border: 1px solid rgba(32, 32, 32, 0.16);
+  border-radius: 999px;
+  background: rgba(255, 255, 255, 0.94);
+  color: rgba(32, 32, 32, 0.82);
+  font-size: 14px;
+  font-weight: 560;
+}
+
+.cc-ppt-confirmation-button.primary {
+  border-color: rgba(32, 32, 32, 0.24);
+  background: var(--accent);
+  color: #fff;
+}
+
+.cc-ppt-confirmation-button:hover {
+  border-color: rgba(32, 32, 32, 0.3);
+  background: rgba(32, 32, 32, 0.06);
+}
+
+.cc-ppt-confirmation-button.primary:hover {
+  background: var(--accent-dark);
+}
+
+.cc-ppt-confirmation-textarea {
+  width: 100%;
+  min-width: 0;
+  min-height: 62px;
+  padding: 10px 12px;
+  border: 1px solid rgba(32, 32, 32, 0.12);
+  border-radius: 10px;
+  background: rgba(255, 255, 255, 0.96);
+  color: var(--text);
+  font: inherit;
+  font-size: 14px;
+  line-height: 1.45;
+  outline: none;
+  resize: vertical;
+}
+
+.cc-ppt-confirmation-textarea:focus {
+  border-color: rgba(32, 32, 32, 0.42);
+  box-shadow: 0 0 0 3px rgba(32, 32, 32, 0.1);
+}
+
+.cc-ppt-confirmation-status {
+  min-height: 18px;
+  color: var(--text-soft);
+  font-size: 13px;
+  line-height: 1.35;
+}
+
+.cc-ppt-confirmation.submitted {
+  opacity: 0.72;
+}
+
+.cc-ppt-confirmation.submitted .cc-ppt-confirmation-button.primary {
+  background: var(--text-muted);
+  border-color: transparent;
+}
+
 .markdown a {
   color: var(--accent-dark);
 }

@@ -93,6 +93,14 @@ class RuntimePptSmokePatch:
         """Patch the runtime-level LLM and PPT provider phases."""
         with (
             patch("src.agents.orchestrator.orchestrator_agent.build_llm", side_effect=self._build_llm_stub),
+            self.install_phase_stubs(),
+        ):
+            yield self
+
+    @contextlib.contextmanager
+    def install_phase_stubs(self):
+        """Patch only the heavyweight PPT phases while leaving the Orchestrator LLM live."""
+        with (
             patch.object(
                 PptProductManager,
                 "_prepare_initial_requirement_phase",

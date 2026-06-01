@@ -466,8 +466,10 @@ function handleEvent(payload) {
     if (finalizeAssistantStream(payload)) {
       return;
     }
+    const pptConfirmationRequest = normalizePptConfirmationRequest(payload.metadata?.ppt_confirmation_request);
     addMessageCard("assistant", "CreativeClaw", payload.content || "", payload.artifacts || [], true, {
       revealQuestionForms: isQuestionFormStreamContent(payload.content || ""),
+      pptConfirmationRequest,
     });
     appendHistory({
       type: "assistant",
@@ -712,7 +714,9 @@ function addMessageCard(type, role, content, artifacts = [], scroll = true, opti
   const root = fragment.querySelector(".message-card");
   root.classList.add(type);
   fragment.querySelector(".message-role").textContent = role;
-  renderMessageContent(fragment.querySelector(".message-body"), content || "", options);
+  const body = fragment.querySelector(".message-body");
+  renderMessageContent(body, content || "", options);
+  renderPptConfirmationControls(body, options.pptConfirmationRequest);
   const artifactGrid = fragment.querySelector(".artifact-grid");
   renderArtifacts(artifactGrid, artifacts);
   timeline.appendChild(fragment);
@@ -770,8 +774,10 @@ function finalizeAssistantStream(payload) {
   const fallbackContent = activeAssistantStream.hasThinkingPlaceholder ? "" : activeAssistantStream.content;
   const content = String(payload.content || fallbackContent || "");
   const artifacts = payload.artifacts || [];
+  const pptConfirmationRequest = normalizePptConfirmationRequest(payload.metadata?.ppt_confirmation_request);
   updateMessageCard(activeAssistantStream.card, content, artifacts, {
     revealQuestionForms: isQuestionFormStreamContent(content),
+    pptConfirmationRequest,
   });
   previewArtifactSet(artifacts);
   appendHistory({
@@ -789,7 +795,9 @@ function updateMessageCard(card, content, artifacts = [], options = {}) {
   if (!card) {
     return;
   }
-  renderMessageContent(card.querySelector(".message-body"), content || "", options);
+  const body = card.querySelector(".message-body");
+  renderMessageContent(body, content || "", options);
+  renderPptConfirmationControls(body, options.pptConfirmationRequest);
   renderArtifacts(card.querySelector(".artifact-grid"), artifacts);
 }
 
@@ -834,6 +842,99 @@ function renderMessageContent(container, content, options = {}) {
       })
     );
   }
+}
+
+function normalizePptConfirmationRequest(rawRequest) {
+  if (!rawRequest || typeof rawRequest !== "object") {
+    return null;
+  }
+  const productLine = String(rawRequest.product_line || "").trim();
+  const confirmationType = String(rawRequest.confirmation_type || rawRequest.type || "").trim();
+  if (productLine && productLine !== "ppt") {
+    return null;
+  }
+  if (!confirmationType) {
+    return null;
+  }
+  return {
+    confirmation_id: String(rawRequest.confirmation_id || rawRequest.confirmationId || "").trim(),
+    stage: String(rawRequest.stage || "").trim(),
+    confirmation_type: confirmationType,
+  };
+}
+
+function renderPptConfirmationControls(container, request) {
+  if (!request) {
+    return;
+  }
+  const root = document.createElement("div");
+  root.className = "cc-ppt-confirmation";
+
+  const actions = document.createElement("div");
+  actions.className = "cc-ppt-confirmation-actions";
+
+  const confirmButton = document.createElement("button");
+  confirmButton.type = "button";
+  confirmButton.className = "cc-ppt-confirmation-button primary";
+  confirmButton.textContent = "确认继续";
+
+  const reviseButton = document.createElement("button");
+  reviseButton.type = "button";
+  reviseButton.className = "cc-ppt-confirmation-button";
+  reviseButton.textContent = "提交修改";
+
+  actions.append(confirmButton, reviseButton);
+
+  const textarea = document.createElement("textarea");
+  textarea.className = "cc-ppt-confirmation-textarea";
+  textarea.rows = 2;
+  textarea.placeholder = "输入修改意见";
+
+  const status = document.createElement("div");
+  status.className = "cc-ppt-confirmation-status";
+
+  confirmButton.addEventListener("click", () => {
+    sendPptConfirmationResponse(root, request, "confirm", "");
+  });
+  reviseButton.addEventListener("click", () => {
+    sendPptConfirmationResponse(root, request, "revise", textarea.value);
+  });
+
+  root.append(actions, textarea, status);
+  container.appendChild(root);
+}
+
+function sendPptConfirmationResponse(root, request, action, message) {
+  const status = root.querySelector(".cc-ppt-confirmation-status");
+  if (runState !== "idle") {
+    if (status) status.textContent = "当前任务还在运行，稍后再提交。";
+    return;
+  }
+  const cleanMessage = String(message || "").trim();
+  if (action === "revise" && !cleanMessage) {
+    if (status) status.textContent = "请先输入修改意见。";
+    return;
+  }
+  const runId = crypto.randomUUID();
+  sendSocket({
+    type: "ppt_confirmation",
+    action,
+    message: cleanMessage,
+    confirmationId: request.confirmation_id || "",
+    stage: request.stage || "",
+    runId,
+  });
+  setRunState("running", runId);
+  const displayContent = action === "confirm" ? "确认" : cleanMessage;
+  addMessageCard("user", "You", displayContent);
+  appendHistory({ type: "user", role: "You", content: displayContent, artifacts: [] });
+  root.classList.add("submitted");
+  for (const element of root.querySelectorAll("button, textarea")) {
+    element.disabled = true;
+  }
+  if (status) status.textContent = "已提交，正在继续处理。";
+  activeProgressCard = null;
+  activeAssistantStream = null;
 }
 
 function splitQuestionFormBlocks(content) {
