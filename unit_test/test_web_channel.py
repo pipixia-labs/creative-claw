@@ -18,11 +18,15 @@ from pptx.util import Inches
 import websockets
 
 from conf.channel import WebChannelConfig
+from conf.system import SYS_CONFIG
 from src.channels.events import OutboundMessage
+from src.channels.manager import ChannelManager
 from src.channels import web as web_channel_module
 from src.channels.web import WebChannel
 from src.runtime import InboundMessage
-from src.runtime.workspace import generated_root, workspace_relative_path
+from src.runtime.workflow_service import CreativeClawRuntime
+from src.runtime.workspace import generated_root, resolve_workspace_path, workspace_relative_path
+from unit_test.ppt_runtime_smoke_helpers import RuntimePptSmokePatch
 
 
 class WebchatStaticAssetTests(unittest.TestCase):
@@ -774,6 +778,88 @@ class WebChannelTests(unittest.IsolatedAsyncioTestCase):
             if payload.get("type") == expected_type:
                 return payload
         raise AssertionError(f"Did not receive payload type {expected_type!r}.")
+
+
+class WebChannelRuntimePptSmokeTests(unittest.IsolatedAsyncioTestCase):
+    async def asyncSetUp(self) -> None:
+        self.runtime = CreativeClawRuntime()
+        self.manager = ChannelManager(self.runtime)
+        self.channel = WebChannel(
+            config=WebChannelConfig(
+                host="127.0.0.1",
+                port=0,
+                open_browser=False,
+                title="CreativeClaw Web Chat",
+            ),
+            inbound_handler=self.manager.handle_inbound,
+        )
+        self.manager.register(self.channel)
+        await self.channel.start()
+
+    async def asyncTearDown(self) -> None:
+        await self.channel.stop()
+
+    async def test_web_channel_ppt_adk_hitl_smoke_reaches_final_delivery(self) -> None:
+        task = "做一个 3 页 PPTX，用于产品发布，受众为管理层。"
+        session_key = "ppt-web-smoke"
+
+        with RuntimePptSmokePatch(task=task).install() as smoke:
+            async with websockets.connect(f"ws://127.0.0.1:{self.channel._port}/ws?session_id={session_key}") as websocket:
+                ready = json.loads(await asyncio.wait_for(websocket.recv(), timeout=5))
+                self.assertEqual(ready["type"], "ready")
+
+                first_final = await self._send_chat_and_wait_for_final(websocket, task, run_id="ppt-web-smoke-1")
+                self.assertIn("请确认 PPT 需求参数", first_final["content"])
+
+                second_final = await self._send_chat_and_wait_for_final(websocket, "确认", run_id="ppt-web-smoke-2")
+                self.assertIn("请确认 PPT 内容规划", second_final["content"])
+
+                third_final = await self._send_chat_and_wait_for_final(websocket, "确认", run_id="ppt-web-smoke-3")
+
+        self.assertIn(
+            "HTML route generated the PPTX after requirement and content-plan confirmation.",
+            third_final["content"],
+        )
+        self.assertEqual(len(third_final["artifacts"]), 1)
+        artifact = third_final["artifacts"][0]
+        self.assertTrue(artifact["path"].endswith(".pptx"))
+        self.assertEqual(artifact["mimeType"], "application/vnd.openxmlformats-officedocument.presentationml.presentation")
+        self.assertEqual(len(smoke.fake_llms), 3)
+        self.assertEqual(len(smoke.fake_llms[0].requests), 1)
+        self.assertEqual(len(smoke.fake_llms[2].requests), 1)
+
+        runtime_session_id = self.runtime._session_keys[f"web:{session_key}"]
+        session = await self.runtime.session_service.get_session(
+            app_name=SYS_CONFIG.app_name,
+            user_id=ready["clientId"],
+            session_id=runtime_session_id,
+        )
+        self.assertEqual(session.state["ppt_product_result"]["status"], "success")
+        self.assertEqual(session.state["ppt_workflow_state"]["stage"], "completed")
+        self.assertIsNone(session.state.get("ppt_adk_pending_confirmation"))
+        self.assertEqual(session.state["final_file_paths"], [artifact["path"]])
+        self.assertTrue(resolve_workspace_path(artifact["path"]).is_file())
+
+    async def _send_chat_and_wait_for_final(
+        self,
+        websocket,
+        content: str,
+        *,
+        run_id: str,
+    ) -> dict[str, object]:
+        await websocket.send(json.dumps({"type": "chat", "content": content, "runId": run_id}))
+        final_message: dict[str, object] | None = None
+        while True:
+            payload = json.loads(await asyncio.wait_for(websocket.recv(), timeout=10))
+            payload_type = payload.get("type")
+            if payload_type == "error":
+                self.fail(f"Unexpected WebChannel error payload: {payload}")
+            if payload_type == "assistant_message":
+                final_message = payload
+            if payload_type == "task_finished" and payload.get("runId") == run_id:
+                if final_message is None:
+                    self.fail(f"Task finished without assistant message: {payload}")
+                return final_message
 
 
 if __name__ == "__main__":

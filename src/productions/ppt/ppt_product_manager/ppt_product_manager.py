@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 import copy
+import hashlib
 import html as html_lib
 import inspect
 import json
@@ -56,12 +57,27 @@ from src.productions.ppt.routes import PptRouteRegistration, build_default_ppt_r
 from src.productions.ppt.schemas import (
     ConfirmedRequirement,
     DeckContentPlan,
+    DeckPageAsset,
     DeliveryManifest,
     EditabilityRequirement,
+    PptAdkConfirmationRequest,
+    PptAdkConfirmationResponse,
+    PptContentPlanRevisionResult,
+    PptContentPlanningResult,
+    PptAssetResolutionResult,
     PptDesignConfirmation,
     PptDesignStrategy,
+    PptFinalDeliveryResult,
+    PptPrivateSkillDeliveryResult,
+    PptPrivateSkillExecutionResult,
     PptProductRequest,
     PptProductResult,
+    PptRequirementAnalysisResult,
+    PptRequirementRevisionResult,
+    PptRouteExecutionResult,
+    PptSourcePreparationResult,
+    PptSystemSelection,
+    PptSystemSelectionResult,
     PptSvgExecutionPlan,
     PptSvgPageResult,
     QualityReviewResult,
@@ -92,18 +108,47 @@ PPT_CONFIRMED_REQUIREMENT_STATE_KEY = "ppt_confirmed_requirement"
 PPT_PRODUCT_RESULT_STATE_KEY = "ppt_product_result"
 PPT_PRODUCT_REQUEST_STATE_KEY = "ppt_product_request"
 PPT_WORKFLOW_STATE_KEY = "ppt_workflow_state"
+PPT_ADK_CONFIRMATION_REQUEST_STATE_KEY = "ppt_adk_confirmation_request"
+PPT_CONTENT_PLAN_REVISION_RESULT_STATE_KEY = "ppt_content_plan_revision_result"
+PPT_CONTENT_PLAN_REVISION_OUTPUT_STATE_KEY = "ppt_content_plan_revision_output"
+PPT_CONTENT_PLAN_REVISION_WORKFLOW_OUTPUT_KEY = "ppt_content_plan_revision_workflow_output"
+PPT_ASSET_RESOLUTION_RESULT_STATE_KEY = "ppt_asset_resolution_result"
+PPT_ROUTE_EXECUTION_RESULT_STATE_KEY = "ppt_route_execution_result"
+PPT_ROUTE_OUTPUT_DIR_STATE_KEY = "ppt_route_output_dir"
+PPT_FINAL_DELIVERY_RESULT_STATE_KEY = "ppt_final_delivery_result"
+PPT_PRIVATE_SKILL_EXECUTION_RESULT_STATE_KEY = "ppt_private_skill_execution_result"
+PPT_PRIVATE_SKILL_DELIVERY_RESULT_STATE_KEY = "ppt_private_skill_delivery_result"
 PPT_STAGE_AWAITING_REQUIREMENT_CONFIRMATION = "awaiting_requirement_confirmation"
 PPT_STAGE_AWAITING_CONTENT_PLAN_CONFIRMATION = "awaiting_content_plan_confirmation"
 PPT_STAGE_COMPLETED = "completed"
 PPT_WORKFLOW_WAITING_SINCE_TURN_KEY = "waiting_since_turn_index"
 PPT_WORKFLOW_LAST_CONSUMED_TURN_KEY = "last_consumed_turn_index"
 PPT_REQUIREMENT_ANALYSIS_BASE_KEY = "ppt_requirement_analysis_base"
+PPT_REQUIREMENT_ANALYSIS_RESULT_STATE_KEY = "ppt_requirement_analysis_result"
+PPT_REQUIREMENT_ANALYSIS_OUTPUT_STATE_KEY = "ppt_requirement_analysis_output"
 PPT_REQUIREMENT_ANALYSIS_AGENT_MESSAGE_KEY = "ppt_requirement_analysis_agent_message"
+PPT_REQUIREMENT_ANALYSIS_WORKFLOW_OUTPUT_KEY = "ppt_requirement_analysis_workflow_output"
+PPT_REQUIREMENT_REVISION_RESULT_STATE_KEY = "ppt_requirement_revision_result"
+PPT_REQUIREMENT_REVISION_OUTPUT_STATE_KEY = "ppt_requirement_revision_output"
+PPT_REQUIREMENT_REVISION_WORKFLOW_OUTPUT_KEY = "ppt_requirement_revision_workflow_output"
+PPT_AUTO_CONFIRM_WORKFLOW_OUTPUT_KEY = "ppt_auto_confirm_workflow_output"
+PPT_INITIAL_REQUEST_WORKFLOW_OUTPUT_KEY = "ppt_initial_request_workflow_output"
 PPT_REQUIREMENT_CONFIRMATION_WORKFLOW_OUTPUT_KEY = "ppt_requirement_confirmation_workflow_output"
 PPT_CONTENT_PLAN_CONFIRMATION_WORKFLOW_OUTPUT_KEY = "ppt_content_plan_confirmation_workflow_output"
+PPT_SYSTEM_SELECTION_WORKFLOW_OUTPUT_KEY = "ppt_system_selection_workflow_output"
+PPT_SOURCE_PREPARATION_RESULT_STATE_KEY = "ppt_source_preparation_result"
+PPT_SOURCE_PREPARATION_WORKFLOW_OUTPUT_KEY = "ppt_source_preparation_workflow_output"
+PPT_CONTENT_PLANNING_WORKFLOW_OUTPUT_KEY = "ppt_content_planning_workflow_output"
+PPT_ASSET_RESOLUTION_WORKFLOW_OUTPUT_KEY = "ppt_asset_resolution_workflow_output"
+PPT_ROUTE_EXECUTION_WORKFLOW_OUTPUT_KEY = "ppt_route_execution_workflow_output"
+PPT_FINAL_DELIVERY_WORKFLOW_OUTPUT_KEY = "ppt_final_delivery_workflow_output"
+PPT_PRIVATE_SKILL_EXECUTION_WORKFLOW_OUTPUT_KEY = "ppt_private_skill_execution_workflow_output"
+PPT_PRIVATE_SKILL_DELIVERY_WORKFLOW_OUTPUT_KEY = "ppt_private_skill_delivery_workflow_output"
 PPT_PRODUCT_SKILLS_STATE_KEY = "product_ppt_skills"
 PPT_PRODUCT_ACTIVE_SKILL_STATE_KEY = "active_product_ppt_skill"
 PPT_SYSTEM_SELECTION_STATE_KEY = "ppt_system_selection"
+PPT_SYSTEM_SELECTION_RESULT_STATE_KEY = "ppt_system_selection_result"
+PPT_SYSTEM_SELECTION_OUTPUT_STATE_KEY = "ppt_system_selection_output"
 PPT_SYSTEM_SELECTION_BASE_KEY = "ppt_system_selection_base"
 PPT_SYSTEM_SELECTION_AGENT_MESSAGE_KEY = "ppt_system_selection_agent_message"
 PPT_PRIVATE_SKILL_BUILD_STATE_KEY = "ppt_private_skill_build"
@@ -699,10 +744,21 @@ Return structured status, current phase, selected route, warnings, next actions,
         available_expert_agents = self._resolve_ppt_expert_agents(expert_agents)
         clean_task = request.task
         output_options = request.output
+        if self._has_adk_tool_confirmation_response(tool_context):
+            return await self._continue_from_adk_tool_confirmation(
+                output=output_options,
+                tool_context=tool_context,
+                expert_agents=available_expert_agents,
+                app_name=app_name,
+                artifact_service=artifact_service,
+                source_converter=source_converter,
+                content_plan_builder=content_plan_builder,
+                asset_resolver=asset_resolver,
+            )
         if not self._should_auto_confirm(output_options):
             workflow_state = self._get_workflow_state(tool_context.state)
             if self._is_pending_confirmation_stage(workflow_state.get("stage")):
-                return await self.continue_product_request(
+                result = await self.continue_product_request(
                     user_response=clean_task,
                     tool_context=tool_context,
                     expert_agents=available_expert_agents,
@@ -712,8 +768,14 @@ Return structured status, current phase, selected route, warnings, next actions,
                     content_plan_builder=content_plan_builder,
                     asset_resolver=asset_resolver,
                 )
+                self._request_adk_tool_confirmation_if_needed(
+                    result=result,
+                    output=output_options,
+                    tool_context=tool_context,
+                )
+                return result
             tool_context.state[PPT_PRODUCT_REQUEST_STATE_KEY] = request.to_state_dict()
-            return await self._start_interactive_product_request(
+            result = await self._start_interactive_product_request(
                 task=clean_task,
                 inputs=request.inputs,
                 output=output_options,
@@ -722,176 +784,247 @@ Return structured status, current phase, selected route, warnings, next actions,
                 artifact_service=artifact_service,
                 system_selection_builder=system_selection_builder,
             )
+            self._request_adk_tool_confirmation_if_needed(
+                result=result,
+                output=output_options,
+                tool_context=tool_context,
+            )
+            return result
 
         tool_context.state[PPT_PRODUCT_REQUEST_STATE_KEY] = request.to_state_dict()
-        try:
-            raw_inputs = self._normalize_raw_inputs(request.inputs)
-            source_inputs = self._normalize_source_inputs(raw_inputs)
-            source_inputs = self._stage_source_inputs_for_workspace(source_inputs, tool_context.state)
-            source_converter = source_converter or self._build_source_converter(
+        return await self._run_auto_confirm_product_request(
+            task=clean_task,
+            inputs=request.inputs,
+            output=output_options,
+            tool_context=tool_context,
+            expert_agents=available_expert_agents,
+            app_name=app_name,
+            artifact_service=artifact_service,
+            source_converter=source_converter,
+            content_plan_builder=content_plan_builder,
+            asset_resolver=asset_resolver,
+            system_selection_builder=system_selection_builder,
+        )
+
+    async def _run_auto_confirm_product_request(
+        self,
+        *,
+        task: str,
+        inputs: Any | None,
+        output: dict[str, Any],
+        tool_context: ToolContext,
+        expert_agents: dict[str, BaseAgent],
+        app_name: str,
+        artifact_service: InMemoryArtifactService | None,
+        source_converter: Any | None = None,
+        content_plan_builder: Any | None = None,
+        asset_resolver: Any | None = None,
+        system_selection_builder: Any | None = None,
+    ) -> dict[str, Any]:
+        """Run a one-shot auto-confirm PPT request directly or through ADK Workflow."""
+        raw_inputs = self._normalize_raw_inputs(inputs)
+        if _supports_dynamic_workflow(tool_context):
+            return await _run_ppt_auto_confirm_workflow(
+                manager=self,
+                task=task,
+                raw_inputs=raw_inputs,
+                output=output,
                 tool_context=tool_context,
-                expert_agents=available_expert_agents,
+                expert_agents=expert_agents,
                 app_name=app_name,
                 artifact_service=artifact_service,
-            )
-            source_materials = await self._prepare_source_materials(
-                source_inputs,
-                fallback_document_type=self._infer_document_type(source_inputs),
-                tool_context=tool_context,
                 source_converter=source_converter,
+                content_plan_builder=content_plan_builder,
+                asset_resolver=asset_resolver,
+                system_selection_builder=system_selection_builder,
             )
-            tool_context.state["ppt_source_materials"] = source_materials.model_dump(mode="json")
-            tool_context.state["ppt_source_markdown_sources"] = source_materials.markdown_sources
-            tool_context.state["ppt_source_figures"] = source_materials.figures
-            tool_context.state["ppt_source_output_files"] = source_materials.output_files
-            requirement = await self.prepare_confirmed_requirement_with_agent(
-                task=clean_task,
-                inputs=raw_inputs,
-                output=output_options,
-                source_understanding=source_materials,
+        return await self._run_auto_confirm_product_request_direct(
+            task=task,
+            raw_inputs=raw_inputs,
+            output=output,
+            tool_context=tool_context,
+            expert_agents=expert_agents,
+            app_name=app_name,
+            artifact_service=artifact_service,
+            source_converter=source_converter,
+            content_plan_builder=content_plan_builder,
+            asset_resolver=asset_resolver,
+            system_selection_builder=system_selection_builder,
+        )
+
+    async def _run_auto_confirm_product_request_direct(
+        self,
+        *,
+        task: str,
+        raw_inputs: list[Any],
+        output: dict[str, Any],
+        tool_context: ToolContext,
+        expert_agents: dict[str, BaseAgent],
+        app_name: str,
+        artifact_service: InMemoryArtifactService | None,
+        source_converter: Any | None = None,
+        content_plan_builder: Any | None = None,
+        asset_resolver: Any | None = None,
+        system_selection_builder: Any | None = None,
+    ) -> dict[str, Any]:
+        """Run the auto-confirm PPT flow without a parent Workflow wrapper."""
+        try:
+            result = await self._build_auto_confirm_product_result(
+                task=task,
+                raw_inputs=raw_inputs,
+                output=output,
                 tool_context=tool_context,
+                expert_agents=expert_agents,
                 app_name=app_name,
                 artifact_service=artifact_service,
+                source_converter=source_converter,
+                content_plan_builder=content_plan_builder,
+                asset_resolver=asset_resolver,
+                system_selection_builder=system_selection_builder,
             )
-            requirement = requirement.model_copy(update={"source_inputs": source_inputs})
-            tool_context.state[PPT_CONFIRMED_REQUIREMENT_STATE_KEY] = requirement.model_dump(mode="json")
-            clarification_questions = self.validate_confirmed_requirement(requirement)
-            if clarification_questions:
-                result = PptProductResult(
-                    status="needs_clarification",
-                    phase="requirement_confirmation",
-                    message="PptProductManager needs a clearer PPT topic or source material before generation.",
-                    selected_route=requirement.route,
-                    confirmed_requirement=requirement,
-                    delivery_manifest=DeliveryManifest(),
-                    warnings=[],
-                    next_actions=clarification_questions,
-                )
-            else:
-                system_selection = await self.select_ppt_system_with_agent(
-                    task=clean_task,
-                    output=output_options,
-                    requirement=requirement,
-                    tool_context=tool_context,
-                    app_name=app_name,
-                    artifact_service=artifact_service,
-                    system_selection_builder=system_selection_builder,
-                )
-                requirement = self._apply_system_selection_to_requirement(requirement, system_selection)
-                tool_context.state[PPT_CONFIRMED_REQUIREMENT_STATE_KEY] = requirement.model_dump(mode="json")
-                if self._is_private_skill_selection(system_selection):
-                    content_plan = await self.build_deck_content_plan(
-                        requirement,
-                        tool_context=tool_context,
-                        app_name=app_name,
-                        artifact_service=artifact_service,
-                        expert_agents=available_expert_agents,
-                        content_plan_builder=content_plan_builder,
-                        resolve_assets=False,
-                    )
-                    private_build = await self.execute_private_ppt_skill(
-                        requirement=requirement,
-                        content_plan=content_plan,
-                        system_selection=system_selection,
-                        tool_context=tool_context,
-                        expert_agents=available_expert_agents,
-                        app_name=app_name,
-                        artifact_service=artifact_service,
-                    )
-                    result = self._build_private_skill_delivery_result(
-                        requirement=requirement,
-                        content_plan=content_plan,
-                        system_selection=system_selection,
-                        private_build=private_build,
-                    )
-                else:
-                    route_registration = self._route_registry.get(requirement.route)
-                    if route_registration is None or not route_registration.implemented:
-                        result = self._build_route_not_implemented_result(requirement, route_registration)
-                    else:
-                        content_plan = await self.build_deck_content_plan(
-                            requirement,
-                            tool_context=tool_context,
-                            app_name=app_name,
-                            artifact_service=artifact_service,
-                            expert_agents=available_expert_agents,
-                            content_plan_builder=content_plan_builder,
-                            asset_resolver=asset_resolver,
-                        )
-                        output_dir = self._build_route_output_dir(tool_context.state, route=requirement.route)
-                        route_build = await self._dispatch_ppt_route(
-                            requirement=requirement,
-                            content_plan=content_plan,
-                            output_dir=output_dir,
-                            tool_context=tool_context,
-                            app_name=app_name,
-                            artifact_service=artifact_service,
-                            expert_agents=available_expert_agents,
-                        )
-                        route_succeeded = bool(route_build.pptx_path)
-                        output_files = self._record_output_files(
-                            tool_context.state,
-                            self._route_build_output_paths(route_build),
-                        )
-                        delivery_manifest = DeliveryManifest(
-                            final_pptx=route_build.pptx_path,
-                            previews=route_build.preview_paths,
-                            quality_report=route_build.quality_report_path,
-                            build_log=route_build.build_log_path,
-                            intermediate_artifacts=self._route_build_intermediate_artifacts(route_build),
-                            output_files=output_files,
-                        )
-                        result = PptProductResult(
-                            status="success" if route_succeeded else "generation_failed",
-                            phase=f"{requirement.route}_route_delivery",
-                            message=self._build_route_delivery_message(requirement.route, route_succeeded),
-                            selected_route=requirement.route,
-                            confirmed_requirement=requirement,
-                            deck_content_plan=content_plan,
-                            route_build=route_build,
-                            quality_review=QualityReviewResult(
-                                status="pass" if route_succeeded else "failed",
-                                page_count_ok=route_succeeded,
-                                file_open_ok=route_succeeded,
-                                text_complete_ok=route_succeeded,
-                                assets_ok=route_succeeded,
-                                placeholder_free_ok=route_succeeded,
-                                overflow_ok=None,
-                                style_consistency_ok=route_succeeded,
-                            ),
-                            delivery_manifest=delivery_manifest,
-                            output_files=output_files,
-                            warnings=[
-                                *list(route_build.warnings),
-                                *list(requirement.source_understanding.extraction_warnings),
-                                *list(tool_context.state.get("ppt_content_planning_warnings") or []),
-                            ],
-                            next_actions=self._build_route_next_actions(requirement.route, route_succeeded),
-                        )
         except Exception as exc:
-            result = PptProductResult(
-                status="error",
-                phase="ppt_product_execution",
-                message=f"PPT product request normalization failed: {type(exc).__name__}: {exc}",
-                selected_route="html",
-                warnings=[str(exc)],
-                next_actions=["Fix the malformed PPT product request and retry."],
+            result = self._build_auto_confirm_error_result(exc)
+        return self._persist_product_result(tool_context, result)
+
+    async def _build_auto_confirm_product_result(
+        self,
+        *,
+        task: str,
+        raw_inputs: list[Any],
+        output: dict[str, Any],
+        tool_context: ToolContext,
+        expert_agents: dict[str, BaseAgent],
+        app_name: str,
+        artifact_service: InMemoryArtifactService | None,
+        source_converter: Any | None = None,
+        content_plan_builder: Any | None = None,
+        asset_resolver: Any | None = None,
+        system_selection_builder: Any | None = None,
+    ) -> PptProductResult:
+        """Build the auto-confirm result by composing typed PPT phases."""
+        source_preparation = await self._run_source_preparation_phase(
+            raw_inputs=raw_inputs,
+            tool_context=tool_context,
+            expert_agents=expert_agents,
+            app_name=app_name,
+            artifact_service=artifact_service,
+            source_converter=source_converter,
+        )
+        requirement_phase = await self._prepare_initial_requirement_phase(
+            task=task,
+            raw_inputs=raw_inputs,
+            output=output,
+            source_understanding=source_preparation.source_materials,
+            source_inputs=source_preparation.source_inputs,
+            tool_context=tool_context,
+            app_name=app_name,
+            artifact_service=artifact_service,
+        )
+        requirement = requirement_phase.confirmed_requirement
+        clarification_questions = self.validate_confirmed_requirement(requirement)
+        if clarification_questions:
+            return PptProductResult(
+                status="needs_clarification",
+                phase="requirement_confirmation",
+                message="PptProductManager needs a clearer PPT topic or source material before generation.",
+                selected_route=requirement.route,
+                confirmed_requirement=requirement,
+                delivery_manifest=DeliveryManifest(),
+                warnings=[],
+                next_actions=clarification_questions,
             )
 
-        result_payload = result.model_dump(mode="json")
-        tool_context.state["product_line"] = "ppt"
-        tool_context.state[PPT_CONFIRMED_REQUIREMENT_STATE_KEY] = (
-            result_payload.get("confirmed_requirement") or {}
+        system_selection_phase = await self._select_ppt_system_phase(
+            task=task,
+            output=output,
+            requirement=requirement,
+            tool_context=tool_context,
+            app_name=app_name,
+            artifact_service=artifact_service,
+            system_selection_builder=system_selection_builder,
         )
-        if result_payload.get("deck_content_plan"):
-            tool_context.state["ppt_deck_content_plan"] = result_payload["deck_content_plan"]
-        if result_payload.get("route_build"):
-            tool_context.state["ppt_route_build"] = result_payload["route_build"]
-        tool_context.state[PPT_PRODUCT_RESULT_STATE_KEY] = result_payload
-        tool_context.state["current_output"] = result_payload
-        tool_context.state["last_product_result"] = result_payload
-        tool_context.state["last_output_message"] = str(result_payload.get("message") or "")
-        return result_payload
+        system_selection = system_selection_phase.system_selection.model_dump(mode="json")
+        requirement = self._apply_system_selection_to_requirement(requirement, system_selection)
+        tool_context.state[PPT_CONFIRMED_REQUIREMENT_STATE_KEY] = requirement.model_dump(mode="json")
+
+        if self._is_private_skill_selection(system_selection):
+            planning = await self._run_content_planning_phase(
+                requirement,
+                tool_context=tool_context,
+                app_name=app_name,
+                artifact_service=artifact_service,
+                expert_agents=expert_agents,
+                content_plan_builder=content_plan_builder,
+            )
+            content_plan = planning.content_plan
+            private_execution = await self._run_private_skill_execution_phase(
+                requirement=requirement,
+                content_plan=content_plan,
+                system_selection=system_selection,
+                tool_context=tool_context,
+                expert_agents=expert_agents,
+                app_name=app_name,
+                artifact_service=artifact_service,
+            )
+            private_delivery = await self._run_private_skill_delivery_phase(
+                requirement=requirement,
+                content_plan=content_plan,
+                system_selection=system_selection,
+                private_build=private_execution.private_build,
+                tool_context=tool_context,
+            )
+            return private_delivery.product_result
+
+        route_registration = self._route_registry.get(requirement.route)
+        if route_registration is None or not route_registration.implemented:
+            return self._build_route_not_implemented_result(requirement, route_registration)
+
+        planning = await self._run_content_planning_phase(
+            requirement,
+            tool_context=tool_context,
+            app_name=app_name,
+            artifact_service=artifact_service,
+            expert_agents=expert_agents,
+            content_plan_builder=content_plan_builder,
+        )
+        content_plan = planning.content_plan
+        asset_resolution = await self._run_asset_resolution_phase(
+            content_plan,
+            requirement,
+            tool_context=tool_context,
+            expert_agents=expert_agents,
+            app_name=app_name,
+            artifact_service=artifact_service,
+            asset_resolver=asset_resolver,
+        )
+        resolved_plan = asset_resolution.content_plan
+        route_execution = await self._run_route_execution_phase(
+            requirement=requirement,
+            content_plan=resolved_plan,
+            tool_context=tool_context,
+            app_name=app_name,
+            artifact_service=artifact_service,
+            expert_agents=expert_agents,
+        )
+        delivery = await self._run_route_final_delivery_phase(
+            requirement=requirement,
+            content_plan=resolved_plan,
+            route_execution=route_execution,
+            tool_context=tool_context,
+        )
+        return delivery.product_result
+
+    @staticmethod
+    def _build_auto_confirm_error_result(exc: Exception) -> PptProductResult:
+        """Build the public error result for a failed auto-confirm request."""
+        return PptProductResult(
+            status="error",
+            phase="ppt_product_execution",
+            message=f"PPT product request normalization failed: {type(exc).__name__}: {exc}",
+            selected_route="html",
+            warnings=[str(exc)],
+            next_actions=["Fix the malformed PPT product request and retry."],
+        )
 
     async def continue_product_request(
         self,
@@ -904,6 +1037,7 @@ Return structured status, current phase, selected route, warnings, next actions,
         source_converter: Any | None = None,
         content_plan_builder: Any | None = None,
         asset_resolver: Any | None = None,
+        allow_same_turn_confirmation: bool = False,
     ) -> dict[str, Any]:
         """Continue a paused PPT product workflow after a user confirmation turn."""
         workflow_state = self._get_workflow_state(tool_context.state)
@@ -921,9 +1055,13 @@ Return structured status, current phase, selected route, warnings, next actions,
             )
             return self._persist_product_result(tool_context, result)
 
-        if self._is_pending_confirmation_stage(stage) and self._is_waiting_for_later_user_turn(
-            workflow_state,
-            tool_context.state,
+        if (
+            not allow_same_turn_confirmation
+            and self._is_pending_confirmation_stage(stage)
+            and self._is_waiting_for_later_user_turn(
+                workflow_state,
+                tool_context.state,
+            )
         ):
             result = self._build_current_confirmation_result(workflow_state)
             return self._persist_product_result(tool_context, result)
@@ -975,20 +1113,54 @@ Return structured status, current phase, selected route, warnings, next actions,
         system_selection_builder: Any | None = None,
     ) -> dict[str, Any]:
         """Start a PPT workflow and stop at the requirement confirmation gate."""
-        try:
-            raw_inputs = self._normalize_raw_inputs(inputs)
-            requirement = await self.prepare_confirmed_requirement_with_agent(
+        raw_inputs = self._normalize_raw_inputs(inputs)
+        if _supports_dynamic_workflow(tool_context):
+            return await _run_ppt_initial_request_workflow(
+                manager=self,
                 task=task,
-                inputs=raw_inputs,
+                raw_inputs=raw_inputs,
+                output=output,
+                tool_context=tool_context,
+                app_name=app_name,
+                artifact_service=artifact_service,
+                system_selection_builder=system_selection_builder,
+            )
+        return await self._start_interactive_product_request_direct(
+            task=task,
+            raw_inputs=raw_inputs,
+            output=output,
+            tool_context=tool_context,
+            app_name=app_name,
+            artifact_service=artifact_service,
+            system_selection_builder=system_selection_builder,
+        )
+
+    async def _start_interactive_product_request_direct(
+        self,
+        *,
+        task: str,
+        raw_inputs: list[Any],
+        output: dict[str, Any],
+        tool_context: ToolContext,
+        app_name: str,
+        artifact_service: BaseArtifactService | None,
+        system_selection_builder: Any | None = None,
+    ) -> dict[str, Any]:
+        """Run the initial interactive request logic without a parent Workflow wrapper."""
+        try:
+            requirement_phase = await self._prepare_initial_requirement_phase(
+                task=task,
+                raw_inputs=raw_inputs,
                 output=output,
                 source_understanding=SourceUnderstanding(
                     document_type=self._infer_document_type(self._normalize_source_inputs(raw_inputs)),
                 ),
+                source_inputs=None,
                 tool_context=tool_context,
                 app_name=app_name,
                 artifact_service=artifact_service,
             )
-            tool_context.state[PPT_CONFIRMED_REQUIREMENT_STATE_KEY] = requirement.model_dump(mode="json")
+            requirement = requirement_phase.confirmed_requirement
             clarification_questions = self.validate_confirmed_requirement(requirement)
             if clarification_questions:
                 result = PptProductResult(
@@ -1003,7 +1175,7 @@ Return structured status, current phase, selected route, warnings, next actions,
                 )
                 return self._persist_product_result(tool_context, result)
 
-            system_selection = await self.select_ppt_system_with_agent(
+            system_selection_phase = await self._select_ppt_system_phase(
                 task=task,
                 output=output,
                 requirement=requirement,
@@ -1012,6 +1184,7 @@ Return structured status, current phase, selected route, warnings, next actions,
                 artifact_service=artifact_service,
                 system_selection_builder=system_selection_builder,
             )
+            system_selection = system_selection_phase.system_selection.model_dump(mode="json")
             requirement = self._apply_system_selection_to_requirement(requirement, system_selection)
             tool_context.state[PPT_CONFIRMED_REQUIREMENT_STATE_KEY] = requirement.model_dump(mode="json")
             workflow_state = {
@@ -1052,7 +1225,7 @@ Return structured status, current phase, selected route, warnings, next actions,
         content_plan_builder: Any | None,
     ) -> dict[str, Any]:
         """Handle the first confirmation gate and then prepare a content plan."""
-        if self._is_confirmation_text(user_response) and _supports_dynamic_workflow(tool_context):
+        if _supports_dynamic_workflow(tool_context):
             return await _run_ppt_requirement_confirmation_workflow(
                 manager=self,
                 user_response=user_response,
@@ -1111,48 +1284,38 @@ Return structured status, current phase, selected route, warnings, next actions,
             return self._persist_product_result(tool_context, result)
 
         raw_inputs = list(workflow_state.get("raw_inputs") or [])
-        source_inputs = self._normalize_source_inputs(raw_inputs)
-        source_inputs = self._stage_source_inputs_for_workspace(source_inputs, tool_context.state)
-        source_converter = source_converter or self._build_source_converter(
+        source_preparation = await self._run_source_preparation_phase(
+            raw_inputs=raw_inputs,
             tool_context=tool_context,
             expert_agents=expert_agents,
             app_name=app_name,
             artifact_service=artifact_service,
-        )
-        source_materials = await self._prepare_source_materials(
-            source_inputs,
-            fallback_document_type=self._infer_document_type(source_inputs),
-            tool_context=tool_context,
             source_converter=source_converter,
         )
         requirement = requirement.model_copy(
             update={
-                "source_inputs": source_inputs,
-                "source_understanding": source_materials,
+                "source_inputs": source_preparation.source_inputs,
+                "source_understanding": source_preparation.source_materials,
             }
         )
-        tool_context.state["ppt_source_materials"] = source_materials.model_dump(mode="json")
-        tool_context.state["ppt_source_markdown_sources"] = source_materials.markdown_sources
-        tool_context.state["ppt_source_figures"] = source_materials.figures
-        tool_context.state["ppt_source_output_files"] = source_materials.output_files
         tool_context.state[PPT_CONFIRMED_REQUIREMENT_STATE_KEY] = requirement.model_dump(mode="json")
 
-        content_plan = await self.build_deck_content_plan(
+        planning = await self._run_content_planning_phase(
             requirement,
             tool_context=tool_context,
             app_name=app_name,
             artifact_service=artifact_service,
             expert_agents=expert_agents,
             content_plan_builder=content_plan_builder,
-            resolve_assets=False,
         )
+        content_plan = planning.content_plan
         workflow_state.update(
             {
                 "stage": PPT_STAGE_AWAITING_CONTENT_PLAN_CONFIRMATION,
                 "confirmed_requirement": requirement.model_dump(mode="json"),
-                "source_materials": source_materials.model_dump(mode="json"),
+                "source_materials": source_preparation.source_materials.model_dump(mode="json"),
                 "deck_content_plan": content_plan.model_dump(mode="json"),
-                "deck_content_plan_markdown": str(tool_context.state.get("ppt_deck_content_plan_markdown") or ""),
+                "deck_content_plan_markdown": planning.deck_content_plan_markdown,
                 "system_selection": system_selection,
                 "revision": int(workflow_state.get("revision", 1) or 1) + 1,
             }
@@ -1179,7 +1342,7 @@ Return structured status, current phase, selected route, warnings, next actions,
         source_understanding = existing_requirement.source_understanding or SourceUnderstanding(
             document_type=self._infer_document_type(self._normalize_source_inputs(raw_inputs)),
         )
-        requirement = await self.revise_confirmed_requirement_with_agent(
+        revision = await self._revise_requirement_phase(
             existing_requirement=existing_requirement,
             user_response=user_response,
             task=base_task,
@@ -1190,7 +1353,8 @@ Return structured status, current phase, selected route, warnings, next actions,
             app_name=app_name,
             artifact_service=artifact_service,
         )
-        system_selection = await self.select_ppt_system_with_agent(
+        requirement = revision.confirmed_requirement
+        system_selection_phase = await self._select_ppt_system_phase(
             task=f"{base_task}\n{user_response}".strip(),
             output=output,
             requirement=requirement,
@@ -1198,6 +1362,7 @@ Return structured status, current phase, selected route, warnings, next actions,
             app_name=app_name,
             artifact_service=artifact_service,
         )
+        system_selection = system_selection_phase.system_selection.model_dump(mode="json")
         requirement = self._apply_system_selection_to_requirement(requirement, system_selection)
         workflow_state.update(
             {
@@ -1227,7 +1392,7 @@ Return structured status, current phase, selected route, warnings, next actions,
         asset_resolver: Any | None,
     ) -> dict[str, Any]:
         """Handle the second confirmation gate and then resolve assets plus route output."""
-        if self._is_confirmation_text(user_response) and _supports_dynamic_workflow(tool_context):
+        if _supports_dynamic_workflow(tool_context):
             return await _run_ppt_content_plan_confirmation_workflow(
                 manager=self,
                 user_response=user_response,
@@ -1267,30 +1432,23 @@ Return structured status, current phase, selected route, warnings, next actions,
         system_selection = self._get_workflow_system_selection(workflow_state, requirement, tool_context)
         requirement = self._apply_system_selection_to_requirement(requirement, system_selection)
         if not self._is_confirmation_text(user_response):
-            revised_requirement = requirement.model_copy(
-                update={
-                    "request_brief": self._append_user_revision(
-                        requirement.request_brief,
-                        user_response,
-                        label="Content plan revision",
-                    )
-                }
-            )
-            content_plan = await self.build_deck_content_plan(
-                revised_requirement,
+            revision = await self._revise_content_plan_phase(
+                requirement=requirement,
+                user_response=user_response,
                 tool_context=tool_context,
                 app_name=app_name,
                 artifact_service=artifact_service,
                 expert_agents=expert_agents,
                 content_plan_builder=content_plan_builder,
-                resolve_assets=False,
             )
+            revised_requirement = revision.confirmed_requirement
+            content_plan = revision.content_plan
             workflow_state.update(
                 {
                     "stage": PPT_STAGE_AWAITING_CONTENT_PLAN_CONFIRMATION,
                     "confirmed_requirement": revised_requirement.model_dump(mode="json"),
                     "deck_content_plan": content_plan.model_dump(mode="json"),
-                    "deck_content_plan_markdown": str(tool_context.state.get("ppt_deck_content_plan_markdown") or ""),
+                    "deck_content_plan_markdown": revision.deck_content_plan_markdown,
                     "system_selection": system_selection,
                     "revision": int(workflow_state.get("revision", 1) or 1) + 1,
                 }
@@ -1303,7 +1461,7 @@ Return structured status, current phase, selected route, warnings, next actions,
 
         content_plan = DeckContentPlan.model_validate(workflow_state.get("deck_content_plan") or {})
         if self._is_private_skill_selection(system_selection):
-            private_build = await self.execute_private_ppt_skill(
+            private_execution = await self._run_private_skill_execution_phase(
                 requirement=requirement,
                 content_plan=content_plan,
                 system_selection=system_selection,
@@ -1312,6 +1470,7 @@ Return structured status, current phase, selected route, warnings, next actions,
                 app_name=app_name,
                 artifact_service=artifact_service,
             )
+            private_build = private_execution.private_build
             workflow_state.update(
                 {
                     "stage": PPT_STAGE_COMPLETED,
@@ -1321,15 +1480,16 @@ Return structured status, current phase, selected route, warnings, next actions,
                 }
             )
             tool_context.state[PPT_WORKFLOW_STATE_KEY] = workflow_state
-            result = self._build_private_skill_delivery_result(
+            private_delivery = await self._run_private_skill_delivery_phase(
                 requirement=requirement,
                 content_plan=content_plan,
                 system_selection=system_selection,
                 private_build=private_build,
+                tool_context=tool_context,
             )
-            return self._persist_product_result(tool_context, result)
+            return self._persist_product_result(tool_context, private_delivery.product_result)
 
-        resolved_plan = await self.content_planner.resolve_plan_assets(
+        asset_resolution = await self._run_asset_resolution_phase(
             content_plan,
             requirement,
             tool_context=tool_context,
@@ -1338,66 +1498,255 @@ Return structured status, current phase, selected route, warnings, next actions,
             artifact_service=artifact_service,
             asset_resolver=asset_resolver,
         )
-        output_dir = self._build_route_output_dir(tool_context.state, route=requirement.route)
-        route_build = await self._dispatch_ppt_route(
+        resolved_plan = asset_resolution.content_plan
+        route_execution = await self._run_route_execution_phase(
             requirement=requirement,
             content_plan=resolved_plan,
-            output_dir=output_dir,
             tool_context=tool_context,
             app_name=app_name,
             artifact_service=artifact_service,
             expert_agents=expert_agents,
         )
-        route_succeeded = bool(route_build.pptx_path)
-        output_files = self._record_output_files(
-            tool_context.state,
-            self._route_build_output_paths(route_build),
-        )
-        delivery_manifest = DeliveryManifest(
-            final_pptx=route_build.pptx_path,
-            previews=route_build.preview_paths,
-            quality_report=route_build.quality_report_path,
-            build_log=route_build.build_log_path,
-            intermediate_artifacts=self._route_build_intermediate_artifacts(route_build),
-            output_files=output_files,
+        delivery = await self._run_route_final_delivery_phase(
+            requirement=requirement,
+            content_plan=resolved_plan,
+            route_execution=route_execution,
+            tool_context=tool_context,
+            after_confirmation=True,
         )
         workflow_state.update(
             {
                 "stage": PPT_STAGE_COMPLETED,
                 "deck_content_plan": resolved_plan.model_dump(mode="json"),
-                "route_build": route_build.model_dump(mode="json"),
+                "route_build": route_execution.route_build.model_dump(mode="json"),
                 "system_selection": system_selection,
             }
         )
         tool_context.state[PPT_WORKFLOW_STATE_KEY] = workflow_state
-        result = PptProductResult(
-            status="success" if route_succeeded else "generation_failed",
-            phase=f"{requirement.route}_route_delivery",
-            message=self._build_route_delivery_message(requirement.route, route_succeeded, after_confirmation=True),
-            selected_route=requirement.route,
-            confirmed_requirement=requirement,
-            deck_content_plan=resolved_plan,
-            route_build=route_build,
-            quality_review=QualityReviewResult(
-                status="pass" if route_succeeded else "failed",
-                page_count_ok=route_succeeded,
-                file_open_ok=route_succeeded,
-                text_complete_ok=route_succeeded,
-                assets_ok=route_succeeded,
-                placeholder_free_ok=route_succeeded,
-                overflow_ok=None,
-                style_consistency_ok=route_succeeded,
-            ),
-            delivery_manifest=delivery_manifest,
-            output_files=output_files,
-            warnings=[
-                *list(route_build.warnings),
-                *list(requirement.source_understanding.extraction_warnings),
-                *list(tool_context.state.get("ppt_content_planning_warnings") or []),
-            ],
-            next_actions=self._build_route_next_actions(requirement.route, route_succeeded),
+        return self._persist_product_result(tool_context, delivery.product_result)
+
+    async def _continue_from_adk_tool_confirmation(
+        self,
+        *,
+        output: dict[str, Any],
+        tool_context: ToolContext,
+        expert_agents: dict[str, BaseAgent],
+        app_name: str,
+        artifact_service: InMemoryArtifactService | None,
+        source_converter: Any | None,
+        content_plan_builder: Any | None,
+        asset_resolver: Any | None,
+    ) -> dict[str, Any]:
+        """Resume a PPT confirmation gate from ADK's structured tool confirmation payload."""
+        workflow_state = self._get_workflow_state(tool_context.state)
+        if not workflow_state or not self._is_pending_confirmation_stage(workflow_state.get("stage")):
+            result = PptProductResult(
+                status="error",
+                phase="ppt_workflow_resume",
+                message="没有找到等待确认的 PPT 工作流，请重新发起 PPT 任务。",
+                selected_route="html",
+                warnings=["ADK tool confirmation arrived without pending ppt_workflow_state."],
+                next_actions=["重新发起 PPT 任务。"],
+            )
+            return self._persist_product_result(tool_context, result)
+
+        tool_confirmation = getattr(tool_context, "tool_confirmation", None)
+        if not getattr(tool_confirmation, "confirmed", False):
+            current_result = self._build_current_confirmation_result(workflow_state)
+            result = current_result.model_copy(
+                update={
+                    "warnings": [
+                        *current_result.warnings,
+                        "ADK tool confirmation was rejected.",
+                    ],
+                    "next_actions": ["确认当前方案，或用 revise/message 提交修改意见。"],
+                }
+            )
+            persisted = self._persist_product_result(tool_context, result)
+            self._request_adk_tool_confirmation_if_needed(
+                result=persisted,
+                output=output,
+                tool_context=tool_context,
+            )
+            return persisted
+
+        raw_payload = getattr(tool_confirmation, "payload", {}) or {}
+        try:
+            response = PptAdkConfirmationResponse.model_validate(raw_payload)
+            self._validate_adk_confirmation_response(response, tool_context.state)
+            tool_context.state[PPT_ADK_CONFIRMATION_REQUEST_STATE_KEY] = {}
+        except ValidationError as exc:
+            return self._persist_invalid_adk_confirmation_response(
+                tool_context=tool_context,
+                workflow_state=workflow_state,
+                output=output,
+                warning=f"Invalid ADK PPT confirmation response: {exc}",
+            )
+        except ValueError as exc:
+            return self._persist_invalid_adk_confirmation_response(
+                tool_context=tool_context,
+                workflow_state=workflow_state,
+                output=output,
+                warning=str(exc),
+            )
+
+        result = await self.continue_product_request(
+            user_response=response.to_user_response(),
+            tool_context=tool_context,
+            expert_agents=expert_agents,
+            app_name=app_name,
+            artifact_service=artifact_service,
+            source_converter=source_converter,
+            content_plan_builder=content_plan_builder,
+            asset_resolver=asset_resolver,
+            allow_same_turn_confirmation=True,
         )
-        return self._persist_product_result(tool_context, result)
+        self._request_adk_tool_confirmation_if_needed(
+            result=result,
+            output=output,
+            tool_context=tool_context,
+        )
+        return result
+
+    def _persist_invalid_adk_confirmation_response(
+        self,
+        *,
+        tool_context: ToolContext,
+        workflow_state: dict[str, Any],
+        output: dict[str, Any],
+        warning: str,
+    ) -> dict[str, Any]:
+        """Keep the current gate open when an ADK confirmation payload is malformed."""
+        current_result = self._build_current_confirmation_result(workflow_state)
+        result = current_result.model_copy(
+            update={
+                "warnings": [*current_result.warnings, warning],
+                "next_actions": [
+                    "提交 {\"action\":\"confirm\"}，或 {\"action\":\"revise\",\"message\":\"...\"}。"
+                ],
+            }
+        )
+        persisted = self._persist_product_result(tool_context, result)
+        self._request_adk_tool_confirmation_if_needed(
+            result=persisted,
+            output=output,
+            tool_context=tool_context,
+        )
+        return persisted
+
+    @staticmethod
+    def _has_adk_tool_confirmation_response(tool_context: ToolContext) -> bool:
+        """Return whether ADK resumed this product tool from a confirmation response."""
+        return getattr(tool_context, "tool_confirmation", None) is not None
+
+    @staticmethod
+    def _should_use_adk_tool_confirmation(output: dict[str, Any]) -> bool:
+        """Return whether this PPT request opted into ADK-native tool confirmation."""
+        explicit_value = (
+            output.get("adk_hitl")
+            if "adk_hitl" in output
+            else output.get("adk_tool_confirmation")
+        )
+        if isinstance(explicit_value, bool):
+            return explicit_value
+        raw_mode = output.get("confirmation_mode") or output.get("hitl_mode") or explicit_value
+        return str(raw_mode or "").strip().lower() in {
+            "adk_hitl",
+            "adk_tool_confirmation",
+            "tool_confirmation",
+        }
+
+    def _request_adk_tool_confirmation_if_needed(
+        self,
+        *,
+        result: dict[str, Any],
+        output: dict[str, Any],
+        tool_context: ToolContext,
+    ) -> None:
+        """Ask ADK to pause the current product tool at a PPT confirmation gate."""
+        if not self._should_use_adk_tool_confirmation(output):
+            return
+        if self._has_adk_tool_confirmation_response(tool_context):
+            return
+        if not self._is_pending_confirmation_stage(result.get("status")):
+            return
+        request_confirmation = getattr(tool_context, "request_confirmation", None)
+        if not callable(request_confirmation):
+            return
+
+        workflow_state = self._get_workflow_state(tool_context.state)
+        try:
+            payload_model = self._build_adk_confirmation_request(result, workflow_state)
+        except ValidationError as exc:
+            tool_context.state["ppt_adk_confirmation_error"] = f"Invalid confirmation request: {exc}"
+            return
+
+        payload = payload_model.model_dump(mode="json")
+        tool_context.state[PPT_ADK_CONFIRMATION_REQUEST_STATE_KEY] = payload
+        hint = "\n\n".join(
+            part
+            for part in (
+                payload_model.message,
+                payload_model.expected_user_action,
+            )
+            if part
+        )
+        try:
+            request_confirmation(hint=hint, payload=payload)
+        except (AttributeError, RuntimeError, TypeError, ValueError) as exc:
+            tool_context.state["ppt_adk_confirmation_error"] = f"{type(exc).__name__}: {exc}"
+            return
+
+        actions = getattr(tool_context, "actions", None)
+        if actions is not None:
+            actions.skip_summarization = True
+
+    @staticmethod
+    def _build_adk_confirmation_request(
+        result: dict[str, Any],
+        workflow_state: dict[str, Any],
+    ) -> PptAdkConfirmationRequest:
+        """Build the structured payload ADK exposes for a PPT confirmation request."""
+        confirmation_request = result.get("confirmation_request")
+        if not isinstance(confirmation_request, dict):
+            confirmation_request = {}
+        stage = str(workflow_state.get("stage") or result.get("status") or "").strip()
+        confirmation_type = str(confirmation_request.get("type") or "").strip()
+        if not confirmation_type:
+            confirmation_type = (
+                "requirement"
+                if stage == PPT_STAGE_AWAITING_REQUIREMENT_CONFIRMATION
+                else "content_plan"
+            )
+        return PptAdkConfirmationRequest(
+            workflow_id=str(workflow_state.get("workflow_id") or confirmation_request.get("workflow_id") or ""),
+            confirmation_id=str(workflow_state.get("confirmation_id") or ""),
+            stage=stage,
+            confirmation_type=confirmation_type,
+            message=str(result.get("message") or ""),
+            summary_markdown=str(confirmation_request.get("summary_markdown") or ""),
+            expected_user_action=str(confirmation_request.get("expected_user_action") or ""),
+        )
+
+    @staticmethod
+    def _validate_adk_confirmation_response(
+        response: PptAdkConfirmationResponse,
+        state: dict[str, Any],
+    ) -> None:
+        """Validate optional response correlation metadata against the pending request."""
+        pending_request = state.get(PPT_ADK_CONFIRMATION_REQUEST_STATE_KEY)
+        if not isinstance(pending_request, dict):
+            return
+        expected_confirmation_id = str(pending_request.get("confirmation_id") or "").strip()
+        if (
+            response.confirmation_id
+            and expected_confirmation_id
+            and response.confirmation_id != expected_confirmation_id
+        ):
+            raise ValueError("ADK PPT confirmation response does not match the pending confirmation_id.")
+        expected_stage = str(pending_request.get("stage") or "").strip()
+        if response.stage and expected_stage and response.stage != expected_stage:
+            raise ValueError("ADK PPT confirmation response does not match the pending stage.")
 
     @staticmethod
     def _should_auto_confirm(output: dict[str, Any]) -> bool:
@@ -1864,6 +2213,895 @@ Return structured status, current phase, selected route, warnings, next actions,
         """Build a template-independent content plan for the HTML MVP."""
         return self.content_planner.build_plan(requirement)
 
+    async def _prepare_initial_requirement_phase(
+        self,
+        *,
+        task: str,
+        raw_inputs: list[Any],
+        output: dict[str, Any],
+        source_understanding: SourceUnderstanding,
+        source_inputs: list[SourceInput] | None,
+        tool_context: ToolContext,
+        app_name: str,
+        artifact_service: BaseArtifactService | None,
+    ) -> PptRequirementAnalysisResult:
+        """Run initial requirement analysis directly or as an ADK Workflow node."""
+        if _supports_dynamic_workflow(tool_context):
+            return await _run_ppt_requirement_analysis_phase_workflow(
+                manager=self,
+                task=task,
+                raw_inputs=raw_inputs,
+                output=output,
+                source_understanding=source_understanding,
+                source_inputs=source_inputs,
+                tool_context=tool_context,
+                app_name=app_name,
+                artifact_service=artifact_service,
+            )
+        return await self._prepare_initial_requirement_phase_direct(
+            task=task,
+            raw_inputs=raw_inputs,
+            output=output,
+            source_understanding=source_understanding,
+            source_inputs=source_inputs,
+            tool_context=tool_context,
+            app_name=app_name,
+            artifact_service=artifact_service,
+        )
+
+    async def _prepare_initial_requirement_phase_direct(
+        self,
+        *,
+        task: str,
+        raw_inputs: list[Any],
+        output: dict[str, Any],
+        source_understanding: SourceUnderstanding,
+        source_inputs: list[SourceInput] | None,
+        tool_context: ToolContext,
+        app_name: str,
+        artifact_service: BaseArtifactService | None,
+    ) -> PptRequirementAnalysisResult:
+        """Prepare and persist the initial PPT requirement as a typed phase result."""
+        requirement = await self.prepare_confirmed_requirement_with_agent(
+            task=task,
+            inputs=raw_inputs,
+            output=output,
+            source_understanding=source_understanding,
+            tool_context=tool_context,
+            app_name=app_name,
+            artifact_service=artifact_service,
+        )
+        if source_inputs is not None:
+            requirement = requirement.model_copy(update={"source_inputs": source_inputs})
+            tool_context.state[PPT_CONFIRMED_REQUIREMENT_STATE_KEY] = requirement.model_dump(mode="json")
+        result = PptRequirementAnalysisResult(
+            confirmed_requirement=requirement,
+            analysis_output=self._requirement_analysis_output_state(tool_context.state),
+            agent_message=str(tool_context.state.get(PPT_REQUIREMENT_ANALYSIS_AGENT_MESSAGE_KEY) or ""),
+        )
+        self._persist_requirement_analysis_result(tool_context, result)
+        return result
+
+    @staticmethod
+    def _persist_requirement_analysis_result(
+        tool_context: ToolContext,
+        result: PptRequirementAnalysisResult,
+    ) -> None:
+        """Persist the stable initial requirement-analysis phase result."""
+        payload = result.model_dump(mode="json")
+        tool_context.state[PPT_CONFIRMED_REQUIREMENT_STATE_KEY] = payload["confirmed_requirement"]
+        tool_context.state[PPT_REQUIREMENT_ANALYSIS_OUTPUT_STATE_KEY] = payload["analysis_output"]
+        tool_context.state[PPT_REQUIREMENT_ANALYSIS_RESULT_STATE_KEY] = payload
+
+    async def _revise_requirement_phase(
+        self,
+        *,
+        existing_requirement: ConfirmedRequirement,
+        user_response: str,
+        task: str,
+        raw_inputs: list[Any],
+        output: dict[str, Any],
+        source_understanding: SourceUnderstanding,
+        tool_context: ToolContext,
+        app_name: str,
+        artifact_service: BaseArtifactService | None,
+    ) -> PptRequirementRevisionResult:
+        """Run requirement revision directly or as an ADK Workflow node."""
+        if _supports_dynamic_workflow(tool_context):
+            return await _run_ppt_requirement_revision_phase_workflow(
+                manager=self,
+                existing_requirement=existing_requirement,
+                user_response=user_response,
+                task=task,
+                raw_inputs=raw_inputs,
+                output=output,
+                source_understanding=source_understanding,
+                tool_context=tool_context,
+                app_name=app_name,
+                artifact_service=artifact_service,
+            )
+        return await self._revise_requirement_phase_direct(
+            existing_requirement=existing_requirement,
+            user_response=user_response,
+            task=task,
+            raw_inputs=raw_inputs,
+            output=output,
+            source_understanding=source_understanding,
+            tool_context=tool_context,
+            app_name=app_name,
+            artifact_service=artifact_service,
+        )
+
+    async def _revise_requirement_phase_direct(
+        self,
+        *,
+        existing_requirement: ConfirmedRequirement,
+        user_response: str,
+        task: str,
+        raw_inputs: list[Any],
+        output: dict[str, Any],
+        source_understanding: SourceUnderstanding,
+        tool_context: ToolContext,
+        app_name: str,
+        artifact_service: BaseArtifactService | None,
+    ) -> PptRequirementRevisionResult:
+        """Revise the confirmed PPT requirement and persist a typed phase result."""
+        revised_requirement = await self.revise_confirmed_requirement_with_agent(
+            existing_requirement=existing_requirement,
+            user_response=user_response,
+            task=task,
+            raw_inputs=raw_inputs,
+            output=output,
+            source_understanding=source_understanding,
+            tool_context=tool_context,
+            app_name=app_name,
+            artifact_service=artifact_service,
+        )
+        result = PptRequirementRevisionResult(
+            confirmed_requirement=revised_requirement,
+            revision_output=self._requirement_analysis_output_state(tool_context.state),
+            agent_message=str(tool_context.state.get(PPT_REQUIREMENT_ANALYSIS_AGENT_MESSAGE_KEY) or ""),
+            user_revision=user_response,
+        )
+        self._persist_requirement_revision_result(tool_context, result)
+        return result
+
+    @staticmethod
+    def _requirement_analysis_output_state(state: Any) -> dict[str, Any]:
+        """Return the requirement-analysis output currently stored in state."""
+        try:
+            output = state.get(PPT_REQUIREMENT_ANALYSIS_OUTPUT_STATE_KEY)
+        except Exception:
+            output = None
+        return copy.deepcopy(output) if isinstance(output, dict) else {}
+
+    @staticmethod
+    def _persist_requirement_revision_result(
+        tool_context: ToolContext,
+        result: PptRequirementRevisionResult,
+    ) -> None:
+        """Persist the stable requirement-revision phase result."""
+        payload = result.model_dump(mode="json")
+        tool_context.state[PPT_CONFIRMED_REQUIREMENT_STATE_KEY] = payload["confirmed_requirement"]
+        tool_context.state[PPT_REQUIREMENT_REVISION_OUTPUT_STATE_KEY] = payload["revision_output"]
+        tool_context.state[PPT_REQUIREMENT_REVISION_RESULT_STATE_KEY] = payload
+
+    async def _select_ppt_system_phase(
+        self,
+        *,
+        task: str,
+        output: dict[str, Any],
+        requirement: ConfirmedRequirement,
+        tool_context: ToolContext,
+        app_name: str,
+        artifact_service: BaseArtifactService | None,
+        system_selection_builder: Any | None = None,
+    ) -> PptSystemSelectionResult:
+        """Run system selection directly or as an ADK Workflow node."""
+        if _supports_dynamic_workflow(tool_context):
+            return await _run_ppt_system_selection_phase_workflow(
+                manager=self,
+                task=task,
+                output=output,
+                requirement=requirement,
+                tool_context=tool_context,
+                app_name=app_name,
+                artifact_service=artifact_service,
+                system_selection_builder=system_selection_builder,
+            )
+        return await self._select_ppt_system_phase_direct(
+            task=task,
+            output=output,
+            requirement=requirement,
+            tool_context=tool_context,
+            app_name=app_name,
+            artifact_service=artifact_service,
+            system_selection_builder=system_selection_builder,
+        )
+
+    async def _select_ppt_system_phase_direct(
+        self,
+        *,
+        task: str,
+        output: dict[str, Any],
+        requirement: ConfirmedRequirement,
+        tool_context: ToolContext,
+        app_name: str,
+        artifact_service: BaseArtifactService | None,
+        system_selection_builder: Any | None = None,
+    ) -> PptSystemSelectionResult:
+        """Choose the PPT delivery system and persist a typed phase result."""
+        agent_tool_supported = _supports_agent_tool_context(tool_context)
+        selection = await self.select_ppt_system_with_agent(
+            task=task,
+            output=output,
+            requirement=requirement,
+            tool_context=tool_context,
+            app_name=app_name,
+            artifact_service=artifact_service,
+            system_selection_builder=system_selection_builder,
+        )
+        typed_selection = PptSystemSelection.model_validate(selection)
+        result = PptSystemSelectionResult(
+            system_selection=typed_selection,
+            selection_output=self._build_system_selection_phase_output(
+                typed_selection,
+                tool_context=tool_context,
+                agent_tool_supported=agent_tool_supported,
+                injected_builder=system_selection_builder is not None,
+            ),
+            agent_message=str(tool_context.state.get(PPT_SYSTEM_SELECTION_AGENT_MESSAGE_KEY) or ""),
+        )
+        self._persist_system_selection_result(tool_context, result)
+        return result
+
+    def _build_system_selection_phase_output(
+        self,
+        selection: PptSystemSelection,
+        *,
+        tool_context: ToolContext,
+        agent_tool_supported: bool,
+        injected_builder: bool,
+    ) -> dict[str, Any]:
+        """Build compact diagnostics for the system-selection phase."""
+        reason = selection.reason
+        if injected_builder:
+            source = "injected"
+        elif "System selection agent fallback:" in reason:
+            source = "deterministic_fallback"
+        elif agent_tool_supported and tool_context.state.get(PPT_SYSTEM_SELECTION_AGENT_MESSAGE_KEY):
+            source = "llm_agent"
+        elif agent_tool_supported:
+            source = "llm_agent"
+        else:
+            source = "deterministic_fallback"
+        return {
+            "status": "success",
+            "message": "PPT system selection completed.",
+            "source": source,
+            "system_type": selection.system_type,
+            "route": selection.route,
+            "skill_name": selection.skill_name,
+            "output_format": selection.output_format,
+        }
+
+    @staticmethod
+    def _persist_system_selection_result(
+        tool_context: ToolContext,
+        result: PptSystemSelectionResult,
+    ) -> None:
+        """Persist the stable system-selection phase result."""
+        payload = result.model_dump(mode="json")
+        tool_context.state[PPT_SYSTEM_SELECTION_STATE_KEY] = payload["system_selection"]
+        tool_context.state[PPT_SYSTEM_SELECTION_OUTPUT_STATE_KEY] = payload["selection_output"]
+        tool_context.state[PPT_SYSTEM_SELECTION_RESULT_STATE_KEY] = payload
+
+    async def _run_source_preparation_phase(
+        self,
+        *,
+        raw_inputs: list[Any],
+        tool_context: ToolContext,
+        expert_agents: dict[str, BaseAgent],
+        app_name: str,
+        artifact_service: InMemoryArtifactService | None,
+        source_converter: Any | None,
+    ) -> PptSourcePreparationResult:
+        """Run source preparation directly or as an ADK Workflow node."""
+        if _supports_dynamic_workflow(tool_context):
+            return await _run_ppt_source_preparation_phase_workflow(
+                manager=self,
+                raw_inputs=raw_inputs,
+                tool_context=tool_context,
+                expert_agents=expert_agents,
+                app_name=app_name,
+                artifact_service=artifact_service,
+                source_converter=source_converter,
+            )
+        return await self._prepare_source_materials_phase(
+            raw_inputs=raw_inputs,
+            tool_context=tool_context,
+            expert_agents=expert_agents,
+            app_name=app_name,
+            artifact_service=artifact_service,
+            source_converter=source_converter,
+        )
+
+    async def _run_content_planning_phase(
+        self,
+        requirement: ConfirmedRequirement,
+        *,
+        tool_context: ToolContext,
+        app_name: str,
+        artifact_service: InMemoryArtifactService | None,
+        expert_agents: dict[str, BaseAgent] | None = None,
+        content_plan_builder: Any | None = None,
+    ) -> PptContentPlanningResult:
+        """Run content planning directly or as an ADK Workflow node."""
+        if _supports_dynamic_workflow(tool_context):
+            return await _run_ppt_content_planning_phase_workflow(
+                manager=self,
+                requirement=requirement,
+                tool_context=tool_context,
+                expert_agents=expert_agents or {},
+                app_name=app_name,
+                artifact_service=artifact_service,
+                content_plan_builder=content_plan_builder,
+            )
+        return await self._build_deck_content_plan_phase(
+            requirement,
+            tool_context=tool_context,
+            app_name=app_name,
+            artifact_service=artifact_service,
+            expert_agents=expert_agents,
+            content_plan_builder=content_plan_builder,
+        )
+
+    async def _revise_content_plan_phase(
+        self,
+        *,
+        requirement: ConfirmedRequirement,
+        user_response: str,
+        tool_context: ToolContext,
+        app_name: str,
+        artifact_service: InMemoryArtifactService | None,
+        expert_agents: dict[str, BaseAgent] | None = None,
+        content_plan_builder: Any | None = None,
+    ) -> PptContentPlanRevisionResult:
+        """Run content-plan revision directly or as an ADK Workflow node."""
+        if _supports_dynamic_workflow(tool_context):
+            return await _run_ppt_content_plan_revision_phase_workflow(
+                manager=self,
+                requirement=requirement,
+                user_response=user_response,
+                tool_context=tool_context,
+                app_name=app_name,
+                artifact_service=artifact_service,
+                expert_agents=expert_agents or {},
+                content_plan_builder=content_plan_builder,
+            )
+        return await self._revise_content_plan_phase_direct(
+            requirement=requirement,
+            user_response=user_response,
+            tool_context=tool_context,
+            app_name=app_name,
+            artifact_service=artifact_service,
+            expert_agents=expert_agents,
+            content_plan_builder=content_plan_builder,
+        )
+
+    async def _revise_content_plan_phase_direct(
+        self,
+        *,
+        requirement: ConfirmedRequirement,
+        user_response: str,
+        tool_context: ToolContext,
+        app_name: str,
+        artifact_service: InMemoryArtifactService | None,
+        expert_agents: dict[str, BaseAgent] | None = None,
+        content_plan_builder: Any | None = None,
+    ) -> PptContentPlanRevisionResult:
+        """Revise the PPT content plan by regenerating planning from an updated requirement."""
+        revised_requirement = requirement.model_copy(
+            update={
+                "request_brief": self._append_user_revision(
+                    requirement.request_brief,
+                    user_response,
+                    label="Content plan revision",
+                )
+            }
+        )
+        planning = await self._run_content_planning_phase(
+            revised_requirement,
+            tool_context=tool_context,
+            app_name=app_name,
+            artifact_service=artifact_service,
+            expert_agents=expert_agents,
+            content_plan_builder=content_plan_builder,
+        )
+        result = PptContentPlanRevisionResult(
+            confirmed_requirement=revised_requirement,
+            content_plan=planning.content_plan,
+            deck_content_plan_markdown=planning.deck_content_plan_markdown,
+            revision_output=self._build_content_plan_revision_output(planning),
+            user_revision=user_response,
+        )
+        self._persist_content_plan_revision_result(tool_context, result)
+        return result
+
+    @staticmethod
+    def _build_content_plan_revision_output(
+        planning: PptContentPlanningResult,
+    ) -> dict[str, Any]:
+        """Build compact diagnostics for the content-plan revision phase."""
+        output = copy.deepcopy(planning.planning_output)
+        return {
+            "status": str(output.get("status") or "success"),
+            "message": "PPT content-plan revision completed.",
+            "source": str(output.get("source") or ""),
+            "page_count": len(planning.content_plan.pages),
+            "planning_output": output,
+        }
+
+    @staticmethod
+    def _persist_content_plan_revision_result(
+        tool_context: ToolContext,
+        result: PptContentPlanRevisionResult,
+    ) -> None:
+        """Persist the stable content-plan revision phase result."""
+        payload = result.model_dump(mode="json")
+        tool_context.state[PPT_CONFIRMED_REQUIREMENT_STATE_KEY] = payload["confirmed_requirement"]
+        tool_context.state["ppt_deck_content_plan"] = payload["content_plan"]
+        if payload.get("deck_content_plan_markdown") or "ppt_deck_content_plan_markdown" in tool_context.state:
+            tool_context.state["ppt_deck_content_plan_markdown"] = payload["deck_content_plan_markdown"]
+        tool_context.state[PPT_CONTENT_PLAN_REVISION_OUTPUT_STATE_KEY] = payload["revision_output"]
+        tool_context.state[PPT_CONTENT_PLAN_REVISION_RESULT_STATE_KEY] = payload
+
+    async def _run_asset_resolution_phase(
+        self,
+        content_plan: DeckContentPlan,
+        requirement: ConfirmedRequirement,
+        *,
+        tool_context: ToolContext,
+        expert_agents: dict[str, BaseAgent] | None = None,
+        app_name: str,
+        artifact_service: InMemoryArtifactService | None,
+        asset_resolver: Any | None = None,
+    ) -> PptAssetResolutionResult:
+        """Run asset resolution directly or as an ADK Workflow node."""
+        if _supports_dynamic_workflow(tool_context):
+            return await _run_ppt_asset_resolution_phase_workflow(
+                manager=self,
+                content_plan=content_plan,
+                requirement=requirement,
+                tool_context=tool_context,
+                expert_agents=expert_agents or {},
+                app_name=app_name,
+                artifact_service=artifact_service,
+                asset_resolver=asset_resolver,
+            )
+        return await self._resolve_deck_assets_phase(
+            content_plan,
+            requirement,
+            tool_context=tool_context,
+            expert_agents=expert_agents,
+            app_name=app_name,
+            artifact_service=artifact_service,
+            asset_resolver=asset_resolver,
+        )
+
+    async def _run_route_execution_phase(
+        self,
+        *,
+        requirement: ConfirmedRequirement,
+        content_plan: DeckContentPlan,
+        tool_context: ToolContext,
+        app_name: str = "creative_claw",
+        artifact_service: InMemoryArtifactService | None = None,
+        expert_agents: dict[str, BaseAgent] | None = None,
+    ) -> PptRouteExecutionResult:
+        """Run built-in route execution directly or as an ADK Workflow node."""
+        if _supports_dynamic_workflow(tool_context):
+            return await _run_ppt_route_execution_phase_workflow(
+                manager=self,
+                requirement=requirement,
+                content_plan=content_plan,
+                tool_context=tool_context,
+                app_name=app_name,
+                artifact_service=artifact_service,
+                expert_agents=expert_agents or {},
+            )
+        return await self._execute_ppt_route_phase(
+            requirement=requirement,
+            content_plan=content_plan,
+            tool_context=tool_context,
+            app_name=app_name,
+            artifact_service=artifact_service,
+            expert_agents=expert_agents,
+        )
+
+    async def _run_route_final_delivery_phase(
+        self,
+        *,
+        requirement: ConfirmedRequirement,
+        content_plan: DeckContentPlan,
+        route_execution: PptRouteExecutionResult,
+        tool_context: ToolContext,
+        after_confirmation: bool = False,
+    ) -> PptFinalDeliveryResult:
+        """Run route final delivery directly or as an ADK Workflow node."""
+        if _supports_dynamic_workflow(tool_context):
+            return await _run_ppt_final_delivery_phase_workflow(
+                manager=self,
+                requirement=requirement,
+                content_plan=content_plan,
+                route_execution=route_execution,
+                tool_context=tool_context,
+                after_confirmation=after_confirmation,
+            )
+        return self._finalize_route_delivery_phase(
+            requirement=requirement,
+            content_plan=content_plan,
+            route_execution=route_execution,
+            tool_context=tool_context,
+            after_confirmation=after_confirmation,
+        )
+
+    async def _run_private_skill_delivery_phase(
+        self,
+        *,
+        requirement: ConfirmedRequirement,
+        content_plan: DeckContentPlan,
+        system_selection: dict[str, Any],
+        private_build: dict[str, Any],
+        tool_context: ToolContext,
+    ) -> PptPrivateSkillDeliveryResult:
+        """Run private-skill delivery directly or as an ADK Workflow node."""
+        if _supports_dynamic_workflow(tool_context):
+            return await _run_ppt_private_skill_delivery_phase_workflow(
+                manager=self,
+                requirement=requirement,
+                content_plan=content_plan,
+                system_selection=system_selection,
+                private_build=private_build,
+                tool_context=tool_context,
+            )
+        return self._finalize_private_skill_delivery_phase(
+            requirement=requirement,
+            content_plan=content_plan,
+            system_selection=system_selection,
+            private_build=private_build,
+            tool_context=tool_context,
+        )
+
+    async def _run_private_skill_execution_phase(
+        self,
+        *,
+        requirement: ConfirmedRequirement,
+        content_plan: DeckContentPlan,
+        system_selection: dict[str, Any],
+        tool_context: ToolContext,
+        expert_agents: dict[str, BaseAgent],
+        app_name: str,
+        artifact_service: BaseArtifactService | None,
+    ) -> PptPrivateSkillExecutionResult:
+        """Run private-skill execution directly or as an ADK Workflow node."""
+        if _supports_dynamic_workflow(tool_context):
+            return await _run_ppt_private_skill_execution_phase_workflow(
+                manager=self,
+                requirement=requirement,
+                content_plan=content_plan,
+                system_selection=system_selection,
+                tool_context=tool_context,
+                expert_agents=expert_agents,
+                app_name=app_name,
+                artifact_service=artifact_service,
+            )
+        return await self._execute_private_ppt_skill_phase(
+            requirement=requirement,
+            content_plan=content_plan,
+            system_selection=system_selection,
+            tool_context=tool_context,
+            expert_agents=expert_agents,
+            app_name=app_name,
+            artifact_service=artifact_service,
+        )
+
+    async def _execute_private_ppt_skill_phase(
+        self,
+        *,
+        requirement: ConfirmedRequirement,
+        content_plan: DeckContentPlan,
+        system_selection: dict[str, Any],
+        tool_context: ToolContext,
+        expert_agents: dict[str, BaseAgent],
+        app_name: str,
+        artifact_service: BaseArtifactService | None,
+    ) -> PptPrivateSkillExecutionResult:
+        """Execute the selected private PPT skill and persist its typed phase result."""
+        input_signature = self._private_skill_execution_input_signature(
+            requirement=requirement,
+            content_plan=content_plan,
+            system_selection=system_selection,
+        )
+        reusable = self._load_reusable_private_skill_execution_result(
+            tool_context.state,
+            system_selection=system_selection,
+            input_signature=input_signature,
+        )
+        if reusable is not None:
+            self._restore_private_skill_execution_result_state(tool_context, reusable)
+            self._persist_private_skill_execution_result(tool_context, reusable)
+            return reusable
+
+        private_build = await self.execute_private_ppt_skill(
+            requirement=requirement,
+            content_plan=content_plan,
+            system_selection=system_selection,
+            tool_context=tool_context,
+            expert_agents=expert_agents,
+            app_name=app_name,
+            artifact_service=artifact_service,
+        )
+        result = PptPrivateSkillExecutionResult(
+            skill_name=system_selection.get("skill_name"),
+            output_format=system_selection.get("output_format") or requirement.output_format,
+            input_signature=input_signature,
+            private_build=copy.deepcopy(private_build),
+            execution_output=self._private_skill_execution_output_state(tool_context.state),
+            reused_existing_build=False,
+        )
+        self._persist_private_skill_execution_result(tool_context, result)
+        return result
+
+    def _private_skill_execution_input_signature(
+        self,
+        *,
+        requirement: ConfirmedRequirement,
+        content_plan: DeckContentPlan,
+        system_selection: dict[str, Any],
+    ) -> str:
+        """Return a stable signature for private-skill execution inputs."""
+        selection = self._normalize_system_selection(
+            system_selection,
+            fallback_selection=self._build_default_system_selection(requirement),
+            strict=False,
+        )
+        skill_name = str(selection.get("skill_name") or "").strip()
+        try:
+            skill_content = self.skill_registry.read_skill(skill_name)
+        except Exception:
+            skill_content = ""
+        payload = {
+            "requirement": requirement.model_dump(mode="json"),
+            "content_plan": content_plan.model_dump(mode="json"),
+            "system_selection": selection,
+            "skill_content_sha256": hashlib.sha256(skill_content.encode("utf-8")).hexdigest(),
+        }
+        encoded = json.dumps(payload, sort_keys=True, ensure_ascii=False, separators=(",", ":")).encode("utf-8")
+        return hashlib.sha256(encoded).hexdigest()
+
+    def _load_reusable_private_skill_execution_result(
+        self,
+        state: dict[str, Any],
+        *,
+        system_selection: dict[str, Any],
+        input_signature: str,
+    ) -> PptPrivateSkillExecutionResult | None:
+        """Return a reusable same-input private-skill execution result if its artifact still exists."""
+        payload = state.get(PPT_PRIVATE_SKILL_EXECUTION_RESULT_STATE_KEY)
+        if not isinstance(payload, dict):
+            return None
+        try:
+            result = PptPrivateSkillExecutionResult.model_validate(payload)
+        except Exception:
+            return None
+        if not result.input_signature or result.input_signature != input_signature:
+            return None
+        skill_name = str(system_selection.get("skill_name") or "").strip()
+        if result.skill_name != skill_name:
+            return None
+        if not self._private_skill_execution_has_reusable_output(result.private_build):
+            return None
+        execution_output = copy.deepcopy(result.execution_output)
+        execution_output["reused_existing_build"] = True
+        return result.model_copy(
+            update={
+                "execution_output": execution_output,
+                "reused_existing_build": True,
+            }
+        )
+
+    @staticmethod
+    def _private_skill_execution_has_reusable_output(private_build: dict[str, Any]) -> bool:
+        """Return whether a private-skill build still has a reusable output artifact."""
+        output_path = str(private_build.get("output_path") or "").strip()
+        if not output_path:
+            return False
+        try:
+            return resolve_workspace_path(output_path).is_file()
+        except Exception:
+            return False
+
+    @staticmethod
+    def _restore_private_skill_execution_result_state(
+        tool_context: ToolContext,
+        result: PptPrivateSkillExecutionResult,
+    ) -> None:
+        """Restore state needed by private-skill delivery when reusing execution output."""
+        private_build = copy.deepcopy(result.private_build)
+        output_files = list(private_build.get("output_files") or [])
+        output_path = str(private_build.get("output_path") or "").strip()
+        tool_context.state[PPT_PRIVATE_SKILL_BUILD_STATE_KEY] = private_build
+        tool_context.state["ppt_private_skill_execution_output"] = copy.deepcopy(result.execution_output)
+        if output_files:
+            tool_context.state["new_files"] = copy.deepcopy(output_files)
+            if not tool_context.state.get("generated"):
+                tool_context.state["generated"] = copy.deepcopy(output_files)
+            if not tool_context.state.get("files_history"):
+                tool_context.state["files_history"] = [copy.deepcopy(output_files)]
+        if output_path:
+            tool_context.state["final_file_paths"] = [output_path]
+
+    @staticmethod
+    def _private_skill_execution_output_state(state: Any) -> dict[str, Any]:
+        """Return the private-skill execution output currently stored in state."""
+        try:
+            output = state.get("ppt_private_skill_execution_output")
+        except Exception:
+            output = None
+        return copy.deepcopy(output) if isinstance(output, dict) else {}
+
+    @staticmethod
+    def _persist_private_skill_execution_result(
+        tool_context: ToolContext,
+        result: PptPrivateSkillExecutionResult,
+    ) -> None:
+        """Persist the stable private-skill execution phase result."""
+        tool_context.state[PPT_PRIVATE_SKILL_EXECUTION_RESULT_STATE_KEY] = result.model_dump(mode="json")
+
+    async def _build_deck_content_plan_phase(
+        self,
+        requirement: ConfirmedRequirement,
+        *,
+        tool_context: ToolContext,
+        app_name: str,
+        artifact_service: InMemoryArtifactService | None,
+        expert_agents: dict[str, BaseAgent] | None = None,
+        content_plan_builder: Any | None = None,
+    ) -> PptContentPlanningResult:
+        """Build and persist a PPT deck content plan without resolving assets."""
+        content_plan = await self.build_deck_content_plan(
+            requirement,
+            tool_context=tool_context,
+            app_name=app_name,
+            artifact_service=artifact_service,
+            expert_agents=expert_agents,
+            content_plan_builder=content_plan_builder,
+            resolve_assets=False,
+        )
+        planning_output = tool_context.state.get("ppt_content_planning_output")
+        result = PptContentPlanningResult(
+            content_plan=content_plan,
+            deck_content_plan_markdown=str(tool_context.state.get("ppt_deck_content_plan_markdown") or ""),
+            planning_output=dict(planning_output) if isinstance(planning_output, dict) else {},
+        )
+        self._persist_content_planning_result(tool_context, result)
+        return result
+
+    @staticmethod
+    def _persist_content_planning_result(
+        tool_context: ToolContext,
+        result: PptContentPlanningResult,
+    ) -> None:
+        """Persist the stable content-planning state produced by the phase."""
+        tool_context.state["ppt_deck_content_plan"] = result.content_plan.model_dump(mode="json")
+        if result.deck_content_plan_markdown or "ppt_deck_content_plan_markdown" in tool_context.state:
+            tool_context.state["ppt_deck_content_plan_markdown"] = result.deck_content_plan_markdown
+        if result.planning_output or "ppt_content_planning_output" in tool_context.state:
+            tool_context.state["ppt_content_planning_output"] = result.planning_output
+
+    async def _resolve_deck_assets_phase(
+        self,
+        content_plan: DeckContentPlan,
+        requirement: ConfirmedRequirement,
+        *,
+        tool_context: ToolContext,
+        expert_agents: dict[str, BaseAgent] | None = None,
+        app_name: str,
+        artifact_service: InMemoryArtifactService | None,
+        asset_resolver: Any | None = None,
+    ) -> PptAssetResolutionResult:
+        """Resolve planned PPT assets and persist the resulting manifest."""
+        input_signature = self._asset_resolution_input_signature(requirement, content_plan)
+        reusable = self._load_reusable_asset_resolution_result(
+            tool_context.state,
+            input_signature=input_signature,
+        )
+        if reusable is not None:
+            self._persist_asset_resolution_result(tool_context, reusable)
+            return reusable
+
+        resolved_plan = await self.content_planner.resolve_plan_assets(
+            content_plan,
+            requirement,
+            tool_context=tool_context,
+            expert_agents=expert_agents or {},
+            app_name=app_name,
+            artifact_service=artifact_service,
+            asset_resolver=asset_resolver,
+        )
+        manifest = tool_context.state.get("ppt_resolved_asset_manifest")
+        warnings = tool_context.state.get("ppt_content_planning_warnings")
+        result = PptAssetResolutionResult(
+            content_plan=resolved_plan,
+            input_signature=input_signature,
+            resolved_asset_manifest=dict(manifest) if isinstance(manifest, dict) else {},
+            planning_warnings=list(warnings) if isinstance(warnings, list) else [],
+            reused_existing_resolution=False,
+        )
+        self._persist_asset_resolution_result(tool_context, result)
+        return result
+
+    def _load_reusable_asset_resolution_result(
+        self,
+        state: dict[str, Any],
+        *,
+        input_signature: str,
+    ) -> PptAssetResolutionResult | None:
+        """Return a prior asset-resolution result when its ready files still exist."""
+        payload = state.get(PPT_ASSET_RESOLUTION_RESULT_STATE_KEY)
+        if not isinstance(payload, dict):
+            return None
+        try:
+            result = PptAssetResolutionResult.model_validate(payload)
+        except Exception:
+            return None
+        if not result.input_signature or result.input_signature != input_signature:
+            return None
+        if not self._asset_resolution_has_reusable_outputs(result.content_plan):
+            return None
+        return result.model_copy(update={"reused_existing_resolution": True})
+
+    @staticmethod
+    def _asset_resolution_input_signature(
+        requirement: ConfirmedRequirement,
+        content_plan: DeckContentPlan,
+    ) -> str:
+        """Return a stable signature for inputs that affect asset resolution."""
+        payload = {
+            "requirement": requirement.model_dump(mode="json"),
+            "content_plan": content_plan.model_dump(mode="json"),
+        }
+        encoded = json.dumps(payload, sort_keys=True, ensure_ascii=False, separators=(",", ":")).encode("utf-8")
+        return hashlib.sha256(encoded).hexdigest()
+
+    @staticmethod
+    def _asset_resolution_has_reusable_outputs(content_plan: DeckContentPlan) -> bool:
+        """Return whether all ready asset file references in a plan still exist."""
+        for page in content_plan.pages:
+            for asset in page.assets:
+                asset = DeckPageAsset.model_validate(asset)
+                if asset.status != "ready" or not str(asset.path or "").strip():
+                    return False
+                try:
+                    if not resolve_workspace_path(asset.path).is_file():
+                        return False
+                except Exception:
+                    return False
+        return True
+
+    @staticmethod
+    def _persist_asset_resolution_result(
+        tool_context: ToolContext,
+        result: PptAssetResolutionResult,
+    ) -> None:
+        """Persist the stable asset-resolution state produced by the phase."""
+        tool_context.state["ppt_deck_content_plan"] = result.content_plan.model_dump(mode="json")
+        tool_context.state["ppt_resolved_asset_manifest"] = result.resolved_asset_manifest
+        if result.planning_warnings or "ppt_content_planning_warnings" in tool_context.state:
+            tool_context.state["ppt_content_planning_warnings"] = result.planning_warnings
+        tool_context.state[PPT_ASSET_RESOLUTION_RESULT_STATE_KEY] = result.model_dump(mode="json")
+
     async def build_deck_content_plan(
         self,
         requirement: ConfirmedRequirement,
@@ -1899,7 +3137,7 @@ Return structured status, current phase, selected route, warnings, next actions,
         if not resolve_assets:
             return plan
 
-        return await self.content_planner.resolve_plan_assets(
+        asset_resolution = await self._resolve_deck_assets_phase(
             plan,
             requirement,
             tool_context=tool_context,
@@ -1908,6 +3146,182 @@ Return structured status, current phase, selected route, warnings, next actions,
             artifact_service=artifact_service,
             asset_resolver=asset_resolver,
         )
+        return asset_resolution.content_plan
+
+    async def _execute_ppt_route_phase(
+        self,
+        *,
+        requirement: ConfirmedRequirement,
+        content_plan: DeckContentPlan,
+        tool_context: ToolContext,
+        app_name: str = "creative_claw",
+        artifact_service: InMemoryArtifactService | None = None,
+        expert_agents: dict[str, BaseAgent] | None = None,
+    ) -> PptRouteExecutionResult:
+        """Execute one built-in PPT route with conservative existing-build reuse."""
+        output_dir = self._build_route_output_dir(tool_context.state, route=requirement.route)
+        output_dir_ref = self._route_output_dir_reference(output_dir)
+        input_signature = self._route_execution_input_signature(requirement, content_plan)
+        reusable = self._load_reusable_route_execution_result(
+            tool_context.state,
+            route=requirement.route,
+            output_dir_ref=output_dir_ref,
+            input_signature=input_signature,
+        )
+        if reusable is not None:
+            self._persist_route_execution_result(tool_context, reusable)
+            return reusable
+
+        route_build = await self._dispatch_ppt_route(
+            requirement=requirement,
+            content_plan=content_plan,
+            output_dir=output_dir,
+            tool_context=tool_context,
+            app_name=app_name,
+            artifact_service=artifact_service,
+            expert_agents=expert_agents,
+        )
+        result = PptRouteExecutionResult(
+            route=requirement.route,
+            output_dir=output_dir_ref,
+            input_signature=input_signature,
+            route_build=route_build,
+            reused_existing_build=False,
+        )
+        self._persist_route_execution_result(tool_context, result)
+        return result
+
+    def _load_reusable_route_execution_result(
+        self,
+        state: dict[str, Any],
+        *,
+        route: str,
+        output_dir_ref: str,
+        input_signature: str,
+    ) -> PptRouteExecutionResult | None:
+        """Return a same-phase route result only when its final PPTX still exists."""
+        payload = state.get(PPT_ROUTE_EXECUTION_RESULT_STATE_KEY)
+        if not isinstance(payload, dict):
+            return None
+        try:
+            result = PptRouteExecutionResult.model_validate(payload)
+        except Exception:
+            return None
+        if result.route != str(route or "").strip().lower():
+            return None
+        if result.output_dir != output_dir_ref:
+            return None
+        if result.input_signature != input_signature:
+            return None
+        if not self._route_execution_has_reusable_output(result.route_build):
+            return None
+        return result.model_copy(update={"reused_existing_build": True})
+
+    @staticmethod
+    def _route_execution_input_signature(
+        requirement: ConfirmedRequirement,
+        content_plan: DeckContentPlan,
+    ) -> str:
+        """Return a stable signature for route inputs that affect generated files."""
+        payload = {
+            "requirement": requirement.model_dump(mode="json"),
+            "content_plan": content_plan.model_dump(mode="json"),
+        }
+        encoded = json.dumps(payload, sort_keys=True, ensure_ascii=False, separators=(",", ":")).encode("utf-8")
+        return hashlib.sha256(encoded).hexdigest()
+
+    @staticmethod
+    def _route_execution_has_reusable_output(route_build: Any) -> bool:
+        """Return whether a route build has a reusable final PPTX file."""
+        pptx_path = str(getattr(route_build, "pptx_path", "") or "").strip()
+        if not pptx_path:
+            return False
+        try:
+            return resolve_workspace_path(pptx_path).is_file()
+        except Exception:
+            return False
+
+    @staticmethod
+    def _route_output_dir_reference(output_dir: Path) -> str:
+        """Return the stable state reference for a route output directory."""
+        try:
+            return workspace_relative_path(output_dir)
+        except Exception:
+            return str(output_dir)
+
+    @staticmethod
+    def _persist_route_execution_result(
+        tool_context: ToolContext,
+        result: PptRouteExecutionResult,
+    ) -> None:
+        """Persist route execution state without registering final output files."""
+        payload = result.model_dump(mode="json")
+        tool_context.state[PPT_ROUTE_EXECUTION_RESULT_STATE_KEY] = payload
+        tool_context.state[PPT_ROUTE_OUTPUT_DIR_STATE_KEY] = result.output_dir
+        tool_context.state["ppt_route_build"] = payload["route_build"]
+
+    def _finalize_route_delivery_phase(
+        self,
+        *,
+        requirement: ConfirmedRequirement,
+        content_plan: DeckContentPlan,
+        route_execution: PptRouteExecutionResult,
+        tool_context: ToolContext,
+        after_confirmation: bool = False,
+    ) -> PptFinalDeliveryResult:
+        """Register route artifacts and build the final PPT product result."""
+        route_build = route_execution.route_build
+        route_succeeded = bool(route_build.pptx_path)
+        output_files = self._record_output_files(
+            tool_context.state,
+            self._route_build_output_paths(route_build),
+        )
+        delivery_manifest = DeliveryManifest(
+            final_pptx=route_build.pptx_path,
+            previews=route_build.preview_paths,
+            quality_report=route_build.quality_report_path,
+            build_log=route_build.build_log_path,
+            intermediate_artifacts=self._route_build_intermediate_artifacts(route_build),
+            output_files=output_files,
+        )
+        product_result = PptProductResult(
+            status="success" if route_succeeded else "generation_failed",
+            phase=f"{requirement.route}_route_delivery",
+            message=self._build_route_delivery_message(
+                requirement.route,
+                route_succeeded,
+                after_confirmation=after_confirmation,
+            ),
+            selected_route=requirement.route,
+            confirmed_requirement=requirement,
+            deck_content_plan=content_plan,
+            route_build=route_build,
+            quality_review=QualityReviewResult(
+                status="pass" if route_succeeded else "failed",
+                page_count_ok=route_succeeded,
+                file_open_ok=route_succeeded,
+                text_complete_ok=route_succeeded,
+                assets_ok=route_succeeded,
+                placeholder_free_ok=route_succeeded,
+                overflow_ok=None,
+                style_consistency_ok=route_succeeded,
+            ),
+            delivery_manifest=delivery_manifest,
+            output_files=output_files,
+            warnings=[
+                *list(route_build.warnings),
+                *list(requirement.source_understanding.extraction_warnings),
+                *list(tool_context.state.get("ppt_content_planning_warnings") or []),
+            ],
+            next_actions=self._build_route_next_actions(requirement.route, route_succeeded),
+        )
+        result = PptFinalDeliveryResult(
+            product_result=product_result,
+            delivery_manifest=delivery_manifest,
+            output_files=output_files,
+        )
+        tool_context.state[PPT_FINAL_DELIVERY_RESULT_STATE_KEY] = result.model_dump(mode="json")
+        return result
 
     async def execute_private_ppt_skill(
         self,
@@ -2182,6 +3596,31 @@ Return structured status, current phase, selected route, warnings, next actions,
                 else ["Retry with another PPT system or inspect the private skill execution output."]
             ),
         )
+
+    def _finalize_private_skill_delivery_phase(
+        self,
+        *,
+        requirement: ConfirmedRequirement,
+        content_plan: DeckContentPlan,
+        system_selection: dict[str, Any],
+        private_build: dict[str, Any],
+        tool_context: ToolContext,
+    ) -> PptPrivateSkillDeliveryResult:
+        """Build and persist the private-skill delivery phase result."""
+        product_result = self._build_private_skill_delivery_result(
+            requirement=requirement,
+            content_plan=content_plan,
+            system_selection=system_selection,
+            private_build=private_build,
+        )
+        result = PptPrivateSkillDeliveryResult(
+            product_result=product_result,
+            private_build=copy.deepcopy(private_build),
+            delivery_manifest=product_result.delivery_manifest,
+            output_files=list(product_result.output_files),
+        )
+        tool_context.state[PPT_PRIVATE_SKILL_DELIVERY_RESULT_STATE_KEY] = result.model_dump(mode="json")
+        return result
 
     @staticmethod
     def _resolve_private_skill_build_from_state(
@@ -3308,25 +4747,28 @@ Return structured status, current phase, selected route, warnings, next actions,
             return payload
 
         content_plan = DeckContentPlan.model_validate(content_plan_payload)
-        route_build = await self._dispatch_ppt_route(
+        route_execution = await self._run_route_execution_phase(
             requirement=requirement,
             content_plan=content_plan,
-            output_dir=self._build_route_output_dir(tool_context.state, route=requirement.route),
             tool_context=tool_context,
             app_name=invocation_app_name(tool_context),
             artifact_service=None,
             expert_agents=self._resolve_ppt_expert_agents(),
         )
-        route_succeeded = bool(route_build.pptx_path)
-        output_files = self._record_output_files(
-            tool_context.state,
-            self._route_build_output_paths(route_build),
+        delivery = await self._run_route_final_delivery_phase(
+            requirement=requirement,
+            content_plan=content_plan,
+            route_execution=route_execution,
+            tool_context=tool_context,
         )
+        route_build = route_execution.route_build
+        route_succeeded = bool(route_build.pptx_path)
         payload = {
             "status": "success" if route_succeeded else "generation_failed",
             "selected_route": requirement.route,
             "route_build": route_build.model_dump(mode="json"),
-            "output_files": output_files,
+            "route_execution": route_execution.model_dump(mode="json"),
+            "output_files": delivery.output_files,
         }
         tool_context.state["ppt_route_build"] = payload["route_build"]
         return payload
@@ -3561,10 +5003,34 @@ Return structured status, current phase, selected route, warnings, next actions,
             for path in paths
             if str(path or "").strip()
         ]
+
+        def _record_path(record: Any) -> str:
+            if not isinstance(record, dict):
+                return ""
+            raw_path = str(record.get("path") or "").strip()
+            if not raw_path:
+                return ""
+            try:
+                return workspace_relative_path(raw_path)
+            except Exception:
+                return raw_path
+
+        def _batch_paths(batch: Any) -> tuple[str, ...]:
+            if not isinstance(batch, list):
+                return ()
+            return tuple(path for path in (_record_path(record) for record in batch) if path)
+
         generated = list(state.get("generated") or [])
-        generated.extend(records)
+        generated_paths = {_record_path(record) for record in generated}
+        for record in records:
+            path = _record_path(record)
+            if path and path not in generated_paths:
+                generated.append(record)
+                generated_paths.add(path)
         files_history = list(state.get("files_history") or [])
-        files_history.append(records)
+        current_batch_paths = _batch_paths(records)
+        if current_batch_paths and not any(_batch_paths(batch) == current_batch_paths for batch in files_history):
+            files_history.append(records)
         state["generated"] = generated
         state["new_files"] = records
         state["files_history"] = files_history
@@ -3856,6 +5322,191 @@ Return structured status, current phase, selected route, warnings, next actions,
             return int(value)
         except (TypeError, ValueError):
             return None
+
+    async def _prepare_source_materials_phase(
+        self,
+        *,
+        raw_inputs: list[Any],
+        tool_context: ToolContext,
+        expert_agents: dict[str, BaseAgent],
+        app_name: str,
+        artifact_service: InMemoryArtifactService | None,
+        source_converter: Any | None,
+    ) -> PptSourcePreparationResult:
+        """Normalize, stage, convert, and persist source materials for PPT planning."""
+        source_inputs = self._normalize_source_inputs(raw_inputs)
+        resolved_converter = source_converter or self._build_source_converter(
+            tool_context=tool_context,
+            expert_agents=expert_agents,
+            app_name=app_name,
+            artifact_service=artifact_service,
+        )
+        input_signature = self._source_preparation_input_signature(
+            source_inputs,
+            source_converter=resolved_converter,
+        )
+        reusable = self._load_reusable_source_preparation_result(
+            tool_context.state,
+            input_signature=input_signature,
+        )
+        if reusable is not None:
+            self._persist_source_preparation_result(tool_context, reusable)
+            return reusable
+
+        staged_inputs = self._stage_source_inputs_for_workspace(source_inputs, tool_context.state)
+        source_materials = await self._prepare_source_materials(
+            staged_inputs,
+            fallback_document_type=self._infer_document_type(staged_inputs),
+            tool_context=tool_context,
+            source_converter=resolved_converter,
+        )
+        result = PptSourcePreparationResult(
+            source_inputs=staged_inputs,
+            source_materials=source_materials,
+            input_signature=input_signature,
+            reused_existing_preparation=False,
+        )
+        self._persist_source_preparation_result(tool_context, result)
+        return result
+
+    def _load_reusable_source_preparation_result(
+        self,
+        state: dict[str, Any],
+        *,
+        input_signature: str,
+    ) -> PptSourcePreparationResult | None:
+        """Return a prior source-preparation result when all material files still exist."""
+        payload = state.get(PPT_SOURCE_PREPARATION_RESULT_STATE_KEY)
+        if not isinstance(payload, dict):
+            return None
+        try:
+            result = PptSourcePreparationResult.model_validate(payload)
+        except Exception:
+            return None
+        if not result.input_signature or result.input_signature != input_signature:
+            return None
+        if not self._source_preparation_has_reusable_outputs(result):
+            return None
+        return result.model_copy(update={"reused_existing_preparation": True})
+
+    @classmethod
+    def _source_preparation_input_signature(
+        cls,
+        source_inputs: list[SourceInput],
+        *,
+        source_converter: Any | None,
+    ) -> str:
+        """Return a stable signature for inputs that affect source preparation."""
+        payload = {
+            "source_inputs": [
+                {
+                    "source_input": source_input.model_dump(mode="json"),
+                    "file_signature": cls._source_input_file_signature(source_input),
+                }
+                for source_input in source_inputs
+            ],
+            "source_converter": cls._source_converter_signature(source_converter),
+        }
+        encoded = json.dumps(payload, sort_keys=True, ensure_ascii=False, separators=(",", ":")).encode("utf-8")
+        return hashlib.sha256(encoded).hexdigest()
+
+    @classmethod
+    def _source_input_file_signature(cls, source_input: SourceInput) -> dict[str, Any]:
+        """Return a conservative file fingerprint for one source input path."""
+        raw_path = str(source_input.path or "").strip()
+        if not raw_path:
+            return {"kind": "empty"}
+        if cls._looks_like_url(raw_path):
+            return {"kind": "remote_url", "path": raw_path}
+        try:
+            file_path = resolve_workspace_path(raw_path)
+        except ValueError:
+            file_path = Path(raw_path).expanduser()
+        except Exception:
+            return {"kind": "unresolved", "path": raw_path}
+        if not file_path.is_file():
+            return {"kind": "missing", "path": raw_path}
+        try:
+            digest = hashlib.sha256()
+            with file_path.open("rb") as file_obj:
+                for chunk in iter(lambda: file_obj.read(1024 * 1024), b""):
+                    digest.update(chunk)
+            return {
+                "kind": "file",
+                "path": raw_path,
+                "sha256": digest.hexdigest(),
+            }
+        except Exception:
+            try:
+                stat = file_path.stat()
+                return {
+                    "kind": "file_stat",
+                    "path": raw_path,
+                    "size": stat.st_size,
+                    "mtime_ns": stat.st_mtime_ns,
+                }
+            except Exception:
+                return {"kind": "unreadable", "path": raw_path}
+
+    @staticmethod
+    def _source_converter_signature(source_converter: Any | None) -> str:
+        """Return a stable identity string for the active source converter."""
+        if source_converter is None:
+            return "none"
+        module = str(getattr(source_converter, "__module__", "") or type(source_converter).__module__)
+        qualname = str(getattr(source_converter, "__qualname__", "") or type(source_converter).__qualname__)
+        return f"{module}.{qualname}"
+
+    @classmethod
+    def _source_preparation_has_reusable_outputs(cls, result: PptSourcePreparationResult) -> bool:
+        """Return whether a source-preparation result has reusable local files."""
+        if not result.source_inputs:
+            return True
+        for source_input in result.source_inputs:
+            if not cls._source_material_path_exists(str(source_input.path or "").strip()):
+                return False
+
+        material_paths: list[str] = []
+        for markdown_source in result.source_materials.markdown_sources:
+            if isinstance(markdown_source, dict):
+                material_paths.append(str(markdown_source.get("output_path") or "").strip())
+        for figure in result.source_materials.figures:
+            if isinstance(figure, dict):
+                material_paths.append(str(figure.get("path") or "").strip())
+        for output_file in result.source_materials.output_files:
+            if isinstance(output_file, dict):
+                material_paths.append(str(output_file.get("path") or "").strip())
+
+        material_paths = [path for path in material_paths if path]
+        if not material_paths:
+            return False
+        return all(cls._source_material_path_exists(path) for path in material_paths)
+
+    @classmethod
+    def _source_material_path_exists(cls, path: str) -> bool:
+        """Return whether a source-preparation path points to an existing local file."""
+        raw_path = str(path or "").strip()
+        if not raw_path or cls._looks_like_url(raw_path):
+            return False
+        try:
+            return resolve_workspace_path(raw_path).is_file()
+        except ValueError:
+            return Path(raw_path).expanduser().is_file()
+        except Exception:
+            return False
+
+    @staticmethod
+    def _persist_source_preparation_result(
+        tool_context: ToolContext,
+        result: PptSourcePreparationResult,
+    ) -> None:
+        """Persist prepared PPT source references in stable session-state keys."""
+        source_materials = result.source_materials
+        tool_context.state["ppt_source_materials"] = source_materials.model_dump(mode="json")
+        tool_context.state["ppt_source_markdown_sources"] = source_materials.markdown_sources
+        tool_context.state["ppt_source_figures"] = source_materials.figures
+        tool_context.state["ppt_source_output_files"] = source_materials.output_files
+        tool_context.state[PPT_SOURCE_PREPARATION_RESULT_STATE_KEY] = result.model_dump(mode="json")
 
     async def _prepare_source_materials(
         self,
@@ -5350,6 +7001,232 @@ def _supports_dynamic_workflow(tool_context: ToolContext) -> bool:
     return callable(getattr(tool_context, "run_node", None))
 
 
+async def _run_ppt_auto_confirm_workflow(
+    *,
+    manager: PptProductManager,
+    task: str,
+    raw_inputs: list[Any],
+    output: dict[str, Any],
+    tool_context: ToolContext,
+    expert_agents: dict[str, BaseAgent],
+    app_name: str,
+    artifact_service: InMemoryArtifactService | None,
+    source_converter: Any | None,
+    content_plan_builder: Any | None,
+    asset_resolver: Any | None,
+    system_selection_builder: Any | None,
+) -> dict[str, Any]:
+    """Run a one-shot auto-confirm PPT request through ADK Workflow."""
+    workflow = _build_ppt_auto_confirm_workflow(
+        manager=manager,
+        expert_agents=expert_agents,
+        app_name=app_name,
+        artifact_service=artifact_service,
+        source_converter=source_converter,
+        content_plan_builder=content_plan_builder,
+        asset_resolver=asset_resolver,
+        system_selection_builder=system_selection_builder,
+    )
+    result = await tool_context.run_node(
+        workflow,
+        node_input={
+            "task": task,
+            "raw_inputs": copy.deepcopy(raw_inputs),
+            "output": copy.deepcopy(output),
+        },
+        use_sub_branch=True,
+    )
+    return dict(result) if isinstance(result, dict) else {}
+
+
+def _build_ppt_auto_confirm_workflow(
+    *,
+    manager: PptProductManager,
+    expert_agents: dict[str, BaseAgent],
+    app_name: str,
+    artifact_service: InMemoryArtifactService | None,
+    source_converter: Any | None,
+    content_plan_builder: Any | None,
+    asset_resolver: Any | None,
+    system_selection_builder: Any | None,
+) -> Workflow:
+    """Build the ADK 2 dynamic Workflow for one-shot PPT delivery."""
+
+    @node(name="PptAutoConfirmNode", rerun_on_resume=True)
+    async def run_auto_confirm(ctx: Context, node_input: dict[str, Any]) -> dict[str, Any]:
+        """Run auto-confirm PPT delivery by composing explicit phase nodes."""
+        try:
+            product_result = await manager._build_auto_confirm_product_result(
+                task=str(node_input.get("task") or ""),
+                raw_inputs=list(node_input.get("raw_inputs") or []),
+                output=dict(node_input.get("output") or {}),
+                tool_context=ctx,
+                expert_agents=expert_agents,
+                app_name=app_name,
+                artifact_service=artifact_service,
+                source_converter=source_converter,
+                content_plan_builder=content_plan_builder,
+                asset_resolver=asset_resolver,
+                system_selection_builder=system_selection_builder,
+            )
+        except Exception as exc:
+            product_result = manager._build_auto_confirm_error_result(exc)
+
+        result = manager._persist_product_result(ctx, product_result)
+        ctx.state[PPT_AUTO_CONFIRM_WORKFLOW_OUTPUT_KEY] = {
+            "status": product_result.status,
+            "source": "adk_workflow",
+            "phase": product_result.phase,
+            "branch": _ppt_auto_confirm_branch(product_result),
+            "selected_route": product_result.selected_route,
+            "output_file_count": len(product_result.output_files),
+        }
+        return result
+
+    return Workflow(
+        name="PptAutoConfirmWorkflow",
+        description="Runs a one-shot PPT request through explicit ADK Workflow phases.",
+        edges=[("START", run_auto_confirm)],
+    )
+
+
+def _ppt_auto_confirm_branch(product_result: PptProductResult) -> str:
+    """Return the compact auto-confirm Workflow branch label for diagnostics."""
+    if product_result.status == "needs_clarification":
+        return "clarification"
+    if product_result.status == "route_not_implemented":
+        return "route_not_implemented"
+    if product_result.status == "error":
+        return "error"
+    if product_result.phase == "private_skill_delivery":
+        return "private_skill"
+    if product_result.phase.endswith("_route_delivery"):
+        return "built_in_route"
+    return "unknown"
+
+
+async def _run_ppt_initial_request_workflow(
+    *,
+    manager: PptProductManager,
+    task: str,
+    raw_inputs: list[Any],
+    output: dict[str, Any],
+    tool_context: ToolContext,
+    app_name: str,
+    artifact_service: BaseArtifactService | None,
+    system_selection_builder: Any | None,
+) -> dict[str, Any]:
+    """Run the initial interactive PPT request through ADK Workflow."""
+    workflow = _build_ppt_initial_request_workflow(
+        manager=manager,
+        app_name=app_name,
+        artifact_service=artifact_service,
+        system_selection_builder=system_selection_builder,
+    )
+    result = await tool_context.run_node(
+        workflow,
+        node_input={
+            "task": task,
+            "raw_inputs": copy.deepcopy(raw_inputs),
+            "output": copy.deepcopy(output),
+        },
+        use_sub_branch=True,
+    )
+    return dict(result) if isinstance(result, dict) else {}
+
+
+def _build_ppt_initial_request_workflow(
+    *,
+    manager: PptProductManager,
+    app_name: str,
+    artifact_service: BaseArtifactService | None,
+    system_selection_builder: Any | None,
+) -> Workflow:
+    """Build the ADK 2 dynamic Workflow for an initial interactive PPT request."""
+
+    @node(name="PptInitialRequestNode", rerun_on_resume=True)
+    async def run_initial_request(ctx: Context, node_input: dict[str, Any]) -> dict[str, Any]:
+        """Start an interactive PPT workflow through explicit phase nodes."""
+        task = str(node_input.get("task") or "")
+        raw_inputs = list(node_input.get("raw_inputs") or [])
+        output = dict(node_input.get("output") or {})
+        requirement_phase = await manager._prepare_initial_requirement_phase(
+            task=task,
+            raw_inputs=raw_inputs,
+            output=output,
+            source_understanding=SourceUnderstanding(
+                document_type=manager._infer_document_type(manager._normalize_source_inputs(raw_inputs)),
+            ),
+            source_inputs=None,
+            tool_context=ctx,
+            app_name=app_name,
+            artifact_service=artifact_service,
+        )
+        requirement = requirement_phase.confirmed_requirement
+        clarification_questions = manager.validate_confirmed_requirement(requirement)
+        if clarification_questions:
+            product_result = PptProductResult(
+                status="needs_clarification",
+                phase="requirement_confirmation",
+                message="PptProductManager needs a clearer PPT topic or source material before generation.",
+                selected_route=requirement.route,
+                confirmed_requirement=requirement,
+                delivery_manifest=DeliveryManifest(),
+                warnings=[],
+                next_actions=clarification_questions,
+            )
+            result = manager._persist_product_result(ctx, product_result)
+            ctx.state[PPT_INITIAL_REQUEST_WORKFLOW_OUTPUT_KEY] = {
+                "status": str(result.get("status") or ""),
+                "source": "adk_workflow",
+                "branch": "clarification",
+                "analysis_source": requirement_phase.analysis_output.get("source") or "",
+            }
+            return result
+
+        system_selection_phase = await manager._select_ppt_system_phase(
+            task=task,
+            output=output,
+            requirement=requirement,
+            tool_context=ctx,
+            app_name=app_name,
+            artifact_service=artifact_service,
+            system_selection_builder=system_selection_builder,
+        )
+        system_selection = system_selection_phase.system_selection.model_dump(mode="json")
+        requirement = manager._apply_system_selection_to_requirement(requirement, system_selection)
+        ctx.state[PPT_CONFIRMED_REQUIREMENT_STATE_KEY] = requirement.model_dump(mode="json")
+        workflow_state = {
+            "workflow_id": manager._build_workflow_id(ctx.state),
+            "stage": PPT_STAGE_AWAITING_REQUIREMENT_CONFIRMATION,
+            "revision": 1,
+            "task": task,
+            "raw_inputs": raw_inputs,
+            "output": dict(output or {}),
+            "confirmed_requirement": requirement.model_dump(mode="json"),
+            "system_selection": system_selection,
+        }
+        manager._mark_confirmation_waiting(workflow_state, ctx.state)
+        ctx.state[PPT_WORKFLOW_STATE_KEY] = workflow_state
+        product_result = manager._build_requirement_confirmation_result(requirement, workflow_state)
+        result = manager._persist_product_result(ctx, product_result)
+        ctx.state[PPT_INITIAL_REQUEST_WORKFLOW_OUTPUT_KEY] = {
+            "status": str(result.get("status") or ""),
+            "source": "adk_workflow",
+            "branch": "requirement_confirmation",
+            "stage": PPT_STAGE_AWAITING_REQUIREMENT_CONFIRMATION,
+            "analysis_source": requirement_phase.analysis_output.get("source") or "",
+            "selection_source": system_selection_phase.selection_output.get("source") or "",
+        }
+        return result
+
+    return Workflow(
+        name="PptInitialRequestWorkflow",
+        description="Starts an interactive PPT workflow and stops at requirement confirmation.",
+        edges=[("START", run_initial_request)],
+    )
+
+
 async def _run_ppt_requirement_confirmation_workflow(
     *,
     manager: PptProductManager,
@@ -5395,17 +7272,123 @@ def _build_ppt_requirement_confirmation_workflow(
 
     @node(name="PptRequirementConfirmationNode", rerun_on_resume=True)
     async def run_requirement_confirmation(ctx: Context, node_input: dict[str, Any]) -> dict[str, Any]:
-        """Continue after requirement confirmation using the existing phase logic."""
-        result = await manager._continue_after_requirement_confirmation_direct(
-            user_response=str(node_input.get("user_response") or ""),
-            workflow_state=dict(node_input.get("workflow_state") or {}),
+        """Continue after requirement confirmation through explicit phase nodes."""
+        user_response = str(node_input.get("user_response") or "")
+        workflow_state = dict(node_input.get("workflow_state") or {})
+        if not manager._is_confirmation_text(user_response):
+            base_task = str(workflow_state.get("task") or "")
+            raw_inputs = list(workflow_state.get("raw_inputs") or [])
+            output = dict(workflow_state.get("output") or {})
+            existing_requirement = ConfirmedRequirement.model_validate(
+                workflow_state.get("confirmed_requirement") or {}
+            )
+            source_understanding = existing_requirement.source_understanding or SourceUnderstanding(
+                document_type=manager._infer_document_type(manager._normalize_source_inputs(raw_inputs)),
+            )
+            revision = await manager._revise_requirement_phase(
+                existing_requirement=existing_requirement,
+                user_response=user_response,
+                task=base_task,
+                raw_inputs=raw_inputs,
+                output=output,
+                source_understanding=source_understanding,
+                tool_context=ctx,
+                app_name=app_name,
+                artifact_service=artifact_service,
+            )
+            requirement = revision.confirmed_requirement
+            system_selection_phase = await manager._select_ppt_system_phase(
+                task=f"{base_task}\n{user_response}".strip(),
+                output=output,
+                requirement=requirement,
+                tool_context=ctx,
+                app_name=app_name,
+                artifact_service=artifact_service,
+            )
+            system_selection = system_selection_phase.system_selection.model_dump(mode="json")
+            requirement = manager._apply_system_selection_to_requirement(requirement, system_selection)
+            workflow_state.update(
+                {
+                    "task": base_task,
+                    "confirmed_requirement": requirement.model_dump(mode="json"),
+                    "system_selection": system_selection,
+                    "revision": int(workflow_state.get("revision", 1) or 1) + 1,
+                    "stage": PPT_STAGE_AWAITING_REQUIREMENT_CONFIRMATION,
+                }
+            )
+            manager._mark_confirmation_waiting(workflow_state, ctx.state)
+            ctx.state[PPT_CONFIRMED_REQUIREMENT_STATE_KEY] = requirement.model_dump(mode="json")
+            ctx.state[PPT_WORKFLOW_STATE_KEY] = workflow_state
+            product_result = manager._build_requirement_confirmation_result(requirement, workflow_state)
+            result = manager._persist_product_result(ctx, product_result)
+            ctx.state[PPT_REQUIREMENT_CONFIRMATION_WORKFLOW_OUTPUT_KEY] = {
+                "status": str(result.get("status") or ""),
+                "source": "adk_workflow",
+                "stage": PPT_STAGE_AWAITING_REQUIREMENT_CONFIRMATION,
+                "branch": "revision",
+                "revision_source": revision.revision_output.get("source") or "",
+            }
+            return result
+
+        requirement = ConfirmedRequirement.model_validate(workflow_state.get("confirmed_requirement") or {})
+        system_selection = manager._get_workflow_system_selection(workflow_state, requirement, ctx)
+        requirement = manager._apply_system_selection_to_requirement(requirement, system_selection)
+        route_registration = manager._route_registry.get(requirement.route)
+        if (
+            not manager._is_private_skill_selection(system_selection)
+            and (route_registration is None or not route_registration.implemented)
+        ):
+            product_result = manager._build_route_not_implemented_result(requirement, route_registration)
+            workflow_state["stage"] = PPT_STAGE_COMPLETED
+            ctx.state[PPT_WORKFLOW_STATE_KEY] = workflow_state
+            result = manager._persist_product_result(ctx, product_result)
+            ctx.state[PPT_REQUIREMENT_CONFIRMATION_WORKFLOW_OUTPUT_KEY] = {
+                "status": str(result.get("status") or ""),
+                "source": "adk_workflow",
+                "stage": PPT_STAGE_AWAITING_REQUIREMENT_CONFIRMATION,
+            }
+            return result
+
+        source_preparation = await manager._run_source_preparation_phase(
+            raw_inputs=list(workflow_state.get("raw_inputs") or []),
             tool_context=ctx,
             expert_agents=expert_agents,
             app_name=app_name,
             artifact_service=artifact_service,
             source_converter=source_converter,
+        )
+        requirement = requirement.model_copy(
+            update={
+                "source_inputs": source_preparation.source_inputs,
+                "source_understanding": source_preparation.source_materials,
+            }
+        )
+        ctx.state[PPT_CONFIRMED_REQUIREMENT_STATE_KEY] = requirement.model_dump(mode="json")
+
+        planning = await manager._run_content_planning_phase(
+            requirement,
+            tool_context=ctx,
+            app_name=app_name,
+            artifact_service=artifact_service,
+            expert_agents=expert_agents,
             content_plan_builder=content_plan_builder,
         )
+        content_plan = planning.content_plan
+        workflow_state.update(
+            {
+                "stage": PPT_STAGE_AWAITING_CONTENT_PLAN_CONFIRMATION,
+                "confirmed_requirement": requirement.model_dump(mode="json"),
+                "source_materials": source_preparation.source_materials.model_dump(mode="json"),
+                "deck_content_plan": content_plan.model_dump(mode="json"),
+                "deck_content_plan_markdown": planning.deck_content_plan_markdown,
+                "system_selection": system_selection,
+                "revision": int(workflow_state.get("revision", 1) or 1) + 1,
+            }
+        )
+        manager._mark_confirmation_waiting(workflow_state, ctx.state)
+        ctx.state[PPT_WORKFLOW_STATE_KEY] = workflow_state
+        product_result = manager._build_content_plan_confirmation_result(requirement, content_plan, workflow_state)
+        result = manager._persist_product_result(ctx, product_result)
         ctx.state[PPT_REQUIREMENT_CONFIRMATION_WORKFLOW_OUTPUT_KEY] = {
             "status": str(result.get("status") or ""),
             "source": "adk_workflow",
@@ -5465,17 +7448,124 @@ def _build_ppt_content_plan_confirmation_workflow(
 
     @node(name="PptContentPlanConfirmationNode", rerun_on_resume=True)
     async def run_content_plan_confirmation(ctx: Context, node_input: dict[str, Any]) -> dict[str, Any]:
-        """Continue after content-plan confirmation using the existing phase logic."""
-        result = await manager._continue_after_content_plan_confirmation_direct(
-            user_response=str(node_input.get("user_response") or ""),
-            workflow_state=dict(node_input.get("workflow_state") or {}),
+        """Continue after content-plan confirmation through explicit phase nodes."""
+        user_response = str(node_input.get("user_response") or "")
+        workflow_state = dict(node_input.get("workflow_state") or {})
+        requirement = ConfirmedRequirement.model_validate(workflow_state.get("confirmed_requirement") or {})
+        system_selection = manager._get_workflow_system_selection(workflow_state, requirement, ctx)
+        requirement = manager._apply_system_selection_to_requirement(requirement, system_selection)
+        if not manager._is_confirmation_text(user_response):
+            revision = await manager._revise_content_plan_phase(
+                requirement=requirement,
+                user_response=user_response,
+                tool_context=ctx,
+                expert_agents=expert_agents,
+                app_name=app_name,
+                artifact_service=artifact_service,
+                content_plan_builder=content_plan_builder,
+            )
+            revised_requirement = revision.confirmed_requirement
+            content_plan = revision.content_plan
+            workflow_state.update(
+                {
+                    "stage": PPT_STAGE_AWAITING_CONTENT_PLAN_CONFIRMATION,
+                    "confirmed_requirement": revised_requirement.model_dump(mode="json"),
+                    "deck_content_plan": content_plan.model_dump(mode="json"),
+                    "deck_content_plan_markdown": revision.deck_content_plan_markdown,
+                    "system_selection": system_selection,
+                    "revision": int(workflow_state.get("revision", 1) or 1) + 1,
+                }
+            )
+            manager._mark_confirmation_waiting(workflow_state, ctx.state)
+            ctx.state[PPT_CONFIRMED_REQUIREMENT_STATE_KEY] = revised_requirement.model_dump(mode="json")
+            ctx.state[PPT_WORKFLOW_STATE_KEY] = workflow_state
+            product_result = manager._build_content_plan_confirmation_result(
+                revised_requirement,
+                content_plan,
+                workflow_state,
+            )
+            result = manager._persist_product_result(ctx, product_result)
+            ctx.state[PPT_CONTENT_PLAN_CONFIRMATION_WORKFLOW_OUTPUT_KEY] = {
+                "status": str(result.get("status") or ""),
+                "source": "adk_workflow",
+                "stage": PPT_STAGE_AWAITING_CONTENT_PLAN_CONFIRMATION,
+                "branch": "revision",
+                "revision_source": revision.revision_output.get("source") or "",
+            }
+            return result
+
+        content_plan = DeckContentPlan.model_validate(workflow_state.get("deck_content_plan") or {})
+
+        if manager._is_private_skill_selection(system_selection):
+            private_execution = await manager._run_private_skill_execution_phase(
+                requirement=requirement,
+                content_plan=content_plan,
+                system_selection=system_selection,
+                tool_context=ctx,
+                expert_agents=expert_agents,
+                app_name=app_name,
+                artifact_service=artifact_service,
+            )
+            private_build = private_execution.private_build
+            workflow_state.update(
+                {
+                    "stage": PPT_STAGE_COMPLETED,
+                    "deck_content_plan": content_plan.model_dump(mode="json"),
+                    "private_skill_build": private_build,
+                    "system_selection": system_selection,
+                }
+            )
+            ctx.state[PPT_WORKFLOW_STATE_KEY] = workflow_state
+            private_delivery = await manager._run_private_skill_delivery_phase(
+                requirement=requirement,
+                content_plan=content_plan,
+                system_selection=system_selection,
+                private_build=private_build,
+                tool_context=ctx,
+            )
+            result = manager._persist_product_result(ctx, private_delivery.product_result)
+            ctx.state[PPT_CONTENT_PLAN_CONFIRMATION_WORKFLOW_OUTPUT_KEY] = {
+                "status": str(result.get("status") or ""),
+                "source": "adk_workflow",
+                "stage": PPT_STAGE_AWAITING_CONTENT_PLAN_CONFIRMATION,
+            }
+            return result
+
+        asset_resolution = await manager._run_asset_resolution_phase(
+            content_plan,
+            requirement,
             tool_context=ctx,
             expert_agents=expert_agents,
             app_name=app_name,
             artifact_service=artifact_service,
-            content_plan_builder=content_plan_builder,
             asset_resolver=asset_resolver,
         )
+        resolved_plan = asset_resolution.content_plan
+        route_execution = await manager._run_route_execution_phase(
+            requirement=requirement,
+            content_plan=resolved_plan,
+            tool_context=ctx,
+            app_name=app_name,
+            artifact_service=artifact_service,
+            expert_agents=expert_agents,
+        )
+        delivery = await manager._run_route_final_delivery_phase(
+            requirement=requirement,
+            content_plan=resolved_plan,
+            route_execution=route_execution,
+            tool_context=ctx,
+            after_confirmation=True,
+        )
+        workflow_state.update(
+            {
+                "stage": PPT_STAGE_COMPLETED,
+                "deck_content_plan": resolved_plan.model_dump(mode="json"),
+                "route_build": route_execution.route_build.model_dump(mode="json"),
+                "system_selection": system_selection,
+            }
+        )
+        ctx.state[PPT_WORKFLOW_STATE_KEY] = workflow_state
+        result = manager._persist_product_result(ctx, delivery.product_result)
         ctx.state[PPT_CONTENT_PLAN_CONFIRMATION_WORKFLOW_OUTPUT_KEY] = {
             "status": str(result.get("status") or ""),
             "source": "adk_workflow",
@@ -5487,6 +7577,744 @@ def _build_ppt_content_plan_confirmation_workflow(
         name="PptContentPlanConfirmationWorkflow",
         description="Continues a PPT workflow from content-plan confirmation to final delivery.",
         edges=[("START", run_content_plan_confirmation)],
+    )
+
+
+async def _run_ppt_requirement_revision_phase_workflow(
+    *,
+    manager: PptProductManager,
+    existing_requirement: ConfirmedRequirement,
+    user_response: str,
+    task: str,
+    raw_inputs: list[Any],
+    output: dict[str, Any],
+    source_understanding: SourceUnderstanding,
+    tool_context: ToolContext,
+    app_name: str,
+    artifact_service: BaseArtifactService | None,
+) -> PptRequirementRevisionResult:
+    """Run PPT requirement revision as an ADK Workflow node."""
+    workflow = _build_ppt_requirement_revision_phase_workflow(
+        manager=manager,
+        app_name=app_name,
+        artifact_service=artifact_service,
+    )
+    result = await tool_context.run_node(
+        workflow,
+        node_input={
+            "existing_requirement": existing_requirement.model_dump(mode="json"),
+            "user_response": user_response,
+            "task": task,
+            "raw_inputs": copy.deepcopy(raw_inputs),
+            "output": copy.deepcopy(output),
+            "source_understanding": source_understanding.model_dump(mode="json"),
+        },
+        use_sub_branch=True,
+    )
+    return PptRequirementRevisionResult.model_validate(result or {})
+
+
+def _build_ppt_requirement_revision_phase_workflow(
+    *,
+    manager: PptProductManager,
+    app_name: str,
+    artifact_service: BaseArtifactService | None,
+) -> Workflow:
+    """Build the ADK Workflow node for PPT requirement revision."""
+
+    @node(name="PptRequirementRevisionPhaseNode", rerun_on_resume=True)
+    async def run_requirement_revision(ctx: Context, node_input: dict[str, Any]) -> dict[str, Any]:
+        """Revise the confirmed PPT requirement as an explicit workflow phase."""
+        existing_requirement = ConfirmedRequirement.model_validate(
+            node_input.get("existing_requirement") or {}
+        )
+        source_understanding = SourceUnderstanding.model_validate(
+            node_input.get("source_understanding") or {}
+        )
+        result = await manager._revise_requirement_phase_direct(
+            existing_requirement=existing_requirement,
+            user_response=str(node_input.get("user_response") or ""),
+            task=str(node_input.get("task") or ""),
+            raw_inputs=list(node_input.get("raw_inputs") or []),
+            output=dict(node_input.get("output") or {}),
+            source_understanding=source_understanding,
+            tool_context=ctx,
+            app_name=app_name,
+            artifact_service=artifact_service,
+        )
+        ctx.state[PPT_REQUIREMENT_REVISION_WORKFLOW_OUTPUT_KEY] = {
+            "status": result.revision_output.get("status") or "success",
+            "source": "adk_workflow",
+            "revision_source": result.revision_output.get("source") or "",
+            "has_agent_message": bool(result.agent_message),
+            "topic": result.confirmed_requirement.topic,
+            "slide_count_target": result.confirmed_requirement.slide_count_policy.target,
+        }
+        return result.model_dump(mode="json")
+
+    return Workflow(
+        name="PptRequirementRevisionPhaseWorkflow",
+        description="Revises a confirmed PPT requirement as an explicit workflow phase.",
+        edges=[("START", run_requirement_revision)],
+    )
+
+
+async def _run_ppt_requirement_analysis_phase_workflow(
+    *,
+    manager: PptProductManager,
+    task: str,
+    raw_inputs: list[Any],
+    output: dict[str, Any],
+    source_understanding: SourceUnderstanding,
+    source_inputs: list[SourceInput] | None,
+    tool_context: ToolContext,
+    app_name: str,
+    artifact_service: BaseArtifactService | None,
+) -> PptRequirementAnalysisResult:
+    """Run initial PPT requirement analysis as an ADK Workflow node."""
+    workflow = _build_ppt_requirement_analysis_phase_workflow(
+        manager=manager,
+        app_name=app_name,
+        artifact_service=artifact_service,
+    )
+    result = await tool_context.run_node(
+        workflow,
+        node_input={
+            "task": task,
+            "raw_inputs": copy.deepcopy(raw_inputs),
+            "output": copy.deepcopy(output),
+            "source_understanding": source_understanding.model_dump(mode="json"),
+            "source_inputs": (
+                [source_input.model_dump(mode="json") for source_input in source_inputs]
+                if source_inputs is not None
+                else None
+            ),
+        },
+        use_sub_branch=True,
+    )
+    return PptRequirementAnalysisResult.model_validate(result or {})
+
+
+def _build_ppt_requirement_analysis_phase_workflow(
+    *,
+    manager: PptProductManager,
+    app_name: str,
+    artifact_service: BaseArtifactService | None,
+) -> Workflow:
+    """Build the ADK Workflow node for initial PPT requirement analysis."""
+
+    @node(name="PptRequirementAnalysisPhaseNode", rerun_on_resume=True)
+    async def run_requirement_analysis(ctx: Context, node_input: dict[str, Any]) -> dict[str, Any]:
+        """Prepare the initial PPT requirement as an explicit workflow phase."""
+        source_understanding = SourceUnderstanding.model_validate(
+            node_input.get("source_understanding") or {}
+        )
+        source_inputs_payload = node_input.get("source_inputs")
+        source_inputs = (
+            [SourceInput.model_validate(item) for item in source_inputs_payload]
+            if isinstance(source_inputs_payload, list)
+            else None
+        )
+        result = await manager._prepare_initial_requirement_phase_direct(
+            task=str(node_input.get("task") or ""),
+            raw_inputs=list(node_input.get("raw_inputs") or []),
+            output=dict(node_input.get("output") or {}),
+            source_understanding=source_understanding,
+            source_inputs=source_inputs,
+            tool_context=ctx,
+            app_name=app_name,
+            artifact_service=artifact_service,
+        )
+        ctx.state[PPT_REQUIREMENT_ANALYSIS_WORKFLOW_OUTPUT_KEY] = {
+            "status": result.analysis_output.get("status") or "success",
+            "source": "adk_workflow",
+            "analysis_source": result.analysis_output.get("source") or "",
+            "has_agent_message": bool(result.agent_message),
+            "topic": result.confirmed_requirement.topic,
+            "slide_count_target": result.confirmed_requirement.slide_count_policy.target,
+        }
+        return result.model_dump(mode="json")
+
+    return Workflow(
+        name="PptRequirementAnalysisPhaseWorkflow",
+        description="Prepares the initial PPT requirement as an explicit workflow phase.",
+        edges=[("START", run_requirement_analysis)],
+    )
+
+
+async def _run_ppt_content_plan_revision_phase_workflow(
+    *,
+    manager: PptProductManager,
+    requirement: ConfirmedRequirement,
+    user_response: str,
+    tool_context: ToolContext,
+    app_name: str,
+    artifact_service: InMemoryArtifactService | None,
+    expert_agents: dict[str, BaseAgent],
+    content_plan_builder: Any | None,
+) -> PptContentPlanRevisionResult:
+    """Run PPT content-plan revision as an ADK Workflow node."""
+    workflow = _build_ppt_content_plan_revision_phase_workflow(
+        manager=manager,
+        expert_agents=expert_agents,
+        app_name=app_name,
+        artifact_service=artifact_service,
+        content_plan_builder=content_plan_builder,
+    )
+    result = await tool_context.run_node(
+        workflow,
+        node_input={
+            "requirement": requirement.model_dump(mode="json"),
+            "user_response": user_response,
+        },
+        use_sub_branch=True,
+    )
+    return PptContentPlanRevisionResult.model_validate(result or {})
+
+
+def _build_ppt_content_plan_revision_phase_workflow(
+    *,
+    manager: PptProductManager,
+    expert_agents: dict[str, BaseAgent],
+    app_name: str,
+    artifact_service: InMemoryArtifactService | None,
+    content_plan_builder: Any | None,
+) -> Workflow:
+    """Build the ADK Workflow node for PPT content-plan revision."""
+
+    @node(name="PptContentPlanRevisionPhaseNode", rerun_on_resume=True)
+    async def run_content_plan_revision(ctx: Context, node_input: dict[str, Any]) -> dict[str, Any]:
+        """Revise the PPT content plan as an explicit workflow phase."""
+        requirement = ConfirmedRequirement.model_validate(node_input.get("requirement") or {})
+        result = await manager._revise_content_plan_phase_direct(
+            requirement=requirement,
+            user_response=str(node_input.get("user_response") or ""),
+            tool_context=ctx,
+            app_name=app_name,
+            artifact_service=artifact_service,
+            expert_agents=expert_agents,
+            content_plan_builder=content_plan_builder,
+        )
+        ctx.state[PPT_CONTENT_PLAN_REVISION_WORKFLOW_OUTPUT_KEY] = {
+            "status": result.revision_output.get("status") or "success",
+            "source": "adk_workflow",
+            "revision_source": result.revision_output.get("source") or "",
+            "page_count": len(result.content_plan.pages),
+            "has_planning_markdown": bool(result.deck_content_plan_markdown),
+        }
+        return result.model_dump(mode="json")
+
+    return Workflow(
+        name="PptContentPlanRevisionPhaseWorkflow",
+        description="Revises a PPT content plan as an explicit workflow phase.",
+        edges=[("START", run_content_plan_revision)],
+    )
+
+
+async def _run_ppt_system_selection_phase_workflow(
+    *,
+    manager: PptProductManager,
+    task: str,
+    output: dict[str, Any],
+    requirement: ConfirmedRequirement,
+    tool_context: ToolContext,
+    app_name: str,
+    artifact_service: BaseArtifactService | None,
+    system_selection_builder: Any | None,
+) -> PptSystemSelectionResult:
+    """Run PPT system selection as an ADK Workflow node."""
+    workflow = _build_ppt_system_selection_phase_workflow(
+        manager=manager,
+        app_name=app_name,
+        artifact_service=artifact_service,
+        system_selection_builder=system_selection_builder,
+    )
+    result = await tool_context.run_node(
+        workflow,
+        node_input={
+            "task": task,
+            "output": copy.deepcopy(output),
+            "requirement": requirement.model_dump(mode="json"),
+        },
+        use_sub_branch=True,
+    )
+    return PptSystemSelectionResult.model_validate(result or {})
+
+
+def _build_ppt_system_selection_phase_workflow(
+    *,
+    manager: PptProductManager,
+    app_name: str,
+    artifact_service: BaseArtifactService | None,
+    system_selection_builder: Any | None,
+) -> Workflow:
+    """Build the ADK Workflow node for PPT system selection."""
+
+    @node(name="PptSystemSelectionPhaseNode", rerun_on_resume=True)
+    async def run_system_selection(ctx: Context, node_input: dict[str, Any]) -> dict[str, Any]:
+        """Select the PPT delivery system as an explicit workflow phase."""
+        requirement = ConfirmedRequirement.model_validate(node_input.get("requirement") or {})
+        result = await manager._select_ppt_system_phase_direct(
+            task=str(node_input.get("task") or ""),
+            output=dict(node_input.get("output") or {}),
+            requirement=requirement,
+            tool_context=ctx,
+            app_name=app_name,
+            artifact_service=artifact_service,
+            system_selection_builder=system_selection_builder,
+        )
+        ctx.state[PPT_SYSTEM_SELECTION_WORKFLOW_OUTPUT_KEY] = {
+            "status": result.selection_output.get("status") or "success",
+            "source": "adk_workflow",
+            "system_type": result.system_selection.system_type,
+            "route": result.system_selection.route,
+            "skill_name": result.system_selection.skill_name,
+            "selection_source": result.selection_output.get("source") or "",
+        }
+        return result.model_dump(mode="json")
+
+    return Workflow(
+        name="PptSystemSelectionPhaseWorkflow",
+        description="Selects the PPT delivery system as an explicit workflow phase.",
+        edges=[("START", run_system_selection)],
+    )
+
+
+async def _run_ppt_source_preparation_phase_workflow(
+    *,
+    manager: PptProductManager,
+    raw_inputs: list[Any],
+    tool_context: ToolContext,
+    expert_agents: dict[str, BaseAgent],
+    app_name: str,
+    artifact_service: InMemoryArtifactService | None,
+    source_converter: Any | None,
+) -> PptSourcePreparationResult:
+    """Run PPT source preparation as an ADK Workflow node."""
+    workflow = _build_ppt_source_preparation_phase_workflow(
+        manager=manager,
+        expert_agents=expert_agents,
+        app_name=app_name,
+        artifact_service=artifact_service,
+        source_converter=source_converter,
+    )
+    result = await tool_context.run_node(
+        workflow,
+        node_input={"raw_inputs": copy.deepcopy(raw_inputs)},
+        use_sub_branch=True,
+    )
+    return PptSourcePreparationResult.model_validate(result or {})
+
+
+def _build_ppt_source_preparation_phase_workflow(
+    *,
+    manager: PptProductManager,
+    expert_agents: dict[str, BaseAgent],
+    app_name: str,
+    artifact_service: InMemoryArtifactService | None,
+    source_converter: Any | None,
+) -> Workflow:
+    """Build the ADK Workflow node for PPT source preparation."""
+
+    @node(name="PptSourcePreparationPhaseNode", rerun_on_resume=True)
+    async def run_source_preparation(ctx: Context, node_input: dict[str, Any]) -> dict[str, Any]:
+        """Normalize, stage, and convert source materials."""
+        result = await manager._prepare_source_materials_phase(
+            raw_inputs=list(node_input.get("raw_inputs") or []),
+            tool_context=ctx,
+            expert_agents=expert_agents,
+            app_name=app_name,
+            artifact_service=artifact_service,
+            source_converter=source_converter,
+        )
+        ctx.state[PPT_SOURCE_PREPARATION_WORKFLOW_OUTPUT_KEY] = {
+            "status": "success",
+            "source": "adk_workflow",
+            "source_input_count": len(result.source_inputs),
+            "markdown_source_count": len(result.source_materials.markdown_sources),
+            "reused_existing_preparation": result.reused_existing_preparation,
+        }
+        return result.model_dump(mode="json")
+
+    return Workflow(
+        name="PptSourcePreparationPhaseWorkflow",
+        description="Prepares PPT source inputs as an explicit workflow phase.",
+        edges=[("START", run_source_preparation)],
+    )
+
+
+async def _run_ppt_content_planning_phase_workflow(
+    *,
+    manager: PptProductManager,
+    requirement: ConfirmedRequirement,
+    tool_context: ToolContext,
+    expert_agents: dict[str, BaseAgent],
+    app_name: str,
+    artifact_service: InMemoryArtifactService | None,
+    content_plan_builder: Any | None,
+) -> PptContentPlanningResult:
+    """Run PPT content planning as an ADK Workflow node."""
+    workflow = _build_ppt_content_planning_phase_workflow(
+        manager=manager,
+        expert_agents=expert_agents,
+        app_name=app_name,
+        artifact_service=artifact_service,
+        content_plan_builder=content_plan_builder,
+    )
+    result = await tool_context.run_node(
+        workflow,
+        node_input={"requirement": requirement.model_dump(mode="json")},
+        use_sub_branch=True,
+    )
+    return PptContentPlanningResult.model_validate(result or {})
+
+
+def _build_ppt_content_planning_phase_workflow(
+    *,
+    manager: PptProductManager,
+    expert_agents: dict[str, BaseAgent],
+    app_name: str,
+    artifact_service: InMemoryArtifactService | None,
+    content_plan_builder: Any | None,
+) -> Workflow:
+    """Build the ADK Workflow node for PPT content planning."""
+
+    @node(name="PptContentPlanningPhaseNode", rerun_on_resume=True)
+    async def run_content_planning(ctx: Context, node_input: dict[str, Any]) -> dict[str, Any]:
+        """Build the deck content plan without resolving assets."""
+        requirement = ConfirmedRequirement.model_validate(node_input.get("requirement") or {})
+        result = await manager._build_deck_content_plan_phase(
+            requirement,
+            tool_context=ctx,
+            app_name=app_name,
+            artifact_service=artifact_service,
+            expert_agents=expert_agents,
+            content_plan_builder=content_plan_builder,
+        )
+        ctx.state[PPT_CONTENT_PLANNING_WORKFLOW_OUTPUT_KEY] = {
+            "status": "success",
+            "source": "adk_workflow",
+            "page_count": len(result.content_plan.pages),
+        }
+        return result.model_dump(mode="json")
+
+    return Workflow(
+        name="PptContentPlanningPhaseWorkflow",
+        description="Builds a PPT content plan as an explicit workflow phase.",
+        edges=[("START", run_content_planning)],
+    )
+
+
+async def _run_ppt_asset_resolution_phase_workflow(
+    *,
+    manager: PptProductManager,
+    content_plan: DeckContentPlan,
+    requirement: ConfirmedRequirement,
+    tool_context: ToolContext,
+    expert_agents: dict[str, BaseAgent],
+    app_name: str,
+    artifact_service: InMemoryArtifactService | None,
+    asset_resolver: Any | None,
+) -> PptAssetResolutionResult:
+    """Run PPT asset resolution as an ADK Workflow node."""
+    workflow = _build_ppt_asset_resolution_phase_workflow(
+        manager=manager,
+        expert_agents=expert_agents,
+        app_name=app_name,
+        artifact_service=artifact_service,
+        asset_resolver=asset_resolver,
+    )
+    result = await tool_context.run_node(
+        workflow,
+        node_input={
+            "content_plan": content_plan.model_dump(mode="json"),
+            "requirement": requirement.model_dump(mode="json"),
+        },
+        use_sub_branch=True,
+    )
+    return PptAssetResolutionResult.model_validate(result or {})
+
+
+def _build_ppt_asset_resolution_phase_workflow(
+    *,
+    manager: PptProductManager,
+    expert_agents: dict[str, BaseAgent],
+    app_name: str,
+    artifact_service: InMemoryArtifactService | None,
+    asset_resolver: Any | None,
+) -> Workflow:
+    """Build the ADK Workflow node for PPT asset resolution."""
+
+    @node(name="PptAssetResolutionPhaseNode", rerun_on_resume=True)
+    async def run_asset_resolution(ctx: Context, node_input: dict[str, Any]) -> dict[str, Any]:
+        """Resolve generated and source-matched deck assets."""
+        content_plan = DeckContentPlan.model_validate(node_input.get("content_plan") or {})
+        requirement = ConfirmedRequirement.model_validate(node_input.get("requirement") or {})
+        result = await manager._resolve_deck_assets_phase(
+            content_plan,
+            requirement,
+            tool_context=ctx,
+            expert_agents=expert_agents,
+            app_name=app_name,
+            artifact_service=artifact_service,
+            asset_resolver=asset_resolver,
+        )
+        ctx.state[PPT_ASSET_RESOLUTION_WORKFLOW_OUTPUT_KEY] = {
+            "status": "success",
+            "source": "adk_workflow",
+            "ready_asset_count": int(result.resolved_asset_manifest.get("ready_asset_count") or 0),
+            "reused_existing_resolution": result.reused_existing_resolution,
+        }
+        return result.model_dump(mode="json")
+
+    return Workflow(
+        name="PptAssetResolutionPhaseWorkflow",
+        description="Resolves PPT deck assets as an explicit workflow phase.",
+        edges=[("START", run_asset_resolution)],
+    )
+
+
+async def _run_ppt_route_execution_phase_workflow(
+    *,
+    manager: PptProductManager,
+    requirement: ConfirmedRequirement,
+    content_plan: DeckContentPlan,
+    tool_context: ToolContext,
+    app_name: str,
+    artifact_service: InMemoryArtifactService | None,
+    expert_agents: dict[str, BaseAgent],
+) -> PptRouteExecutionResult:
+    """Run PPT route execution as an ADK Workflow node."""
+    workflow = _build_ppt_route_execution_phase_workflow(
+        manager=manager,
+        app_name=app_name,
+        artifact_service=artifact_service,
+        expert_agents=expert_agents,
+    )
+    result = await tool_context.run_node(
+        workflow,
+        node_input={
+            "requirement": requirement.model_dump(mode="json"),
+            "content_plan": content_plan.model_dump(mode="json"),
+        },
+        use_sub_branch=True,
+    )
+    return PptRouteExecutionResult.model_validate(result or {})
+
+
+def _build_ppt_route_execution_phase_workflow(
+    *,
+    manager: PptProductManager,
+    app_name: str,
+    artifact_service: InMemoryArtifactService | None,
+    expert_agents: dict[str, BaseAgent],
+) -> Workflow:
+    """Build the ADK Workflow node for PPT route execution."""
+
+    @node(name="PptRouteExecutionPhaseNode", rerun_on_resume=True)
+    async def run_route_execution(ctx: Context, node_input: dict[str, Any]) -> dict[str, Any]:
+        """Render the selected built-in route."""
+        requirement = ConfirmedRequirement.model_validate(node_input.get("requirement") or {})
+        content_plan = DeckContentPlan.model_validate(node_input.get("content_plan") or {})
+        result = await manager._execute_ppt_route_phase(
+            requirement=requirement,
+            content_plan=content_plan,
+            tool_context=ctx,
+            app_name=app_name,
+            artifact_service=artifact_service,
+            expert_agents=expert_agents,
+        )
+        ctx.state[PPT_ROUTE_EXECUTION_WORKFLOW_OUTPUT_KEY] = {
+            "status": "success" if result.route_build.pptx_path else "generation_failed",
+            "source": "adk_workflow",
+            "route": result.route,
+            "reused_existing_build": result.reused_existing_build,
+        }
+        return result.model_dump(mode="json")
+
+    return Workflow(
+        name="PptRouteExecutionPhaseWorkflow",
+        description="Executes a PPT built-in route as an explicit workflow phase.",
+        edges=[("START", run_route_execution)],
+    )
+
+
+async def _run_ppt_final_delivery_phase_workflow(
+    *,
+    manager: PptProductManager,
+    requirement: ConfirmedRequirement,
+    content_plan: DeckContentPlan,
+    route_execution: PptRouteExecutionResult,
+    tool_context: ToolContext,
+    after_confirmation: bool,
+) -> PptFinalDeliveryResult:
+    """Run PPT route final delivery as an ADK Workflow node."""
+    workflow = _build_ppt_final_delivery_phase_workflow(manager=manager)
+    result = await tool_context.run_node(
+        workflow,
+        node_input={
+            "requirement": requirement.model_dump(mode="json"),
+            "content_plan": content_plan.model_dump(mode="json"),
+            "route_execution": route_execution.model_dump(mode="json"),
+            "after_confirmation": after_confirmation,
+        },
+        use_sub_branch=True,
+    )
+    return PptFinalDeliveryResult.model_validate(result or {})
+
+
+def _build_ppt_final_delivery_phase_workflow(*, manager: PptProductManager) -> Workflow:
+    """Build the ADK Workflow node for PPT route final delivery."""
+
+    @node(name="PptFinalDeliveryPhaseNode", rerun_on_resume=True)
+    async def run_final_delivery(ctx: Context, node_input: dict[str, Any]) -> dict[str, Any]:
+        """Register route artifacts and assemble the final product result."""
+        requirement = ConfirmedRequirement.model_validate(node_input.get("requirement") or {})
+        content_plan = DeckContentPlan.model_validate(node_input.get("content_plan") or {})
+        route_execution = PptRouteExecutionResult.model_validate(node_input.get("route_execution") or {})
+        result = manager._finalize_route_delivery_phase(
+            requirement=requirement,
+            content_plan=content_plan,
+            route_execution=route_execution,
+            tool_context=ctx,
+            after_confirmation=bool(node_input.get("after_confirmation")),
+        )
+        ctx.state[PPT_FINAL_DELIVERY_WORKFLOW_OUTPUT_KEY] = {
+            "status": result.product_result.status,
+            "source": "adk_workflow",
+            "final_pptx": result.delivery_manifest.final_pptx,
+        }
+        return result.model_dump(mode="json")
+
+    return Workflow(
+        name="PptFinalDeliveryPhaseWorkflow",
+        description="Packages PPT route delivery as an explicit workflow phase.",
+        edges=[("START", run_final_delivery)],
+    )
+
+
+async def _run_ppt_private_skill_execution_phase_workflow(
+    *,
+    manager: PptProductManager,
+    requirement: ConfirmedRequirement,
+    content_plan: DeckContentPlan,
+    system_selection: dict[str, Any],
+    tool_context: ToolContext,
+    expert_agents: dict[str, BaseAgent],
+    app_name: str,
+    artifact_service: BaseArtifactService | None,
+) -> PptPrivateSkillExecutionResult:
+    """Run PPT private-skill execution as an ADK Workflow node."""
+    workflow = _build_ppt_private_skill_execution_phase_workflow(
+        manager=manager,
+        expert_agents=expert_agents,
+        app_name=app_name,
+        artifact_service=artifact_service,
+    )
+    result = await tool_context.run_node(
+        workflow,
+        node_input={
+            "requirement": requirement.model_dump(mode="json"),
+            "content_plan": content_plan.model_dump(mode="json"),
+            "system_selection": copy.deepcopy(system_selection),
+        },
+        use_sub_branch=True,
+    )
+    return PptPrivateSkillExecutionResult.model_validate(result or {})
+
+
+def _build_ppt_private_skill_execution_phase_workflow(
+    *,
+    manager: PptProductManager,
+    expert_agents: dict[str, BaseAgent],
+    app_name: str,
+    artifact_service: BaseArtifactService | None,
+) -> Workflow:
+    """Build the ADK Workflow node for PPT private-skill execution."""
+
+    @node(name="PptPrivateSkillExecutionPhaseNode", rerun_on_resume=True)
+    async def run_private_skill_execution(ctx: Context, node_input: dict[str, Any]) -> dict[str, Any]:
+        """Execute the selected private PPT skill as an explicit workflow phase."""
+        requirement = ConfirmedRequirement.model_validate(node_input.get("requirement") or {})
+        content_plan = DeckContentPlan.model_validate(node_input.get("content_plan") or {})
+        system_selection = dict(node_input.get("system_selection") or {})
+        result = await manager._execute_private_ppt_skill_phase(
+            requirement=requirement,
+            content_plan=content_plan,
+            system_selection=system_selection,
+            tool_context=ctx,
+            expert_agents=expert_agents,
+            app_name=app_name,
+            artifact_service=artifact_service,
+        )
+        ctx.state[PPT_PRIVATE_SKILL_EXECUTION_WORKFLOW_OUTPUT_KEY] = {
+            "status": str(result.execution_output.get("status") or result.private_build.get("status") or ""),
+            "source": "adk_workflow",
+            "skill_name": result.skill_name,
+            "output_format": result.output_format,
+        }
+        return result.model_dump(mode="json")
+
+    return Workflow(
+        name="PptPrivateSkillExecutionPhaseWorkflow",
+        description="Executes a PPT private skill as an explicit workflow phase.",
+        edges=[("START", run_private_skill_execution)],
+    )
+
+
+async def _run_ppt_private_skill_delivery_phase_workflow(
+    *,
+    manager: PptProductManager,
+    requirement: ConfirmedRequirement,
+    content_plan: DeckContentPlan,
+    system_selection: dict[str, Any],
+    private_build: dict[str, Any],
+    tool_context: ToolContext,
+) -> PptPrivateSkillDeliveryResult:
+    """Run PPT private-skill final delivery as an ADK Workflow node."""
+    workflow = _build_ppt_private_skill_delivery_phase_workflow(manager=manager)
+    result = await tool_context.run_node(
+        workflow,
+        node_input={
+            "requirement": requirement.model_dump(mode="json"),
+            "content_plan": content_plan.model_dump(mode="json"),
+            "system_selection": copy.deepcopy(system_selection),
+            "private_build": copy.deepcopy(private_build),
+        },
+        use_sub_branch=True,
+    )
+    return PptPrivateSkillDeliveryResult.model_validate(result or {})
+
+
+def _build_ppt_private_skill_delivery_phase_workflow(*, manager: PptProductManager) -> Workflow:
+    """Build the ADK Workflow node for PPT private-skill final delivery."""
+
+    @node(name="PptPrivateSkillDeliveryPhaseNode", rerun_on_resume=True)
+    async def run_private_skill_delivery(ctx: Context, node_input: dict[str, Any]) -> dict[str, Any]:
+        """Assemble the final product result for a private-skill artifact."""
+        requirement = ConfirmedRequirement.model_validate(node_input.get("requirement") or {})
+        content_plan = DeckContentPlan.model_validate(node_input.get("content_plan") or {})
+        system_selection = dict(node_input.get("system_selection") or {})
+        private_build = dict(node_input.get("private_build") or {})
+        result = manager._finalize_private_skill_delivery_phase(
+            requirement=requirement,
+            content_plan=content_plan,
+            system_selection=system_selection,
+            private_build=private_build,
+            tool_context=ctx,
+        )
+        ctx.state[PPT_PRIVATE_SKILL_DELIVERY_WORKFLOW_OUTPUT_KEY] = {
+            "status": result.product_result.status,
+            "source": "adk_workflow",
+            "artifact_type": str(private_build.get("artifact_type") or ""),
+            "output_path": str(private_build.get("output_path") or ""),
+        }
+        return result.model_dump(mode="json")
+
+    return Workflow(
+        name="PptPrivateSkillDeliveryPhaseWorkflow",
+        description="Packages PPT private-skill delivery as an explicit workflow phase.",
+        edges=[("START", run_private_skill_delivery)],
     )
 
 

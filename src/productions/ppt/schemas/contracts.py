@@ -16,6 +16,8 @@ from src.productions.schema_utils import (
 )
 
 PPT_PRODUCT_RESULT_SCHEMA_VERSION = "ppt-product-result-v1"
+PPT_ADK_CONFIRMATION_REQUEST_SCHEMA_VERSION = "ppt-adk-confirmation-request-v1"
+PPT_ADK_CONFIRMATION_RESPONSE_SCHEMA_VERSION = "ppt-adk-confirmation-response-v1"
 # Standard page types are template-level requirements, not a global deck-plan
 # requirement. A template package may opt into these page types later.
 REQUIRED_DECK_PAGE_TYPES = (
@@ -56,6 +58,11 @@ DeckPageAssetSourceKind = Literal[
     "placeholder",
 ]
 DeckPageAssetStatus = Literal["pending", "ready", "failed"]
+PptAdkConfirmationAction = Literal["confirm", "revise"]
+PptAdkConfirmationStage = Literal[
+    "awaiting_requirement_confirmation",
+    "awaiting_content_plan_confirmation",
+]
 
 
 class PptProductRequest(BaseModel):
@@ -96,6 +103,174 @@ class PptProductRequest(BaseModel):
         return model_dump_dict(self)
 
 
+class PptAdkConfirmationRequest(BaseModel):
+    """Structured ADK tool-confirmation payload for a paused PPT workflow gate."""
+
+    model_config = {"extra": "ignore"}
+
+    schema_version: str = PPT_ADK_CONFIRMATION_REQUEST_SCHEMA_VERSION
+    product_line: Literal["ppt"] = "ppt"
+    workflow_id: str = ""
+    confirmation_id: str = ""
+    stage: PptAdkConfirmationStage
+    confirmation_type: Literal["requirement", "content_plan"]
+    message: str = ""
+    summary_markdown: str = ""
+    expected_user_action: str = ""
+    allowed_actions: list[PptAdkConfirmationAction] = Field(
+        default_factory=lambda: ["confirm", "revise"]
+    )
+    response_schema_version: str = PPT_ADK_CONFIRMATION_RESPONSE_SCHEMA_VERSION
+
+    @field_validator(
+        "schema_version",
+        "workflow_id",
+        "confirmation_id",
+        "stage",
+        "confirmation_type",
+        "message",
+        "summary_markdown",
+        "expected_user_action",
+        "response_schema_version",
+        mode="before",
+    )
+    @classmethod
+    def _strip_text(cls, value: Any) -> str:
+        """Strip text-like confirmation payload fields."""
+        return _clean_string(value)
+
+    @field_validator("schema_version")
+    @classmethod
+    def _default_schema_version(cls, value: str) -> str:
+        """Default malformed request schema versions to the current contract."""
+        return value or PPT_ADK_CONFIRMATION_REQUEST_SCHEMA_VERSION
+
+    @field_validator("response_schema_version")
+    @classmethod
+    def _default_response_schema_version(cls, value: str) -> str:
+        """Default malformed response schema versions to the current contract."""
+        return value or PPT_ADK_CONFIRMATION_RESPONSE_SCHEMA_VERSION
+
+    @field_validator("allowed_actions", mode="before")
+    @classmethod
+    def _normalize_allowed_actions(cls, value: Any) -> list[str]:
+        """Normalize allowed confirmation actions while preserving order."""
+        if value is None:
+            return ["confirm", "revise"]
+        raw_values = value if isinstance(value, list) else [value]
+        normalized: list[str] = []
+        for item in raw_values:
+            clean_item = _clean_string(item).lower()
+            if clean_item in {"confirm", "revise"} and clean_item not in normalized:
+                normalized.append(clean_item)
+        return normalized or ["confirm", "revise"]
+
+
+class PptAdkConfirmationResponse(BaseModel):
+    """Structured response returned when ADK resumes a PPT confirmation tool call."""
+
+    model_config = {"extra": "ignore"}
+
+    schema_version: str = PPT_ADK_CONFIRMATION_RESPONSE_SCHEMA_VERSION
+    action: PptAdkConfirmationAction = "confirm"
+    message: str = ""
+    confirmation_id: str = ""
+    stage: str = ""
+
+    @model_validator(mode="before")
+    @classmethod
+    def _normalize_response_shape(cls, value: Any) -> dict[str, Any]:
+        """Allow minimal string responses while keeping a structured boundary."""
+        if isinstance(value, dict):
+            return value
+        clean_value = _clean_string(value)
+        if not clean_value:
+            return {}
+        return {
+            "action": "confirm" if cls._looks_like_confirmation(clean_value) else "revise",
+            "message": "" if cls._looks_like_confirmation(clean_value) else clean_value,
+        }
+
+    @field_validator("schema_version", "action", "message", "confirmation_id", "stage", mode="before")
+    @classmethod
+    def _strip_text(cls, value: Any) -> str:
+        """Strip text-like confirmation response fields."""
+        return _clean_string(value)
+
+    @field_validator("schema_version")
+    @classmethod
+    def _default_schema_version(cls, value: str) -> str:
+        """Default missing schema versions to the current response contract."""
+        return value or PPT_ADK_CONFIRMATION_RESPONSE_SCHEMA_VERSION
+
+    @field_validator("action", mode="before")
+    @classmethod
+    def _normalize_action(cls, value: Any) -> str:
+        """Normalize common action aliases into the two PPT confirmation actions."""
+        clean_value = _clean_string(value).lower()
+        if not clean_value:
+            return "confirm"
+        if clean_value in {
+            "confirm",
+            "approve",
+            "approved",
+            "continue",
+            "ok",
+            "okay",
+            "yes",
+            "y",
+            "确认",
+            "确认无误",
+            "可以",
+            "继续",
+            "通过",
+        }:
+            return "confirm"
+        if clean_value in {
+            "revise",
+            "revision",
+            "edit",
+            "change",
+            "modify",
+            "修改",
+            "修订",
+            "调整",
+        }:
+            return "revise"
+        return clean_value
+
+    @model_validator(mode="after")
+    def _require_revision_message(self) -> "PptAdkConfirmationResponse":
+        """Require edit details when the user chooses the revision action."""
+        if self.action == "revise" and not self.message:
+            raise ValueError("message is required when action is revise")
+        return self
+
+    def to_user_response(self) -> str:
+        """Return the existing PPT text-confirmation response represented by this payload."""
+        if self.action == "confirm":
+            return "确认"
+        return self.message
+
+    @staticmethod
+    def _looks_like_confirmation(text: str) -> bool:
+        """Return whether one raw response string is a confirmation command."""
+        normalized = re.sub(r"[\s，。,.！!？?：:；;、]+", "", str(text or "").lower())
+        return normalized in {
+            "确认",
+            "确认无误",
+            "可以",
+            "继续",
+            "ok",
+            "okay",
+            "yes",
+            "y",
+            "confirm",
+            "approve",
+            "approved",
+        }
+
+
 class SourceInput(BaseModel):
     """One source file or URL attached to a PPT request."""
 
@@ -126,6 +301,21 @@ class SourceUnderstanding(BaseModel):
     def _strip_document_type(cls, value: Any) -> str:
         """Strip the normalized document type."""
         return _clean_string(value) or "brief"
+
+
+class PptSourcePreparationResult(BaseModel):
+    """Prepared source inputs and material references for one PPT workflow phase."""
+
+    source_inputs: list[SourceInput] = Field(default_factory=list)
+    source_materials: SourceUnderstanding = Field(default_factory=SourceUnderstanding)
+    input_signature: str = ""
+    reused_existing_preparation: bool = False
+
+    @field_validator("input_signature", mode="before")
+    @classmethod
+    def _strip_input_signature(cls, value: Any) -> str:
+        """Strip the source-preparation input signature reference."""
+        return _clean_string(value)
 
 
 class ReferenceAsset(BaseModel):
@@ -236,6 +426,65 @@ class ConfirmedRequirement(BaseModel):
         return value
 
 
+class PptRequirementRevisionResult(BaseModel):
+    """Requirement revision phase result for one PPT confirmation turn."""
+
+    confirmed_requirement: ConfirmedRequirement
+    revision_output: dict[str, Any] = Field(default_factory=dict)
+    agent_message: str = ""
+    user_revision: str = ""
+
+    @field_validator("agent_message", "user_revision", mode="before")
+    @classmethod
+    def _normalize_text(cls, value: Any) -> str:
+        """Normalize optional revision metadata text."""
+        return _clean_string(value)
+
+
+class PptRequirementAnalysisResult(BaseModel):
+    """Initial requirement-analysis phase result for one PPT request."""
+
+    confirmed_requirement: ConfirmedRequirement
+    analysis_output: dict[str, Any] = Field(default_factory=dict)
+    agent_message: str = ""
+
+    @field_validator("agent_message", mode="before")
+    @classmethod
+    def _normalize_agent_message(cls, value: Any) -> str:
+        """Normalize optional requirement-analysis metadata text."""
+        return _clean_string(value)
+
+
+class PptSystemSelection(BaseModel):
+    """Selected PPT delivery system for one confirmed requirement."""
+
+    system_type: Literal["built_in_route", "private_skill"] = "built_in_route"
+    route: PptRoute = "html"
+    skill_name: str = ""
+    output_format: str = "pptx"
+    reason: str = ""
+
+    @field_validator("system_type", "route", "skill_name", "output_format", "reason", mode="before")
+    @classmethod
+    def _strip_text(cls, value: Any) -> str:
+        """Strip text-like system-selection fields."""
+        return _clean_string(value)
+
+
+class PptSystemSelectionResult(BaseModel):
+    """System-selection phase result for a PPT product run."""
+
+    system_selection: PptSystemSelection = Field(default_factory=PptSystemSelection)
+    selection_output: dict[str, Any] = Field(default_factory=dict)
+    agent_message: str = ""
+
+    @field_validator("agent_message", mode="before")
+    @classmethod
+    def _normalize_agent_message(cls, value: Any) -> str:
+        """Normalize the optional system-selection agent message."""
+        return _clean_string(value)
+
+
 class DeckChapter(BaseModel):
     """One narrative chapter in a deck content plan."""
 
@@ -343,6 +592,58 @@ class DeckContentPlan(BaseModel):
         """Validate the generic, template-independent deck-plan shape."""
         validate_deck_content_plan(self)
         return self
+
+
+class PptContentPlanningResult(BaseModel):
+    """Deck content plan and planning metadata for one PPT workflow phase."""
+
+    content_plan: DeckContentPlan
+    deck_content_plan_markdown: str = ""
+    planning_output: dict[str, Any] = Field(default_factory=dict)
+
+    @field_validator("deck_content_plan_markdown", mode="before")
+    @classmethod
+    def _normalize_markdown(cls, value: Any) -> str:
+        """Normalize the optional planning Markdown snapshot without trimming it."""
+        return "" if value is None else str(value)
+
+
+class PptContentPlanRevisionResult(BaseModel):
+    """Content-plan revision phase result for one PPT confirmation turn."""
+
+    confirmed_requirement: ConfirmedRequirement
+    content_plan: DeckContentPlan
+    deck_content_plan_markdown: str = ""
+    revision_output: dict[str, Any] = Field(default_factory=dict)
+    user_revision: str = ""
+
+    @field_validator("deck_content_plan_markdown", mode="before")
+    @classmethod
+    def _normalize_markdown(cls, value: Any) -> str:
+        """Normalize the optional revised planning Markdown snapshot without trimming it."""
+        return "" if value is None else str(value)
+
+    @field_validator("user_revision", mode="before")
+    @classmethod
+    def _normalize_user_revision(cls, value: Any) -> str:
+        """Normalize the user content-plan revision text."""
+        return _clean_string(value)
+
+
+class PptAssetResolutionResult(BaseModel):
+    """Resolved deck assets and manifest for one PPT workflow phase."""
+
+    content_plan: DeckContentPlan
+    input_signature: str = ""
+    resolved_asset_manifest: dict[str, Any] = Field(default_factory=dict)
+    planning_warnings: list[str] = Field(default_factory=list)
+    reused_existing_resolution: bool = False
+
+    @field_validator("input_signature", mode="before")
+    @classmethod
+    def _strip_input_signature(cls, value: Any) -> str:
+        """Strip the asset-resolution input signature reference."""
+        return _clean_string(value)
 
 
 class QualityReviewResult(BaseModel):
@@ -600,6 +901,28 @@ class PptSvgRouteBuildPackage(BaseModel):
 PptRouteBuildPackage = HtmlRouteBuildPackage | PptSvgRouteBuildPackage
 
 
+class PptRouteExecutionResult(BaseModel):
+    """Route execution package for one built-in PPT route run."""
+
+    route: PptRoute
+    output_dir: str = ""
+    input_signature: str = ""
+    route_build: PptRouteBuildPackage
+    reused_existing_build: bool = False
+
+    @field_validator("output_dir", mode="before")
+    @classmethod
+    def _strip_output_dir(cls, value: Any) -> str:
+        """Strip the route output directory reference."""
+        return _clean_string(value)
+
+    @field_validator("input_signature", mode="before")
+    @classmethod
+    def _strip_input_signature(cls, value: Any) -> str:
+        """Strip the route input signature reference."""
+        return _clean_string(value)
+
+
 class PptProductResult(BaseModel):
     """Top-level structured result returned by `run_ppt_product`."""
 
@@ -627,6 +950,40 @@ class PptProductResult(BaseModel):
     output_files: list[dict[str, Any]] = Field(default_factory=list)
     warnings: list[str] = Field(default_factory=list)
     next_actions: list[str] = Field(default_factory=list)
+
+
+class PptFinalDeliveryResult(BaseModel):
+    """Final delivery phase result for a PPT product run."""
+
+    product_result: PptProductResult
+    delivery_manifest: DeliveryManifest = Field(default_factory=DeliveryManifest)
+    output_files: list[dict[str, Any]] = Field(default_factory=list)
+
+
+class PptPrivateSkillExecutionResult(BaseModel):
+    """Private-skill execution phase result for a PPT product run."""
+
+    skill_name: str = ""
+    output_format: str = ""
+    input_signature: str = ""
+    private_build: dict[str, Any] = Field(default_factory=dict)
+    execution_output: dict[str, Any] = Field(default_factory=dict)
+    reused_existing_build: bool = False
+
+    @field_validator("skill_name", "output_format", "input_signature", mode="before")
+    @classmethod
+    def _strip_label(cls, value: Any) -> str:
+        """Strip string labels in private-skill execution metadata."""
+        return _clean_string(value)
+
+
+class PptPrivateSkillDeliveryResult(BaseModel):
+    """Private-skill delivery phase result for a PPT product run."""
+
+    product_result: PptProductResult
+    private_build: dict[str, Any] = Field(default_factory=dict)
+    delivery_manifest: DeliveryManifest = Field(default_factory=DeliveryManifest)
+    output_files: list[dict[str, Any]] = Field(default_factory=list)
 
 
 def validate_deck_content_plan(plan: DeckContentPlan) -> None:

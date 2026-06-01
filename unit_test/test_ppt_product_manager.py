@@ -1,11 +1,13 @@
 import tempfile
 import unittest
+import warnings
 from pathlib import Path
 from types import SimpleNamespace
 from typing import Any, AsyncGenerator
 from unittest.mock import patch
 
 from google.adk import Context, Workflow
+from google.adk.apps import App, ResumabilityConfig
 from google.adk.agents import LlmAgent
 from google.adk.artifacts import InMemoryArtifactService
 from google.adk.models import BaseLlm
@@ -13,8 +15,9 @@ from google.adk.models.llm_request import LlmRequest
 from google.adk.models.llm_response import LlmResponse
 from google.adk.runners import Runner
 from google.adk.sessions import InMemorySessionService
+from google.adk.tools.tool_context import ToolContext
 from google.adk.workflow import node
-from google.genai.types import Content, FunctionCall, Part
+from google.genai.types import Content, FunctionCall, FunctionResponse, Part
 from PIL import Image
 from pptx import Presentation
 from pptx.enum.shapes import MSO_SHAPE_TYPE
@@ -30,11 +33,33 @@ from src.productions.ppt.ppt_product_manager import (
     ProductPptSkillRegistry,
 )
 from src.productions.ppt.ppt_product_manager.ppt_product_manager import (
+    PPT_ADK_CONFIRMATION_REQUEST_STATE_KEY,
     PPT_CONFIRMED_REQUIREMENT_STATE_KEY,
+    PPT_ASSET_RESOLUTION_WORKFLOW_OUTPUT_KEY,
+    PPT_AUTO_CONFIRM_WORKFLOW_OUTPUT_KEY,
+    PPT_CONTENT_PLAN_REVISION_OUTPUT_STATE_KEY,
+    PPT_CONTENT_PLAN_REVISION_RESULT_STATE_KEY,
+    PPT_CONTENT_PLAN_REVISION_WORKFLOW_OUTPUT_KEY,
+    PPT_CONTENT_PLANNING_WORKFLOW_OUTPUT_KEY,
     PPT_CONTENT_PLAN_CONFIRMATION_WORKFLOW_OUTPUT_KEY,
+    PPT_FINAL_DELIVERY_WORKFLOW_OUTPUT_KEY,
+    PPT_INITIAL_REQUEST_WORKFLOW_OUTPUT_KEY,
+    PPT_PRIVATE_SKILL_EXECUTION_RESULT_STATE_KEY,
+    PPT_PRIVATE_SKILL_EXECUTION_WORKFLOW_OUTPUT_KEY,
+    PPT_PRIVATE_SKILL_DELIVERY_WORKFLOW_OUTPUT_KEY,
     PPT_PRODUCT_REQUEST_STATE_KEY,
     PPT_REQUIREMENT_ANALYSIS_AGENT_MESSAGE_KEY,
+    PPT_REQUIREMENT_ANALYSIS_RESULT_STATE_KEY,
+    PPT_REQUIREMENT_ANALYSIS_WORKFLOW_OUTPUT_KEY,
+    PPT_REQUIREMENT_REVISION_OUTPUT_STATE_KEY,
+    PPT_REQUIREMENT_REVISION_RESULT_STATE_KEY,
+    PPT_REQUIREMENT_REVISION_WORKFLOW_OUTPUT_KEY,
+    PPT_SYSTEM_SELECTION_OUTPUT_STATE_KEY,
+    PPT_SYSTEM_SELECTION_RESULT_STATE_KEY,
+    PPT_SYSTEM_SELECTION_WORKFLOW_OUTPUT_KEY,
     PPT_REQUIREMENT_CONFIRMATION_WORKFLOW_OUTPUT_KEY,
+    PPT_ROUTE_EXECUTION_WORKFLOW_OUTPUT_KEY,
+    PPT_SOURCE_PREPARATION_WORKFLOW_OUTPUT_KEY,
     PPT_SYSTEM_SELECTION_AGENT_MESSAGE_KEY,
     PPT_SYSTEM_SELECTION_STATE_KEY,
     _build_product_manager_skill_run_user_message,
@@ -46,6 +71,17 @@ from src.productions.ppt.schemas import (
     DeckPagePlan,
     HtmlRouteBuildPackage,
     HtmlTemplatePackage,
+    PptAssetResolutionResult,
+    PptAdkConfirmationResponse,
+    PptContentPlanRevisionResult,
+    PptContentPlanningResult,
+    PptFinalDeliveryResult,
+    PptPrivateSkillDeliveryResult,
+    PptPrivateSkillExecutionResult,
+    PptRequirementAnalysisResult,
+    PptRequirementRevisionResult,
+    PptRouteExecutionResult,
+    PptSystemSelectionResult,
     SourceUnderstanding,
 )
 from src.productions.ppt.routes.html import PPT_HTML_PAGE_GENERATION_EXPERT_NAME
@@ -61,6 +97,14 @@ from src.runtime.workspace import (
     workspace_root,
 )
 from src.skills.registry import SkillRegistry
+
+
+ADK_REQUEST_CONFIRMATION_FUNCTION_NAME = "adk_request_confirmation"
+
+
+async def _collect_events(events: AsyncGenerator[Any, None]) -> list[Any]:
+    """Drain an ADK event stream into a list for assertions."""
+    return [event async for event in events]
 
 
 def _write_markdown_source(name: str, text: str) -> str:
@@ -337,6 +381,20 @@ class PptProductManagerTests(unittest.IsolatedAsyncioTestCase):
             },
         )
 
+    def test_ppt_adk_confirmation_response_maps_to_text_protocol(self) -> None:
+        confirm_response = PptAdkConfirmationResponse.model_validate(
+            {"action": "approve", "message": "ignored for confirmation"}
+        )
+        revise_response = PptAdkConfirmationResponse.model_validate(
+            {"action": "revise", "message": "改成 5 页，并面向投资人。"}
+        )
+        raw_text_response = PptAdkConfirmationResponse.model_validate("改成 4 页。")
+
+        self.assertEqual(confirm_response.to_user_response(), "确认")
+        self.assertEqual(revise_response.to_user_response(), "改成 5 页，并面向投资人。")
+        self.assertEqual(raw_text_response.action, "revise")
+        self.assertEqual(raw_text_response.to_user_response(), "改成 4 页。")
+
     async def test_run_product_request_rejects_non_object_output(self) -> None:
         manager = PptProductManager()
         tool_context = SimpleNamespace(state={})
@@ -351,6 +409,287 @@ class PptProductManagerTests(unittest.IsolatedAsyncioTestCase):
         self.assertEqual(result["product_line"], "ppt")
         self.assertEqual(result["result_schema_version"], "ppt-product-result-v1")
         self.assertIn("output to be an object", result["message"])
+
+    async def test_adk_tool_confirmation_bridge_advances_to_content_plan_gate(self) -> None:
+        manager = PptProductManager()
+        task = "做一个 3 页 PPTX，用于产品发布，受众为管理层。"
+        output = {"format": "pptx", "slide_count": 3, "confirmation_mode": "adk_hitl"}
+
+        async def _prepare_initial_requirement_phase_stub(**kwargs: Any) -> PptRequirementAnalysisResult:
+            requirement = manager.prepare_confirmed_requirement(
+                task=kwargs["task"],
+                inputs=kwargs["raw_inputs"],
+                output=kwargs["output"],
+                source_understanding=kwargs["source_understanding"],
+            )
+            return PptRequirementAnalysisResult(
+                confirmed_requirement=requirement,
+                analysis_output={"source": "stub"},
+                agent_message="stubbed requirement analysis",
+            )
+
+        async def _select_ppt_system_phase_stub(**kwargs: Any) -> PptSystemSelectionResult:
+            requirement = kwargs["requirement"]
+            return PptSystemSelectionResult(
+                system_selection=manager._build_default_system_selection(requirement),
+                selection_output={"source": "stub"},
+                agent_message="stubbed system selection",
+            )
+
+        async def run_ppt_product_for_adk_hitl(task: str, tool_context: ToolContext) -> dict[str, Any]:
+            return await manager.run_product_request(
+                task=task,
+                inputs=[],
+                output=output,
+                tool_context=tool_context,
+                content_plan_builder=manager.build_initial_deck_content_plan,
+            )
+
+        fake_llm = _PptProductManagerToolCallingFakeLlm(
+            function_calls=[
+                FunctionCall(
+                    name="run_ppt_product_for_adk_hitl",
+                    id="run_ppt_product_for_adk_hitl_call",
+                    args={"task": task},
+                )
+            ],
+            final_text="PPT HITL bridge completed.",
+        )
+        with warnings.catch_warnings():
+            warnings.filterwarnings("ignore", message=r"\[EXPERIMENTAL\].*", category=UserWarning)
+            agent = LlmAgent(
+                name="PptAdkToolConfirmationBridgeRoot",
+                model=fake_llm,
+                instruction="Call the PPT product tool.",
+                tools=[run_ppt_product_for_adk_hitl],
+            )
+            app = App(
+                name="PptAdkToolConfirmationBridgeApp",
+                root_agent=agent,
+                resumability_config=ResumabilityConfig(is_resumable=True),
+            )
+        session_service = InMemorySessionService()
+        artifact_service = InMemoryArtifactService()
+        runner = Runner(
+            app=app,
+            session_service=session_service,
+            artifact_service=artifact_service,
+        )
+        user_id = "user-ppt-adk-tool-confirmation"
+        session_id = "session-ppt-adk-tool-confirmation"
+        try:
+            await session_service.create_session(
+                app_name=app.name,
+                user_id=user_id,
+                session_id=session_id,
+                state={
+                    "sid": "ppt-adk-hitl-test",
+                    "turn_index": 1,
+                    "step": 1,
+                },
+            )
+            with (
+                patch.object(
+                    manager,
+                    "_prepare_initial_requirement_phase",
+                    side_effect=_prepare_initial_requirement_phase_stub,
+                ),
+                patch.object(
+                    manager,
+                    "_select_ppt_system_phase",
+                    side_effect=_select_ppt_system_phase_stub,
+                ),
+            ):
+                first_events = await _collect_events(
+                    runner.run_async(
+                        user_id=user_id,
+                        session_id=session_id,
+                        new_message=Content(role="user", parts=[Part(text="Start PPT product.")]),
+                    )
+                )
+                first_invocation_id = first_events[0].invocation_id
+                first_confirmation_calls = [
+                    call
+                    for event in first_events
+                    for call in event.get_function_calls()
+                    if call.name == ADK_REQUEST_CONFIRMATION_FUNCTION_NAME
+                ]
+                self.assertEqual(len(first_confirmation_calls), 1)
+                first_request_payload = first_confirmation_calls[0].args["toolConfirmation"]["payload"]
+                self.assertEqual(first_request_payload["stage"], "awaiting_requirement_confirmation")
+                self.assertEqual(first_request_payload["confirmation_type"], "requirement")
+                self.assertEqual(first_request_payload["allowed_actions"], ["confirm", "revise"])
+
+                first_session = await session_service.get_session(
+                    app_name=app.name,
+                    user_id=user_id,
+                    session_id=session_id,
+                )
+                self.assertEqual(
+                    first_session.state["ppt_product_result"]["status"],
+                    "awaiting_requirement_confirmation",
+                )
+                self.assertEqual(
+                    first_session.state[PPT_ADK_CONFIRMATION_REQUEST_STATE_KEY]["confirmation_id"],
+                    first_request_payload["confirmation_id"],
+                )
+
+                resume_payload = {
+                    "schema_version": "ppt-adk-confirmation-response-v1",
+                    "action": "confirm",
+                    "confirmation_id": first_request_payload["confirmation_id"],
+                    "stage": first_request_payload["stage"],
+                }
+                second_events = await _collect_events(
+                    runner.run_async(
+                        user_id=user_id,
+                        session_id=session_id,
+                        invocation_id=first_invocation_id,
+                        new_message=Content(
+                            role="user",
+                            parts=[
+                                Part(
+                                    function_response=FunctionResponse(
+                                        id=first_confirmation_calls[0].id,
+                                        name=ADK_REQUEST_CONFIRMATION_FUNCTION_NAME,
+                                        response={"confirmed": True, "payload": resume_payload},
+                                    )
+                                )
+                            ],
+                        ),
+                    )
+                )
+        finally:
+            await runner.close()
+
+        second_confirmation_calls = [
+            call
+            for event in second_events
+            for call in event.get_function_calls()
+            if call.name == ADK_REQUEST_CONFIRMATION_FUNCTION_NAME
+        ]
+        self.assertEqual(second_confirmation_calls, [])
+
+        second_session = await session_service.get_session(
+            app_name=app.name,
+            user_id=user_id,
+            session_id=session_id,
+        )
+        self.assertEqual(
+            second_session.state["ppt_product_result"]["status"],
+            "awaiting_content_plan_confirmation",
+        )
+        self.assertEqual(
+            second_session.state[PPT_ADK_CONFIRMATION_REQUEST_STATE_KEY],
+            {},
+        )
+
+    async def test_adk_tool_confirmation_bridge_requests_content_plan_gate(self) -> None:
+        manager = PptProductManager()
+        task = "做一个 3 页 PPTX，用于产品发布，受众为管理层。"
+        output = {"format": "pptx", "slide_count": 3, "confirmation_mode": "adk_hitl"}
+        requirement = manager.prepare_confirmed_requirement(task=task, inputs=[], output=output)
+        content_plan = manager.build_initial_deck_content_plan(requirement)
+        workflow_state = {
+            "workflow_id": "ppt-adk-hitl-content-test:ppt:1",
+            "stage": "awaiting_content_plan_confirmation",
+            "revision": 2,
+            "task": task,
+            "raw_inputs": [],
+            "output": output,
+            "confirmed_requirement": requirement.model_dump(mode="json"),
+            "deck_content_plan": content_plan.model_dump(mode="json"),
+            "system_selection": manager._build_default_system_selection(requirement),
+            "waiting_since_turn_index": 1,
+            "confirmation_id": "ppt-adk-hitl-content-test:ppt:1:awaiting_content_plan_confirmation:2:1",
+        }
+
+        async def run_ppt_product_for_adk_hitl(task: str, tool_context: ToolContext) -> dict[str, Any]:
+            return await manager.run_product_request(
+                task=task,
+                inputs=[],
+                output=output,
+                tool_context=tool_context,
+            )
+
+        fake_llm = _PptProductManagerToolCallingFakeLlm(
+            function_calls=[
+                FunctionCall(
+                    name="run_ppt_product_for_adk_hitl",
+                    id="run_ppt_product_for_adk_hitl_content_call",
+                    args={"task": task},
+                )
+            ],
+            final_text="PPT HITL content gate completed.",
+        )
+        with warnings.catch_warnings():
+            warnings.filterwarnings("ignore", message=r"\[EXPERIMENTAL\].*", category=UserWarning)
+            agent = LlmAgent(
+                name="PptAdkToolConfirmationContentGateRoot",
+                model=fake_llm,
+                instruction="Call the PPT product tool.",
+                tools=[run_ppt_product_for_adk_hitl],
+            )
+            app = App(
+                name="PptAdkToolConfirmationContentGateApp",
+                root_agent=agent,
+                resumability_config=ResumabilityConfig(is_resumable=True),
+            )
+        session_service = InMemorySessionService()
+        runner = Runner(
+            app=app,
+            session_service=session_service,
+            artifact_service=InMemoryArtifactService(),
+        )
+        user_id = "user-ppt-adk-tool-confirmation-content"
+        session_id = "session-ppt-adk-tool-confirmation-content"
+        try:
+            await session_service.create_session(
+                app_name=app.name,
+                user_id=user_id,
+                session_id=session_id,
+                state={
+                    "sid": "ppt-adk-hitl-content-test",
+                    "turn_index": 1,
+                    "step": 1,
+                    "ppt_workflow_state": workflow_state,
+                },
+            )
+            events = await _collect_events(
+                runner.run_async(
+                    user_id=user_id,
+                    session_id=session_id,
+                    new_message=Content(role="user", parts=[Part(text="Request current content gate.")]),
+                )
+            )
+        finally:
+            await runner.close()
+
+        confirmation_calls = [
+            call
+            for event in events
+            for call in event.get_function_calls()
+            if call.name == ADK_REQUEST_CONFIRMATION_FUNCTION_NAME
+        ]
+        self.assertEqual(len(confirmation_calls), 1)
+        request_payload = confirmation_calls[0].args["toolConfirmation"]["payload"]
+        self.assertEqual(request_payload["stage"], "awaiting_content_plan_confirmation")
+        self.assertEqual(request_payload["confirmation_type"], "content_plan")
+        self.assertEqual(request_payload["confirmation_id"], workflow_state["confirmation_id"])
+
+        session = await session_service.get_session(
+            app_name=app.name,
+            user_id=user_id,
+            session_id=session_id,
+        )
+        self.assertEqual(
+            session.state["ppt_product_result"]["status"],
+            "awaiting_content_plan_confirmation",
+        )
+        self.assertEqual(
+            session.state[PPT_ADK_CONFIRMATION_REQUEST_STATE_KEY]["confirmation_id"],
+            workflow_state["confirmation_id"],
+        )
 
     def test_private_pptx_template_skill_prompt_enforces_delivery_checklist(self) -> None:
         manager = PptProductManager()
@@ -763,6 +1102,51 @@ class PptProductManagerTests(unittest.IsolatedAsyncioTestCase):
         self.assertEqual(result.delivery_manifest.intermediate_artifacts, [])
         self.assertIn("editable PPTX", " ".join(result.warnings))
 
+    def test_private_skill_delivery_phase_records_typed_result(self) -> None:
+        manager = PptProductManager()
+        requirement = manager.prepare_confirmed_requirement(
+            task="用 private skill 做 2 页 HTML PPT。",
+            inputs=[],
+            output={"format": "pptx", "route": "html", "slide_count": 2},
+        )
+        content_plan = manager.build_initial_deck_content_plan(requirement)
+        output_path = "generated/session/turn_1/ppt_private_skill_step_1/index.html"
+        file_record = build_workspace_file_record(
+            output_path,
+            description="Private PPT skill HTML deck artifact.",
+            source="ppt_product_manager",
+        )
+        private_build = {
+            "skill_name": "ppt-complete-workflow",
+            "output_path": output_path,
+            "artifact_type": "html",
+            "output_format": "html",
+            "output_files": [file_record],
+            "source": "save_ppt_private_skill_html",
+        }
+        tool_context = SimpleNamespace(state={})
+
+        result = manager._finalize_private_skill_delivery_phase(
+            requirement=requirement,
+            content_plan=content_plan,
+            system_selection={
+                "system_type": "private_skill",
+                "skill_name": "ppt-complete-workflow",
+                "output_format": "html",
+            },
+            private_build=private_build,
+            tool_context=tool_context,
+        )
+
+        self.assertIsInstance(result, PptPrivateSkillDeliveryResult)
+        self.assertEqual(result.product_result.status, "success")
+        self.assertEqual(result.delivery_manifest.intermediate_artifacts, [output_path])
+        self.assertEqual(result.output_files, [file_record])
+        self.assertEqual(
+            tool_context.state["ppt_private_skill_delivery_result"]["private_build"]["output_path"],
+            output_path,
+        )
+
     def test_system_selection_confirmation_uses_table_without_narrow_system_selection_column(self) -> None:
         summary = PptProductManager._format_system_selection_confirmation(
             {
@@ -950,6 +1334,49 @@ Visual:
         self.assertIn("read_ppt_markdown_sources", first_request_tools)
         self.assertIn("save_ppt_deck_content_plan_markdown", first_request_tools)
 
+    async def test_content_planning_phase_persists_typed_result_without_resolving_assets(self) -> None:
+        manager = PptProductManager()
+        requirement = manager.prepare_confirmed_requirement(
+            task="给小学生做一个 AI 科普 PPTX。",
+            inputs=[],
+            output={"format": "pptx", "slide_count": 5},
+        )
+        tool_context = SimpleNamespace(state={"sid": "ppt-content-phase-test", "turn_index": 1, "step": 1})
+
+        def _content_plan_builder(_requirement):
+            plan = DeckContentPlan(
+                title="AI for Kids",
+                core_narrative="Explain AI through concrete classroom examples.",
+                pages=[_page(index, "content") for index in range(1, 6)],
+            )
+            plan.pages[2].assets = [
+                DeckPageAsset(
+                    asset_id="slide_03_pending_visual",
+                    source_kind="image_generation",
+                    status="pending",
+                    description="Classroom AI illustration.",
+                    prompt="Classroom AI illustration.",
+                )
+            ]
+            return plan
+
+        result = await manager._build_deck_content_plan_phase(
+            requirement,
+            tool_context=tool_context,
+            app_name="creative_claw",
+            artifact_service=None,
+            expert_agents={},
+            content_plan_builder=_content_plan_builder,
+        )
+
+        self.assertIsInstance(result, PptContentPlanningResult)
+        self.assertEqual(result.content_plan.title, "AI for Kids")
+        self.assertEqual(result.planning_output["source"], "injected")
+        self.assertEqual(tool_context.state["ppt_deck_content_plan"]["title"], "AI for Kids")
+        self.assertEqual(tool_context.state["ppt_content_planning_output"]["source"], "injected")
+        self.assertNotIn("ppt_resolved_asset_manifest", tool_context.state)
+        self.assertEqual(result.content_plan.pages[2].assets[0].status, "pending")
+
     def test_requirement_analysis_agent_saves_confirmed_requirement_json(self) -> None:
         manager = PptProductManager()
 
@@ -1066,6 +1493,722 @@ Visual:
             "deterministic_fallback",
         )
 
+    async def test_requirement_analysis_phase_persists_typed_result(self) -> None:
+        source_path = _write_markdown_source("initial_requirement_phase_source.md", "# Source")
+        manager = PptProductManager()
+        source_inputs = manager._normalize_source_inputs([source_path])
+        tool_context = SimpleNamespace(
+            state={"sid": "ppt-requirement-analysis-phase-test", "turn_index": 1, "step": 1}
+        )
+
+        result = await manager._prepare_initial_requirement_phase(
+            task="基于素材做一个 4 页项目汇报 PPT。",
+            raw_inputs=[source_path],
+            output={"format": "pptx", "slide_count": 4},
+            source_understanding=SourceUnderstanding(document_type="markdown"),
+            source_inputs=source_inputs,
+            tool_context=tool_context,
+            app_name="creative_claw",
+            artifact_service=None,
+        )
+
+        self.assertIsInstance(result, PptRequirementAnalysisResult)
+        self.assertEqual(result.confirmed_requirement.slide_count_policy.target, 4)
+        self.assertEqual(result.analysis_output["source"], "deterministic_fallback")
+        self.assertEqual(
+            tool_context.state[PPT_REQUIREMENT_ANALYSIS_RESULT_STATE_KEY]["confirmed_requirement"]["source_inputs"][0]["path"],
+            source_path,
+        )
+        self.assertEqual(
+            tool_context.state[PPT_REQUIREMENT_ANALYSIS_RESULT_STATE_KEY]["analysis_output"]["source"],
+            "deterministic_fallback",
+        )
+        self.assertEqual(tool_context.state[PPT_CONFIRMED_REQUIREMENT_STATE_KEY]["source_inputs"][0]["path"], source_path)
+
+    async def test_requirement_analysis_phase_uses_adk_workflow_context(self) -> None:
+        manager = PptProductManager()
+        task = "做一个 3 页 PPTX，用于产品发布，受众为管理层。"
+        output = {"format": "pptx", "slide_count": 3}
+        expected_requirement = manager.prepare_confirmed_requirement(
+            task=task,
+            inputs=[],
+            output=output,
+            source_understanding=SourceUnderstanding(document_type="none"),
+        )
+        requirement_payload = expected_requirement.model_dump(mode="json")
+        requirement_payload["audience"] = "管理层"
+        fake_llm = _PptProductManagerToolCallingFakeLlm(
+            function_calls=[
+                FunctionCall(
+                    name="save_ppt_confirmed_requirement_json",
+                    args={"requirement_json": requirement_payload},
+                )
+            ],
+            final_text="PptRequirementAnalysisAgent saved initial requirement.",
+        )
+
+        async def _run_requirement_harness():
+            @node(name="PptRequirementAnalysisWorkflowHarnessNode", rerun_on_resume=True)
+            async def requirement_harness(ctx: Context, node_input: str) -> dict[str, Any]:
+                result = await manager._prepare_initial_requirement_phase(
+                    task=task,
+                    raw_inputs=[],
+                    output=output,
+                    source_understanding=SourceUnderstanding(document_type="none"),
+                    source_inputs=None,
+                    tool_context=ctx,
+                    app_name="creative_claw",
+                    artifact_service=artifact_service,
+                )
+                return result.model_dump(mode="json")
+
+            workflow = Workflow(
+                name="PptRequirementAnalysisWorkflowHarness",
+                edges=[("START", requirement_harness)],
+            )
+            session_service = InMemorySessionService()
+            runner = Runner(
+                node=workflow,
+                session_service=session_service,
+                artifact_service=artifact_service,
+            )
+            user_id = "user-ppt-requirement-analysis-workflow"
+            session_id = "session-ppt-requirement-analysis-workflow"
+            try:
+                await session_service.create_session(
+                    app_name=workflow.name,
+                    user_id=user_id,
+                    session_id=session_id,
+                    state={
+                        "sid": "ppt-requirement-analysis-workflow-test",
+                        "turn_index": 1,
+                        "step": 1,
+                    },
+                )
+                with patch(
+                    "src.productions.ppt.ppt_product_manager.ppt_product_manager.build_llm",
+                    return_value=fake_llm,
+                ):
+                    async for _ in runner.run_async(
+                        user_id=user_id,
+                        session_id=session_id,
+                        new_message=Content(role="user", parts=[Part(text="Analyze initial PPT requirement")]),
+                    ):
+                        pass
+                return await session_service.get_session(
+                    app_name=workflow.name,
+                    user_id=user_id,
+                    session_id=session_id,
+                )
+            finally:
+                await runner.close()
+
+        artifact_service = InMemoryArtifactService()
+        session = await _run_requirement_harness()
+
+        self.assertIsNotNone(session)
+        self.assertEqual(session.state[PPT_REQUIREMENT_ANALYSIS_WORKFLOW_OUTPUT_KEY]["source"], "adk_workflow")
+        self.assertEqual(session.state[PPT_REQUIREMENT_ANALYSIS_WORKFLOW_OUTPUT_KEY]["analysis_source"], "llm_agent")
+        self.assertEqual(session.state[PPT_REQUIREMENT_ANALYSIS_RESULT_STATE_KEY]["analysis_output"]["source"], "llm_agent")
+        self.assertEqual(session.state[PPT_CONFIRMED_REQUIREMENT_STATE_KEY]["audience"], "管理层")
+        first_request_tools = _function_declaration_names(fake_llm.requests[0])
+        self.assertIn("save_ppt_confirmed_requirement_json", first_request_tools)
+        self.assertGreaterEqual(len(fake_llm.requests), 2)
+
+    async def test_initial_request_uses_parent_adk_workflow_context(self) -> None:
+        manager = PptProductManager()
+        task = "做一个 3 页 PPTX，用于产品发布，受众为管理层。"
+        output = {"format": "pptx", "slide_count": 3}
+        expected_requirement = manager.prepare_confirmed_requirement(
+            task=task,
+            inputs=[],
+            output=output,
+            source_understanding=SourceUnderstanding(document_type="none"),
+        )
+        requirement_payload = expected_requirement.model_dump(mode="json")
+        requirement_payload["audience"] = "管理层"
+        fake_llm = _PptProductManagerToolCallingFakeLlm(
+            function_calls=[
+                FunctionCall(
+                    name="save_ppt_confirmed_requirement_json",
+                    args={"requirement_json": requirement_payload},
+                )
+            ],
+            final_text="PptInitialRequestWorkflow saved initial requirement.",
+        )
+
+        def _system_selection_builder(**_kwargs):
+            return {
+                "system_type": "built_in_route",
+                "route": "html",
+                "skill_name": "",
+                "output_format": "pptx",
+                "reason": "Use the built-in HTML route for the initial request Workflow test.",
+            }
+
+        async def _run_initial_request_harness():
+            @node(name="PptInitialRequestWorkflowHarnessNode", rerun_on_resume=True)
+            async def initial_request_harness(ctx: Context, node_input: str) -> dict[str, Any]:
+                with patch.object(
+                    manager,
+                    "_start_interactive_product_request_direct",
+                    side_effect=AssertionError("parent workflow must own initial request"),
+                ):
+                    return await manager.run_product_request(
+                        task=node_input,
+                        inputs=[],
+                        output=output,
+                        tool_context=ctx,
+                        system_selection_builder=_system_selection_builder,
+                    )
+
+            workflow = Workflow(
+                name="PptInitialRequestWorkflowHarness",
+                edges=[("START", initial_request_harness)],
+            )
+            session_service = InMemorySessionService()
+            runner = Runner(
+                node=workflow,
+                session_service=session_service,
+                artifact_service=artifact_service,
+            )
+            user_id = "user-ppt-initial-request-workflow"
+            session_id = "session-ppt-initial-request-workflow"
+            try:
+                await session_service.create_session(
+                    app_name=workflow.name,
+                    user_id=user_id,
+                    session_id=session_id,
+                    state={
+                        "sid": "ppt-initial-request-workflow-test",
+                        "turn_index": 1,
+                        "step": 1,
+                    },
+                )
+                with patch(
+                    "src.productions.ppt.ppt_product_manager.ppt_product_manager.build_llm",
+                    return_value=fake_llm,
+                ):
+                    async for _ in runner.run_async(
+                        user_id=user_id,
+                        session_id=session_id,
+                        new_message=Content(role="user", parts=[Part(text=task)]),
+                    ):
+                        pass
+                return await session_service.get_session(
+                    app_name=workflow.name,
+                    user_id=user_id,
+                    session_id=session_id,
+                )
+            finally:
+                await runner.close()
+
+        artifact_service = InMemoryArtifactService()
+        session = await _run_initial_request_harness()
+
+        self.assertIsNotNone(session)
+        self.assertEqual(session.state["ppt_product_result"]["status"], "awaiting_requirement_confirmation")
+        self.assertEqual(session.state["ppt_workflow_state"]["stage"], "awaiting_requirement_confirmation")
+        self.assertEqual(session.state[PPT_INITIAL_REQUEST_WORKFLOW_OUTPUT_KEY]["source"], "adk_workflow")
+        self.assertEqual(
+            session.state[PPT_INITIAL_REQUEST_WORKFLOW_OUTPUT_KEY]["branch"],
+            "requirement_confirmation",
+        )
+        self.assertEqual(session.state[PPT_REQUIREMENT_ANALYSIS_WORKFLOW_OUTPUT_KEY]["source"], "adk_workflow")
+        self.assertEqual(session.state[PPT_REQUIREMENT_ANALYSIS_WORKFLOW_OUTPUT_KEY]["analysis_source"], "llm_agent")
+        self.assertEqual(session.state[PPT_SYSTEM_SELECTION_WORKFLOW_OUTPUT_KEY]["source"], "adk_workflow")
+        self.assertEqual(session.state[PPT_SYSTEM_SELECTION_WORKFLOW_OUTPUT_KEY]["selection_source"], "injected")
+        self.assertEqual(session.state[PPT_CONFIRMED_REQUIREMENT_STATE_KEY]["audience"], "管理层")
+        self.assertNotIn(PPT_SOURCE_PREPARATION_WORKFLOW_OUTPUT_KEY, session.state)
+        self.assertNotIn(PPT_CONTENT_PLANNING_WORKFLOW_OUTPUT_KEY, session.state)
+        self.assertNotIn("final_file_paths", session.state)
+
+    async def test_auto_confirm_uses_parent_adk_workflow_context(self) -> None:
+        manager = PptProductManager()
+        task = "做一个 3 页 PPTX，用于产品发布，受众为管理层。"
+        output = {"format": "pptx", "slide_count": 3, "auto_confirm": True}
+        expected_requirement = manager.prepare_confirmed_requirement(
+            task=task,
+            inputs=[],
+            output=output,
+            source_understanding=SourceUnderstanding(document_type="none"),
+        )
+        requirement_payload = expected_requirement.model_dump(mode="json")
+        requirement_payload["audience"] = "管理层"
+        fake_llm = _PptProductManagerToolCallingFakeLlm(
+            function_calls=[
+                FunctionCall(
+                    name="save_ppt_confirmed_requirement_json",
+                    args={"requirement_json": requirement_payload},
+                )
+            ],
+            final_text="PptAutoConfirmWorkflow saved initial requirement.",
+        )
+        route_calls: list[dict[str, Any]] = []
+        final_pptx = "generated/ppt-auto-confirm-workflow-test/turn_1/final.pptx"
+
+        def _system_selection_builder(**_kwargs):
+            return {
+                "system_type": "built_in_route",
+                "route": "html",
+                "skill_name": "",
+                "output_format": "pptx",
+                "reason": "Use the built-in HTML route for the auto-confirm Workflow test.",
+            }
+
+        def _content_plan_builder(_requirement):
+            return DeckContentPlan(
+                title="Auto Confirm Launch",
+                core_narrative="Present the product launch clearly.",
+                pages=[_page(1, "cover"), _page(2, "content"), _page(3, "ending")],
+            )
+
+        async def _asset_resolver(asset, _page, _requirement):
+            return {
+                "asset_id": asset.asset_id,
+                "status": "ready",
+                "path": "",
+                "provider": "test_resolver",
+            }
+
+        async def _fake_dispatch_ppt_route(**kwargs):
+            route_calls.append(kwargs)
+            return HtmlRouteBuildPackage(
+                template=HtmlTemplatePackage(template_id="auto-confirm-test", label="Auto Confirm Test"),
+                html_deck_path="generated/ppt-auto-confirm-workflow-test/turn_1/deck.html",
+                preview_paths=["generated/ppt-auto-confirm-workflow-test/turn_1/preview.png"],
+                pptx_path=final_pptx,
+                quality_report_path="generated/ppt-auto-confirm-workflow-test/turn_1/quality.json",
+                build_log_path="generated/ppt-auto-confirm-workflow-test/turn_1/build.log",
+                warnings=[],
+            )
+
+        async def _run_auto_confirm_harness():
+            @node(name="PptAutoConfirmWorkflowHarnessNode", rerun_on_resume=True)
+            async def auto_confirm_harness(ctx: Context, node_input: str) -> dict[str, Any]:
+                with patch.object(
+                    manager,
+                    "_run_auto_confirm_product_request_direct",
+                    side_effect=AssertionError("parent workflow must own auto-confirm delivery"),
+                ):
+                    return await manager.run_product_request(
+                        task=node_input,
+                        inputs=[],
+                        output=output,
+                        tool_context=ctx,
+                        content_plan_builder=_content_plan_builder,
+                        asset_resolver=_asset_resolver,
+                        system_selection_builder=_system_selection_builder,
+                    )
+
+            workflow = Workflow(
+                name="PptAutoConfirmWorkflowHarness",
+                edges=[("START", auto_confirm_harness)],
+            )
+            session_service = InMemorySessionService()
+            runner = Runner(
+                node=workflow,
+                session_service=session_service,
+                artifact_service=artifact_service,
+            )
+            user_id = "user-ppt-auto-confirm-workflow"
+            session_id = "session-ppt-auto-confirm-workflow"
+            try:
+                await session_service.create_session(
+                    app_name=workflow.name,
+                    user_id=user_id,
+                    session_id=session_id,
+                    state={
+                        "sid": "ppt-auto-confirm-workflow-test",
+                        "turn_index": 1,
+                        "step": 1,
+                    },
+                )
+                with (
+                    patch(
+                        "src.productions.ppt.ppt_product_manager.ppt_product_manager.build_llm",
+                        return_value=fake_llm,
+                    ),
+                    patch.object(manager, "_dispatch_ppt_route", _fake_dispatch_ppt_route),
+                ):
+                    async for _ in runner.run_async(
+                        user_id=user_id,
+                        session_id=session_id,
+                        new_message=Content(role="user", parts=[Part(text=task)]),
+                    ):
+                        pass
+                return await session_service.get_session(
+                    app_name=workflow.name,
+                    user_id=user_id,
+                    session_id=session_id,
+                )
+            finally:
+                await runner.close()
+
+        artifact_service = InMemoryArtifactService()
+        session = await _run_auto_confirm_harness()
+
+        self.assertIsNotNone(session)
+        self.assertEqual(session.state["ppt_product_result"]["status"], "success")
+        self.assertEqual(session.state["ppt_product_result"]["phase"], "html_route_delivery")
+        self.assertEqual(session.state[PPT_AUTO_CONFIRM_WORKFLOW_OUTPUT_KEY]["source"], "adk_workflow")
+        self.assertEqual(session.state[PPT_AUTO_CONFIRM_WORKFLOW_OUTPUT_KEY]["branch"], "built_in_route")
+        self.assertEqual(session.state[PPT_SOURCE_PREPARATION_WORKFLOW_OUTPUT_KEY]["source"], "adk_workflow")
+        self.assertEqual(session.state[PPT_REQUIREMENT_ANALYSIS_WORKFLOW_OUTPUT_KEY]["source"], "adk_workflow")
+        self.assertEqual(session.state[PPT_SYSTEM_SELECTION_WORKFLOW_OUTPUT_KEY]["source"], "adk_workflow")
+        self.assertEqual(session.state[PPT_CONTENT_PLANNING_WORKFLOW_OUTPUT_KEY]["source"], "adk_workflow")
+        self.assertEqual(session.state[PPT_ASSET_RESOLUTION_WORKFLOW_OUTPUT_KEY]["source"], "adk_workflow")
+        self.assertEqual(session.state[PPT_ROUTE_EXECUTION_WORKFLOW_OUTPUT_KEY]["source"], "adk_workflow")
+        self.assertEqual(session.state[PPT_FINAL_DELIVERY_WORKFLOW_OUTPUT_KEY]["source"], "adk_workflow")
+        self.assertEqual(session.state[PPT_CONFIRMED_REQUIREMENT_STATE_KEY]["audience"], "管理层")
+        self.assertEqual(session.state["final_file_paths"], [final_pptx])
+        self.assertEqual(len(route_calls), 1)
+        self.assertNotIn("ppt_workflow_state", session.state)
+
+    async def test_auto_confirm_workflow_reentry_reuses_side_effect_phases(self) -> None:
+        manager = PptProductManager()
+        task = "针对远程报告做一个 3 页 PPTX，用于产品复盘，受众为管理层。"
+        source_url = "https://example.com/ppt-reentry-source.pdf"
+        raw_inputs = [{"name": "ppt-reentry-source.pdf", "url": source_url}]
+        output = {"format": "pptx", "slide_count": 3, "auto_confirm": True}
+        expected_requirement = manager.prepare_confirmed_requirement(
+            task=task,
+            inputs=raw_inputs,
+            output=output,
+            source_understanding=SourceUnderstanding(document_type="markdown"),
+        )
+        requirement_payload = expected_requirement.model_dump(mode="json")
+        requirement_payload["audience"] = "管理层"
+        source_image_path = _write_test_image("auto_confirm_reentry_asset.png")
+        urlopen_calls = 0
+        converter_calls = 0
+        asset_resolver_calls = 0
+        route_calls: list[Path] = []
+        fake_llms: list[_PptProductManagerToolCallingFakeLlm] = []
+
+        def _fake_urlopen(*_args, **_kwargs):
+            nonlocal urlopen_calls
+            urlopen_calls += 1
+            return _FakeRemoteResponse(
+                b"%PDF-1.4\nremote pdf fixture\n",
+                {"content-type": "application/pdf", "content-length": "28"},
+            )
+
+        async def _counting_source_converter(source_input, parameters: dict) -> dict:
+            nonlocal converter_calls
+            converter_calls += 1
+            return await _fake_source_converter(source_input, parameters)
+
+        def _build_requirement_fake_llm(*_args, **_kwargs):
+            fake_llm = _PptProductManagerToolCallingFakeLlm(
+                function_calls=[
+                    FunctionCall(
+                        name="save_ppt_confirmed_requirement_json",
+                        args={"requirement_json": requirement_payload},
+                    )
+                ],
+                final_text="PptAutoConfirmWorkflow re-entry saved requirement.",
+            )
+            fake_llms.append(fake_llm)
+            return fake_llm
+
+        def _system_selection_builder(**_kwargs):
+            return {
+                "system_type": "built_in_route",
+                "route": "html",
+                "skill_name": "",
+                "output_format": "pptx",
+                "reason": "Use the built-in HTML route for the auto-confirm re-entry test.",
+            }
+
+        def _content_plan_builder(_requirement):
+            plan = DeckContentPlan(
+                title="Re-entry Launch",
+                core_narrative="Present the source material clearly.",
+                pages=[_page(1, "cover"), _page(2, "content"), _page(3, "ending")],
+            )
+            plan.pages[1].assets = [
+                DeckPageAsset(
+                    asset_id="slide_02_reentry_visual",
+                    source_kind="image_generation",
+                    status="pending",
+                    description="A management review visual.",
+                    prompt="A management review visual.",
+                )
+            ]
+            return plan
+
+        async def _asset_resolver(asset, _page, _requirement):
+            nonlocal asset_resolver_calls
+            asset_resolver_calls += 1
+            return {
+                "asset_id": asset.asset_id,
+                "status": "ready",
+                "path": source_image_path,
+                "provider": "test_resolver",
+            }
+
+        async def _fake_dispatch_ppt_route(**kwargs):
+            output_dir = Path(kwargs["output_dir"])
+            route_calls.append(output_dir)
+            final_pptx = output_dir / "final.pptx"
+            final_pptx.write_bytes(b"fake-pptx")
+            html_path = output_dir / "deck.html"
+            html_path.write_text("<html></html>", encoding="utf-8")
+            preview_path = output_dir / "preview.png"
+            preview_path.write_bytes(b"fake-preview")
+            quality_path = output_dir / "quality.json"
+            quality_path.write_text("{}", encoding="utf-8")
+            build_log_path = output_dir / "build.log"
+            build_log_path.write_text("ok", encoding="utf-8")
+            return HtmlRouteBuildPackage(
+                template=HtmlTemplatePackage(template_id="auto-confirm-reentry-test", label="Auto Confirm Re-entry"),
+                html_deck_path=workspace_relative_path(html_path),
+                preview_paths=[workspace_relative_path(preview_path)],
+                pptx_path=workspace_relative_path(final_pptx),
+                quality_report_path=workspace_relative_path(quality_path),
+                build_log_path=workspace_relative_path(build_log_path),
+                warnings=[],
+            )
+
+        async def _run_auto_confirm_reentry_harness():
+            @node(name="PptAutoConfirmReentryWorkflowHarnessNode", rerun_on_resume=True)
+            async def auto_confirm_reentry_harness(ctx: Context, node_input: str) -> dict[str, Any]:
+                with patch.object(
+                    manager,
+                    "_run_auto_confirm_product_request_direct",
+                    side_effect=AssertionError("parent workflow must own auto-confirm delivery"),
+                ):
+                    return await manager.run_product_request(
+                        task=node_input,
+                        inputs=raw_inputs,
+                        output=output,
+                        tool_context=ctx,
+                        source_converter=_counting_source_converter,
+                        content_plan_builder=_content_plan_builder,
+                        asset_resolver=_asset_resolver,
+                        system_selection_builder=_system_selection_builder,
+                    )
+
+            workflow = Workflow(
+                name="PptAutoConfirmReentryWorkflowHarness",
+                edges=[("START", auto_confirm_reentry_harness)],
+            )
+            session_service = InMemorySessionService()
+            runner = Runner(
+                node=workflow,
+                session_service=session_service,
+                artifact_service=artifact_service,
+            )
+            user_id = "user-ppt-auto-confirm-reentry-workflow"
+            session_id = "session-ppt-auto-confirm-reentry-workflow"
+            try:
+                await session_service.create_session(
+                    app_name=workflow.name,
+                    user_id=user_id,
+                    session_id=session_id,
+                    state={
+                        "sid": "ppt-auto-confirm-reentry-workflow-test",
+                        "turn_index": 1,
+                        "step": 1,
+                    },
+                )
+                with (
+                    patch(
+                        "src.productions.ppt.ppt_product_manager.ppt_product_manager.urlopen",
+                        side_effect=_fake_urlopen,
+                    ),
+                    patch(
+                        "src.productions.ppt.ppt_product_manager.ppt_product_manager.build_llm",
+                        side_effect=_build_requirement_fake_llm,
+                    ),
+                    patch.object(manager, "_dispatch_ppt_route", _fake_dispatch_ppt_route),
+                ):
+                    for _ in range(2):
+                        async for _event in runner.run_async(
+                            user_id=user_id,
+                            session_id=session_id,
+                            new_message=Content(role="user", parts=[Part(text=task)]),
+                        ):
+                            pass
+                return await session_service.get_session(
+                    app_name=workflow.name,
+                    user_id=user_id,
+                    session_id=session_id,
+                )
+            finally:
+                await runner.close()
+
+        artifact_service = InMemoryArtifactService()
+        session = await _run_auto_confirm_reentry_harness()
+
+        self.assertIsNotNone(session)
+        self.assertEqual(session.state["ppt_product_result"]["status"], "success")
+        self.assertEqual(urlopen_calls, 1)
+        self.assertEqual(converter_calls, 1)
+        self.assertEqual(asset_resolver_calls, 1)
+        self.assertEqual(len(route_calls), 1)
+        self.assertEqual(len(fake_llms), 2)
+        self.assertTrue(session.state[PPT_SOURCE_PREPARATION_WORKFLOW_OUTPUT_KEY]["reused_existing_preparation"])
+        self.assertTrue(session.state["ppt_source_preparation_result"]["reused_existing_preparation"])
+        self.assertTrue(session.state[PPT_ASSET_RESOLUTION_WORKFLOW_OUTPUT_KEY]["reused_existing_resolution"])
+        self.assertTrue(session.state["ppt_asset_resolution_result"]["reused_existing_resolution"])
+        self.assertTrue(session.state[PPT_ROUTE_EXECUTION_WORKFLOW_OUTPUT_KEY]["reused_existing_build"])
+        self.assertEqual(session.state["final_file_paths"], [session.state["ppt_route_build"]["pptx_path"]])
+        output_files = session.state["ppt_product_result"]["output_files"]
+        self.assertEqual(session.state["new_files"], output_files)
+        self.assertEqual(session.state["generated"], output_files)
+        self.assertEqual(session.state["files_history"], [output_files])
+
+    async def test_auto_confirm_private_skill_branch_uses_parent_adk_workflow_context(self) -> None:
+        manager = PptProductManager()
+        task = "给小学生做一个 2 页 AI 科普 PPT，用 private skill 完成。"
+        output = {"format": "pptx", "slide_count": 2, "auto_confirm": True}
+        expected_requirement = manager.prepare_confirmed_requirement(
+            task=task,
+            inputs=[],
+            output=output,
+            source_understanding=SourceUnderstanding(document_type="none"),
+        )
+        requirement_payload = expected_requirement.model_dump(mode="json")
+        requirement_payload["audience"] = "小学生"
+        fake_llm = _PptProductManagerToolCallingFakeLlm(
+            function_calls=[
+                FunctionCall(
+                    name="save_ppt_confirmed_requirement_json",
+                    args={"requirement_json": requirement_payload},
+                )
+            ],
+            final_text="PptAutoConfirmWorkflow saved private-skill requirement.",
+        )
+        private_execution_calls: list[dict[str, Any]] = []
+
+        def _system_selection_builder(**_kwargs):
+            return {
+                "system_type": "private_skill",
+                "route": "html",
+                "skill_name": "ppt-complete-workflow",
+                "output_format": "html",
+                "reason": "Use a private PPT skill for the auto-confirm private branch test.",
+            }
+
+        def _content_plan_builder(_requirement):
+            return DeckContentPlan(
+                title="Private Skill AI",
+                core_narrative="Explain AI with classroom examples.",
+                pages=[_page(1, "cover"), _page(2, "ending")],
+            )
+
+        async def _fake_private_execution(**kwargs):
+            private_execution_calls.append(kwargs)
+            private_build = manager.save_ppt_private_skill_html(
+                file_name="index.html",
+                html_content="<!doctype html><html><body><h1>Private Skill AI</h1></body></html>",
+                description="Private-skill auto-confirm HTML deck.",
+                tool_context=kwargs["tool_context"],
+            )
+            return PptPrivateSkillExecutionResult(
+                skill_name="ppt-complete-workflow",
+                output_format="html",
+                private_build={**private_build, "skill_name": "ppt-complete-workflow"},
+                execution_output={
+                    "status": "success",
+                    "source": "test_private_skill_execution",
+                    "message": "Private skill execution was faked at the phase boundary.",
+                },
+            )
+
+        async def _run_auto_confirm_private_skill_harness():
+            @node(name="PptAutoConfirmPrivateSkillWorkflowHarnessNode", rerun_on_resume=True)
+            async def auto_confirm_private_skill_harness(ctx: Context, node_input: str) -> dict[str, Any]:
+                with patch.object(
+                    manager,
+                    "_run_auto_confirm_product_request_direct",
+                    side_effect=AssertionError("parent workflow must own auto-confirm delivery"),
+                ):
+                    return await manager.run_product_request(
+                        task=node_input,
+                        inputs=[],
+                        output=output,
+                        tool_context=ctx,
+                        content_plan_builder=_content_plan_builder,
+                        system_selection_builder=_system_selection_builder,
+                    )
+
+            workflow = Workflow(
+                name="PptAutoConfirmPrivateSkillWorkflowHarness",
+                edges=[("START", auto_confirm_private_skill_harness)],
+            )
+            session_service = InMemorySessionService()
+            runner = Runner(
+                node=workflow,
+                session_service=session_service,
+                artifact_service=artifact_service,
+            )
+            user_id = "user-ppt-auto-confirm-private-skill-workflow"
+            session_id = "session-ppt-auto-confirm-private-skill-workflow"
+            try:
+                await session_service.create_session(
+                    app_name=workflow.name,
+                    user_id=user_id,
+                    session_id=session_id,
+                    state={
+                        "sid": "ppt-auto-confirm-private-skill-workflow-test",
+                        "turn_index": 1,
+                        "step": 1,
+                    },
+                )
+                with (
+                    patch(
+                        "src.productions.ppt.ppt_product_manager.ppt_product_manager.build_llm",
+                        return_value=fake_llm,
+                    ),
+                    patch.object(manager, "_execute_private_ppt_skill_phase", _fake_private_execution),
+                    patch.object(
+                        manager,
+                        "_dispatch_ppt_route",
+                        side_effect=AssertionError("private-skill branch must not dispatch a built-in route"),
+                    ),
+                ):
+                    async for _ in runner.run_async(
+                        user_id=user_id,
+                        session_id=session_id,
+                        new_message=Content(role="user", parts=[Part(text=task)]),
+                    ):
+                        pass
+                return await session_service.get_session(
+                    app_name=workflow.name,
+                    user_id=user_id,
+                    session_id=session_id,
+                )
+            finally:
+                await runner.close()
+
+        artifact_service = InMemoryArtifactService()
+        session = await _run_auto_confirm_private_skill_harness()
+
+        self.assertIsNotNone(session)
+        self.assertEqual(session.state["ppt_product_result"]["status"], "success")
+        self.assertEqual(session.state["ppt_product_result"]["phase"], "private_skill_delivery")
+        self.assertEqual(session.state[PPT_AUTO_CONFIRM_WORKFLOW_OUTPUT_KEY]["source"], "adk_workflow")
+        self.assertEqual(session.state[PPT_AUTO_CONFIRM_WORKFLOW_OUTPUT_KEY]["branch"], "private_skill")
+        self.assertEqual(session.state[PPT_SOURCE_PREPARATION_WORKFLOW_OUTPUT_KEY]["source"], "adk_workflow")
+        self.assertEqual(session.state[PPT_REQUIREMENT_ANALYSIS_WORKFLOW_OUTPUT_KEY]["source"], "adk_workflow")
+        self.assertEqual(session.state[PPT_SYSTEM_SELECTION_WORKFLOW_OUTPUT_KEY]["source"], "adk_workflow")
+        self.assertEqual(session.state[PPT_CONTENT_PLANNING_WORKFLOW_OUTPUT_KEY]["source"], "adk_workflow")
+        self.assertEqual(session.state[PPT_PRIVATE_SKILL_EXECUTION_WORKFLOW_OUTPUT_KEY]["source"], "adk_workflow")
+        self.assertEqual(session.state[PPT_PRIVATE_SKILL_DELIVERY_WORKFLOW_OUTPUT_KEY]["source"], "adk_workflow")
+        self.assertEqual(session.state[PPT_CONFIRMED_REQUIREMENT_STATE_KEY]["audience"], "小学生")
+        private_output_path = session.state["ppt_private_skill_build"]["output_path"]
+        self.assertEqual(session.state["final_file_paths"], [private_output_path])
+        self.assertEqual(session.state["ppt_system_selection"]["system_type"], "private_skill")
+        self.assertEqual(session.state["ppt_private_skill_build"]["output_path"], private_output_path)
+        self.assertEqual(len(private_execution_calls), 1)
+        self.assertNotIn(PPT_ASSET_RESOLUTION_WORKFLOW_OUTPUT_KEY, session.state)
+        self.assertNotIn(PPT_ROUTE_EXECUTION_WORKFLOW_OUTPUT_KEY, session.state)
+        self.assertNotIn(PPT_FINAL_DELIVERY_WORKFLOW_OUTPUT_KEY, session.state)
+        self.assertNotIn("ppt_workflow_state", session.state)
+
     def test_system_selection_agent_chooses_without_keyword_rules(self) -> None:
         manager = PptProductManager()
 
@@ -1181,6 +2324,183 @@ Visual:
         self.assertIn("read_product_ppt_skill", first_request_tools)
         self.assertIn("save_ppt_system_selection", first_request_tools)
         self.assertGreaterEqual(len(fake_llm.requests), 3)
+
+    async def test_system_selection_phase_persists_injected_built_in_result(self) -> None:
+        manager = PptProductManager()
+        requirement = manager.prepare_confirmed_requirement(
+            task="做一个 SVG route 产品介绍 PPT。",
+            inputs=[],
+            output={"format": "pptx", "route": "svg"},
+        )
+        tool_context = SimpleNamespace(
+            state={"sid": "ppt-system-selection-phase-injected-test", "turn_index": 1, "step": 1}
+        )
+
+        def _selection_builder(**_kwargs):
+            return {
+                "system_type": "built_in_route",
+                "route": "svg",
+                "skill_name": "",
+                "output_format": "pptx",
+                "reason": "Injected selector chose SVG for editable vector output.",
+            }
+
+        result = await manager._select_ppt_system_phase(
+            task="做一个 SVG route 产品介绍 PPT。",
+            output={"format": "pptx", "route": "svg"},
+            requirement=requirement,
+            tool_context=tool_context,
+            app_name="creative_claw",
+            artifact_service=None,
+            system_selection_builder=_selection_builder,
+        )
+
+        self.assertIsInstance(result, PptSystemSelectionResult)
+        self.assertEqual(result.system_selection.system_type, "built_in_route")
+        self.assertEqual(result.system_selection.route, "svg")
+        self.assertEqual(result.selection_output["source"], "injected")
+        self.assertEqual(tool_context.state[PPT_SYSTEM_SELECTION_STATE_KEY]["route"], "svg")
+        self.assertEqual(tool_context.state[PPT_SYSTEM_SELECTION_OUTPUT_STATE_KEY]["source"], "injected")
+        self.assertEqual(
+            tool_context.state[PPT_SYSTEM_SELECTION_RESULT_STATE_KEY]["system_selection"]["reason"],
+            "Injected selector chose SVG for editable vector output.",
+        )
+
+    async def test_system_selection_phase_persists_private_template_fallback_result(self) -> None:
+        manager = PptProductManager()
+        requirement = manager.prepare_confirmed_requirement(
+            task="套用用户上传 PPTX 模板生成汇报。",
+            inputs=[{"name": "template.pptx", "path": "inbox/demo/template.pptx"}],
+            output={"format": "pptx", "route": "xml"},
+        )
+        tool_context = SimpleNamespace(
+            state={"sid": "ppt-system-selection-phase-fallback-test", "turn_index": 1, "step": 1}
+        )
+
+        result = await manager._select_ppt_system_phase(
+            task="套用用户上传 PPTX 模板生成汇报。",
+            output={"format": "pptx", "route": "xml"},
+            requirement=requirement,
+            tool_context=tool_context,
+            app_name="creative_claw",
+            artifact_service=None,
+        )
+
+        self.assertIsInstance(result, PptSystemSelectionResult)
+        self.assertEqual(result.system_selection.system_type, "private_skill")
+        self.assertEqual(result.system_selection.route, "xml")
+        self.assertEqual(result.system_selection.skill_name, "pptx")
+        self.assertEqual(result.system_selection.output_format, "pptx")
+        self.assertEqual(result.selection_output["source"], "deterministic_fallback")
+        self.assertEqual(tool_context.state[PPT_SYSTEM_SELECTION_STATE_KEY]["skill_name"], "pptx")
+        self.assertEqual(
+            tool_context.state[PPT_SYSTEM_SELECTION_RESULT_STATE_KEY]["selection_output"]["source"],
+            "deterministic_fallback",
+        )
+
+    async def test_system_selection_phase_uses_adk_workflow_context(self) -> None:
+        manager = PptProductManager()
+        task = "做一个 5 页 SVG route 产品介绍 PPT。"
+        output = {"format": "pptx", "route": "svg", "slide_count": 5}
+        requirement = manager.prepare_confirmed_requirement(
+            task=task,
+            inputs=[],
+            output=output,
+        )
+        selection_payload = {
+            "system_type": "built_in_route",
+            "route": "svg",
+            "skill_name": "",
+            "output_format": "pptx",
+            "reason": "The built-in SVG route best fits an editable vector deck.",
+        }
+        fake_llm = _PptProductManagerToolCallingFakeLlm(
+            function_calls=[
+                FunctionCall(name="list_product_ppt_skills", args={}),
+                FunctionCall(
+                    name="save_ppt_system_selection",
+                    args={"selection_json": selection_payload},
+                ),
+            ],
+            final_text="PptSystemSelectionAgent saved the PPT system selection.",
+        )
+
+        async def _run_selection_harness():
+            @node(name="PptSystemSelectionWorkflowHarnessNode", rerun_on_resume=True)
+            async def selection_harness(ctx: Context, node_input: str) -> dict[str, Any]:
+                result = await manager._select_ppt_system_phase(
+                    task=task,
+                    output=output,
+                    requirement=requirement,
+                    tool_context=ctx,
+                    app_name="creative_claw",
+                    artifact_service=artifact_service,
+                )
+                return result.model_dump(mode="json")
+
+            workflow = Workflow(
+                name="PptSystemSelectionWorkflowHarness",
+                edges=[("START", selection_harness)],
+            )
+            session_service = InMemorySessionService()
+            runner = Runner(
+                node=workflow,
+                session_service=session_service,
+                artifact_service=artifact_service,
+            )
+            user_id = "user-ppt-system-selection-workflow"
+            session_id = "session-ppt-system-selection-workflow"
+            try:
+                await session_service.create_session(
+                    app_name=workflow.name,
+                    user_id=user_id,
+                    session_id=session_id,
+                    state={
+                        "sid": "ppt-system-selection-workflow-test",
+                        "turn_index": 1,
+                        "step": 1,
+                    },
+                )
+                with patch(
+                    "src.productions.ppt.ppt_product_manager.ppt_product_manager.build_llm",
+                    return_value=fake_llm,
+                ):
+                    async for _ in runner.run_async(
+                        user_id=user_id,
+                        session_id=session_id,
+                        new_message=Content(role="user", parts=[Part(text="Select PPT system")]),
+                    ):
+                        pass
+                return await session_service.get_session(
+                    app_name=workflow.name,
+                    user_id=user_id,
+                    session_id=session_id,
+                )
+            finally:
+                await runner.close()
+
+        artifact_service = InMemoryArtifactService()
+        session = await _run_selection_harness()
+
+        self.assertIsNotNone(session)
+        self.assertEqual(
+            session.state[PPT_SYSTEM_SELECTION_WORKFLOW_OUTPUT_KEY]["source"],
+            "adk_workflow",
+        )
+        self.assertEqual(
+            session.state[PPT_SYSTEM_SELECTION_WORKFLOW_OUTPUT_KEY]["selection_source"],
+            "llm_agent",
+        )
+        self.assertEqual(session.state[PPT_SYSTEM_SELECTION_STATE_KEY]["route"], "svg")
+        self.assertEqual(session.state[PPT_SYSTEM_SELECTION_OUTPUT_STATE_KEY]["source"], "llm_agent")
+        self.assertEqual(
+            session.state[PPT_SYSTEM_SELECTION_RESULT_STATE_KEY]["system_selection"]["reason"],
+            selection_payload["reason"],
+        )
+        self.assertIn(PPT_SYSTEM_SELECTION_AGENT_MESSAGE_KEY, session.state)
+        first_request_tools = _function_declaration_names(fake_llm.requests[0])
+        self.assertIn("list_product_ppt_skills", first_request_tools)
+        self.assertIn("save_ppt_system_selection", first_request_tools)
 
     def test_ppt_svg_strategy_tools_save_and_read_execution_plan(self) -> None:
         manager = PptProductManager()
@@ -1610,6 +2930,205 @@ Visual:
         self.assertEqual(result["selected_route"], "html")
         self.assertEqual(tool_context.state["ppt_route_build"]["template"]["template_id"], "free_design")
         self.assertTrue(result["output_files"])
+
+    async def test_route_execution_phase_reuses_existing_successful_build(self) -> None:
+        manager = PptProductManager()
+        requirement = manager.prepare_confirmed_requirement(
+            task="做一个 5 页 PPTX 产品介绍。",
+            inputs=[],
+            output={"format": "pptx"},
+        )
+        content_plan = manager.build_initial_deck_content_plan(requirement)
+        tool_context = SimpleNamespace(state={"sid": "ppt-route-phase-test", "turn_index": 1, "step": 1})
+        route_calls: list[Path] = []
+
+        async def _fake_dispatch_ppt_route(**kwargs):
+            output_dir = Path(kwargs["output_dir"])
+            route_calls.append(output_dir)
+            final_pptx = output_dir / "deck.pptx"
+            final_pptx.write_bytes(b"fake-pptx")
+            html_path = output_dir / "deck.html"
+            html_path.write_text("<html></html>", encoding="utf-8")
+            return HtmlRouteBuildPackage(
+                template=HtmlTemplatePackage(template_id="workflow-test", label="Workflow Test"),
+                html_deck_path=workspace_relative_path(html_path),
+                preview_paths=[],
+                pptx_path=workspace_relative_path(final_pptx),
+                quality_report_path="",
+                build_log_path="",
+                warnings=[],
+            )
+
+        with patch.object(manager, "_dispatch_ppt_route", _fake_dispatch_ppt_route):
+            first_result = await manager._execute_ppt_route_phase(
+                requirement=requirement,
+                content_plan=content_plan,
+                tool_context=tool_context,
+                expert_agents={},
+            )
+            second_result = await manager._execute_ppt_route_phase(
+                requirement=requirement,
+                content_plan=content_plan,
+                tool_context=tool_context,
+                expert_agents={},
+            )
+
+        self.assertIsInstance(first_result, PptRouteExecutionResult)
+        self.assertFalse(first_result.reused_existing_build)
+        self.assertTrue(second_result.reused_existing_build)
+        self.assertEqual(len(route_calls), 1)
+        self.assertEqual(first_result.route_build.pptx_path, second_result.route_build.pptx_path)
+        self.assertEqual(
+            tool_context.state["ppt_route_execution_result"]["route_build"]["pptx_path"],
+            first_result.route_build.pptx_path,
+        )
+        self.assertTrue(tool_context.state["ppt_route_execution_result"]["input_signature"])
+        self.assertEqual(tool_context.state["ppt_route_build"]["pptx_path"], first_result.route_build.pptx_path)
+
+    async def test_route_execution_phase_reruns_when_inputs_change(self) -> None:
+        manager = PptProductManager()
+        requirement = manager.prepare_confirmed_requirement(
+            task="做一个 5 页 PPTX 产品介绍。",
+            inputs=[],
+            output={"format": "pptx"},
+        )
+        content_plan = manager.build_initial_deck_content_plan(requirement)
+        changed_plan = content_plan.model_copy(update={"title": "Changed Product Deck"}, deep=True)
+        tool_context = SimpleNamespace(state={"sid": "ppt-route-phase-input-test", "turn_index": 1, "step": 1})
+        route_calls: list[Path] = []
+
+        async def _fake_dispatch_ppt_route(**kwargs):
+            output_dir = Path(kwargs["output_dir"])
+            route_calls.append(output_dir)
+            final_pptx = output_dir / "deck.pptx"
+            final_pptx.write_bytes(f"fake-pptx-{len(route_calls)}".encode("utf-8"))
+            html_path = output_dir / "deck.html"
+            html_path.write_text("<html></html>", encoding="utf-8")
+            return HtmlRouteBuildPackage(
+                template=HtmlTemplatePackage(template_id="workflow-test", label="Workflow Test"),
+                html_deck_path=workspace_relative_path(html_path),
+                preview_paths=[],
+                pptx_path=workspace_relative_path(final_pptx),
+                quality_report_path="",
+                build_log_path="",
+                warnings=[],
+            )
+
+        with patch.object(manager, "_dispatch_ppt_route", _fake_dispatch_ppt_route):
+            first_result = await manager._execute_ppt_route_phase(
+                requirement=requirement,
+                content_plan=content_plan,
+                tool_context=tool_context,
+                expert_agents={},
+            )
+            second_result = await manager._execute_ppt_route_phase(
+                requirement=requirement,
+                content_plan=changed_plan,
+                tool_context=tool_context,
+                expert_agents={},
+            )
+
+        self.assertFalse(first_result.reused_existing_build)
+        self.assertFalse(second_result.reused_existing_build)
+        self.assertEqual(len(route_calls), 2)
+        self.assertNotEqual(first_result.input_signature, second_result.input_signature)
+        self.assertEqual(tool_context.state["ppt_route_execution_result"]["input_signature"], second_result.input_signature)
+
+    async def test_route_final_delivery_phase_records_typed_result(self) -> None:
+        manager = PptProductManager()
+        requirement = manager.prepare_confirmed_requirement(
+            task="做一个 5 页 PPTX 产品介绍。",
+            inputs=[],
+            output={"format": "pptx"},
+        )
+        content_plan = manager.build_initial_deck_content_plan(requirement)
+        tool_context = SimpleNamespace(state={"sid": "ppt-final-delivery-phase-test", "turn_index": 1, "step": 1})
+        output_dir = manager._build_route_output_dir(tool_context.state, route=requirement.route)
+        final_pptx = output_dir / "deck.pptx"
+        final_pptx.write_bytes(b"fake-pptx")
+        html_path = output_dir / "deck.html"
+        html_path.write_text("<html></html>", encoding="utf-8")
+        route_build = HtmlRouteBuildPackage(
+            template=HtmlTemplatePackage(template_id="workflow-test", label="Workflow Test"),
+            html_deck_path=workspace_relative_path(html_path),
+            preview_paths=[],
+            pptx_path=workspace_relative_path(final_pptx),
+            quality_report_path="",
+            build_log_path="",
+            warnings=["route warning"],
+        )
+        route_execution = PptRouteExecutionResult(
+            route=requirement.route,
+            output_dir=workspace_relative_path(output_dir),
+            input_signature=manager._route_execution_input_signature(requirement, content_plan),
+            route_build=route_build,
+        )
+
+        result = manager._finalize_route_delivery_phase(
+            requirement=requirement,
+            content_plan=content_plan,
+            route_execution=route_execution,
+            tool_context=tool_context,
+        )
+
+        self.assertIsInstance(result, PptFinalDeliveryResult)
+        self.assertEqual(result.product_result.status, "success")
+        self.assertEqual(result.delivery_manifest.final_pptx, route_build.pptx_path)
+        self.assertEqual(tool_context.state["final_file_paths"], [route_build.pptx_path])
+        self.assertEqual(
+            tool_context.state["ppt_final_delivery_result"]["delivery_manifest"]["final_pptx"],
+            route_build.pptx_path,
+        )
+        self.assertIn("route warning", result.product_result.warnings)
+
+    async def test_route_final_delivery_phase_is_idempotent_for_same_outputs(self) -> None:
+        manager = PptProductManager()
+        requirement = manager.prepare_confirmed_requirement(
+            task="做一个 5 页 PPTX 产品介绍。",
+            inputs=[],
+            output={"format": "pptx"},
+        )
+        content_plan = manager.build_initial_deck_content_plan(requirement)
+        tool_context = SimpleNamespace(state={"sid": "ppt-final-delivery-idempotent-test", "turn_index": 1, "step": 1})
+        output_dir = manager._build_route_output_dir(tool_context.state, route=requirement.route)
+        final_pptx = output_dir / "deck.pptx"
+        final_pptx.write_bytes(b"fake-pptx")
+        html_path = output_dir / "deck.html"
+        html_path.write_text("<html></html>", encoding="utf-8")
+        route_build = HtmlRouteBuildPackage(
+            template=HtmlTemplatePackage(template_id="workflow-test", label="Workflow Test"),
+            html_deck_path=workspace_relative_path(html_path),
+            preview_paths=[],
+            pptx_path=workspace_relative_path(final_pptx),
+            quality_report_path="",
+            build_log_path="",
+            warnings=[],
+        )
+        route_execution = PptRouteExecutionResult(
+            route=requirement.route,
+            output_dir=workspace_relative_path(output_dir),
+            input_signature=manager._route_execution_input_signature(requirement, content_plan),
+            route_build=route_build,
+        )
+
+        first_result = manager._finalize_route_delivery_phase(
+            requirement=requirement,
+            content_plan=content_plan,
+            route_execution=route_execution,
+            tool_context=tool_context,
+        )
+        second_result = manager._finalize_route_delivery_phase(
+            requirement=requirement,
+            content_plan=content_plan,
+            route_execution=route_execution,
+            tool_context=tool_context,
+        )
+
+        self.assertEqual(first_result.output_files, second_result.output_files)
+        self.assertEqual(tool_context.state["new_files"], first_result.output_files)
+        self.assertEqual(tool_context.state["generated"], first_result.output_files)
+        self.assertEqual(tool_context.state["files_history"], [first_result.output_files])
+        self.assertEqual(tool_context.state["final_file_paths"], [route_build.pptx_path])
 
     async def test_dispatch_ppt_route_injects_product_html_page_expert(self) -> None:
         manager = PptProductManager()
@@ -2053,6 +3572,278 @@ Visual:
         self.assertIn("ppt_private_skill_runtime_path", tool_context.state)
         self.assertTrue(resolve_workspace_path(tool_context.state["ppt_private_skill_runtime_path"]).exists())
 
+    async def test_private_skill_execution_phase_records_typed_result(self) -> None:
+        manager = PptProductManager()
+        tool_context = SimpleNamespace(
+            state={"sid": "private-skill-execution-phase-test", "turn_index": 1, "step": 1}
+        )
+        requirement = manager.prepare_confirmed_requirement(
+            task="做一个 HTML private skill PPT。",
+            inputs=[],
+            output={"format": "html", "route": "html"},
+        )
+        content_plan = manager.build_initial_deck_content_plan(requirement)
+
+        result = await manager._execute_private_ppt_skill_phase(
+            requirement=requirement,
+            content_plan=content_plan,
+            system_selection={
+                "system_type": "private_skill",
+                "route": "html",
+                "skill_name": "ppt-complete-workflow",
+                "output_format": "html",
+            },
+            tool_context=tool_context,
+            expert_agents={},
+            app_name="creative_claw",
+            artifact_service=None,
+        )
+
+        self.assertIsInstance(result, PptPrivateSkillExecutionResult)
+        self.assertEqual(result.skill_name, "ppt-complete-workflow")
+        self.assertEqual(result.output_format, "html")
+        self.assertEqual(result.execution_output["source"], "deterministic_fallback")
+        self.assertEqual(result.private_build["source"], "save_ppt_private_skill_html")
+        self.assertEqual(
+            tool_context.state[PPT_PRIVATE_SKILL_EXECUTION_RESULT_STATE_KEY]["private_build"]["output_path"],
+            result.private_build["output_path"],
+        )
+
+    async def test_private_skill_execution_phase_reuses_same_input_successful_build(self) -> None:
+        manager = PptProductManager()
+        tool_context = SimpleNamespace(
+            state={"sid": "private-skill-reuse-test", "turn_index": 1, "step": 1}
+        )
+        requirement = manager.prepare_confirmed_requirement(
+            task="做一个 HTML private skill PPT。",
+            inputs=[],
+            output={"format": "html", "route": "html"},
+        )
+        content_plan = manager.build_initial_deck_content_plan(requirement)
+        selection = {
+            "system_type": "private_skill",
+            "route": "html",
+            "skill_name": "ppt-complete-workflow",
+            "output_format": "html",
+        }
+        execution_calls: list[dict[str, Any]] = []
+
+        async def _execute_private_skill(self, **kwargs):
+            execution_calls.append(kwargs)
+            return self.save_ppt_private_skill_html(
+                file_name="reused-private-skill.html",
+                html_content="<!doctype html><html><body><h1>Reusable private skill</h1></body></html>",
+                description="Reusable private-skill HTML deck.",
+                tool_context=kwargs["tool_context"],
+            )
+
+        async def _unexpected_execute_private_skill(*_args, **_kwargs):
+            raise AssertionError("same private-skill input should be reused")
+
+        with patch.object(PptProductManager, "execute_private_ppt_skill", _execute_private_skill):
+            first_result = await manager._execute_private_ppt_skill_phase(
+                requirement=requirement,
+                content_plan=content_plan,
+                system_selection=selection,
+                tool_context=tool_context,
+                expert_agents={},
+                app_name="creative_claw",
+                artifact_service=None,
+            )
+
+        with patch.object(PptProductManager, "execute_private_ppt_skill", _unexpected_execute_private_skill):
+            second_result = await manager._execute_private_ppt_skill_phase(
+                requirement=requirement,
+                content_plan=content_plan,
+                system_selection=selection,
+                tool_context=tool_context,
+                expert_agents={},
+                app_name="creative_claw",
+                artifact_service=None,
+            )
+
+        self.assertEqual(len(execution_calls), 1)
+        self.assertFalse(first_result.reused_existing_build)
+        self.assertTrue(second_result.reused_existing_build)
+        self.assertEqual(first_result.input_signature, second_result.input_signature)
+        self.assertEqual(first_result.private_build["output_path"], second_result.private_build["output_path"])
+        self.assertTrue(resolve_workspace_path(second_result.private_build["output_path"]).is_file())
+        self.assertEqual(tool_context.state["final_file_paths"], [second_result.private_build["output_path"]])
+        self.assertTrue(
+            tool_context.state[PPT_PRIVATE_SKILL_EXECUTION_RESULT_STATE_KEY]["reused_existing_build"]
+        )
+
+    async def test_private_skill_execution_phase_reruns_when_inputs_change(self) -> None:
+        manager = PptProductManager()
+        tool_context = SimpleNamespace(
+            state={"sid": "private-skill-rerun-test", "turn_index": 1, "step": 1}
+        )
+        requirement = manager.prepare_confirmed_requirement(
+            task="做一个 HTML private skill PPT。",
+            inputs=[],
+            output={"format": "html", "route": "html"},
+        )
+        first_plan = manager.build_initial_deck_content_plan(requirement)
+        second_plan = DeckContentPlan(
+            title="Changed Private Skill Plan",
+            core_narrative="Changed plan should force private skill execution.",
+            pages=[_page(1, "cover"), _page(2, "ending")],
+        )
+        selection = {
+            "system_type": "private_skill",
+            "route": "html",
+            "skill_name": "ppt-complete-workflow",
+            "output_format": "html",
+        }
+        execution_calls: list[str] = []
+
+        async def _execute_private_skill(self, **kwargs):
+            file_name = f"private-skill-rerun-{len(execution_calls) + 1}.html"
+            execution_calls.append(file_name)
+            return self.save_ppt_private_skill_html(
+                file_name=file_name,
+                html_content=f"<!doctype html><html><body><h1>{file_name}</h1></body></html>",
+                description="Rerun private-skill HTML deck.",
+                tool_context=kwargs["tool_context"],
+            )
+
+        with patch.object(PptProductManager, "execute_private_ppt_skill", _execute_private_skill):
+            first_result = await manager._execute_private_ppt_skill_phase(
+                requirement=requirement,
+                content_plan=first_plan,
+                system_selection=selection,
+                tool_context=tool_context,
+                expert_agents={},
+                app_name="creative_claw",
+                artifact_service=None,
+            )
+            second_result = await manager._execute_private_ppt_skill_phase(
+                requirement=requirement,
+                content_plan=second_plan,
+                system_selection=selection,
+                tool_context=tool_context,
+                expert_agents={},
+                app_name="creative_claw",
+                artifact_service=None,
+            )
+
+        self.assertEqual(execution_calls, ["private-skill-rerun-1.html", "private-skill-rerun-2.html"])
+        self.assertFalse(first_result.reused_existing_build)
+        self.assertFalse(second_result.reused_existing_build)
+        self.assertNotEqual(first_result.input_signature, second_result.input_signature)
+        self.assertTrue(second_result.private_build["output_path"].endswith("private-skill-rerun-2.html"))
+        self.assertEqual(
+            tool_context.state[PPT_PRIVATE_SKILL_EXECUTION_RESULT_STATE_KEY]["input_signature"],
+            second_result.input_signature,
+        )
+
+    async def test_private_skill_execution_phase_uses_adk_workflow_context(self) -> None:
+        fake_llm = _PptProductManagerToolCallingFakeLlm(
+            function_calls=[
+                FunctionCall(
+                    name="save_ppt_private_skill_html",
+                    args={
+                        "file_name": "agenttool-private-skill-workflow.html",
+                        "html_content": "<!doctype html><html><body><h1>Workflow Skill Deck</h1></body></html>",
+                        "description": "Workflow private skill HTML deck.",
+                    },
+                )
+            ],
+            final_text="PptProductManager saved the workflow private skill HTML deck.",
+        )
+        manager = PptProductManager(model=fake_llm)
+        requirement = manager.prepare_confirmed_requirement(
+            task="做一个 HTML private skill PPT。",
+            inputs=[],
+            output={"format": "html", "route": "html"},
+        )
+        content_plan = manager.build_initial_deck_content_plan(requirement)
+        selection = {
+            "system_type": "private_skill",
+            "route": "html",
+            "skill_name": "ppt-complete-workflow",
+            "output_format": "html",
+            "reason": "Exercise the private-skill execution workflow node.",
+        }
+
+        async def _run_execution_harness():
+            @node(name="PptPrivateSkillExecutionWorkflowHarnessNode", rerun_on_resume=True)
+            async def execution_harness(ctx: Context, node_input: str) -> dict[str, Any]:
+                result = await manager._run_private_skill_execution_phase(
+                    requirement=requirement,
+                    content_plan=content_plan,
+                    system_selection=selection,
+                    tool_context=ctx,
+                    expert_agents={},
+                    app_name="creative_claw",
+                    artifact_service=artifact_service,
+                )
+                return result.model_dump(mode="json")
+
+            workflow = Workflow(
+                name="PptPrivateSkillExecutionWorkflowHarness",
+                edges=[("START", execution_harness)],
+            )
+            session_service = InMemorySessionService()
+            runner = Runner(
+                node=workflow,
+                session_service=session_service,
+                artifact_service=artifact_service,
+            )
+            user_id = "user-ppt-private-skill-execution-workflow"
+            session_id = "session-ppt-private-skill-execution-workflow"
+            try:
+                await session_service.create_session(
+                    app_name=workflow.name,
+                    user_id=user_id,
+                    session_id=session_id,
+                    state={
+                        "sid": "ppt-private-skill-execution-workflow-test",
+                        "turn_index": 1,
+                        "step": 3,
+                    },
+                )
+                async for _ in runner.run_async(
+                    user_id=user_id,
+                    session_id=session_id,
+                    new_message=Content(role="user", parts=[Part(text="Execute private skill")]),
+                ):
+                    pass
+                return await session_service.get_session(
+                    app_name=workflow.name,
+                    user_id=user_id,
+                    session_id=session_id,
+                )
+            finally:
+                await runner.close()
+
+        artifact_service = InMemoryArtifactService()
+        session = await _run_execution_harness()
+
+        self.assertIsNotNone(session)
+        self.assertEqual(
+            session.state[PPT_PRIVATE_SKILL_EXECUTION_WORKFLOW_OUTPUT_KEY]["source"],
+            "adk_workflow",
+        )
+        self.assertEqual(
+            session.state[PPT_PRIVATE_SKILL_EXECUTION_RESULT_STATE_KEY]["execution_output"]["source"],
+            "ppt_product_manager",
+        )
+        self.assertEqual(
+            session.state[PPT_PRIVATE_SKILL_EXECUTION_RESULT_STATE_KEY]["private_build"]["source"],
+            "save_ppt_private_skill_html",
+        )
+        self.assertNotEqual(
+            session.state["ppt_private_skill_execution_output"]["source"],
+            "deterministic_fallback",
+        )
+        output_path = session.state[PPT_PRIVATE_SKILL_EXECUTION_RESULT_STATE_KEY]["private_build"]["output_path"]
+        self.assertEqual(session.state["final_file_paths"], [output_path])
+        html_path = resolve_workspace_path(output_path)
+        self.assertTrue(html_path.exists())
+        self.assertIn("Workflow Skill Deck", html_path.read_text(encoding="utf-8"))
+        self.assertIn("save_ppt_private_skill_html", _function_declaration_names(fake_llm.requests[0]))
+
     async def test_private_skill_agenttool_main_path_saves_html(self) -> None:
         fake_llm = _PptProductManagerToolCallingFakeLlm(
             function_calls=[
@@ -2153,6 +3944,101 @@ Visual:
         self.assertIn("save_ppt_private_skill_html", first_request_tools)
         self.assertIn("invoke_ppt_expert", first_request_tools)
         self.assertGreaterEqual(len(fake_llm.requests), 2)
+
+    async def test_private_skill_delivery_phase_uses_adk_workflow_context(self) -> None:
+        manager = PptProductManager()
+        requirement = manager.prepare_confirmed_requirement(
+            task="做一个 HTML private skill PPT。",
+            inputs=[],
+            output={"format": "html", "route": "html"},
+        )
+        content_plan = manager.build_initial_deck_content_plan(requirement)
+        output_path = "generated/ppt-private-skill-delivery-workflow-test/turn_1/index.html"
+        file_record = build_workspace_file_record(
+            output_path,
+            description="Private PPT skill HTML deck artifact.",
+            source="ppt_product_manager",
+        )
+        private_build = {
+            "skill_name": "ppt-complete-workflow",
+            "output_path": output_path,
+            "artifact_type": "html",
+            "output_format": "html",
+            "output_files": [file_record],
+            "source": "save_ppt_private_skill_html",
+        }
+        selection = {
+            "system_type": "private_skill",
+            "route": "html",
+            "skill_name": "ppt-complete-workflow",
+            "output_format": "html",
+        }
+
+        async def _run_delivery_harness():
+            @node(name="PptPrivateSkillDeliveryWorkflowHarnessNode", rerun_on_resume=True)
+            async def delivery_harness(ctx: Context, node_input: str) -> dict[str, Any]:
+                result = await manager._run_private_skill_delivery_phase(
+                    requirement=requirement,
+                    content_plan=content_plan,
+                    system_selection=selection,
+                    private_build=private_build,
+                    tool_context=ctx,
+                )
+                return result.model_dump(mode="json")
+
+            workflow = Workflow(
+                name="PptPrivateSkillDeliveryWorkflowHarness",
+                edges=[("START", delivery_harness)],
+            )
+            session_service = InMemorySessionService()
+            artifact_service = InMemoryArtifactService()
+            runner = Runner(
+                node=workflow,
+                session_service=session_service,
+                artifact_service=artifact_service,
+            )
+            user_id = "user-ppt-private-skill-delivery-workflow"
+            session_id = "session-ppt-private-skill-delivery-workflow"
+            try:
+                await session_service.create_session(
+                    app_name=workflow.name,
+                    user_id=user_id,
+                    session_id=session_id,
+                    state={
+                        "sid": "ppt-private-skill-delivery-workflow-test",
+                        "turn_index": 1,
+                        "step": 1,
+                    },
+                )
+                async for _ in runner.run_async(
+                    user_id=user_id,
+                    session_id=session_id,
+                    new_message=Content(role="user", parts=[Part(text="Deliver private skill")]),
+                ):
+                    pass
+                return await session_service.get_session(
+                    app_name=workflow.name,
+                    user_id=user_id,
+                    session_id=session_id,
+                )
+            finally:
+                await runner.close()
+
+        session = await _run_delivery_harness()
+
+        self.assertIsNotNone(session)
+        self.assertEqual(
+            session.state[PPT_PRIVATE_SKILL_DELIVERY_WORKFLOW_OUTPUT_KEY]["source"],
+            "adk_workflow",
+        )
+        self.assertEqual(
+            session.state["ppt_private_skill_delivery_result"]["product_result"]["status"],
+            "success",
+        )
+        self.assertEqual(
+            session.state["ppt_private_skill_delivery_result"]["private_build"]["output_path"],
+            output_path,
+        )
 
     async def test_private_skill_recovers_generated_pptx_after_child_runner_error(self) -> None:
         manager = PptProductManager()
@@ -2383,6 +4269,8 @@ Visual:
             session.state[PPT_REQUIREMENT_CONFIRMATION_WORKFLOW_OUTPUT_KEY]["status"],
             "awaiting_content_plan_confirmation",
         )
+        self.assertEqual(session.state[PPT_SOURCE_PREPARATION_WORKFLOW_OUTPUT_KEY]["source"], "adk_workflow")
+        self.assertEqual(session.state[PPT_CONTENT_PLANNING_WORKFLOW_OUTPUT_KEY]["source"], "adk_workflow")
         self.assertIn("deck_content_plan", session.state["ppt_workflow_state"])
         self.assertNotIn("final_file_paths", session.state)
 
@@ -2491,9 +4379,465 @@ Visual:
             session.state[PPT_CONTENT_PLAN_CONFIRMATION_WORKFLOW_OUTPUT_KEY]["status"],
             "success",
         )
+        self.assertEqual(session.state[PPT_ASSET_RESOLUTION_WORKFLOW_OUTPUT_KEY]["source"], "adk_workflow")
+        self.assertEqual(session.state[PPT_ROUTE_EXECUTION_WORKFLOW_OUTPUT_KEY]["source"], "adk_workflow")
+        self.assertEqual(session.state[PPT_FINAL_DELIVERY_WORKFLOW_OUTPUT_KEY]["source"], "adk_workflow")
         self.assertEqual(session.state["final_file_paths"], [final_pptx])
         self.assertEqual(len(route_calls), 1)
         self.assertEqual(route_calls[0]["content_plan"].pages[0].assets[0].path, image_path)
+
+    async def test_requirement_revision_branch_uses_parent_adk_workflow_context(self) -> None:
+        manager = PptProductManager()
+        task = "给团队做一个 5 页产品复盘 PPT。"
+        output = {"format": "pptx", "slide_count": 5}
+        requirement = manager.prepare_confirmed_requirement(task=task, inputs=[], output=output)
+        system_selection = manager._build_default_system_selection(requirement)
+        revised_payload = requirement.model_dump(mode="json")
+        revised_payload.update(
+            {
+                "audience": "技术负责人",
+                "scenario": "季度复盘",
+                "slide_count_policy": {
+                    **revised_payload["slide_count_policy"],
+                    "target": 12,
+                },
+            }
+        )
+        selection_payload = {
+            "system_type": "built_in_route",
+            "route": "html",
+            "skill_name": "",
+            "output_format": "pptx",
+            "reason": "Keep the built-in HTML route after requirement revision.",
+        }
+        fake_llm = _PptProductManagerToolCallingFakeLlm(
+            function_calls=[
+                FunctionCall(
+                    name="save_ppt_confirmed_requirement_json",
+                    args={"requirement_json": revised_payload},
+                ),
+                FunctionCall(name="list_product_ppt_skills", args={}),
+                FunctionCall(
+                    name="save_ppt_system_selection",
+                    args={"selection_json": selection_payload},
+                ),
+            ],
+            final_text="PPT parent workflow revision branch completed.",
+        )
+
+        async def _run_ppt_harness():
+            @node(name="PptRequirementRevisionParentWorkflowHarnessNode", rerun_on_resume=True)
+            async def ppt_harness(ctx: Context, node_input: str) -> dict[str, Any]:
+                with patch.object(
+                    manager,
+                    "_continue_after_requirement_confirmation_direct",
+                    side_effect=AssertionError("parent workflow must own requirement revision"),
+                ):
+                    return await manager.continue_product_request(
+                        user_response=node_input,
+                        tool_context=ctx,
+                    )
+
+            workflow = Workflow(
+                name="PptRequirementRevisionParentWorkflowHarness",
+                edges=[("START", ppt_harness)],
+            )
+            session_service = InMemorySessionService()
+            artifact_service = InMemoryArtifactService()
+            runner = Runner(
+                node=workflow,
+                session_service=session_service,
+                artifact_service=artifact_service,
+            )
+            user_id = "user-ppt-requirement-revision-parent-workflow"
+            session_id = "session-ppt-requirement-revision-parent-workflow"
+            try:
+                await session_service.create_session(
+                    app_name=workflow.name,
+                    user_id=user_id,
+                    session_id=session_id,
+                    state={
+                        "sid": "ppt-requirement-revision-parent-workflow-test",
+                        "turn_index": 2,
+                        "step": 1,
+                        "ppt_workflow_state": {
+                            "workflow_id": "ppt-requirement-revision-parent-workflow-test:ppt:1",
+                            "stage": "awaiting_requirement_confirmation",
+                            "revision": 1,
+                            "task": task,
+                            "raw_inputs": [],
+                            "output": output,
+                            "confirmed_requirement": requirement.model_dump(mode="json"),
+                            "system_selection": system_selection,
+                            "waiting_since_turn_index": 1,
+                        },
+                    },
+                )
+                with patch(
+                    "src.productions.ppt.ppt_product_manager.ppt_product_manager.build_llm",
+                    return_value=fake_llm,
+                ):
+                    async for _ in runner.run_async(
+                        user_id=user_id,
+                        session_id=session_id,
+                        new_message=Content(
+                            role="user",
+                            parts=[Part(text="受众改为技术负责人，场景改成季度复盘，页数改为 12 页。")],
+                        ),
+                    ):
+                        pass
+                return await session_service.get_session(
+                    app_name=workflow.name,
+                    user_id=user_id,
+                    session_id=session_id,
+                )
+            finally:
+                await runner.close()
+
+        session = await _run_ppt_harness()
+
+        self.assertIsNotNone(session)
+        self.assertEqual(session.state["ppt_product_result"]["status"], "awaiting_requirement_confirmation")
+        self.assertEqual(session.state["ppt_workflow_state"]["stage"], "awaiting_requirement_confirmation")
+        self.assertEqual(
+            session.state[PPT_REQUIREMENT_CONFIRMATION_WORKFLOW_OUTPUT_KEY]["branch"],
+            "revision",
+        )
+        self.assertEqual(
+            session.state[PPT_REQUIREMENT_REVISION_WORKFLOW_OUTPUT_KEY]["source"],
+            "adk_workflow",
+        )
+        self.assertEqual(
+            session.state[PPT_SYSTEM_SELECTION_WORKFLOW_OUTPUT_KEY]["source"],
+            "adk_workflow",
+        )
+        self.assertEqual(session.state[PPT_CONFIRMED_REQUIREMENT_STATE_KEY]["audience"], "技术负责人")
+        self.assertEqual(session.state[PPT_CONFIRMED_REQUIREMENT_STATE_KEY]["scenario"], "季度复盘")
+        self.assertEqual(session.state[PPT_CONFIRMED_REQUIREMENT_STATE_KEY]["slide_count_policy"]["target"], 12)
+        self.assertNotIn(PPT_SOURCE_PREPARATION_WORKFLOW_OUTPUT_KEY, session.state)
+        first_request_tools = _function_declaration_names(fake_llm.requests[0])
+        self.assertIn("save_ppt_confirmed_requirement_json", first_request_tools)
+
+    async def test_content_plan_revision_branch_uses_parent_adk_workflow_context(self) -> None:
+        manager = PptProductManager()
+        task = "给幼儿园小朋友做一个 3 页英语单词 PPT。"
+        output = {"format": "pptx", "slide_count": 3}
+        requirement = manager.prepare_confirmed_requirement(task=task, inputs=[], output=output)
+        content_plan = manager.build_initial_deck_content_plan(requirement)
+        system_selection = manager._build_default_system_selection(requirement)
+        captured: dict[str, Any] = {}
+
+        def _content_plan_builder(revised_requirement):
+            captured["request_brief"] = revised_requirement.request_brief
+            return DeckContentPlan(
+                title="Parent Workflow Revised Plan",
+                core_narrative="Use the parent Workflow revision branch.",
+                pages=[_page(1, "cover"), _page(2, "content"), _page(3, "ending")],
+            )
+
+        async def _run_ppt_harness():
+            @node(name="PptContentPlanRevisionParentWorkflowHarnessNode", rerun_on_resume=True)
+            async def ppt_harness(ctx: Context, node_input: str) -> dict[str, Any]:
+                with patch.object(
+                    manager,
+                    "_continue_after_content_plan_confirmation_direct",
+                    side_effect=AssertionError("parent workflow must own content-plan revision"),
+                ):
+                    return await manager.continue_product_request(
+                        user_response=node_input,
+                        tool_context=ctx,
+                        content_plan_builder=_content_plan_builder,
+                    )
+
+            workflow = Workflow(
+                name="PptContentPlanRevisionParentWorkflowHarness",
+                edges=[("START", ppt_harness)],
+            )
+            session_service = InMemorySessionService()
+            artifact_service = InMemoryArtifactService()
+            runner = Runner(
+                node=workflow,
+                session_service=session_service,
+                artifact_service=artifact_service,
+            )
+            user_id = "user-ppt-content-plan-revision-parent-workflow"
+            session_id = "session-ppt-content-plan-revision-parent-workflow"
+            try:
+                await session_service.create_session(
+                    app_name=workflow.name,
+                    user_id=user_id,
+                    session_id=session_id,
+                    state={
+                        "sid": "ppt-content-plan-revision-parent-workflow-test",
+                        "turn_index": 3,
+                        "step": 1,
+                        "ppt_workflow_state": {
+                            "workflow_id": "ppt-content-plan-revision-parent-workflow-test:ppt:1",
+                            "stage": "awaiting_content_plan_confirmation",
+                            "revision": 2,
+                            "task": task,
+                            "raw_inputs": [],
+                            "output": output,
+                            "confirmed_requirement": requirement.model_dump(mode="json"),
+                            "deck_content_plan": content_plan.model_dump(mode="json"),
+                            "deck_content_plan_markdown": "",
+                            "system_selection": system_selection,
+                            "waiting_since_turn_index": 2,
+                        },
+                    },
+                )
+                async for _ in runner.run_async(
+                    user_id=user_id,
+                    session_id=session_id,
+                    new_message=Content(
+                        role="user",
+                        parts=[Part(text="把第 2 页改成兔子，并加一个结束页。")],
+                    ),
+                ):
+                    pass
+                return await session_service.get_session(
+                    app_name=workflow.name,
+                    user_id=user_id,
+                    session_id=session_id,
+                )
+            finally:
+                await runner.close()
+
+        session = await _run_ppt_harness()
+
+        self.assertIsNotNone(session)
+        self.assertEqual(session.state["ppt_product_result"]["status"], "awaiting_content_plan_confirmation")
+        self.assertEqual(session.state["ppt_workflow_state"]["stage"], "awaiting_content_plan_confirmation")
+        self.assertIn("Content plan revision", captured["request_brief"])
+        self.assertEqual(
+            session.state[PPT_CONTENT_PLAN_CONFIRMATION_WORKFLOW_OUTPUT_KEY]["branch"],
+            "revision",
+        )
+        self.assertEqual(
+            session.state[PPT_CONTENT_PLAN_REVISION_WORKFLOW_OUTPUT_KEY]["source"],
+            "adk_workflow",
+        )
+        self.assertEqual(
+            session.state[PPT_CONTENT_PLANNING_WORKFLOW_OUTPUT_KEY]["source"],
+            "adk_workflow",
+        )
+        self.assertEqual(session.state["ppt_deck_content_plan"]["title"], "Parent Workflow Revised Plan")
+        self.assertNotIn(PPT_ASSET_RESOLUTION_WORKFLOW_OUTPUT_KEY, session.state)
+        self.assertNotIn(PPT_ROUTE_EXECUTION_WORKFLOW_OUTPUT_KEY, session.state)
+        self.assertNotIn("final_file_paths", session.state)
+
+    async def test_multi_turn_ppt_workflow_runs_through_revisions_and_delivery(self) -> None:
+        manager = PptProductManager()
+        task = "给幼儿园小朋友做一个 3 页英语单词 PPT。"
+        output = {"format": "pptx", "slide_count": 3}
+        initial_requirement = manager.prepare_confirmed_requirement(task=task, inputs=[], output=output)
+        revised_requirement_payload = initial_requirement.model_dump(mode="json")
+        revised_requirement_payload.update(
+            {
+                "audience": "一年级学生",
+                "slide_count_policy": {
+                    **revised_requirement_payload["slide_count_policy"],
+                    "target": 4,
+                },
+            }
+        )
+        revision_selection_payload = {
+            "system_type": "built_in_route",
+            "route": "html",
+            "skill_name": "",
+            "output_format": "pptx",
+            "reason": "Use the built-in HTML route after requirement revision.",
+        }
+        initial_requirement_llm = _PptProductManagerToolCallingFakeLlm(
+            function_calls=[
+                FunctionCall(
+                    name="save_ppt_confirmed_requirement_json",
+                    args={"requirement_json": initial_requirement.model_dump(mode="json")},
+                )
+            ],
+            final_text="Initial requirement saved.",
+        )
+        revised_requirement_llm = _PptProductManagerToolCallingFakeLlm(
+            function_calls=[
+                FunctionCall(
+                    name="save_ppt_confirmed_requirement_json",
+                    args={"requirement_json": revised_requirement_payload},
+                )
+            ],
+            final_text="Revised requirement saved.",
+        )
+        revision_selection_llm = _PptProductManagerToolCallingFakeLlm(
+            function_calls=[
+                FunctionCall(name="list_product_ppt_skills", args={}),
+                FunctionCall(
+                    name="save_ppt_system_selection",
+                    args={"selection_json": revision_selection_payload},
+                ),
+            ],
+            final_text="Revised system selection saved.",
+        )
+        llm_models = iter([initial_requirement_llm, revised_requirement_llm, revision_selection_llm])
+        final_pptx = "generated/ppt-multi-turn-workflow-test/turn_5/final.pptx"
+        route_calls: list[dict[str, Any]] = []
+        planning_briefs: list[str] = []
+
+        def _system_selection_builder(**_kwargs):
+            return {
+                "system_type": "built_in_route",
+                "route": "html",
+                "skill_name": "",
+                "output_format": "pptx",
+                "reason": "Use the built-in HTML route for the interactive multi-turn test.",
+            }
+
+        def _content_plan_builder(requirement):
+            planning_briefs.append(requirement.request_brief)
+            if "Content plan revision" in requirement.request_brief:
+                return DeckContentPlan(
+                    title="Revised Rabbit Words",
+                    core_narrative="Teach the revised animal words with a rabbit slide.",
+                    pages=[
+                        _page(1, "cover"),
+                        _page(2, "content"),
+                        _page(3, "content"),
+                        _page(4, "ending"),
+                    ],
+                )
+            return DeckContentPlan(
+                title="Initial Animal Words",
+                core_narrative="Teach simple animal words.",
+                pages=[_page(1, "cover"), _page(2, "content"), _page(3, "ending")],
+            )
+
+        async def _asset_resolver(asset, _page, _requirement):
+            return {
+                "asset_id": asset.asset_id,
+                "status": "ready",
+                "path": "",
+                "provider": "test_resolver",
+            }
+
+        async def _fake_dispatch_ppt_route(**kwargs):
+            route_calls.append(kwargs)
+            return HtmlRouteBuildPackage(
+                template=HtmlTemplatePackage(template_id="multi-turn-test", label="Multi Turn Test"),
+                html_deck_path="generated/ppt-multi-turn-workflow-test/turn_5/deck.html",
+                preview_paths=["generated/ppt-multi-turn-workflow-test/turn_5/preview.png"],
+                pptx_path=final_pptx,
+                quality_report_path="generated/ppt-multi-turn-workflow-test/turn_5/quality.json",
+                build_log_path="generated/ppt-multi-turn-workflow-test/turn_5/build.log",
+                warnings=[],
+            )
+
+        @node(name="PptMultiTurnWorkflowHarnessNode", rerun_on_resume=True)
+        async def ppt_harness(ctx: Context, node_input: str) -> dict[str, Any]:
+            ctx.state["turn_index"] = int(ctx.state.get("turn_index", 0) or 0) + 1
+            if "ppt_workflow_state" not in ctx.state:
+                return await manager.run_product_request(
+                    task=node_input,
+                    inputs=[],
+                    output=output,
+                    tool_context=ctx,
+                    content_plan_builder=_content_plan_builder,
+                    asset_resolver=_asset_resolver,
+                    system_selection_builder=_system_selection_builder,
+                )
+            return await manager.continue_product_request(
+                user_response=node_input,
+                tool_context=ctx,
+                content_plan_builder=_content_plan_builder,
+                asset_resolver=_asset_resolver,
+            )
+
+        workflow = Workflow(
+            name="PptMultiTurnWorkflowHarness",
+            edges=[("START", ppt_harness)],
+        )
+        session_service = InMemorySessionService()
+        artifact_service = InMemoryArtifactService()
+        runner = Runner(
+            node=workflow,
+            session_service=session_service,
+            artifact_service=artifact_service,
+        )
+        user_id = "user-ppt-multi-turn-workflow"
+        session_id = "session-ppt-multi-turn-workflow"
+        turn_sessions = []
+        try:
+            await session_service.create_session(
+                app_name=workflow.name,
+                user_id=user_id,
+                session_id=session_id,
+                state={"sid": "ppt-multi-turn-workflow-test", "turn_index": 0, "step": 1},
+            )
+            with (
+                patch(
+                    "src.productions.ppt.ppt_product_manager.ppt_product_manager.build_llm",
+                    side_effect=lambda *_args, **_kwargs: next(llm_models),
+                ),
+                patch.object(manager, "_dispatch_ppt_route", _fake_dispatch_ppt_route),
+            ):
+                for message in [
+                    task,
+                    "受众改成一年级学生，页数改成 4 页。",
+                    "确认",
+                    "把第 2 页改成兔子，并保留 4 页结构。",
+                    "确认",
+                ]:
+                    async for _ in runner.run_async(
+                        user_id=user_id,
+                        session_id=session_id,
+                        new_message=Content(role="user", parts=[Part(text=message)]),
+                    ):
+                        pass
+                    turn_sessions.append(
+                        await session_service.get_session(
+                            app_name=workflow.name,
+                            user_id=user_id,
+                            session_id=session_id,
+                        )
+                    )
+        finally:
+            await runner.close()
+
+        self.assertEqual(turn_sessions[0].state["ppt_product_result"]["status"], "awaiting_requirement_confirmation")
+        self.assertEqual(turn_sessions[0].state[PPT_INITIAL_REQUEST_WORKFLOW_OUTPUT_KEY]["source"], "adk_workflow")
+        self.assertEqual(
+            turn_sessions[0].state[PPT_INITIAL_REQUEST_WORKFLOW_OUTPUT_KEY]["branch"],
+            "requirement_confirmation",
+        )
+        self.assertEqual(turn_sessions[0].state[PPT_REQUIREMENT_ANALYSIS_WORKFLOW_OUTPUT_KEY]["source"], "adk_workflow")
+        self.assertEqual(
+            turn_sessions[0].state[PPT_REQUIREMENT_ANALYSIS_RESULT_STATE_KEY]["analysis_output"]["source"],
+            "llm_agent",
+        )
+        self.assertEqual(turn_sessions[1].state["ppt_product_result"]["status"], "awaiting_requirement_confirmation")
+        self.assertEqual(turn_sessions[1].state[PPT_REQUIREMENT_CONFIRMATION_WORKFLOW_OUTPUT_KEY]["branch"], "revision")
+        self.assertEqual(turn_sessions[1].state[PPT_REQUIREMENT_REVISION_WORKFLOW_OUTPUT_KEY]["source"], "adk_workflow")
+        self.assertEqual(turn_sessions[1].state[PPT_SYSTEM_SELECTION_WORKFLOW_OUTPUT_KEY]["source"], "adk_workflow")
+
+        self.assertEqual(turn_sessions[2].state["ppt_product_result"]["status"], "awaiting_content_plan_confirmation")
+        self.assertEqual(turn_sessions[2].state[PPT_SOURCE_PREPARATION_WORKFLOW_OUTPUT_KEY]["source"], "adk_workflow")
+        self.assertEqual(turn_sessions[2].state[PPT_CONTENT_PLANNING_WORKFLOW_OUTPUT_KEY]["source"], "adk_workflow")
+
+        self.assertEqual(turn_sessions[3].state["ppt_product_result"]["status"], "awaiting_content_plan_confirmation")
+        self.assertEqual(turn_sessions[3].state[PPT_CONTENT_PLAN_CONFIRMATION_WORKFLOW_OUTPUT_KEY]["branch"], "revision")
+        self.assertEqual(turn_sessions[3].state[PPT_CONTENT_PLAN_REVISION_WORKFLOW_OUTPUT_KEY]["source"], "adk_workflow")
+        self.assertNotIn(PPT_ASSET_RESOLUTION_WORKFLOW_OUTPUT_KEY, turn_sessions[3].state)
+        self.assertNotIn("final_file_paths", turn_sessions[3].state)
+
+        final_state = turn_sessions[4].state
+        self.assertEqual(final_state["ppt_product_result"]["status"], "success")
+        self.assertEqual(final_state["ppt_workflow_state"]["stage"], "completed")
+        self.assertEqual(final_state[PPT_ASSET_RESOLUTION_WORKFLOW_OUTPUT_KEY]["source"], "adk_workflow")
+        self.assertEqual(final_state[PPT_ROUTE_EXECUTION_WORKFLOW_OUTPUT_KEY]["source"], "adk_workflow")
+        self.assertEqual(final_state[PPT_FINAL_DELIVERY_WORKFLOW_OUTPUT_KEY]["source"], "adk_workflow")
+        self.assertEqual(final_state["final_file_paths"], [final_pptx])
+        self.assertEqual(final_state["ppt_deck_content_plan"]["title"], "Revised Rabbit Words")
+        self.assertEqual(len(final_state["ppt_deck_content_plan"]["pages"]), 4)
+        self.assertEqual(len(route_calls), 1)
+        self.assertEqual(route_calls[0]["content_plan"].title, "Revised Rabbit Words")
+        self.assertTrue(any("Content plan revision" in brief for brief in planning_briefs))
 
     async def test_interactive_workflow_allows_revision_on_later_turn(self) -> None:
         manager = PptProductManager()
@@ -2524,6 +4868,304 @@ Visual:
         self.assertEqual(tool_context.state["ppt_workflow_state"]["waiting_since_turn_index"], 3)
         self.assertIn("Content plan revision", tool_context.state["ppt_workflow_state"]["confirmed_requirement"]["request_brief"])
         self.assertNotIn("final_file_paths", tool_context.state)
+
+    async def test_content_plan_revision_phase_persists_typed_result(self) -> None:
+        manager = PptProductManager()
+        tool_context = SimpleNamespace(
+            state={"sid": "ppt-content-plan-revision-phase-test", "turn_index": 3, "step": 1}
+        )
+        requirement = manager.prepare_confirmed_requirement(
+            task="给幼儿园小朋友做一个 3 页英语单词 PPT。",
+            inputs=[],
+            output={"format": "pptx", "slide_count": 3},
+        )
+        captured: dict[str, Any] = {}
+
+        def _content_plan_builder(revised_requirement):
+            captured["request_brief"] = revised_requirement.request_brief
+            return DeckContentPlan(
+                title="Revised Animal Words",
+                core_narrative="Use the revised animal word sequence.",
+                pages=[_page(1, "cover"), _page(2, "content")],
+            )
+
+        result = await manager._revise_content_plan_phase(
+            requirement=requirement,
+            user_response="把第 2 页改成兔子。",
+            tool_context=tool_context,
+            app_name="creative_claw",
+            artifact_service=None,
+            expert_agents={},
+            content_plan_builder=_content_plan_builder,
+        )
+
+        self.assertIsInstance(result, PptContentPlanRevisionResult)
+        self.assertEqual(result.content_plan.title, "Revised Animal Words")
+        self.assertIn("Content plan revision", result.confirmed_requirement.request_brief)
+        self.assertIn("把第 2 页改成兔子", captured["request_brief"])
+        self.assertEqual(result.revision_output["source"], "injected")
+        self.assertEqual(result.revision_output["page_count"], 2)
+        self.assertEqual(
+            tool_context.state[PPT_CONTENT_PLAN_REVISION_OUTPUT_STATE_KEY]["source"],
+            "injected",
+        )
+        self.assertEqual(
+            tool_context.state[PPT_CONTENT_PLAN_REVISION_RESULT_STATE_KEY]["content_plan"]["title"],
+            "Revised Animal Words",
+        )
+        self.assertEqual(tool_context.state["ppt_deck_content_plan"]["title"], "Revised Animal Words")
+        self.assertNotIn("final_file_paths", tool_context.state)
+
+    async def test_content_plan_revision_phase_uses_adk_workflow_context(self) -> None:
+        manager = PptProductManager()
+        requirement = manager.prepare_confirmed_requirement(
+            task="给幼儿园小朋友做一个 3 页英语单词 PPT。",
+            inputs=[],
+            output={"format": "pptx", "slide_count": 3},
+        )
+        captured: dict[str, Any] = {}
+
+        def _content_plan_builder(revised_requirement):
+            captured["request_brief"] = revised_requirement.request_brief
+            return DeckContentPlan(
+                title="Workflow Revised Animal Words",
+                core_narrative="Use the revised animal word sequence from Workflow.",
+                pages=[_page(1, "cover"), _page(2, "content"), _page(3, "ending")],
+            )
+
+        async def _run_revision_harness():
+            @node(name="PptContentPlanRevisionWorkflowHarnessNode", rerun_on_resume=True)
+            async def revision_harness(ctx: Context, node_input: str) -> dict[str, Any]:
+                result = await manager._revise_content_plan_phase(
+                    requirement=requirement,
+                    user_response="把第 2 页改成兔子。",
+                    tool_context=ctx,
+                    app_name="creative_claw",
+                    artifact_service=artifact_service,
+                    expert_agents={},
+                    content_plan_builder=_content_plan_builder,
+                )
+                return result.model_dump(mode="json")
+
+            workflow = Workflow(
+                name="PptContentPlanRevisionWorkflowHarness",
+                edges=[("START", revision_harness)],
+            )
+            session_service = InMemorySessionService()
+            runner = Runner(
+                node=workflow,
+                session_service=session_service,
+                artifact_service=artifact_service,
+            )
+            user_id = "user-ppt-content-plan-revision-workflow"
+            session_id = "session-ppt-content-plan-revision-workflow"
+            try:
+                await session_service.create_session(
+                    app_name=workflow.name,
+                    user_id=user_id,
+                    session_id=session_id,
+                    state={
+                        "sid": "ppt-content-plan-revision-workflow-test",
+                        "turn_index": 3,
+                        "step": 1,
+                    },
+                )
+                async for _ in runner.run_async(
+                    user_id=user_id,
+                    session_id=session_id,
+                    new_message=Content(role="user", parts=[Part(text="Revise PPT content plan")]),
+                ):
+                    pass
+                return await session_service.get_session(
+                    app_name=workflow.name,
+                    user_id=user_id,
+                    session_id=session_id,
+                )
+            finally:
+                await runner.close()
+
+        artifact_service = InMemoryArtifactService()
+        session = await _run_revision_harness()
+
+        self.assertIsNotNone(session)
+        self.assertIn("Content plan revision", captured["request_brief"])
+        self.assertIn("把第 2 页改成兔子", captured["request_brief"])
+        self.assertEqual(
+            session.state[PPT_CONTENT_PLAN_REVISION_WORKFLOW_OUTPUT_KEY]["source"],
+            "adk_workflow",
+        )
+        self.assertEqual(
+            session.state[PPT_CONTENT_PLAN_REVISION_WORKFLOW_OUTPUT_KEY]["revision_source"],
+            "injected",
+        )
+        self.assertEqual(
+            session.state[PPT_CONTENT_PLAN_REVISION_WORKFLOW_OUTPUT_KEY]["page_count"],
+            3,
+        )
+        self.assertEqual(session.state[PPT_CONTENT_PLAN_REVISION_OUTPUT_STATE_KEY]["source"], "injected")
+        self.assertEqual(
+            session.state[PPT_CONTENT_PLAN_REVISION_RESULT_STATE_KEY]["content_plan"]["title"],
+            "Workflow Revised Animal Words",
+        )
+        self.assertEqual(session.state["ppt_deck_content_plan"]["title"], "Workflow Revised Animal Words")
+        self.assertEqual(session.state[PPT_CONTENT_PLANNING_WORKFLOW_OUTPUT_KEY]["source"], "adk_workflow")
+        self.assertNotIn("final_file_paths", session.state)
+        self.assertNotIn(PPT_ASSET_RESOLUTION_WORKFLOW_OUTPUT_KEY, session.state)
+
+    async def test_requirement_revision_phase_persists_typed_result(self) -> None:
+        source_path = _write_markdown_source("revision_phase_source.md", "# Revision source")
+        manager = PptProductManager()
+        tool_context = SimpleNamespace(
+            state={"sid": "ppt-requirement-revision-phase-test", "turn_index": 2, "step": 1}
+        )
+        existing_requirement = manager.prepare_confirmed_requirement(
+            task=(
+                "针对这个素材，做一个用于组会和同学讲解的 PPT。"
+                "素材为论文/文档 revision_phase_source.md，需要提炼内容。"
+            ),
+            inputs={"files": [source_path]},
+            output={"format": "pptx", "language": "zh-CN"},
+        )
+
+        result = await manager._revise_requirement_phase(
+            existing_requirement=existing_requirement,
+            user_response="受众为同组的同学，场景为组会，页数改成15页左右。",
+            task=existing_requirement.request_brief,
+            raw_inputs=[source_path],
+            output={"format": "pptx", "language": "zh-CN"},
+            source_understanding=existing_requirement.source_understanding,
+            tool_context=tool_context,
+            app_name="creative_claw",
+            artifact_service=None,
+        )
+
+        self.assertIsInstance(result, PptRequirementRevisionResult)
+        self.assertEqual(result.confirmed_requirement.audience, "同组的同学")
+        self.assertEqual(result.confirmed_requirement.scenario, "组会")
+        self.assertEqual(result.confirmed_requirement.slide_count_policy.target, 15)
+        self.assertEqual(result.revision_output["source"], "deterministic_fallback")
+        self.assertEqual(
+            tool_context.state[PPT_REQUIREMENT_REVISION_OUTPUT_STATE_KEY]["source"],
+            "deterministic_fallback",
+        )
+        self.assertEqual(
+            tool_context.state[PPT_REQUIREMENT_REVISION_RESULT_STATE_KEY]["confirmed_requirement"]["audience"],
+            "同组的同学",
+        )
+        self.assertEqual(tool_context.state[PPT_CONFIRMED_REQUIREMENT_STATE_KEY]["source_inputs"][0]["path"], source_path)
+        self.assertNotIn("User revision", result.confirmed_requirement.topic)
+
+    async def test_requirement_revision_phase_uses_adk_workflow_context(self) -> None:
+        source_path = _write_markdown_source("revision_workflow_source.md", "# Revision workflow source")
+        manager = PptProductManager()
+        existing_requirement = manager.prepare_confirmed_requirement(
+            task=(
+                "针对这个素材，做一个用于产品复盘的 PPT。"
+                "素材为论文/文档 revision_workflow_source.md，需要提炼内容。"
+            ),
+            inputs={"files": [source_path]},
+            output={"format": "pptx", "language": "zh-CN"},
+        )
+        revised_payload = existing_requirement.model_dump(mode="json")
+        revised_payload.update(
+            {
+                "audience": "技术负责人",
+                "scenario": "季度复盘",
+                "slide_count_policy": {
+                    **revised_payload["slide_count_policy"],
+                    "target": 12,
+                },
+            }
+        )
+        fake_llm = _PptProductManagerToolCallingFakeLlm(
+            function_calls=[
+                FunctionCall(
+                    name="save_ppt_confirmed_requirement_json",
+                    args={"requirement_json": revised_payload},
+                )
+            ],
+            final_text="PptRequirementAnalysisAgent saved revised requirement.",
+        )
+
+        async def _run_revision_harness():
+            @node(name="PptRequirementRevisionWorkflowHarnessNode", rerun_on_resume=True)
+            async def revision_harness(ctx: Context, node_input: str) -> dict[str, Any]:
+                result = await manager._revise_requirement_phase(
+                    existing_requirement=existing_requirement,
+                    user_response="受众改为技术负责人，场景改为季度复盘，页数改成 12 页。",
+                    task=existing_requirement.request_brief,
+                    raw_inputs=[source_path],
+                    output={"format": "pptx", "language": "zh-CN"},
+                    source_understanding=existing_requirement.source_understanding,
+                    tool_context=ctx,
+                    app_name="creative_claw",
+                    artifact_service=artifact_service,
+                )
+                return result.model_dump(mode="json")
+
+            workflow = Workflow(
+                name="PptRequirementRevisionWorkflowHarness",
+                edges=[("START", revision_harness)],
+            )
+            session_service = InMemorySessionService()
+            runner = Runner(
+                node=workflow,
+                session_service=session_service,
+                artifact_service=artifact_service,
+            )
+            user_id = "user-ppt-requirement-revision-workflow"
+            session_id = "session-ppt-requirement-revision-workflow"
+            try:
+                await session_service.create_session(
+                    app_name=workflow.name,
+                    user_id=user_id,
+                    session_id=session_id,
+                    state={
+                        "sid": "ppt-requirement-revision-workflow-test",
+                        "turn_index": 2,
+                        "step": 1,
+                    },
+                )
+                with patch(
+                    "src.productions.ppt.ppt_product_manager.ppt_product_manager.build_llm",
+                    return_value=fake_llm,
+                ):
+                    async for _ in runner.run_async(
+                        user_id=user_id,
+                        session_id=session_id,
+                        new_message=Content(role="user", parts=[Part(text="Revise PPT requirement")]),
+                    ):
+                        pass
+                return await session_service.get_session(
+                    app_name=workflow.name,
+                    user_id=user_id,
+                    session_id=session_id,
+                )
+            finally:
+                await runner.close()
+
+        artifact_service = InMemoryArtifactService()
+        session = await _run_revision_harness()
+
+        self.assertIsNotNone(session)
+        self.assertEqual(
+            session.state[PPT_REQUIREMENT_REVISION_WORKFLOW_OUTPUT_KEY]["source"],
+            "adk_workflow",
+        )
+        self.assertEqual(
+            session.state[PPT_REQUIREMENT_REVISION_WORKFLOW_OUTPUT_KEY]["revision_source"],
+            "llm_agent",
+        )
+        self.assertEqual(session.state[PPT_REQUIREMENT_REVISION_OUTPUT_STATE_KEY]["source"], "llm_agent")
+        self.assertEqual(
+            session.state[PPT_REQUIREMENT_REVISION_RESULT_STATE_KEY]["confirmed_requirement"]["audience"],
+            "技术负责人",
+        )
+        self.assertEqual(session.state[PPT_CONFIRMED_REQUIREMENT_STATE_KEY]["scenario"], "季度复盘")
+        self.assertEqual(session.state[PPT_CONFIRMED_REQUIREMENT_STATE_KEY]["slide_count_policy"]["target"], 12)
+        first_request_tools = _function_declaration_names(fake_llm.requests[0])
+        self.assertIn("save_ppt_confirmed_requirement_json", first_request_tools)
+        self.assertGreaterEqual(len(fake_llm.requests), 2)
 
     async def test_requirement_confirmation_revision_updates_structured_fields(self) -> None:
         source_path = _write_markdown_source("Thinking_with_Visual_Primitives.pdf", "%PDF test fixture")
@@ -2876,6 +5518,203 @@ Visual:
             if shape.shape_type == MSO_SHAPE_TYPE.PICTURE
         )
         self.assertGreaterEqual(picture_count, 1)
+
+    async def test_asset_resolution_phase_persists_typed_result(self) -> None:
+        image_path = _write_test_image("asset_resolution_phase_fixture.png")
+        manager = PptProductManager()
+        tool_context = SimpleNamespace(state={"sid": "ppt-asset-phase-test", "turn_index": 1, "step": 1})
+        requirement = manager.prepare_confirmed_requirement(
+            task="给小学生做一个 AI 科普 PPTX。",
+            inputs=[],
+            output={"format": "pptx", "slide_count": 5},
+        )
+        content_plan = DeckContentPlan(
+            title="AI for Kids",
+            core_narrative="Explain AI through concrete classroom examples.",
+            pages=[
+                _page(1, "cover"),
+                _page(2, "toc"),
+                _page(3, "chapter_start"),
+                _page(4, "chapter_content"),
+                _page(5, "ending"),
+            ],
+        )
+        content_plan.pages[3].assets = [
+            DeckPageAsset(
+                asset_id="slide_04_ai_visual",
+                source_kind="image_generation",
+                status="pending",
+                description="A friendly classroom illustration showing students learning AI.",
+                prompt="A friendly classroom illustration showing students learning AI.",
+            )
+        ]
+
+        async def _asset_resolver(asset, _page, _requirement):
+            return {
+                "asset_id": asset.asset_id,
+                "status": "ready",
+                "path": image_path,
+                "provider": "test_resolver",
+            }
+
+        result = await manager._resolve_deck_assets_phase(
+            content_plan,
+            requirement,
+            tool_context=tool_context,
+            expert_agents={},
+            app_name="creative_claw",
+            artifact_service=None,
+            asset_resolver=_asset_resolver,
+        )
+
+        self.assertIsInstance(result, PptAssetResolutionResult)
+        resolved_asset = result.content_plan.pages[3].assets[0]
+        self.assertEqual(resolved_asset.status, "ready")
+        self.assertEqual(resolved_asset.path, image_path)
+        self.assertEqual(result.resolved_asset_manifest["ready_asset_count"], 1)
+        self.assertEqual(tool_context.state["ppt_resolved_asset_manifest"], result.resolved_asset_manifest)
+        self.assertEqual(tool_context.state["ppt_deck_content_plan"]["pages"][3]["assets"][0]["path"], image_path)
+        self.assertEqual(
+            tool_context.state["ppt_asset_resolution_result"]["resolved_asset_manifest"],
+            result.resolved_asset_manifest,
+        )
+
+    async def test_asset_resolution_phase_reuses_same_input_ready_assets(self) -> None:
+        image_path = _write_test_image("asset_resolution_reuse_fixture.png")
+        manager = PptProductManager()
+        tool_context = SimpleNamespace(state={"sid": "ppt-asset-reuse-test", "turn_index": 1, "step": 1})
+        requirement = manager.prepare_confirmed_requirement(
+            task="给小学生做一个 AI 科普 PPTX。",
+            inputs=[],
+            output={"format": "pptx", "slide_count": 5},
+        )
+        content_plan = DeckContentPlan(
+            title="AI for Kids",
+            core_narrative="Explain AI through concrete classroom examples.",
+            pages=[
+                _page(1, "cover"),
+                _page(2, "toc"),
+                _page(3, "chapter_start"),
+                _page(4, "chapter_content"),
+                _page(5, "ending"),
+            ],
+        )
+        content_plan.pages[3].assets = [
+            DeckPageAsset(
+                asset_id="slide_04_ai_visual",
+                source_kind="image_generation",
+                status="pending",
+                description="A friendly classroom illustration showing students learning AI.",
+                prompt="A friendly classroom illustration showing students learning AI.",
+            )
+        ]
+        resolver_calls = 0
+
+        async def _asset_resolver(asset, _page, _requirement):
+            nonlocal resolver_calls
+            resolver_calls += 1
+            return {
+                "asset_id": asset.asset_id,
+                "status": "ready",
+                "path": image_path,
+                "provider": "test_resolver",
+            }
+
+        first_result = await manager._resolve_deck_assets_phase(
+            content_plan,
+            requirement,
+            tool_context=tool_context,
+            expert_agents={},
+            app_name="creative_claw",
+            artifact_service=None,
+            asset_resolver=_asset_resolver,
+        )
+        second_result = await manager._resolve_deck_assets_phase(
+            content_plan,
+            requirement,
+            tool_context=tool_context,
+            expert_agents={},
+            app_name="creative_claw",
+            artifact_service=None,
+            asset_resolver=_asset_resolver,
+        )
+
+        self.assertFalse(first_result.reused_existing_resolution)
+        self.assertTrue(second_result.reused_existing_resolution)
+        self.assertEqual(resolver_calls, 1)
+        self.assertEqual(first_result.input_signature, second_result.input_signature)
+        self.assertEqual(second_result.content_plan.pages[3].assets[0].path, image_path)
+        self.assertTrue(tool_context.state["ppt_asset_resolution_result"]["reused_existing_resolution"])
+
+    async def test_asset_resolution_phase_reruns_when_ready_asset_is_missing(self) -> None:
+        first_image_path = _write_test_image("asset_resolution_missing_first.png")
+        second_image_path = _write_test_image("asset_resolution_missing_second.png")
+        manager = PptProductManager()
+        tool_context = SimpleNamespace(state={"sid": "ppt-asset-missing-test", "turn_index": 1, "step": 1})
+        requirement = manager.prepare_confirmed_requirement(
+            task="给小学生做一个 AI 科普 PPTX。",
+            inputs=[],
+            output={"format": "pptx", "slide_count": 5},
+        )
+        content_plan = DeckContentPlan(
+            title="AI for Kids",
+            core_narrative="Explain AI through concrete classroom examples.",
+            pages=[
+                _page(1, "cover"),
+                _page(2, "toc"),
+                _page(3, "chapter_start"),
+                _page(4, "chapter_content"),
+                _page(5, "ending"),
+            ],
+        )
+        content_plan.pages[3].assets = [
+            DeckPageAsset(
+                asset_id="slide_04_ai_visual",
+                source_kind="image_generation",
+                status="pending",
+                description="A friendly classroom illustration showing students learning AI.",
+                prompt="A friendly classroom illustration showing students learning AI.",
+            )
+        ]
+        resolver_paths = [first_image_path, second_image_path]
+        resolver_calls = 0
+
+        async def _asset_resolver(asset, _page, _requirement):
+            nonlocal resolver_calls
+            path = resolver_paths[resolver_calls]
+            resolver_calls += 1
+            return {
+                "asset_id": asset.asset_id,
+                "status": "ready",
+                "path": path,
+                "provider": "test_resolver",
+            }
+
+        first_result = await manager._resolve_deck_assets_phase(
+            content_plan,
+            requirement,
+            tool_context=tool_context,
+            expert_agents={},
+            app_name="creative_claw",
+            artifact_service=None,
+            asset_resolver=_asset_resolver,
+        )
+        resolve_workspace_path(first_image_path).unlink()
+        second_result = await manager._resolve_deck_assets_phase(
+            content_plan,
+            requirement,
+            tool_context=tool_context,
+            expert_agents={},
+            app_name="creative_claw",
+            artifact_service=None,
+            asset_resolver=_asset_resolver,
+        )
+
+        self.assertFalse(first_result.reused_existing_resolution)
+        self.assertFalse(second_result.reused_existing_resolution)
+        self.assertEqual(resolver_calls, 2)
+        self.assertEqual(second_result.content_plan.pages[3].assets[0].path, second_image_path)
+        self.assertFalse(tool_context.state["ppt_asset_resolution_result"]["reused_existing_resolution"])
 
     async def test_illustrated_kid_word_deck_generates_plan_assets(self) -> None:
         image_path = _write_test_image("kid_word_generated_asset.png")

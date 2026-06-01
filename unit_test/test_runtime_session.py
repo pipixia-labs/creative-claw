@@ -12,9 +12,19 @@ from src.productions.design.design_product_manager.brief_form import (
     DESIGN_BRIEF_FORM_SCHEMA_VERSION,
     DESIGN_BRIEF_FORM_STATE_KEY,
 )
+from src.agents.orchestrator.orchestrator_agent import (
+    PPT_ADK_HITL_ENABLED_STATE_KEY,
+    PPT_ADK_PENDING_CONFIRMATION_STATE_KEY,
+)
 from src.runtime.models import InboundMessage, MessageAttachment
 from src.runtime.workflow_service import CreativeClawRuntime
-from src.runtime.workspace import build_workspace_file_record, workspace_relative_path, workspace_root
+from src.runtime.workspace import (
+    build_workspace_file_record,
+    resolve_workspace_path,
+    workspace_relative_path,
+    workspace_root,
+)
+from unit_test.ppt_runtime_smoke_helpers import RuntimePptSmokePatch
 
 
 class RuntimeSessionTests(unittest.IsolatedAsyncioTestCase):
@@ -165,6 +175,7 @@ class RuntimeSessionTests(unittest.IsolatedAsyncioTestCase):
         self.assertEqual(session.state["sender_id"], "cli-user")
         self.assertEqual(session.state["product_line"], "")
         self.assertEqual(session.state["product_line_options"], {})
+        self.assertTrue(session.state[PPT_ADK_HITL_ENABLED_STATE_KEY])
         self.assertEqual(session.state["current_parameters"], {})
         self.assertIsNone(session.state["current_output"])
         self.assertIsNone(session.state["last_expert_result"])
@@ -231,6 +242,11 @@ class RuntimeSessionTests(unittest.IsolatedAsyncioTestCase):
                         },
                         "ppt_confirmed_requirement": {"topic": "英语单词"},
                         "ppt_product_result": {"status": "awaiting_requirement_confirmation"},
+                        "ppt_adk_pending_confirmation": {
+                            "invocation_id": "inv-adk-hitl",
+                            "function_call_id": "confirm-call-1",
+                            "payload": {"product_line": "ppt"},
+                        },
                         "last_product_result": {"status": "awaiting_requirement_confirmation"},
                         "current_output": {"status": "awaiting_requirement_confirmation"},
                     }
@@ -262,6 +278,10 @@ class RuntimeSessionTests(unittest.IsolatedAsyncioTestCase):
         self.assertEqual(
             updated_session.state["ppt_product_result"]["status"],
             "awaiting_requirement_confirmation",
+        )
+        self.assertEqual(
+            updated_session.state[PPT_ADK_PENDING_CONFIRMATION_STATE_KEY]["function_call_id"],
+            "confirm-call-1",
         )
         self.assertIsNone(updated_session.state["current_output"])
 
@@ -533,6 +553,208 @@ class RuntimeSessionTests(unittest.IsolatedAsyncioTestCase):
         self.assertEqual(session.state["product_line"], "design")
         self.assertEqual(session.state["product_line_options"]["design"]["scenario"], "dashboard")
         self.assertFalse(session.state["product_line_options"]["design"]["allow_assumptions"])
+
+    async def test_run_message_cli_ppt_adk_hitl_smoke_resumes_from_plain_text(self) -> None:
+        runtime = CreativeClawRuntime()
+        task = "做一个 3 页 PPTX，用于产品发布，受众为管理层。"
+        first_inbound = InboundMessage(
+            channel="cli",
+            sender_id="cli-user",
+            chat_id="ppt-adk-smoke",
+            text=task,
+        )
+        second_inbound = InboundMessage(
+            channel="cli",
+            sender_id="cli-user",
+            chat_id="ppt-adk-smoke",
+            text="确认",
+        )
+
+        with RuntimePptSmokePatch(task=task).install() as smoke:
+            first_events = [event async for event in runtime.run_message(first_inbound)]
+            self.assertEqual(first_events[-1].event_type, "final")
+            self.assertIn("请确认 PPT 需求参数", first_events[-1].text)
+            first_session_id = first_events[-1].metadata["session_id"]
+            first_session = await runtime.session_service.get_session(
+                app_name=SYS_CONFIG.app_name,
+                user_id="cli-user",
+                session_id=first_session_id,
+            )
+            self.assertEqual(
+                first_session.state["ppt_product_result"]["status"],
+                "awaiting_requirement_confirmation",
+            )
+            self.assertEqual(
+                first_session.state["ppt_workflow_state"]["stage"],
+                "awaiting_requirement_confirmation",
+            )
+            self.assertTrue(first_session.state[PPT_ADK_HITL_ENABLED_STATE_KEY])
+            pending_confirmation = first_session.state[PPT_ADK_PENDING_CONFIRMATION_STATE_KEY]
+            self.assertEqual(pending_confirmation["function_name"], "adk_request_confirmation")
+            self.assertTrue(pending_confirmation["function_call_id"])
+            self.assertTrue(pending_confirmation["invocation_id"])
+
+            second_events = [event async for event in runtime.run_message(second_inbound)]
+
+        self.assertEqual(second_events[-1].event_type, "final")
+        self.assertEqual(second_events[-1].metadata["session_id"], first_session_id)
+        self.assertIn("请确认 PPT 内容规划", second_events[-1].text)
+        second_session = await runtime.session_service.get_session(
+            app_name=SYS_CONFIG.app_name,
+            user_id="cli-user",
+            session_id=first_session_id,
+        )
+        self.assertIsNone(second_session.state[PPT_ADK_PENDING_CONFIRMATION_STATE_KEY])
+        self.assertEqual(
+            second_session.state["ppt_product_result"]["status"],
+            "awaiting_content_plan_confirmation",
+        )
+        self.assertEqual(
+            second_session.state["ppt_workflow_state"]["stage"],
+            "awaiting_content_plan_confirmation",
+        )
+        self.assertEqual(len(smoke.fake_llms), 2)
+        self.assertEqual(len(smoke.fake_llms[0].requests), 1)
+
+    async def test_run_message_cli_ppt_adk_hitl_smoke_revises_requirement_then_delivers(self) -> None:
+        runtime = CreativeClawRuntime()
+        task = "做一个 3 页 PPTX，用于产品发布，受众为管理层。"
+        revision = "改成 5 页，并面向投资人。"
+        chat_id = "ppt-adk-requirement-revise-smoke"
+
+        with RuntimePptSmokePatch(task=task).install() as smoke:
+            first_events = [
+                event
+                async for event in runtime.run_message(
+                    InboundMessage(channel="cli", sender_id="cli-user", chat_id=chat_id, text=task)
+                )
+            ]
+            first_session_id = first_events[-1].metadata["session_id"]
+
+            second_events = [
+                event
+                async for event in runtime.run_message(
+                    InboundMessage(channel="cli", sender_id="cli-user", chat_id=chat_id, text=revision)
+                )
+            ]
+            second_session = await runtime.session_service.get_session(
+                app_name=SYS_CONFIG.app_name,
+                user_id="cli-user",
+                session_id=first_session_id,
+            )
+            self.assertIn("请确认 PPT 需求参数", second_events[-1].text)
+            self.assertIsNone(second_session.state[PPT_ADK_PENDING_CONFIRMATION_STATE_KEY])
+            self.assertEqual(
+                second_session.state["ppt_product_result"]["status"],
+                "awaiting_requirement_confirmation",
+            )
+            revised_requirement = second_session.state["ppt_confirmed_requirement"]
+            self.assertEqual(revised_requirement["slide_count_policy"]["target"], 5)
+            self.assertIn(revision, revised_requirement["request_brief"])
+
+            third_events = [
+                event
+                async for event in runtime.run_message(
+                    InboundMessage(channel="cli", sender_id="cli-user", chat_id=chat_id, text="确认")
+                )
+            ]
+            third_session = await runtime.session_service.get_session(
+                app_name=SYS_CONFIG.app_name,
+                user_id="cli-user",
+                session_id=first_session_id,
+            )
+            self.assertIn("请确认 PPT 内容规划", third_events[-1].text)
+            self.assertEqual(
+                third_session.state["ppt_product_result"]["status"],
+                "awaiting_content_plan_confirmation",
+            )
+            self.assertIsNone(third_session.state.get(PPT_ADK_PENDING_CONFIRMATION_STATE_KEY))
+
+            fourth_events = [
+                event
+                async for event in runtime.run_message(
+                    InboundMessage(channel="cli", sender_id="cli-user", chat_id=chat_id, text="确认")
+                )
+            ]
+
+        self.assertEqual(fourth_events[-1].event_type, "final")
+        self.assertIn(
+            "HTML route generated the PPTX after requirement and content-plan confirmation.",
+            fourth_events[-1].text,
+        )
+        final_session = await runtime.session_service.get_session(
+            app_name=SYS_CONFIG.app_name,
+            user_id="cli-user",
+            session_id=first_session_id,
+        )
+        self.assertEqual(final_session.state["ppt_product_result"]["status"], "success")
+        self.assertEqual(final_session.state["ppt_workflow_state"]["stage"], "completed")
+        self.assertIsNone(final_session.state.get(PPT_ADK_PENDING_CONFIRMATION_STATE_KEY))
+        final_paths = list(final_session.state["final_file_paths"])
+        self.assertEqual(len(final_paths), 1)
+        self.assertTrue(resolve_workspace_path(final_paths[0]).is_file())
+        self.assertEqual(len(smoke.fake_llms), 4)
+
+    async def test_run_message_cli_ppt_adk_hitl_smoke_revises_content_plan_then_delivers(self) -> None:
+        runtime = CreativeClawRuntime()
+        task = "做一个 3 页 PPTX，用于产品发布，受众为管理层。"
+        revision = "把第二页改成产品路线图。"
+        chat_id = "ppt-adk-content-plan-revise-smoke"
+
+        with RuntimePptSmokePatch(task=task, continue_responses={2: revision}).install() as smoke:
+            first_events = [
+                event
+                async for event in runtime.run_message(
+                    InboundMessage(channel="cli", sender_id="cli-user", chat_id=chat_id, text=task)
+                )
+            ]
+            session_id = first_events[-1].metadata["session_id"]
+            awaitable_confirm_events = runtime.run_message(
+                InboundMessage(channel="cli", sender_id="cli-user", chat_id=chat_id, text="确认")
+            )
+            _ = [event async for event in awaitable_confirm_events]
+
+            third_events = [
+                event
+                async for event in runtime.run_message(
+                    InboundMessage(channel="cli", sender_id="cli-user", chat_id=chat_id, text=revision)
+                )
+            ]
+            third_session = await runtime.session_service.get_session(
+                app_name=SYS_CONFIG.app_name,
+                user_id="cli-user",
+                session_id=session_id,
+            )
+            self.assertIn("请确认 PPT 内容规划", third_events[-1].text)
+            self.assertEqual(
+                third_session.state["ppt_product_result"]["status"],
+                "awaiting_content_plan_confirmation",
+            )
+            self.assertIn(revision, third_session.state["ppt_confirmed_requirement"]["request_brief"])
+            self.assertIsNone(third_session.state.get(PPT_ADK_PENDING_CONFIRMATION_STATE_KEY))
+
+            fourth_events = [
+                event
+                async for event in runtime.run_message(
+                    InboundMessage(channel="cli", sender_id="cli-user", chat_id=chat_id, text="确认")
+                )
+            ]
+
+        self.assertIn(
+            "HTML route generated the PPTX after requirement and content-plan confirmation.",
+            fourth_events[-1].text,
+        )
+        final_session = await runtime.session_service.get_session(
+            app_name=SYS_CONFIG.app_name,
+            user_id="cli-user",
+            session_id=session_id,
+        )
+        self.assertEqual(final_session.state["ppt_product_result"]["status"], "success")
+        self.assertIsNone(final_session.state.get(PPT_ADK_PENDING_CONFIRMATION_STATE_KEY))
+        final_paths = list(final_session.state["final_file_paths"])
+        self.assertEqual(len(final_paths), 1)
+        self.assertTrue(resolve_workspace_path(final_paths[0]).is_file())
+        self.assertEqual(len(smoke.fake_llms), 4)
 
     async def test_run_message_with_design_prompt_without_metadata_uses_orchestrator(self) -> None:
         runtime = CreativeClawRuntime()

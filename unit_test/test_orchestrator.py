@@ -16,7 +16,7 @@ from google.adk.models.llm_request import LlmRequest
 from google.adk.models.llm_response import LlmResponse
 from google.adk.sessions import InMemorySessionService
 from google.adk.sessions.state import State
-from google.genai.types import Content, FunctionCall, Part
+from google.genai.types import Content, FunctionCall, FunctionResponse, Part
 from pydantic import PrivateAttr
 
 from conf.system import SYS_CONFIG
@@ -27,9 +27,14 @@ from src.agents.orchestrator.final_response import (
 )
 from src.agents.orchestrator.orchestrator_agent import (
     Orchestrator,
+    ADK_REQUEST_CONFIRMATION_FUNCTION_NAME,
+    PPT_ADK_HITL_ENABLED_STATE_KEY,
+    PPT_ADK_PENDING_CONFIRMATION_STATE_KEY,
     _ReplyTextStreamExtractor,
+    _build_ppt_adk_confirmation_response_payload,
     _build_missing_structured_final_response_fallback,
     _coerce_structured_final_response,
+    _extract_adk_ppt_confirmation_request,
     _extract_completed_page_product_tool_result,
     _extract_confirmation_tool_result,
     _extract_question_form_tool_result,
@@ -705,6 +710,56 @@ class OrchestratorTests(unittest.TestCase):
         )
 
         self.assertEqual(_extract_completed_page_product_tool_result(event), tool_result)
+
+    def test_extract_adk_ppt_confirmation_request_from_function_call_event(self) -> None:
+        payload = {
+            "schema_version": "ppt-adk-confirmation-request-v1",
+            "product_line": "ppt",
+            "stage": "awaiting_requirement_confirmation",
+            "confirmation_id": "workflow:requirement:1:1",
+            "message": "请确认 PPT 需求参数。",
+        }
+        event = Event(
+            author="CreativeClawOrchestrator",
+            invocation_id="inv-adk-hitl",
+            content=Content(
+                role="model",
+                parts=[
+                    Part(
+                        function_call=FunctionCall(
+                            name=ADK_REQUEST_CONFIRMATION_FUNCTION_NAME,
+                            id="confirm-call-1",
+                            args={"toolConfirmation": {"payload": payload}},
+                        )
+                    )
+                ],
+            ),
+        )
+
+        request = _extract_adk_ppt_confirmation_request(event)
+
+        self.assertIsNotNone(request)
+        self.assertEqual(request["invocation_id"], "inv-adk-hitl")
+        self.assertEqual(request["function_call_id"], "confirm-call-1")
+        self.assertEqual(request["payload"], payload)
+
+    def test_build_ppt_adk_confirmation_response_payload_from_plain_text(self) -> None:
+        pending_request = {
+            "payload": {
+                "confirmation_id": "workflow:content:2:1",
+                "stage": "awaiting_content_plan_confirmation",
+            }
+        }
+
+        payload = _build_ppt_adk_confirmation_response_payload(
+            user_response="改成 5 页，并面向投资人。",
+            pending_request=pending_request,
+        )
+
+        self.assertEqual(payload["action"], "revise")
+        self.assertEqual(payload["message"], "改成 5 页，并面向投资人。")
+        self.assertEqual(payload["confirmation_id"], "workflow:content:2:1")
+        self.assertEqual(payload["stage"], "awaiting_content_plan_confirmation")
 
 
 class OrchestratorCallbackTests(unittest.IsolatedAsyncioTestCase):
@@ -1612,6 +1667,151 @@ class OrchestratorCallbackTests(unittest.IsolatedAsyncioTestCase):
 
 
 class OrchestratorStreamResponseTests(unittest.IsolatedAsyncioTestCase):
+    async def test_run_agent_and_log_events_persists_adk_ppt_confirmation_request(self) -> None:
+        session_service = InMemorySessionService()
+        orchestrator = Orchestrator(
+            session_service=session_service,
+            artifact_service=InMemoryArtifactService(),
+            expert_agents={},
+        )
+        await session_service.create_session(
+            app_name=SYS_CONFIG.app_name,
+            user_id="user-adk-hitl",
+            session_id="session-adk-hitl",
+            state={"turn_index": 1},
+        )
+
+        payload = {
+            "schema_version": "ppt-adk-confirmation-request-v1",
+            "product_line": "ppt",
+            "stage": "awaiting_requirement_confirmation",
+            "confirmation_id": "workflow:requirement:1:1",
+            "message": "请确认 PPT 需求参数。",
+            "summary_markdown": "| 参数 | 当前值 |\n| --- | --- |\n| 页数 | 3 页 |",
+            "expected_user_action": "回复“确认”继续；或说明修改意见。",
+        }
+
+        class FakeRunner:
+            async def run_async(self, **_: object):
+                yield Event(
+                    author="CreativeClawOrchestrator",
+                    invocation_id="inv-adk-hitl",
+                    content=Content(
+                        role="model",
+                        parts=[
+                            Part(
+                                function_call=FunctionCall(
+                                    name=ADK_REQUEST_CONFIRMATION_FUNCTION_NAME,
+                                    id="confirm-call-1",
+                                    args={"toolConfirmation": {"payload": payload}},
+                                )
+                            )
+                        ],
+                    ),
+                )
+
+        orchestrator.runner = FakeRunner()
+
+        response = await orchestrator.run_agent_and_log_events(
+            user_id="user-adk-hitl",
+            session_id="session-adk-hitl",
+        )
+
+        self.assertIn("请确认 PPT 需求参数。", response)
+        self.assertIn("| 页数 | 3 页 |", response)
+        session = await session_service.get_session(
+            app_name=SYS_CONFIG.app_name,
+            user_id="user-adk-hitl",
+            session_id="session-adk-hitl",
+        )
+        pending = session.state[PPT_ADK_PENDING_CONFIRMATION_STATE_KEY]
+        self.assertEqual(pending["invocation_id"], "inv-adk-hitl")
+        self.assertEqual(pending["function_call_id"], "confirm-call-1")
+        self.assertEqual(pending["payload"], payload)
+        self.assertTrue(session.state[PPT_ADK_HITL_ENABLED_STATE_KEY])
+        self.assertEqual(
+            session.state[ORCHESTRATOR_FINAL_RESPONSE_OUTPUT_KEY]["reply_text"],
+            response,
+        )
+
+    async def test_run_until_done_resumes_adk_ppt_confirmation_from_plain_text(self) -> None:
+        session_service = InMemorySessionService()
+        orchestrator = Orchestrator(
+            session_service=session_service,
+            artifact_service=InMemoryArtifactService(),
+            expert_agents={},
+        )
+        orchestrator.uid = "user-adk-hitl-resume"
+        orchestrator.sid = "session-adk-hitl-resume"
+        pending_request = {
+            "invocation_id": "inv-adk-hitl-original",
+            "function_call_id": "confirm-call-original",
+            "payload": {
+                "schema_version": "ppt-adk-confirmation-request-v1",
+                "product_line": "ppt",
+                "stage": "awaiting_requirement_confirmation",
+                "confirmation_id": "workflow:requirement:1:1",
+            },
+        }
+        await session_service.create_session(
+            app_name=SYS_CONFIG.app_name,
+            user_id=orchestrator.uid,
+            session_id=orchestrator.sid,
+            state={
+                "turn_index": 2,
+                "user_prompt": "确认",
+                "orchestration_events": [],
+                PPT_ADK_PENDING_CONFIRMATION_STATE_KEY: pending_request,
+            },
+        )
+
+        class FakeFinalEvent:
+            partial = False
+            content = Content(
+                role="model",
+                parts=[Part(text=json.dumps({"reply_text": "已继续生成内容规划。", "final_file_paths": []}))],
+            )
+
+            def is_final_response(self) -> bool:
+                return True
+
+            def model_dump_json(self, **_: object) -> str:
+                return "{}"
+
+        class FakeRunner:
+            def __init__(self) -> None:
+                self.kwargs: dict[str, object] = {}
+
+            async def run_async(self, **kwargs: object):
+                self.kwargs = kwargs
+                yield FakeFinalEvent()
+
+        fake_runner = FakeRunner()
+        orchestrator.runner = fake_runner
+
+        result = await orchestrator.run_until_done()
+
+        self.assertEqual(fake_runner.kwargs["invocation_id"], "inv-adk-hitl-original")
+        new_message = fake_runner.kwargs["new_message"]
+        function_response = new_message.parts[0].function_response
+        self.assertIsInstance(function_response, FunctionResponse)
+        self.assertEqual(function_response.id, "confirm-call-original")
+        self.assertEqual(function_response.name, ADK_REQUEST_CONFIRMATION_FUNCTION_NAME)
+        self.assertEqual(function_response.response["confirmed"], True)
+        self.assertEqual(function_response.response["payload"]["action"], "confirm")
+        self.assertEqual(
+            function_response.response["payload"]["confirmation_id"],
+            "workflow:requirement:1:1",
+        )
+        self.assertEqual(result["final_response"], "已继续生成内容规划。")
+
+        session = await session_service.get_session(
+            app_name=SYS_CONFIG.app_name,
+            user_id=orchestrator.uid,
+            session_id=orchestrator.sid,
+        )
+        self.assertIsNone(session.state[PPT_ADK_PENDING_CONFIRMATION_STATE_KEY])
+
     async def test_run_agent_and_log_events_ignores_partial_final_response_text(self) -> None:
         session_service = InMemorySessionService()
         orchestrator = Orchestrator(

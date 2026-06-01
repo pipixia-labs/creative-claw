@@ -12,7 +12,11 @@ from google.adk.sessions import InMemorySessionService
 from google.genai.types import Content, Part
 
 from conf.system import SYS_CONFIG
-from src.agents.orchestrator.orchestrator_agent import Orchestrator
+from src.agents.orchestrator.orchestrator_agent import (
+    Orchestrator,
+    PPT_ADK_HITL_ENABLED_STATE_KEY,
+    PPT_ADK_PENDING_CONFIRMATION_STATE_KEY,
+)
 from src.logger import logger
 from src.productions.design.design_product_manager.brief_form import (
     DESIGN_BRIEF_FORM_PENDING_TASK_STATE_KEY,
@@ -63,9 +67,12 @@ def _should_preserve_ppt_product_state(state: dict[str, object]) -> bool:
     """Return whether a PPT workflow is paused and should survive the next user turn."""
     workflow_state = state.get("ppt_workflow_state")
     if not isinstance(workflow_state, dict):
-        return False
+        return isinstance(state.get(PPT_ADK_PENDING_CONFIRMATION_STATE_KEY), dict)
     stage = str(workflow_state.get("stage") or "").strip()
-    return stage in _PENDING_PPT_WORKFLOW_STAGES
+    return stage in _PENDING_PPT_WORKFLOW_STAGES or isinstance(
+        state.get(PPT_ADK_PENDING_CONFIRMATION_STATE_KEY),
+        dict,
+    )
 
 
 def _should_preserve_design_product_state(state: dict[str, object]) -> bool:
@@ -482,6 +489,12 @@ class CreativeClawRuntime:
         state_delta["current_output"] = None
         state_delta["last_expert_result"] = None
         state_delta["expert_history"] = []
+        raw_adk_hitl_enabled = inbound.metadata.get("adk_hitl_enabled", inbound.metadata.get("adk_hitl", True))
+        state_delta[PPT_ADK_HITL_ENABLED_STATE_KEY] = (
+            raw_adk_hitl_enabled
+            if isinstance(raw_adk_hitl_enabled, bool)
+            else str(raw_adk_hitl_enabled or "").strip().lower() not in {"0", "false", "no", "off"}
+        )
 
         for index, attachment in enumerate(inbound.attachments, start=1):
             saved_path = stage_attachment_into_workspace(

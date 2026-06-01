@@ -3,20 +3,21 @@
 from __future__ import annotations
 
 import json
+import warnings
 from pathlib import Path
 from typing import Any, Iterator, Optional
 
 from google.adk.agents import BaseAgent, LlmAgent
 from google.adk.agents.callback_context import CallbackContext
 from google.adk.agents.run_config import RunConfig, StreamingMode
-from google.adk.apps import App
+from google.adk.apps import App, ResumabilityConfig
 from google.adk.artifacts import InMemoryArtifactService
 from google.adk.events import Event, EventActions
 from google.adk.runners import Runner
 from google.adk.sessions import InMemorySessionService
 from google.adk.tools.tool_context import ToolContext
 from google.adk.models import LlmRequest
-from google.genai.types import Content, Part
+from google.genai.types import Content, FunctionResponse, Part
 
 from conf.agent import EXPERTS_LIST
 from conf.llm import build_llm, resolve_llm_model_name, resolve_structured_output_mode
@@ -34,6 +35,7 @@ from src.productions.design.design_product_manager.brief_form import (
 )
 from src.productions.page.page_product_manager import PageProductManager
 from src.productions.ppt.ppt_product_manager import PptProductManager
+from src.productions.ppt.schemas import PptAdkConfirmationResponse
 from src.runtime.expert_dispatcher import ExpertInvocationRequest, dispatch_expert_request
 from src.runtime.expert_registry import build_expert_contract_summary
 from src.runtime.product_results import (
@@ -95,6 +97,9 @@ _PLUGIN_MANAGED_TOOL_NAMES = {
     "web_search",
     "web_fetch",
 }
+ADK_REQUEST_CONFIRMATION_FUNCTION_NAME = "adk_request_confirmation"
+PPT_ADK_HITL_ENABLED_STATE_KEY = "ppt_adk_hitl_enabled"
+PPT_ADK_PENDING_CONFIRMATION_STATE_KEY = "ppt_adk_pending_confirmation"
 
 _AUTO_OUTPUT_TOOL_NAMES = {
     "image_crop",
@@ -630,6 +635,100 @@ def _extract_product_confirmation_tool_result(event: Event) -> dict[str, Any] | 
     return None
 
 
+def _select_ppt_product_confirmation_state_result(state: dict[str, Any]) -> dict[str, Any] | None:
+    """Return the current PPT confirmation result persisted by the product manager."""
+    candidates = [
+        state.get("ppt_product_result"),
+        state.get("last_product_result"),
+        state.get("current_output"),
+    ]
+    for candidate in candidates:
+        if is_product_confirmation_result(candidate):
+            return candidate
+    return None
+
+
+def _extract_adk_ppt_confirmation_request(event: Event) -> dict[str, Any] | None:
+    """Return a PPT ADK tool-confirmation request emitted by the runner."""
+    get_function_calls = getattr(event, "get_function_calls", None)
+    if not callable(get_function_calls):
+        return None
+    for call in get_function_calls():
+        if getattr(call, "name", "") != ADK_REQUEST_CONFIRMATION_FUNCTION_NAME:
+            continue
+        args = getattr(call, "args", None)
+        if not isinstance(args, dict):
+            continue
+        tool_confirmation = args.get("toolConfirmation")
+        if not isinstance(tool_confirmation, dict):
+            continue
+        payload = tool_confirmation.get("payload")
+        if not isinstance(payload, dict):
+            continue
+        if str(payload.get("product_line") or "").strip() != "ppt":
+            continue
+        return {
+            "kind": "adk_tool_confirmation",
+            "product_line": "ppt",
+            "function_name": ADK_REQUEST_CONFIRMATION_FUNCTION_NAME,
+            "function_call_id": str(getattr(call, "id", "") or ""),
+            "invocation_id": str(getattr(event, "invocation_id", "") or ""),
+            "tool_confirmation": tool_confirmation,
+            "payload": payload,
+        }
+    return None
+
+
+def _format_adk_ppt_confirmation_reply(request: dict[str, Any]) -> str:
+    """Render an ADK PPT confirmation request as the current plain-text UX."""
+    payload = request.get("payload")
+    if not isinstance(payload, dict):
+        return ""
+    parts = [
+        str(payload.get("message") or "").strip(),
+        str(payload.get("summary_markdown") or "").strip(),
+        str(payload.get("expected_user_action") or "").strip(),
+    ]
+    return "\n\n".join(part for part in parts if part)
+
+
+def _build_ppt_adk_confirmation_response_payload(
+    *,
+    user_response: str,
+    pending_request: dict[str, Any],
+) -> dict[str, Any]:
+    """Map ordinary user confirmation text into the PPT ADK confirmation schema."""
+    response = PptAdkConfirmationResponse.model_validate(user_response)
+    response_payload = response.model_dump(mode="json")
+    request_payload = pending_request.get("payload")
+    if isinstance(request_payload, dict):
+        if request_payload.get("confirmation_id"):
+            response_payload["confirmation_id"] = str(request_payload.get("confirmation_id") or "")
+        if request_payload.get("stage"):
+            response_payload["stage"] = str(request_payload.get("stage") or "")
+    return response_payload
+
+
+def _ppt_adk_hitl_enabled(state: dict[str, Any]) -> bool:
+    """Return whether runtime should request ADK-native PPT HITL boundaries."""
+    return bool(state.get(PPT_ADK_HITL_ENABLED_STATE_KEY))
+
+
+def _with_runtime_ppt_adk_hitl_options(
+    output: dict[str, Any] | None,
+    state: dict[str, Any] | None,
+) -> dict[str, Any]:
+    """Add the runtime PPT ADK HITL opt-in without overriding explicit caller policy."""
+    options = dict(output or {})
+    if not state or not _ppt_adk_hitl_enabled(state):
+        return options
+    if any(options.get(key) for key in ("auto_confirm", "skip_confirmations")):
+        return options
+    if "confirmation_mode" not in options and "adk_hitl" not in options and "adk_tool_confirmation" not in options:
+        options["confirmation_mode"] = "adk_hitl"
+    return options
+
+
 def _extract_completed_product_tool_result(event: Event) -> dict[str, Any] | None:
     """Return a completed product result from a tool response event."""
     for result in _iter_function_response_results(event):
@@ -937,15 +1036,22 @@ class Orchestrator:
         if self.uses_native_structured_output:
             agent_kwargs["output_schema"] = OrchestratorFinalResponse
         self.agent = LlmAgent(**agent_kwargs)
-        self.app = App(
-            name=self.app_name,
-            root_agent=self.agent,
-            plugins=[
-                CreativeClawStepEventPlugin(),
-                CreativeClawUsageLoggingPlugin(),
-                CreativeClawRuntimeTracePlugin(),
-            ],
-        )
+        with warnings.catch_warnings():
+            warnings.filterwarnings(
+                "ignore",
+                message=r"\[EXPERIMENTAL\] ResumabilityConfig:.*",
+                category=UserWarning,
+            )
+            self.app = App(
+                name=self.app_name,
+                root_agent=self.agent,
+                resumability_config=ResumabilityConfig(is_resumable=True),
+                plugins=[
+                    CreativeClawStepEventPlugin(),
+                    CreativeClawUsageLoggingPlugin(),
+                    CreativeClawRuntimeTracePlugin(),
+                ],
+            )
         self.runner = Runner(
             app=self.app,
             app_name=self.app_name,
@@ -1964,7 +2070,10 @@ Expert parameter contracts:
             product_line="ppt",
             task=task,
             inputs=inputs,
-            output=output,
+            output=_with_runtime_ppt_adk_hitl_options(
+                output,
+                getattr(tool_context, "state", None) if tool_context is not None else None,
+            ),
         )
         manager_kwargs = request.to_manager_kwargs()
 
@@ -2073,13 +2182,32 @@ Expert parameter contracts:
                     "status": "error",
                     "message": "continue_ppt_product requires tool context.",
                 }
-            result = await self.ppt_product_manager.continue_product_request(
-                user_response=user_response,
-                tool_context=tool_context,
-                expert_agents=self.expert_agents,
-                app_name=self.app_name,
-                artifact_service=self.artifact_service,
-            )
+            tool_confirmation = getattr(tool_context, "tool_confirmation", None)
+            if _ppt_adk_hitl_enabled(tool_context.state) or tool_confirmation is not None:
+                # ADK 2.1 reliably resumes the initial product tool confirmation. For
+                # continuation tools, keep later gates on the existing plain-text loop.
+                output_options = (
+                    _with_runtime_ppt_adk_hitl_options({}, tool_context.state)
+                    if tool_confirmation is not None
+                    else {}
+                )
+                result = await self.ppt_product_manager.run_product_request(
+                    task=user_response,
+                    inputs=[],
+                    output=output_options,
+                    tool_context=tool_context,
+                    expert_agents=self.expert_agents,
+                    app_name=self.app_name,
+                    artifact_service=self.artifact_service,
+                )
+            else:
+                result = await self.ppt_product_manager.continue_product_request(
+                    user_response=user_response,
+                    tool_context=tool_context,
+                    expert_agents=self.expert_agents,
+                    app_name=self.app_name,
+                    artifact_service=self.artifact_service,
+                )
             return slim_product_result(result)
 
         return await self._run_async_tool_with_events(
@@ -2120,6 +2248,7 @@ Expert parameter contracts:
         user_id: str,
         session_id: str,
         new_message: Optional[Content] = None,
+        invocation_id: str | None = None,
     ) -> str:
         """Run one orchestrator turn and collect the final text response."""
         final_response_text = ""
@@ -2142,6 +2271,7 @@ Expert parameter contracts:
         async for event in self.runner.run_async(
             user_id=user_id,
             session_id=session_id,
+            invocation_id=invocation_id,
             new_message=new_message,
             run_config=RunConfig(**run_config_kwargs),
         ):
@@ -2180,6 +2310,21 @@ Expert parameter contracts:
                     if published:
                         self._last_run_streamed_reply_text = True
             if pending_final_reply is not None:
+                continue
+            adk_confirmation_request = _extract_adk_ppt_confirmation_request(event)
+            if adk_confirmation_request is not None:
+                final_reply = _format_adk_ppt_confirmation_reply(adk_confirmation_request)
+                await self._persist_adk_ppt_confirmation_request(
+                    user_id=user_id,
+                    session_id=session_id,
+                    request=adk_confirmation_request,
+                )
+                await self._persist_confirmation_final_response(
+                    user_id=user_id,
+                    session_id=session_id,
+                    reply_text=final_reply,
+                )
+                pending_final_reply = final_reply
                 continue
             confirmation_result = _extract_confirmation_tool_result(event)
             if confirmation_result is not None:
@@ -2265,6 +2410,49 @@ Expert parameter contracts:
             final_file_paths=[],
         )
 
+    async def _persist_adk_ppt_confirmation_request(
+        self,
+        *,
+        user_id: str,
+        session_id: str,
+        request: dict[str, Any],
+    ) -> None:
+        """Persist one ADK-native PPT confirmation request for the next user turn."""
+        current_session = await self.session_service.get_session(
+            app_name=self.app_name,
+            user_id=user_id,
+            session_id=session_id,
+        )
+        if current_session is None:
+            return
+        await self.session_service.append_event(
+            current_session,
+            Event(
+                author="api_server",
+                actions=EventActions(
+                    state_delta={
+                        PPT_ADK_PENDING_CONFIRMATION_STATE_KEY: request,
+                        PPT_ADK_HITL_ENABLED_STATE_KEY: True,
+                    }
+                ),
+            ),
+        )
+
+    async def _clear_adk_ppt_confirmation_request(
+        self,
+        current_session,
+    ) -> None:
+        """Clear the stored ADK PPT confirmation request before resuming it."""
+        await self.session_service.append_event(
+            current_session,
+            Event(
+                author="api_server",
+                actions=EventActions(
+                    state_delta={PPT_ADK_PENDING_CONFIRMATION_STATE_KEY: None}
+                ),
+            ),
+        )
+
     async def _persist_structured_final_response(
         self,
         *,
@@ -2307,11 +2495,42 @@ Expert parameter contracts:
         current_session.state["last_output_message"] = ""
         current_session.state["last_orchestrator_response"] = ""
         previous_event_count = len(current_session.state.get("orchestration_events", []))
+        pending_adk_confirmation = current_session.state.get(PPT_ADK_PENDING_CONFIRMATION_STATE_KEY)
+        resume_invocation_id = ""
+        resume_message: Content | None = None
+        resumed_adk_ppt_confirmation = False
+        if isinstance(pending_adk_confirmation, dict):
+            resume_invocation_id = str(pending_adk_confirmation.get("invocation_id") or "").strip()
+            function_call_id = str(pending_adk_confirmation.get("function_call_id") or "").strip()
+            if resume_invocation_id and function_call_id:
+                resumed_adk_ppt_confirmation = True
+                response_payload = _build_ppt_adk_confirmation_response_payload(
+                    user_response=str(current_session.state.get("user_prompt") or ""),
+                    pending_request=pending_adk_confirmation,
+                )
+                resume_message = Content(
+                    role="user",
+                    parts=[
+                        Part(
+                            function_response=FunctionResponse(
+                                id=function_call_id,
+                                name=ADK_REQUEST_CONFIRMATION_FUNCTION_NAME,
+                                response={
+                                    "confirmed": True,
+                                    "payload": response_payload,
+                                },
+                            )
+                        )
+                    ],
+                )
+                await self._clear_adk_ppt_confirmation_request(current_session)
 
         raw_final_response = await self.run_agent_and_log_events(
             user_id=self.uid,
             session_id=self.sid,
-            new_message=self.build_runner_message(
+            invocation_id=resume_invocation_id or None,
+            new_message=resume_message
+            or self.build_runner_message(
                 "Review the current state, use built-in tools or invoke_agent when helpful, and answer the user directly once the task is complete."
             ),
         )
@@ -2325,6 +2544,26 @@ Expert parameter contracts:
             raise ValueError(f"Session {self.sid} not found for user {self.uid}")
 
         state = current_session.state
+        if resumed_adk_ppt_confirmation:
+            confirmation_result = _select_ppt_product_confirmation_state_result(state)
+            if confirmation_result is not None:
+                confirmation_reply = str(confirmation_result.get("message") or "").strip()
+                if confirmation_reply:
+                    await self._persist_structured_final_response(
+                        user_id=self.uid,
+                        session_id=self.sid,
+                        reply_text=confirmation_reply,
+                        final_file_paths=[],
+                    )
+                    raw_final_response = confirmation_reply
+                    current_session = await self.session_service.get_session(
+                        app_name=self.app_name,
+                        user_id=self.uid,
+                        session_id=self.sid,
+                    )
+                    if current_session is None:
+                        raise ValueError(f"Session {self.sid} not found for user {self.uid}")
+                    state = current_session.state
         structured_response_payload = state.get(ORCHESTRATOR_FINAL_RESPONSE_OUTPUT_KEY)
         synthesized_structured_response = False
         structured_response: OrchestratorFinalResponse | None = None

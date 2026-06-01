@@ -7,6 +7,7 @@ from types import SimpleNamespace
 from unittest.mock import AsyncMock, patch
 
 from conf.channel import WebChannelConfig
+from conf.system import SYS_CONFIG
 from src.channels.feishu import FeishuChannel
 from src.channels.local import LocalChannel
 from src.channels.telegram import TelegramChannel
@@ -16,6 +17,7 @@ from src.chat_runner import (
     build_cli_attachments,
     create_chat_manager,
     normalize_chat_channel_name,
+    run_cli_chat,
     send_cli_chat_message,
 )
 from src.creative_claw_cli import (
@@ -24,6 +26,9 @@ from src.creative_claw_cli import (
     collect_cli_attachment_paths,
     run_cli,
 )
+from src.runtime.workflow_service import CreativeClawRuntime
+from src.runtime.workspace import resolve_workspace_path
+from unit_test.ppt_runtime_smoke_helpers import RuntimePptSmokePatch
 
 
 class _FakeRuntime:
@@ -167,6 +172,45 @@ class CreativeClawCliDispatchTests(unittest.IsolatedAsyncioTestCase):
 
         self.assertEqual(exit_code, 0)
         mocked_run_chat_service.assert_awaited_once_with("web", web_config=web_config)
+
+    async def test_run_cli_chat_ppt_adk_hitl_smoke_reaches_final_delivery(self) -> None:
+        runtime = CreativeClawRuntime()
+        task = "做一个 3 页 PPTX，用于产品发布，受众为管理层。"
+        prompts = iter([task, "", "确认", "", "确认", "", "exit"])
+        lines: list[str] = []
+
+        with RuntimePptSmokePatch(task=task).install() as smoke:
+            await run_cli_chat(
+                user_id="cli-user",
+                chat_id="ppt-cli-smoke",
+                runtime=runtime,
+                status_writer=lines.append,
+                cli_writer=lines.append,
+                input_reader=lambda _prompt: next(prompts),
+            )
+
+        output = "\n".join(lines)
+        self.assertIn("请确认 PPT 需求参数", output)
+        self.assertIn("请确认 PPT 内容规划", output)
+        self.assertIn("HTML route generated the PPTX after requirement and content-plan confirmation.", output)
+        self.assertIn("[artifact]", output)
+        self.assertEqual(len(smoke.fake_llms), 3)
+        self.assertEqual(len(smoke.fake_llms[0].requests), 1)
+        self.assertEqual(len(smoke.fake_llms[2].requests), 1)
+
+        session_id = runtime._session_keys["cli:ppt-cli-smoke"]
+        session = await runtime.session_service.get_session(
+            app_name=SYS_CONFIG.app_name,
+            user_id="cli-user",
+            session_id=session_id,
+        )
+        self.assertEqual(session.state["ppt_product_result"]["status"], "success")
+        self.assertEqual(session.state["ppt_workflow_state"]["stage"], "completed")
+        self.assertIsNone(session.state.get("ppt_adk_pending_confirmation"))
+        final_paths = list(session.state["final_file_paths"])
+        self.assertEqual(len(final_paths), 1)
+        self.assertTrue(final_paths[0].endswith(".pptx"))
+        self.assertTrue(resolve_workspace_path(final_paths[0]).is_file())
 
     async def test_run_cli_dispatches_provider_login(self) -> None:
         args = build_parser().parse_args(["provider", "login", "openai-codex"])
