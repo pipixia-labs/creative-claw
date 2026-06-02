@@ -5,7 +5,7 @@
   <p><a href="README_zh.md">中文</a> · <strong>English</strong></p>
   <p>
     <img src="https://img.shields.io/badge/python-3.13%20recommended-blue" alt="Python">
-    <img src="https://img.shields.io/badge/google--adk-1.29.0-green" alt="Google ADK">
+    <img src="https://img.shields.io/badge/google--adk-2.1.0-green" alt="Google ADK">
     <img src="https://img.shields.io/badge/channels-CLI%20%7C%20Web%20%7C%20Telegram%20%7C%20Feishu-orange" alt="Channels">
   </p>
 </div>
@@ -18,6 +18,7 @@ No more jumping back and forth between different tools.
 With CreativeClaw, you can keep iterating around a single idea and move from inspiration to final output in one flow.
 
 ## 📰 News
+ - 2026-06-02: Released v0.5 with Google ADK 2.1 support, provider-aware structured final responses, ADK-native PPT HITL bridging, schema-hardened Product/Expert protocols, OpenAI Codex OAuth model support, and more reliable Web Design/Page/PPT delivery.
  - 2026-05-22: Released v0.4 with Web visual workspace upgrades, PPT/Page/Design product workflows, broader LLM compatibility, improved video previews, grouped Activity cards, and richer runtime trace debugging.
  - 2026-05-10: Added requirement confirmation and design system support for Web design tasks.
  - 2026-05-09: Upgraded the Design and Web Chat workflow with a tldraw-powered Visual Board, canvas-style Design previews, and path-based visual attachments.

@@ -127,6 +127,23 @@ _DISPLAY_TOOL_TITLES = {
     "run_page_product": "Run Page Product",
     "run_design_product": "Run Design Product",
 }
+_PRODUCT_TOOL_EVENT_TITLES = {
+    _DISPLAY_TOOL_TITLES["run_ppt_product"],
+    _DISPLAY_TOOL_TITLES["continue_ppt_product"],
+    _DISPLAY_TOOL_TITLES["run_page_product"],
+    _DISPLAY_TOOL_TITLES["run_design_product"],
+}
+_PRODUCT_LINE_BY_TOOL_EVENT_TITLE = {
+    _DISPLAY_TOOL_TITLES["run_ppt_product"]: "ppt",
+    _DISPLAY_TOOL_TITLES["continue_ppt_product"]: "ppt",
+    _DISPLAY_TOOL_TITLES["run_page_product"]: "page",
+    _DISPLAY_TOOL_TITLES["run_design_product"]: "design",
+}
+_PRODUCT_STATE_KEY_BY_LINE = {
+    "design": "design_product_result",
+    "page": "page_product_result",
+    "ppt": "ppt_product_result",
+}
 
 _WorkspaceFileSnapshot = dict[str, tuple[int, int]]
 
@@ -488,6 +505,81 @@ def _build_missing_structured_final_response_fallback(
         reply_text=reply_text,
         final_file_paths=fallback_final_paths,
     )
+
+
+def _build_product_state_structured_final_response(
+    state: dict[str, Any],
+    *,
+    previous_event_count: int,
+) -> Optional[OrchestratorFinalResponse]:
+    """Promote a product-manager session result when this turn ran a product tool."""
+    product_lines = _new_finished_product_tool_lines(
+        state,
+        previous_event_count=previous_event_count,
+    )
+    if not product_lines:
+        return None
+
+    product_result = _select_structured_product_state_result(state, product_lines=product_lines)
+    if product_result is None:
+        return None
+
+    reply_text = str(product_result.get("message") or "").strip()
+    final_file_paths = (
+        list(product_result.get("final_file_paths") or [])
+        if is_completed_product_result(product_result)
+        else []
+    )
+    return OrchestratorFinalResponse(
+        reply_text=reply_text,
+        final_file_paths=final_file_paths,
+    )
+
+
+def _new_finished_product_tool_lines(
+    state: dict[str, Any],
+    *,
+    previous_event_count: int,
+) -> list[str]:
+    """Return product lines whose product tool finished during the current invocation."""
+    events = list(state.get("orchestration_events") or [])
+    start_index = max(0, int(previous_event_count or 0))
+    product_lines: list[str] = []
+    for event in events[start_index:]:
+        if not isinstance(event, dict):
+            continue
+        title = str(event.get("debug_title") or event.get("title") or "").strip()
+        if title not in _PRODUCT_TOOL_EVENT_TITLES:
+            continue
+        detail = str(event.get("debug_detail") or event.get("detail") or "").strip().lower()
+        if "status: success" in detail or "status: error" in detail:
+            product_lines.append(_PRODUCT_LINE_BY_TOOL_EVENT_TITLE[title])
+    return product_lines
+
+
+def _select_structured_product_state_result(
+    state: dict[str, Any],
+    *,
+    product_lines: list[str],
+) -> dict[str, Any] | None:
+    """Return the first completed or terminal product result persisted in state."""
+    for product_line in reversed(product_lines):
+        specific_key = _PRODUCT_STATE_KEY_BY_LINE.get(product_line)
+        candidate_keys = [
+            key
+            for key in (specific_key, "current_output", "last_product_result")
+            if key
+        ]
+        for key in candidate_keys:
+            candidate = state.get(key)
+            if not isinstance(candidate, dict):
+                continue
+            product_result = slim_product_result(candidate)
+            if str(product_result.get("product_line") or "").strip() != product_line:
+                continue
+            if is_completed_product_result(product_result) or is_terminal_product_result(product_result):
+                return product_result
+    return None
 
 
 def _select_missing_structured_final_response_text(
@@ -2597,7 +2689,10 @@ Expert parameter contracts:
                 parse_errors.append(exc)
 
         if structured_response is None:
-            structured_response = _build_missing_structured_final_response_fallback(
+            structured_response = _build_product_state_structured_final_response(
+                state,
+                previous_event_count=previous_event_count,
+            ) or _build_missing_structured_final_response_fallback(
                 state,
                 raw_final_response=raw_final_response,
             )

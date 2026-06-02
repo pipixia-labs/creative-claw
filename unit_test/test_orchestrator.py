@@ -10,7 +10,7 @@ from unittest.mock import AsyncMock, patch
 
 from google.adk.agents.run_config import StreamingMode
 from google.adk.artifacts import InMemoryArtifactService
-from google.adk.events import Event
+from google.adk.events import Event, EventActions
 from google.adk.models import BaseLlm
 from google.adk.models.llm_request import LlmRequest
 from google.adk.models.llm_response import LlmResponse
@@ -1657,6 +1657,141 @@ class OrchestratorCallbackTests(unittest.IsolatedAsyncioTestCase):
                 "final_file_paths": [relative_path],
             },
         )
+
+    async def test_run_until_done_recovers_completed_design_product_state_after_empty_final_text(self) -> None:
+        session_service = InMemorySessionService()
+        artifact_service = InMemoryArtifactService()
+        orchestrator = Orchestrator(
+            session_service=session_service,
+            artifact_service=artifact_service,
+            expert_agents={},
+        )
+        orchestrator.uid = "user-design-product-empty-final"
+        orchestrator.sid = "session-design-product-empty-final"
+
+        with tempfile.TemporaryDirectory(dir=workspace_root()) as tmpdir:
+            html_path = Path(tmpdir) / "quality-check-tool.html"
+            html_path.write_text("<!doctype html><title>Quality Check Tool</title>", encoding="utf-8")
+            file_record = build_workspace_file_record(
+                html_path,
+                description="single-file HTML design artifact",
+                source="design_product_manager",
+            )
+            relative_path = workspace_relative_path(html_path)
+            product_result = {
+                "result_schema_version": "design-product-result-v1",
+                "status": "success",
+                "product_line": "design",
+                "message": "设计稿已完成。",
+                "final_file_paths": [relative_path],
+            }
+            stale_page_result = {
+                "result_schema_version": "page-product-result-v1",
+                "status": "success",
+                "product_line": "page",
+                "message": "旧页面已完成。",
+                "final_file_paths": ["generated/stale-page.html"],
+            }
+
+            await session_service.create_session(
+                app_name=SYS_CONFIG.app_name,
+                user_id=orchestrator.uid,
+                session_id=orchestrator.sid,
+                state={"orchestration_events": []},
+            )
+
+            async def _run_agent_and_persist_design_result(*_args, **_kwargs) -> str:
+                session = await session_service.get_session(
+                    app_name=SYS_CONFIG.app_name,
+                    user_id=orchestrator.uid,
+                    session_id=orchestrator.sid,
+                )
+                events = list(session.state.get("orchestration_events", []))
+                events.append(
+                    {
+                        "title": "Run Design Product",
+                        "detail": "Status: success\nArgs: task=AI QC\nResult: 设计稿已完成。",
+                        "stage": "design_planning",
+                    }
+                )
+                await session_service.append_event(
+                    session,
+                    Event(
+                        author="api_server",
+                        actions=EventActions(
+                            state_delta={
+                                "orchestration_events": events,
+                                "generated": [file_record],
+                                "new_files": [file_record],
+                                "files_history": [[file_record]],
+                                "current_output": product_result,
+                                "last_product_result": stale_page_result,
+                                "design_product_result": product_result,
+                                "final_response": product_result["message"],
+                                "final_file_paths": [relative_path],
+                            }
+                        ),
+                    ),
+                )
+                return ""
+
+            with patch.object(
+                orchestrator,
+                "run_agent_and_log_events",
+                new=_run_agent_and_persist_design_result,
+            ):
+                result = await orchestrator.run_until_done()
+
+        self.assertEqual(result["final_response"], "设计稿已完成。")
+        self.assertEqual(result["final_file_paths"], [relative_path])
+        session = await session_service.get_session(
+            app_name=SYS_CONFIG.app_name,
+            user_id=orchestrator.uid,
+            session_id=orchestrator.sid,
+        )
+        self.assertEqual(
+            session.state[ORCHESTRATOR_FINAL_RESPONSE_OUTPUT_KEY],
+            {
+                "reply_text": "设计稿已完成。",
+                "final_file_paths": [relative_path],
+            },
+        )
+
+    async def test_run_until_done_does_not_recover_stale_product_state_without_new_product_event(
+        self,
+    ) -> None:
+        session_service = InMemorySessionService()
+        orchestrator = Orchestrator(
+            session_service=session_service,
+            artifact_service=InMemoryArtifactService(),
+            expert_agents={},
+        )
+        orchestrator.uid = "user-stale-product"
+        orchestrator.sid = "session-stale-product"
+
+        await session_service.create_session(
+            app_name=SYS_CONFIG.app_name,
+            user_id=orchestrator.uid,
+            session_id=orchestrator.sid,
+            state={
+                "orchestration_events": [],
+                "last_product_result": {
+                    "result_schema_version": "design-product-result-v1",
+                    "status": "success",
+                    "product_line": "design",
+                    "message": "旧设计稿已完成。",
+                    "final_file_paths": ["generated/stale-design.html"],
+                },
+            },
+        )
+
+        with patch.object(
+            orchestrator,
+            "run_agent_and_log_events",
+            new=AsyncMock(return_value=""),
+        ):
+            with self.assertRaisesRegex(ValueError, "Missing structured final response"):
+                await orchestrator.run_until_done()
 
     async def test_run_until_done_accepts_plain_text_final_response_fallback(self) -> None:
         session_service = InMemorySessionService()
