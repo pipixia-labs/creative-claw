@@ -25,6 +25,11 @@ from src.productions.design.design_product_manager.brief_form import (
 from src.productions.ppt.schemas import PptAdkConfirmationRequest
 from src.runtime.cancellation import TaskCancelledError, get_cancellation_manager
 from src.runtime.expert_registry import build_expert_agents
+from src.runtime.interaction_language import (
+    INTERACTION_LANGUAGE_STATE_KEY,
+    LANGUAGE_ZH,
+    localized_copy,
+)
 from src.runtime.models import InboundMessage, WorkflowEvent
 from src.runtime.product_results import is_product_confirmation_result
 from src.runtime.progress_events import build_progress_metadata, progress_text_from_metadata
@@ -95,6 +100,8 @@ def _collect_persistent_product_state(state: dict[str, object]) -> dict[str, obj
                 if key.startswith("ppt_") and value is not None
             }
         )
+        if state.get(INTERACTION_LANGUAGE_STATE_KEY) is not None:
+            persistent_state[INTERACTION_LANGUAGE_STATE_KEY] = state[INTERACTION_LANGUAGE_STATE_KEY]
 
     if _should_preserve_design_product_state(state):
         persistent_state.update(
@@ -106,6 +113,8 @@ def _collect_persistent_product_state(state: dict[str, object]) -> dict[str, obj
         )
         if state.get(DESIGN_BRIEF_FORM_STATE_KEY) is not None:
             persistent_state[DESIGN_BRIEF_FORM_STATE_KEY] = state[DESIGN_BRIEF_FORM_STATE_KEY]
+        if state.get(INTERACTION_LANGUAGE_STATE_KEY) is not None:
+            persistent_state[INTERACTION_LANGUAGE_STATE_KEY] = state[INTERACTION_LANGUAGE_STATE_KEY]
         persistent_state["product_line"] = "design"
 
     if persistent_state and state.get("last_product_result") is not None:
@@ -270,12 +279,27 @@ class CreativeClawRuntime:
                 )
             if _contains_form_answers(inbound.text):
                 activity_sequence += 1
+                form_language = LANGUAGE_ZH
+                current_session = await self.session_service.get_session(
+                    app_name=SYS_CONFIG.app_name,
+                    user_id=user_id,
+                    session_id=session_id,
+                )
+                if current_session is not None:
+                    form_language = str(
+                        current_session.state.get(INTERACTION_LANGUAGE_STATE_KEY) or LANGUAGE_ZH
+                    )
+                form_answer_detail = localized_copy(
+                    form_language,
+                    en="Received the requirements form and is continuing the design generation.",
+                    zh="已收到需求确认表单，正在继续生成设计方案。",
+                )
                 yield _build_progress_event(
-                    "已收到需求确认表单，正在继续生成设计方案。",
+                    form_answer_detail,
                     session_id=session_id,
                     stage="design_planning",
                     user_title="Reviewing your answers",
-                    user_detail="已收到需求确认表单，正在继续生成设计方案。",
+                    user_detail=form_answer_detail,
                     turn_index=current_turn,
                     activity_sequence=activity_sequence,
                 )

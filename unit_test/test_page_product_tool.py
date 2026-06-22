@@ -53,6 +53,7 @@ class PageProductToolTests(unittest.IsolatedAsyncioTestCase):
             task="做一篇小红书长图。",
             inputs=[{"path": "input/example.md"}],
             output={"format": "html"},
+            interaction_language="zh",
             tool_context=tool_context,
             expert_agents=orchestrator.expert_agents,
             app_name=orchestrator.app_name,

@@ -16,6 +16,7 @@ from src.agents.orchestrator.orchestrator_agent import (
     PPT_ADK_HITL_ENABLED_STATE_KEY,
     PPT_ADK_PENDING_CONFIRMATION_STATE_KEY,
 )
+from src.runtime.interaction_language import INTERACTION_LANGUAGE_STATE_KEY
 from src.runtime.models import InboundMessage, MessageAttachment
 from src.runtime.workflow_service import CreativeClawRuntime
 from src.runtime.workspace import (
@@ -500,6 +501,65 @@ class RuntimeSessionTests(unittest.IsolatedAsyncioTestCase):
         self.assertEqual(progress_events[1].metadata["stage"], "design_planning")
         self.assertEqual(progress_events[1].metadata["stage_title"], "Reviewing your answers")
         self.assertEqual(progress_events[1].metadata["user_detail"], "已收到需求确认表单，正在继续生成设计方案。")
+
+    async def test_run_message_reports_english_design_form_progress(self) -> None:
+        runtime = CreativeClawRuntime()
+        inbound = InboundMessage(
+            channel="web",
+            sender_id="web-user",
+            chat_id="english-design",
+            text=(
+                '[cc-form-answers id="design-brief" version="design-brief-form-v1"]\n'
+                '{"visual_direction":"decide_for_me"}\n'
+                "[/cc-form-answers]"
+            ),
+        )
+        session_id = "session-english-design"
+        await runtime.session_service.create_session(
+            app_name=SYS_CONFIG.app_name,
+            user_id="web-user",
+            session_id=session_id,
+            state={
+                INTERACTION_LANGUAGE_STATE_KEY: "en",
+                DESIGN_BRIEF_FORM_PENDING_TASK_STATE_KEY: (
+                    "Create a single-file HTML design for a multi-center clinical trial dashboard."
+                ),
+                DESIGN_BRIEF_FORM_STATE_KEY: {
+                    "schema_version": DESIGN_BRIEF_FORM_SCHEMA_VERSION,
+                    "interaction_language": "en",
+                    "message": "<cc-question-form>{}</cc-question-form>",
+                },
+            },
+        )
+        runtime._session_keys[inbound.session_key] = session_id
+
+        class _FakeOrchestrator:
+            def __init__(self, **_kwargs) -> None:
+                self.uid = ""
+                self.sid = ""
+
+            async def run_until_done(self) -> dict:
+                return {
+                    "workflow_status": "finished",
+                    "final_summary": "Done.",
+                    "final_response": "Done.",
+                    "last_output_message": "Done.",
+                    "new_orchestration_events": [],
+                }
+
+        with patch("src.runtime.workflow_service.Orchestrator", _FakeOrchestrator):
+            events = [event async for event in runtime.run_message(inbound)]
+
+        progress_events = [event for event in events if event.event_type == "status"]
+        self.assertEqual(
+            progress_events[1].text,
+            "Received the requirements form and is continuing the design generation.",
+        )
+        self.assertEqual(progress_events[1].metadata["stage"], "design_planning")
+        self.assertEqual(
+            progress_events[1].metadata["user_detail"],
+            "Received the requirements form and is continuing the design generation.",
+        )
 
     async def test_run_message_with_design_metadata_uses_orchestrator(self) -> None:
         runtime = CreativeClawRuntime()

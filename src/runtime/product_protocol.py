@@ -7,6 +7,8 @@ from typing import Any, Literal
 
 from pydantic import BaseModel, Field, field_validator
 
+from src.runtime.interaction_language import normalize_interaction_language
+
 ProductLine = Literal["ppt", "page", "design"]
 
 
@@ -34,6 +36,10 @@ class ProductToolRequest(BaseModel):
     task: str = Field(description="User-facing product task text.")
     inputs: Any = Field(default_factory=list)
     output: Any = Field(default_factory=dict)
+    interaction_language: str = Field(
+        default="",
+        description="Language used for product-to-user communication.",
+    )
 
     @field_validator("task", mode="before")
     @classmethod
@@ -53,17 +59,27 @@ class ProductToolRequest(BaseModel):
         """Default tool output options with the same semantics as the previous code."""
         return _default_tool_output(value)
 
+    @field_validator("interaction_language", mode="before")
+    @classmethod
+    def _normalize_interaction_language(cls, value: Any) -> str:
+        """Normalize optional interaction-language metadata."""
+        return normalize_interaction_language(value, fallback="")
+
     def to_manager_kwargs(self) -> dict[str, Any]:
         """Return product-manager call arguments without runtime-only metadata."""
         return {
             "task": self.task,
             "inputs": copy.deepcopy(self.inputs),
             "output": copy.deepcopy(self.output),
+            "interaction_language": self.interaction_language,
         }
 
     def to_event_args(self) -> dict[str, Any]:
         """Return the public tool argument payload used for step events."""
-        return self.to_manager_kwargs()
+        payload = self.to_manager_kwargs()
+        if not payload.get("interaction_language"):
+            payload.pop("interaction_language", None)
+        return payload
 
 
 __all__ = ["ProductLine", "ProductToolRequest"]

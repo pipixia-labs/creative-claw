@@ -47,6 +47,12 @@ from src.productions.schema_utils import (
 from src.runtime.expert_dispatcher import ExpertInvocationRequest, dispatch_expert_request
 from src.runtime.agent_tool_transport import run_agent_tool, supports_agent_tool_context
 from src.runtime.adk_compat import get_invocation_context, has_invocation_context
+from src.runtime.interaction_language import (
+    INTERACTION_LANGUAGE_STATE_KEY,
+    detect_interaction_language,
+    localized_copy,
+    normalize_interaction_language,
+)
 from src.runtime.step_events import append_orchestration_step_event
 from src.runtime.workspace import (
     build_generated_output_path,
@@ -82,6 +88,7 @@ class DesignProductRequest(BaseModel):
     task: str = Field(description="The design product task to complete.")
     inputs: Any = Field(default_factory=list)
     output: dict[str, Any] = Field(default_factory=dict)
+    interaction_language: str = Field(default="", description="User-facing communication language.")
 
     @field_validator("task", mode="before")
     @classmethod
@@ -100,6 +107,12 @@ class DesignProductRequest(BaseModel):
     def _default_output(cls, value: Any) -> dict[str, Any]:
         """Default missing output options to an empty dict."""
         return default_empty_dict(value)
+
+    @field_validator("interaction_language", mode="before")
+    @classmethod
+    def _normalize_interaction_language(cls, value: Any) -> str:
+        """Normalize optional interaction language metadata."""
+        return normalize_interaction_language(value, fallback="")
 
     @field_validator("task")
     @classmethod
@@ -122,6 +135,10 @@ class DesignProductRequest(BaseModel):
         payload["task"] = clean_string(self.task if task is None else task)
         payload["inputs"] = copy.deepcopy(self.normalized_inputs() if inputs is None else inputs)
         payload["output"] = copy.deepcopy(self.output)
+        if self.interaction_language:
+            payload["interaction_language"] = self.interaction_language
+        else:
+            payload.pop("interaction_language", None)
         return payload
 
 
@@ -181,13 +198,20 @@ class DesignProductResult(BaseModel):
         return model_dump_dict(self)
 
 
-def _parse_design_product_request(*, task: Any, inputs: Any, output: Any) -> DesignProductRequest:
+def _parse_design_product_request(
+    *,
+    task: Any,
+    inputs: Any,
+    output: Any,
+    interaction_language: Any = "",
+) -> DesignProductRequest:
     """Parse one Design product request into a structured contract."""
     return DesignProductRequest.model_validate(
         {
             "task": task,
             "inputs": inputs,
             "output": output,
+            "interaction_language": interaction_language,
         }
     )
 
@@ -348,6 +372,7 @@ Always call `register_design_delivery` before finishing. It must contain a user-
         task: str,
         inputs: Any | None = None,
         output: dict[str, Any] | None = None,
+        interaction_language: str = "",
         tool_context: ToolContext | None = None,
         expert_agents: dict[str, BaseAgent] | None = None,
         app_name: str = "creative_claw",
@@ -358,7 +383,12 @@ Always call `register_design_delivery` before finishing. It must contain a user-
             return _error_result("DesignProductManager requires tool context.")
 
         try:
-            request = _parse_design_product_request(task=task, inputs=inputs, output=output)
+            request = _parse_design_product_request(
+                task=task,
+                inputs=inputs,
+                output=output,
+                interaction_language=interaction_language,
+            )
         except ValidationError:
             if not clean_string(task):
                 return _error_result("DesignProductManager requires a non-empty task.")
@@ -367,6 +397,11 @@ Always call `register_design_delivery` before finishing. It must contain a user-
             return _error_result("DesignProductManager requires an ADK invocation context.")
         clean_task = request.task
         normalized_inputs = request.normalized_inputs()
+        resolved_interaction_language = _resolve_design_interaction_language(
+            request=request,
+            state=tool_context.state,
+        )
+        tool_context.state[INTERACTION_LANGUAGE_STATE_KEY] = resolved_interaction_language
 
         append_orchestration_step_event(
             tool_context.state,
@@ -402,11 +437,13 @@ Always call `register_design_delivery` before finishing. It must contain a user-
                 if _supports_dynamic_workflow(tool_context):
                     form_message = await self._brief_form_expert.generate_form_with_workflow(
                         task=clean_task,
+                        interaction_language=resolved_interaction_language,
                         tool_context=tool_context,
                     )
                 else:
                     form_message = await self._brief_form_expert.generate_form(
                         task=clean_task,
+                        interaction_language=resolved_interaction_language,
                         app_name=app_name,
                         user_id=invocation_context.user_id,
                     )
@@ -414,11 +451,12 @@ Always call `register_design_delivery` before finishing. It must contain a user-
                 return _error_result(
                     f"Design brief form generation failed: {type(exc).__name__}: {exc}"
                 )
-            result = _brief_form_result(form_message)
+            result = _brief_form_result(form_message, interaction_language=resolved_interaction_language)
             tool_context.state[DESIGN_BRIEF_FORM_PENDING_TASK_STATE_KEY] = clean_task
             tool_context.state[DESIGN_BRIEF_FORM_STATE_KEY] = {
                 "schema_version": DESIGN_BRIEF_FORM_SCHEMA_VERSION,
                 "message": form_message,
+                "interaction_language": resolved_interaction_language,
             }
             tool_context.state[DESIGN_PRODUCT_RESULT_STATE_KEY] = result
             tool_context.state["current_output"] = result
@@ -928,8 +966,35 @@ def _error_result(message: str) -> dict[str, Any]:
     return DesignProductResult(status="error", message=message).to_result_dict()
 
 
-def _brief_form_result(form_message: str) -> dict[str, Any]:
+def _resolve_design_interaction_language(*, request: DesignProductRequest, state: Any) -> str:
+    """Resolve the user-facing language for one Design product request."""
+    explicit_language = normalize_interaction_language(request.interaction_language, fallback="")
+    if explicit_language:
+        return explicit_language
+
+    if hasattr(state, "get"):
+        state_language = normalize_interaction_language(state.get(INTERACTION_LANGUAGE_STATE_KEY), fallback="")
+        if state_language:
+            return state_language
+        form_state = state.get(DESIGN_BRIEF_FORM_STATE_KEY)
+        if isinstance(form_state, dict):
+            form_language = normalize_interaction_language(form_state.get("interaction_language"), fallback="")
+            if form_language:
+                return form_language
+        pending_task = str(state.get(DESIGN_BRIEF_FORM_PENDING_TASK_STATE_KEY) or "").strip()
+        if pending_task:
+            return detect_interaction_language(pending_task, request.task)
+
+    return detect_interaction_language(request.task)
+
+
+def _brief_form_result(form_message: str, *, interaction_language: str) -> dict[str, Any]:
     """Build a DesignProductManager result that asks the Web UI for form answers."""
+    progress_message = localized_copy(
+        interaction_language,
+        en="Generated a design requirements form and is waiting for the user to submit it in the Web UI.",
+        zh="已生成设计需求确认表单，等待用户在 Web 前端提交。",
+    )
     return DesignProductResult(
         status="needs_input",
         message=form_message,
@@ -937,7 +1002,7 @@ def _brief_form_result(form_message: str) -> dict[str, Any]:
             {
                 "stage": "brief_form",
                 "status": "needs_input",
-                "message": "已生成设计需求确认表单，等待用户在 Web 前端提交。",
+                "message": progress_message,
             }
         ],
     ).to_result_dict()

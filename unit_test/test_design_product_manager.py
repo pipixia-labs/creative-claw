@@ -41,6 +41,7 @@ from src.productions.design.design_product_manager.design_product_manager import
 from src.productions.design.design_product_manager.brief_form import (
     DESIGN_BRIEF_FORM_PENDING_TASK_STATE_KEY,
     DESIGN_BRIEF_FORM_STATE_KEY,
+    _build_design_brief_form_prompt,
 )
 from src.productions.design.design_systems import list_design_systems
 from src.runtime.workspace import resolve_workspace_path
@@ -410,6 +411,39 @@ class DesignProductManagerTests(unittest.TestCase):
             if question["type"] in {"single_choice", "multi_choice"}:
                 self.assertEqual(question["options"][-1]["value"], "decide_for_me")
         self.assertEqual(len(_design_system_option_ids(form["questions"][-1])), 6)
+
+    def test_design_brief_question_form_uses_supplied_interaction_language(self) -> None:
+        prompt = _build_design_brief_form_prompt(
+            "Create a single-file HTML design for a multi-center clinical trial dashboard.",
+            interaction_language="en",
+        )
+        form = validate_question_form_schema(
+            {
+                "id": "clinical-trial-design-brief",
+                "version": DESIGN_BRIEF_FORM_SCHEMA_VERSION,
+                "uiLanguage": "en",
+                "title": "Confirm design requirements",
+                "questions": [
+                    {
+                        "id": "goal",
+                        "label": "What should the design emphasize?",
+                        "type": "short_text",
+                        "required": True,
+                    }
+                ],
+            }
+        )
+        design_system_question = form["questions"][-1]
+
+        self.assertIn("Use English for every user-facing form title", prompt)
+        self.assertIn('Set `uiLanguage` to "en"', prompt)
+        self.assertEqual(form["uiLanguage"], "en")
+        self.assertEqual(form["submitLabel"], "Confirm and continue")
+        self.assertEqual(
+            design_system_question["label"],
+            "Which design system should this reference?",
+        )
+        self.assertEqual(design_system_question["options"][-1]["label"], "Decide for me")
 
     def test_design_brief_question_form_orders_content_before_style_questions(self) -> None:
         form = validate_question_form_schema(

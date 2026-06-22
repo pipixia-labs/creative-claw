@@ -14,6 +14,7 @@ from src.productions.schema_utils import (
     model_dump_dict,
     require_non_empty_string,
 )
+from src.runtime.interaction_language import normalize_interaction_language
 
 PPT_PRODUCT_RESULT_SCHEMA_VERSION = "ppt-product-result-v1"
 PPT_ADK_CONFIRMATION_REQUEST_SCHEMA_VERSION = "ppt-adk-confirmation-request-v1"
@@ -78,6 +79,7 @@ class PptProductRequest(BaseModel):
     task: str = Field(description="The PPT product task or confirmation response.")
     inputs: Any = Field(default_factory=list)
     output: dict[str, Any] = Field(default_factory=dict)
+    interaction_language: str = Field(default="", description="User-facing communication language.")
 
     @field_validator("task", mode="before")
     @classmethod
@@ -97,6 +99,12 @@ class PptProductRequest(BaseModel):
         """Default missing output options to an empty dict."""
         return default_empty_dict(value)
 
+    @field_validator("interaction_language", mode="before")
+    @classmethod
+    def _normalize_interaction_language(cls, value: Any) -> str:
+        """Normalize optional interaction language metadata."""
+        return normalize_interaction_language(value, fallback="")
+
     @field_validator("task")
     @classmethod
     def _require_task(cls, value: str) -> str:
@@ -105,7 +113,10 @@ class PptProductRequest(BaseModel):
 
     def to_state_dict(self) -> dict[str, Any]:
         """Return the stable dictionary payload used for request tracing."""
-        return model_dump_dict(self)
+        payload = model_dump_dict(self)
+        if not self.interaction_language:
+            payload.pop("interaction_language", None)
+        return payload
 
 
 class PptAdkConfirmationRequest(BaseModel):

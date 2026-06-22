@@ -19,6 +19,12 @@ from google.genai.types import Content, Part
 
 from conf.llm import build_llm
 from src.productions.design.design_systems import DesignSystemSummary, list_design_systems
+from src.runtime.interaction_language import (
+    LANGUAGE_ZH,
+    language_name_for_prompt,
+    localized_copy,
+    normalize_interaction_language,
+)
 
 DESIGN_BRIEF_FORM_STATE_KEY = "design_product_brief_form"
 DESIGN_BRIEF_FORM_ANSWERS_STATE_KEY = "design_product_brief_form_answers"
@@ -65,13 +71,14 @@ class DesignBriefFormExpert(LlmAgent):
             "{\n"
             '  "id": "kebab-case-string",\n'
             '  "version": "design-brief-form-v1",\n'
-            '  "title": "short Chinese title",\n'
-            '  "description": "one short Chinese sentence",\n'
-            '  "submitLabel": "short Chinese button label",\n'
+            '  "uiLanguage": "en | zh",\n'
+            '  "title": "short title in the requested interaction language",\n'
+            '  "description": "one short sentence in the requested interaction language",\n'
+            '  "submitLabel": "short button label in the requested interaction language",\n'
             '  "questions": [\n'
             "    {\n"
             '      "id": "snake_case_string",\n'
-            '      "label": "Chinese label",\n'
+            '      "label": "label in the requested interaction language",\n'
             '      "type": "single_choice | multi_choice | short_text | long_text | range",\n'
             '      "presentation": "optional presentation hint, e.g. design_system_picker",\n'
             '      "resource": "optional resource hint, e.g. design_systems",\n'
@@ -83,7 +90,7 @@ class DesignBriefFormExpert(LlmAgent):
             '      "max": 12,\n'
             '      "default": 6,\n'
             '      "options": [\n'
-            '        {"value": "stable_machine_value", "label": "Chinese option", "description": "optional short text"}\n'
+            '        {"value": "stable_machine_value", "label": "option in the requested interaction language", "description": "optional short text"}\n'
             "      ]\n"
             "    }\n"
             "  ]\n"
@@ -113,20 +120,20 @@ class DesignBriefFormExpert(LlmAgent):
             "- Treat visual directions as design posture packages, not generic adjectives: each selected direction should imply palette, type personality, density, border/radius style, image strategy, and restraint level.\n"
             "- Include one design system reference question for Web design tasks. Use id \"design_system_reference\", type \"single_choice\", presentation \"design_system_picker\", resource \"design_systems\", required false, and allowOther true.\n"
             "- Place the design system reference question after visual style and color questions, and before the final long_text notes question.\n"
-            "- For design_system_reference.options, include exactly 6 recommended design systems from the provided catalog, followed by {\"value\":\"decide_for_me\",\"label\":\"为我决定\"} as the last option. Use the catalog id as value, the catalog title as label, and a short Simplified Chinese recommendation reason as description.\n"
+            "- For design_system_reference.options, include exactly 6 recommended design systems from the provided catalog, followed by {\"value\":\"decide_for_me\",\"label\":\"Decide for me\"} or {\"value\":\"decide_for_me\",\"label\":\"为我决定\"} as the last option, matching the requested interaction language. Use the catalog id as value, the catalog title as label, and a short recommendation reason in the requested interaction language as description.\n"
             "- Add up to 5 task-specific questions when useful. These should be invented from the brief, such as industry positioning, domain objects, content treatment, business-specific functions, or domain-specific visual semantics.\n"
             "- Do not hard-code restaurant, ecommerce, SaaS, dashboard, or landing-page questions. Infer the domain from the current task.\n"
             "- Keep task-specific details broad enough to help design direction, not implementation details.\n"
             "- Use single_choice or multi_choice when options are clear; use text fields for user-specific details.\n"
             "- Use range only for bounded numeric preferences such as screen count or variant count.\n"
             "- For multi_choice, include maxSelections only when there is a real limit.\n"
-            "- Include an option with value \"decide_for_me\" and label \"为我决定\" as the last option in every key choice question.\n"
+            "- Include an option with value \"decide_for_me\" and label \"Decide for me\" or \"为我决定\" as the last option in every key choice question, matching the requested interaction language.\n"
             "- Use allowOther true on choice questions when custom answers are likely useful.\n"
             "- Keep specific brand names, copywriting, constraints, or extra notes in one optional long_text question when needed.\n"
-            "- Make most questions optional when \"为我决定\" is available, so users can submit quickly.\n"
+            "- Make most questions optional when the decide-for-me option is available, so users can submit quickly.\n"
             "- Do not ask about implementation details unless the brief explicitly requires them.\n"
-            "- Do not invent design system ids. Choose design_system_reference options only from the provided available design system catalog; users may still select \"为我决定\".\n"
-            "- Use Simplified Chinese for user-facing labels.\n"
+            "- Do not invent design system ids. Choose design_system_reference options only from the provided available design system catalog; users may still select the decide-for-me option.\n"
+            "- Use the requested interaction language for all user-facing labels, descriptions, placeholders, option copy, and submit labels.\n"
             "- Ensure IDs are stable ASCII identifiers.\n"
         )
 
@@ -136,6 +143,7 @@ class DesignBriefFormExpert(LlmAgent):
         task: str,
         app_name: str,
         user_id: str,
+        interaction_language: str = "",
     ) -> str:
         """Run this private LLM agent and return one validated form block."""
         session_service = InMemorySessionService()
@@ -154,7 +162,14 @@ class DesignBriefFormExpert(LlmAgent):
                 session_id=session.id,
                 new_message=Content(
                     role="user",
-                    parts=[Part(text=_build_design_brief_form_prompt(task))],
+                    parts=[
+                        Part(
+                            text=_build_design_brief_form_prompt(
+                                task,
+                                interaction_language=interaction_language,
+                            )
+                        )
+                    ],
                 ),
             ):
                 content = getattr(event, "content", None)
@@ -173,11 +188,15 @@ class DesignBriefFormExpert(LlmAgent):
         *,
         task: str,
         tool_context: Any,
+        interaction_language: str = "",
     ) -> str:
         """Run this expert through ADK 2 Workflow and return one validated form block."""
         raw = await tool_context.run_node(
             _build_design_brief_form_workflow(agent=self),
-            node_input=_build_design_brief_form_prompt(task),
+            node_input=_build_design_brief_form_prompt(
+                task,
+                interaction_language=interaction_language,
+            ),
             use_sub_branch=True,
         )
         return self.normalize_question_form_block(str(raw or "").strip())
@@ -213,16 +232,31 @@ class DesignBriefFormExpert(LlmAgent):
     def validate_question_form_schema(form: dict[str, Any]) -> dict[str, Any]:
         """Validate and normalize the Web question-form schema."""
         normalized = dict(form)
+        interaction_language = normalize_interaction_language(
+            normalized.get("uiLanguage"),
+            fallback=LANGUAGE_ZH,
+        )
         normalized["id"] = _required_text(normalized, "id")
         normalized["version"] = str(normalized.get("version") or DESIGN_BRIEF_FORM_SCHEMA_VERSION)
+        normalized["uiLanguage"] = interaction_language
         normalized["title"] = _required_text(normalized, "title")
         normalized["description"] = str(normalized.get("description") or "").strip()
-        normalized["submitLabel"] = str(normalized.get("submitLabel") or "确认并继续").strip()
+        normalized["submitLabel"] = str(
+            normalized.get("submitLabel")
+            or localized_copy(
+                interaction_language,
+                en="Confirm and continue",
+                zh="确认并继续",
+            )
+        ).strip()
         questions = normalized.get("questions")
         if not isinstance(questions, list) or not questions:
             raise ValueError("Question form must include at least one question.")
         normalized["questions"] = _order_questions_by_decision_flow(
-            _ensure_design_system_question([_validate_question(item) for item in questions])
+            _ensure_design_system_question(
+                [_validate_question(item) for item in questions],
+                interaction_language=interaction_language,
+            )
         )
         return normalized
 
@@ -267,12 +301,14 @@ async def generate_design_brief_form(
     task: str,
     app_name: str,
     user_id: str,
+    interaction_language: str = "",
 ) -> str:
     """Run the private form expert and return a validated form block."""
     return await DesignBriefFormExpert().generate_form(
         task=task,
         app_name=app_name,
         user_id=user_id,
+        interaction_language=interaction_language,
     )
 
 
@@ -330,13 +366,18 @@ def _build_design_brief_form_workflow(*, agent: LlmAgent) -> Workflow:
     )
 
 
-def _build_design_brief_form_prompt(task: str) -> str:
+def _build_design_brief_form_prompt(task: str, *, interaction_language: str = "") -> str:
     """Build the user prompt passed to the design brief form expert."""
+    normalized_language = normalize_interaction_language(interaction_language, fallback=LANGUAGE_ZH)
     return (
         "Create the question form for this design request.\n\n"
+        "# Interaction language\n"
+        f"Use {language_name_for_prompt(normalized_language)} for every user-facing form title, "
+        "description, label, placeholder, option label, option description, validation-facing copy, "
+        f"and submit label. Set `uiLanguage` to \"{normalized_language}\".\n\n"
         f"# User design request\n{str(task or '').strip()}"
         "\n\n# Available design system catalog\n"
-        f"{_format_design_system_catalog_for_prompt()}"
+        f"{_format_design_system_catalog_for_prompt(interaction_language=normalized_language)}"
     )
 
 
@@ -381,13 +422,22 @@ def _validate_question(value: Any) -> dict[str, Any]:
     return question
 
 
-def _ensure_design_system_question(questions: list[dict[str, Any]]) -> list[dict[str, Any]]:
+def _ensure_design_system_question(
+    questions: list[dict[str, Any]],
+    *,
+    interaction_language: str,
+) -> list[dict[str, Any]]:
     """Ensure Web design brief forms always expose the design-system picker."""
     normalized: list[dict[str, Any]] = []
     found = False
     for question in questions:
         if _is_design_system_question(question):
-            normalized.append(_normalize_design_system_question(question))
+            normalized.append(
+                _normalize_design_system_question(
+                    question,
+                    interaction_language=interaction_language,
+                )
+            )
             found = True
         else:
             normalized.append(question)
@@ -398,7 +448,13 @@ def _ensure_design_system_question(questions: list[dict[str, Any]]) -> list[dict
         (index for index, question in enumerate(normalized) if question.get("type") == "long_text"),
         len(normalized),
     )
-    normalized.insert(insert_at, _normalize_design_system_question({}))
+    normalized.insert(
+        insert_at,
+        _normalize_design_system_question(
+            {},
+            interaction_language=interaction_language,
+        ),
+    )
     return normalized
 
 
@@ -469,10 +525,21 @@ def _is_design_system_question(question: dict[str, Any]) -> bool:
     )
 
 
-def _normalize_design_system_question(question: dict[str, Any]) -> dict[str, Any]:
+def _normalize_design_system_question(
+    question: dict[str, Any],
+    *,
+    interaction_language: str,
+) -> dict[str, Any]:
     normalized = dict(question)
     normalized["id"] = DESIGN_SYSTEM_QUESTION_ID
-    normalized["label"] = str(normalized.get("label") or "希望参考哪套设计系统？").strip()
+    normalized["label"] = str(
+        normalized.get("label")
+        or localized_copy(
+            interaction_language,
+            en="Which design system should this reference?",
+            zh="希望参考哪套设计系统？",
+        )
+    ).strip()
     normalized["type"] = "single_choice"
     normalized["presentation"] = "design_system_picker"
     normalized["resource"] = "design_systems"
@@ -498,7 +565,13 @@ def _normalize_design_system_question(question: dict[str, Any]) -> dict[str, Any
         system_id = validated["value"]
         if system_id == "decide_for_me" or system_id in seen_ids or system_id not in summary_by_id:
             continue
-        recommended_options.append(_option_from_design_system(summary_by_id[system_id], validated.get("description", "")))
+        recommended_options.append(
+            _option_from_design_system(
+                summary_by_id[system_id],
+                validated.get("description", ""),
+                interaction_language=interaction_language,
+            )
+        )
         seen_ids.add(system_id)
         if len(recommended_options) >= DESIGN_SYSTEM_RECOMMENDATION_COUNT:
             break
@@ -509,18 +582,31 @@ def _normalize_design_system_question(question: dict[str, Any]) -> dict[str, Any
                 summaries,
                 exclude_ids=seen_ids,
                 limit=DESIGN_SYSTEM_RECOMMENDATION_COUNT - len(recommended_options),
+                interaction_language=interaction_language,
             )
         )
 
     normalized["options"] = [
         *recommended_options[:DESIGN_SYSTEM_RECOMMENDATION_COUNT],
-        {"value": "decide_for_me", "label": "为我决定"},
+        {
+            "value": "decide_for_me",
+            "label": localized_copy(interaction_language, en="Decide for me", zh="为我决定"),
+        },
     ]
     return normalized
 
 
-def _option_from_design_system(summary: DesignSystemSummary, reason: str = "") -> dict[str, str]:
-    description = str(reason or "").strip() or f"可参考 {summary.title} 的视觉语言。"
+def _option_from_design_system(
+    summary: DesignSystemSummary,
+    reason: str = "",
+    *,
+    interaction_language: str,
+) -> dict[str, str]:
+    description = str(reason or "").strip() or localized_copy(
+        interaction_language,
+        en=f"Use {summary.title}'s visual language as a reference.",
+        zh=f"可参考 {summary.title} 的视觉语言。",
+    )
     return {
         "value": summary.id,
         "label": summary.title,
@@ -533,21 +619,37 @@ def _random_design_system_options(
     *,
     exclude_ids: set[str],
     limit: int,
+    interaction_language: str,
 ) -> list[dict[str, str]]:
     candidates = [summary for summary in summaries if summary.id not in exclude_ids]
     if not candidates or limit <= 0:
         return []
     selected = random.sample(candidates, k=min(limit, len(candidates)))
-    return [_option_from_design_system(summary, "随机候选，可作为风格参考。") for summary in selected]
+    reason = localized_copy(
+        interaction_language,
+        en="Random candidate that can work as a style reference.",
+        zh="随机候选，可作为风格参考。",
+    )
+    return [
+        _option_from_design_system(
+            summary,
+            reason,
+            interaction_language=interaction_language,
+        )
+        for summary in selected
+    ]
 
 
-def _format_design_system_catalog_for_prompt() -> str:
+def _format_design_system_catalog_for_prompt(*, interaction_language: str) -> str:
     summaries = list_design_systems()
     if not summaries:
         return "No local design systems are available."
     lines = [
         "Choose exactly 6 design systems from this catalog for design_system_reference.options.",
-        "Each option must use value=id, label=title, and description=a short Chinese reason for this user request.",
+        (
+            "Each option must use value=id, label=title, and description=a short "
+            f"{language_name_for_prompt(interaction_language)} reason for this user request."
+        ),
     ]
     for summary in summaries:
         summary_text = summary.summary.strip()

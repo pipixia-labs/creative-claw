@@ -87,6 +87,16 @@ class WebchatStaticAssetTests(unittest.TestCase):
         self.assertIn(".cc-ppt-confirmation", styles_css)
         self.assertIn(".cc-ppt-confirmation-textarea", styles_css)
 
+    def test_webchat_localizes_design_question_form_fallback_copy(self) -> None:
+        app_js = Path("src/webchat/static/app.js").read_text(encoding="utf-8")
+
+        self.assertIn("function normalizeQuestionFormLanguage", app_js)
+        self.assertIn("function questionFormCopy", app_js)
+        self.assertIn('uiLanguage: normalizeQuestionFormLanguage(form.uiLanguage)', app_js)
+        self.assertIn('preparingForm: "Preparing the requirements form"', app_js)
+        self.assertIn('defaultSubmit: "Confirm and continue"', app_js)
+        self.assertIn('submittedUserMessage: "Submitted the requirements form"', app_js)
+
     def test_markdown_resource_urls_use_workspace_route(self) -> None:
         app_js = Path("src/webchat/static/app.js").read_text(encoding="utf-8")
 

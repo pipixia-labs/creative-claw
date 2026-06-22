@@ -50,11 +50,46 @@ class DesignProductToolTests(unittest.IsolatedAsyncioTestCase):
             task="设计一个 landing page。",
             inputs=[{"path": "input/example.md"}],
             output={"format": "html"},
+            interaction_language="zh",
             tool_context=tool_context,
             expert_agents=orchestrator.expert_agents,
             app_name=orchestrator.app_name,
             artifact_service=orchestrator.artifact_service,
         )
+
+    async def test_run_design_product_passes_english_interaction_language(self) -> None:
+        orchestrator = Orchestrator(
+            session_service=InMemorySessionService(),
+            artifact_service=InMemoryArtifactService(),
+            expert_agents={},
+        )
+        tool_context = SimpleNamespace(
+            state={
+                "sid": "design-test",
+                "turn_index": 1,
+                "user_prompt": "Create a single-file HTML design for a multi-center clinical trial dashboard.",
+            }
+        )
+        expected_result = {
+            "result_schema_version": "design-product-result-v2",
+            "status": "success",
+            "product_line": "design",
+            "message": "done",
+            "final_file_paths": [],
+        }
+        mocked_run = AsyncMock(return_value=expected_result)
+
+        with patch.object(type(orchestrator.design_product_manager), "run_product_request", new=mocked_run):
+            result = await orchestrator.run_design_product(
+                task="Create a single-file HTML design for a multi-center clinical trial dashboard.",
+                inputs=[],
+                output={"format": "html"},
+                tool_context=tool_context,
+            )
+
+        self.assertEqual(result, expected_result)
+        self.assertEqual(tool_context.state["interaction_language"], "en")
+        self.assertEqual(mocked_run.await_args.kwargs["interaction_language"], "en")
 
 
 if __name__ == "__main__":

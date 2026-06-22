@@ -38,6 +38,12 @@ from src.productions.ppt.ppt_product_manager import PptProductManager
 from src.productions.ppt.schemas import PptAdkConfirmationResponse
 from src.runtime.expert_dispatcher import ExpertInvocationRequest, dispatch_expert_request
 from src.runtime.expert_registry import build_expert_contract_summary
+from src.runtime.interaction_language import (
+    INTERACTION_LANGUAGE_STATE_KEY,
+    LANGUAGE_ZH,
+    localized_copy,
+    resolve_interaction_language,
+)
 from src.runtime.product_results import (
     is_completed_product_result,
     is_completed_page_product_result,
@@ -1046,6 +1052,35 @@ def _should_stream_design_brief_form_placeholder(
     return True
 
 
+def _design_brief_form_placeholder_copy(state: Any) -> str:
+    """Return localized placeholder copy while Design brief form generation runs."""
+    language = state.get(INTERACTION_LANGUAGE_STATE_KEY, LANGUAGE_ZH) if hasattr(state, "get") else LANGUAGE_ZH
+    return localized_copy(
+        language,
+        en="Preparing the requirements form...",
+        zh="正在准备需求确认表单...",
+    )
+
+
+def _resolve_product_interaction_language(
+    *,
+    task: str,
+    tool_context: ToolContext | None,
+    explicit_language: Any = "",
+) -> str:
+    """Resolve and persist the language products should use when speaking to the user."""
+    state = getattr(tool_context, "state", None) if tool_context is not None else None
+    user_prompt = state.get("user_prompt", "") if hasattr(state, "get") else ""
+    language = resolve_interaction_language(
+        explicit=explicit_language,
+        state=state,
+        texts=(user_prompt, task),
+    )
+    if state is not None:
+        state[INTERACTION_LANGUAGE_STATE_KEY] = language
+    return language
+
+
 class Orchestrator:
     """Plan one workflow step at a time with skills and builtin tools."""
 
@@ -1642,7 +1677,7 @@ Expert parameter contracts:
             published = await publish_assistant_delta(
                 session_id=session_id,
                 turn_index=int(tool_context.state.get("turn_index", 0) or 0),
-                delta="正在准备需求确认表单...",
+                delta=_design_brief_form_placeholder_copy(tool_context.state),
             )
             if published:
                 self._last_run_streamed_reply_text = True
@@ -2155,9 +2190,15 @@ Expert parameter contracts:
         task: str,
         inputs: Any | None = None,
         output: dict[str, Any] | None = None,
+        interaction_language: str = "",
         tool_context: ToolContext | None = None,
     ) -> dict[str, Any]:
         """Hand the user's PPT task and real document inputs to PptProductManager."""
+        resolved_language = _resolve_product_interaction_language(
+            task=task,
+            tool_context=tool_context,
+            explicit_language=interaction_language,
+        )
         request = ProductToolRequest(
             product_line="ppt",
             task=task,
@@ -2166,6 +2207,7 @@ Expert parameter contracts:
                 output,
                 getattr(tool_context, "state", None) if tool_context is not None else None,
             ),
+            interaction_language=resolved_language,
         )
         manager_kwargs = request.to_manager_kwargs()
 
@@ -2174,6 +2216,7 @@ Expert parameter contracts:
                 task=manager_kwargs["task"],
                 inputs=manager_kwargs["inputs"],
                 output=manager_kwargs["output"],
+                interaction_language=manager_kwargs["interaction_language"],
                 tool_context=tool_context,
                 expert_agents=self.expert_agents,
                 app_name=self.app_name,
@@ -2194,14 +2237,21 @@ Expert parameter contracts:
         task: str,
         inputs: list[dict[str, Any]] | None = None,
         output: dict[str, Any] | None = None,
+        interaction_language: str = "",
         tool_context: ToolContext | None = None,
     ) -> dict[str, Any]:
         """Hand one concise design product task to DesignProductManager."""
+        resolved_language = _resolve_product_interaction_language(
+            task=task,
+            tool_context=tool_context,
+            explicit_language=interaction_language,
+        )
         request = ProductToolRequest(
             product_line="design",
             task=task,
             inputs=inputs,
             output=output,
+            interaction_language=resolved_language,
         )
         manager_kwargs = request.to_manager_kwargs()
 
@@ -2210,6 +2260,7 @@ Expert parameter contracts:
                 task=manager_kwargs["task"],
                 inputs=manager_kwargs["inputs"],
                 output=manager_kwargs["output"],
+                interaction_language=manager_kwargs["interaction_language"],
                 tool_context=tool_context,
                 expert_agents=self.expert_agents,
                 app_name=self.app_name,
@@ -2230,14 +2281,21 @@ Expert parameter contracts:
         task: str,
         inputs: list[dict[str, Any]] | None = None,
         output: dict[str, Any] | None = None,
+        interaction_language: str = "",
         tool_context: ToolContext | None = None,
     ) -> dict[str, Any]:
         """Hand one concise content-first page task to PageProductManager."""
+        resolved_language = _resolve_product_interaction_language(
+            task=task,
+            tool_context=tool_context,
+            explicit_language=interaction_language,
+        )
         request = ProductToolRequest(
             product_line="page",
             task=task,
             inputs=inputs,
             output=output,
+            interaction_language=resolved_language,
         )
         manager_kwargs = request.to_manager_kwargs()
 
@@ -2246,6 +2304,7 @@ Expert parameter contracts:
                 task=manager_kwargs["task"],
                 inputs=manager_kwargs["inputs"],
                 output=manager_kwargs["output"],
+                interaction_language=manager_kwargs["interaction_language"],
                 tool_context=tool_context,
                 expert_agents=self.expert_agents,
                 app_name=self.app_name,

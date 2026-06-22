@@ -28,12 +28,15 @@ class ProductProtocolTests(unittest.TestCase):
             task="design",
             inputs={"product_image": {"path": "generated/input.png"}},
             output={"format": "html"},
+            interaction_language="english",
         )
 
         manager_kwargs = request.to_manager_kwargs()
 
         self.assertEqual(manager_kwargs["inputs"], {"product_image": {"path": "generated/input.png"}})
         self.assertEqual(manager_kwargs["output"], {"format": "html"})
+        self.assertEqual(manager_kwargs["interaction_language"], "en")
+        self.assertEqual(request.to_event_args()["interaction_language"], "en")
         self.assertIsNot(manager_kwargs["inputs"], request.inputs)
         self.assertIsNot(manager_kwargs["output"], request.output)
 

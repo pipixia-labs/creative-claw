@@ -811,7 +811,58 @@ function isQuestionFormStreamContent(content) {
 
 function pendingQuestionFormStreamText(content) {
   const step = Math.floor(String(content || "").length / 96) % 3;
-  return `正在准备需求确认表单${".".repeat(step + 1)}`;
+  const language = questionFormLanguageFromText(content);
+  return `${questionFormCopy(language, "preparingForm")}${".".repeat(step + 1)}`;
+}
+
+function normalizeQuestionFormLanguage(value) {
+  const normalized = String(value || "").trim().toLowerCase().replace("_", "-");
+  if (normalized === "en" || normalized.startsWith("en-") || normalized === "english") {
+    return "en";
+  }
+  return "zh";
+}
+
+function questionFormLanguageFromText(content) {
+  const match = String(content || "").match(/"uiLanguage"\s*:\s*"([^"]+)"/i);
+  return normalizeQuestionFormLanguage(match ? match[1] : "");
+}
+
+function questionFormCopy(language, key, values = {}) {
+  const copy = normalizeQuestionFormLanguage(language) === "en"
+    ? {
+        preparingForm: "Preparing the requirements form",
+        defaultTitle: "Confirm requirements",
+        defaultSubmit: "Confirm and continue",
+        footerStatus: "Submitting will continue design generation.",
+        submittedUserMessage: "Submitted the requirements form",
+        submittedStatus: "Submitted. Continuing...",
+        busyStatus: "The current task is still running. Please submit later.",
+        maxSelections: `${values.label || "This question"} allows up to ${values.maxSelections || 0} selections.`,
+        required: `Please fill in: ${values.label || "this question"}`,
+        loadingDesignSystems: "Loading design systems...",
+        noDesignSystemMatch: "No matching design system.",
+        designSystemLoadFailed: "Could not load design systems. You can use Decide for me or Other.",
+        decideForMe: "Decide for me",
+        searchDesignSystems: "Search Claude, Stripe, Apple...",
+      }
+    : {
+        preparingForm: "正在准备需求确认表单",
+        defaultTitle: "确认需求",
+        defaultSubmit: "确认并继续",
+        footerStatus: "提交后会继续生成设计产物。",
+        submittedUserMessage: "已提交需求确认表单",
+        submittedStatus: "已提交，正在继续处理。",
+        busyStatus: "当前任务还在运行，稍后再提交。",
+        maxSelections: `${values.label || "该问题"} 最多选择 ${values.maxSelections || 0} 项。`,
+        required: `请填写：${values.label || "该问题"}`,
+        loadingDesignSystems: "正在加载设计系统...",
+        noDesignSystemMatch: "没有匹配的设计系统。",
+        designSystemLoadFailed: "设计系统加载失败，可以使用为我决定或 Other。",
+        decideForMe: "为我决定",
+        searchDesignSystems: "搜索 Claude、Stripe、Apple...",
+      };
+  return copy[key] || "";
 }
 
 function renderMessageContent(container, content, options = {}) {
@@ -975,9 +1026,10 @@ function parseQuestionForm(rawJson) {
     return {
       id: String(form.id || "design-brief"),
       version: String(form.version || "design-brief-form-v1"),
-      title: String(form.title || "确认需求"),
+      uiLanguage: normalizeQuestionFormLanguage(form.uiLanguage),
+      title: String(form.title || questionFormCopy(form.uiLanguage, "defaultTitle")),
       description: String(form.description || ""),
-      submitLabel: String(form.submitLabel || "确认并继续"),
+      submitLabel: String(form.submitLabel || questionFormCopy(form.uiLanguage, "defaultSubmit")),
       questions: form.questions
         .filter((question) => question && typeof question === "object")
         .map((question) => ({
@@ -1048,11 +1100,11 @@ function renderQuestionForm(form, options = {}) {
   footer.className = "cc-question-form-footer";
   const status = document.createElement("span");
   status.className = "cc-question-form-status";
-  status.textContent = "提交后会继续生成设计产物。";
+  status.textContent = questionFormCopy(form.uiLanguage, "footerStatus");
   const submit = document.createElement("button");
   submit.className = "cc-question-form-submit";
   submit.type = "submit";
-  submit.textContent = form.submitLabel || "确认并继续";
+  submit.textContent = form.submitLabel || questionFormCopy(form.uiLanguage, "defaultSubmit");
   footer.appendChild(status);
   footer.appendChild(submit);
   root.appendChild(footer);
@@ -1240,7 +1292,7 @@ function renderDesignSystemPicker(field, form, question) {
   const search = document.createElement("input");
   search.className = "cc-design-system-search";
   search.type = "search";
-  search.placeholder = "搜索 Claude、Stripe、Apple...";
+  search.placeholder = questionFormCopy(form.uiLanguage, "searchDesignSystems");
   controlRow.appendChild(search);
   picker.appendChild(controlRow);
 
@@ -1256,7 +1308,7 @@ function renderDesignSystemPicker(field, form, question) {
 
   const status = document.createElement("div");
   status.className = "cc-design-system-status";
-  status.textContent = "正在加载设计系统...";
+  status.textContent = questionFormCopy(form.uiLanguage, "loadingDesignSystems");
   picker.appendChild(status);
 
   const grid = document.createElement("div");
@@ -1266,7 +1318,7 @@ function renderDesignSystemPicker(field, form, question) {
   const decide = document.createElement("button");
   decide.type = "button";
   decide.className = "cc-design-system-quick";
-  decide.textContent = "为我决定";
+  decide.textContent = questionFormCopy(form.uiLanguage, "decideForMe");
   decide.addEventListener("click", () => selectDesignSystem(picker, hidden, "decide_for_me"));
   picker.appendChild(decide);
 
@@ -1279,14 +1331,14 @@ function renderDesignSystemPicker(field, form, question) {
         .map((value) => String(value || "").toLowerCase())
         .some((value) => value.includes(query));
     });
-    status.textContent = filtered.length ? "" : "没有匹配的设计系统。";
+    status.textContent = filtered.length ? "" : questionFormCopy(form.uiLanguage, "noDesignSystemMatch");
     grid.replaceChildren(...filtered.map((system) => renderDesignSystemCard(picker, hidden, system)));
   };
 
   loadDesignSystems()
     .then((systems) => render(systems))
     .catch(() => {
-      status.textContent = "设计系统加载失败，可以使用为我决定或 Other。";
+      status.textContent = questionFormCopy(form.uiLanguage, "designSystemLoadFailed");
     });
   search.addEventListener("input", () => {
     if (designSystemsCache) render(designSystemsCache);
@@ -1459,7 +1511,13 @@ function collectQuestionFormAnswers(root, form) {
       const otherValue = String(other?.value || "").trim();
       const selectionCount = selected.length + (otherValue ? 1 : 0);
       if (question.maxSelections && selectionCount > question.maxSelections) {
-        return { error: `${question.label} 最多选择 ${question.maxSelections} 项。`, answers: {} };
+        return {
+          error: questionFormCopy(form.uiLanguage, "maxSelections", {
+            label: question.label,
+            maxSelections: question.maxSelections,
+          }),
+          answers: {},
+        };
       }
       if (selected.length > 0) answers[question.id] = selected;
       if (otherValue) {
@@ -1477,7 +1535,10 @@ function collectQuestionFormAnswers(root, form) {
     const value = answers[question.id];
     const empty = Array.isArray(value) ? value.length === 0 : !String(value || "").trim();
     if (question.required && empty) {
-      return { error: `请填写：${question.label}`, answers: {} };
+      return {
+        error: questionFormCopy(form.uiLanguage, "required", { label: question.label }),
+        answers: {},
+      };
     }
   }
   return { error: "", answers };
@@ -1519,11 +1580,11 @@ function cssEscape(value) {
 function submitQuestionForm(root, form, answers) {
   if (runState !== "idle") {
     const status = root.querySelector(".cc-question-form-status");
-    if (status) status.textContent = "当前任务还在运行，稍后再提交。";
+    if (status) status.textContent = questionFormCopy(form.uiLanguage, "busyStatus");
     return;
   }
   const content = `[cc-form-answers id="${form.id}" version="${form.version}"]\n${JSON.stringify(answers, null, 2)}\n[/cc-form-answers]`;
-  const displayContent = "已提交需求确认表单";
+  const displayContent = questionFormCopy(form.uiLanguage, "submittedUserMessage");
   const runId = crypto.randomUUID();
   sendSocket({
     type: "chat",
@@ -1539,7 +1600,7 @@ function submitQuestionForm(root, form, answers) {
     element.disabled = true;
   }
   const status = root.querySelector(".cc-question-form-status");
-  if (status) status.textContent = "已提交，正在继续处理。";
+  if (status) status.textContent = questionFormCopy(form.uiLanguage, "submittedStatus");
   activeProgressCard = null;
   activeAssistantStream = null;
 }

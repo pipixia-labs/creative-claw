@@ -93,6 +93,7 @@ from src.productions.ppt.schemas.contracts import PPT_PRODUCT_RESULT_SCHEMA_VERS
 from src.runtime.expert_dispatcher import ExpertInvocationRequest, dispatch_expert_request
 from src.runtime.agent_tool_transport import run_agent_tool, supports_agent_tool_context
 from src.runtime.adk_compat import has_invocation_context, invocation_app_name
+from src.runtime.interaction_language import INTERACTION_LANGUAGE_STATE_KEY
 from src.runtime.workspace import (
     build_workspace_file_record,
     generated_session_dir,
@@ -731,6 +732,7 @@ Return structured status, current phase, selected route, warnings, next actions,
         task: str,
         inputs: Any | None = None,
         output: dict[str, Any] | None = None,
+        interaction_language: str = "",
         tool_context: ToolContext | None = None,
         expert_agents: dict[str, BaseAgent] | None = None,
         app_name: str = "creative_claw",
@@ -750,6 +752,7 @@ Return structured status, current phase, selected route, warnings, next actions,
                     "task": task,
                     "inputs": inputs,
                     "output": output,
+                    "interaction_language": interaction_language,
                 }
             )
         except ValidationError:
@@ -760,6 +763,8 @@ Return structured status, current phase, selected route, warnings, next actions,
         available_expert_agents = self._resolve_ppt_expert_agents(expert_agents)
         clean_task = request.task
         output_options = request.output
+        if request.interaction_language:
+            tool_context.state[INTERACTION_LANGUAGE_STATE_KEY] = request.interaction_language
         if self._has_adk_tool_confirmation_response(tool_context):
             return await self._continue_from_adk_tool_confirmation(
                 output=output_options,

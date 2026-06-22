@@ -47,6 +47,10 @@ from src.productions.schema_utils import (
 from src.runtime.adk_compat import has_invocation_context
 from src.runtime.agent_tool_transport import run_agent_tool
 from src.runtime.expert_dispatcher import ExpertInvocationRequest, dispatch_expert_request
+from src.runtime.interaction_language import (
+    INTERACTION_LANGUAGE_STATE_KEY,
+    normalize_interaction_language,
+)
 from src.runtime.step_events import append_orchestration_step_event
 from src.runtime.workspace import (
     build_generated_output_path,
@@ -81,6 +85,7 @@ class PageProductRequest(BaseModel):
     task: str = Field(description="The content-first page task to complete.")
     inputs: list[Any] = Field(default_factory=list)
     output: dict[str, Any] = Field(default_factory=dict)
+    interaction_language: str = Field(default="", description="User-facing communication language.")
 
     @field_validator("task", mode="before")
     @classmethod
@@ -100,6 +105,12 @@ class PageProductRequest(BaseModel):
         """Default missing output options to an empty dict."""
         return default_empty_dict(value)
 
+    @field_validator("interaction_language", mode="before")
+    @classmethod
+    def _normalize_interaction_language(cls, value: Any) -> str:
+        """Normalize optional interaction language metadata."""
+        return normalize_interaction_language(value, fallback="")
+
     @field_validator("task")
     @classmethod
     def _require_task(cls, value: str) -> str:
@@ -108,7 +119,10 @@ class PageProductRequest(BaseModel):
 
     def to_state_dict(self) -> dict[str, Any]:
         """Return the stable dictionary payload stored in session state."""
-        return model_dump_dict(self)
+        payload = model_dump_dict(self)
+        if not self.interaction_language:
+            payload.pop("interaction_language", None)
+        return payload
 
 
 class PageProductResult(BaseModel):
@@ -169,13 +183,20 @@ class PageProductResult(BaseModel):
         return model_dump_dict(self)
 
 
-def _parse_page_product_request(*, task: Any, inputs: Any, output: Any) -> PageProductRequest:
+def _parse_page_product_request(
+    *,
+    task: Any,
+    inputs: Any,
+    output: Any,
+    interaction_language: Any = "",
+) -> PageProductRequest:
     """Parse one Page product request into a structured contract."""
     return PageProductRequest.model_validate(
         {
             "task": task,
             "inputs": inputs,
             "output": output,
+            "interaction_language": interaction_language,
         }
     )
 
@@ -303,6 +324,7 @@ Always call `register_page_delivery` before finishing. It must contain a user-fa
         task: str,
         inputs: list[Any] | None = None,
         output: dict[str, Any] | None = None,
+        interaction_language: str = "",
         tool_context: ToolContext | None = None,
         expert_agents: dict[str, BaseAgent] | None = None,
         app_name: str = "creative_claw",
@@ -313,13 +335,20 @@ Always call `register_page_delivery` before finishing. It must contain a user-fa
             return _error_result("PageProductManager requires tool context.")
 
         try:
-            request = _parse_page_product_request(task=task, inputs=inputs, output=output)
+            request = _parse_page_product_request(
+                task=task,
+                inputs=inputs,
+                output=output,
+                interaction_language=interaction_language,
+            )
         except ValidationError:
             if not clean_string(task):
                 return _error_result("PageProductManager requires a non-empty task.")
             return _error_result("PageProductManager requires inputs to be a list and output to be an object.")
         if not has_invocation_context(tool_context):
             return _error_result("PageProductManager requires an ADK invocation context.")
+        if request.interaction_language:
+            tool_context.state[INTERACTION_LANGUAGE_STATE_KEY] = request.interaction_language
 
         append_orchestration_step_event(
             tool_context.state,
