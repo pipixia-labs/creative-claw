@@ -466,6 +466,46 @@ class RuntimeSessionTests(unittest.IsolatedAsyncioTestCase):
         self.assertEqual(events[-1].text, "The image is ready.")
         self.assertNotIn("Image generation is complete.", events[-1].text)
 
+    async def test_run_message_uses_chinese_progress_for_chinese_input(self) -> None:
+        runtime = CreativeClawRuntime()
+        inbound = InboundMessage(
+            channel="cli",
+            sender_id="cli-user",
+            chat_id="terminal-zh",
+            text="帮我基于这个图像生成一个3D模型",
+        )
+
+        class _FakeOrchestrator:
+            def __init__(self, **_kwargs) -> None:
+                self.uid = ""
+                self.sid = ""
+
+            async def run_until_done(self) -> dict:
+                return {
+                    "workflow_status": "finished",
+                    "final_summary": "3D 模型已生成。",
+                    "final_response": "3D 模型已生成。",
+                    "last_output_message": "3D 模型已生成。",
+                    "new_orchestration_events": [],
+                }
+
+        with patch("src.runtime.workflow_service.Orchestrator", _FakeOrchestrator):
+            events = [event async for event in runtime.run_message(inbound)]
+
+        self.assertEqual(events[0].event_type, "status")
+        self.assertEqual(events[0].text, "系统正在准备处理你的请求。")
+        self.assertEqual(events[0].metadata["stage_title"], "正在准备请求")
+        self.assertEqual(events[-1].event_type, "final")
+        self.assertEqual(events[-1].text, "3D 模型已生成。")
+
+        session_id = runtime._session_keys[inbound.session_key]
+        session = await runtime.session_service.get_session(
+            app_name=SYS_CONFIG.app_name,
+            user_id="cli-user",
+            session_id=session_id,
+        )
+        self.assertEqual(session.state[INTERACTION_LANGUAGE_STATE_KEY], "zh")
+
     async def test_run_message_reports_submitted_design_form_progress(self) -> None:
         runtime = CreativeClawRuntime()
         inbound = InboundMessage(
@@ -499,7 +539,7 @@ class RuntimeSessionTests(unittest.IsolatedAsyncioTestCase):
         progress_events = [event for event in events if event.event_type == "status"]
         self.assertEqual(progress_events[1].text, "已收到需求确认表单，正在继续生成设计方案。")
         self.assertEqual(progress_events[1].metadata["stage"], "design_planning")
-        self.assertEqual(progress_events[1].metadata["stage_title"], "Reviewing your answers")
+        self.assertEqual(progress_events[1].metadata["stage_title"], "正在检查你的回答")
         self.assertEqual(progress_events[1].metadata["user_detail"], "已收到需求确认表单，正在继续生成设计方案。")
 
     async def test_run_message_reports_english_design_form_progress(self) -> None:

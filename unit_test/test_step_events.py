@@ -12,6 +12,7 @@ from src.runtime.step_events import (
     publish_orchestration_step_event,
     reset_step_event_history,
 )
+from src.runtime.interaction_language import INTERACTION_LANGUAGE_STATE_KEY
 from src.runtime.tool_context import route_context
 
 
@@ -67,6 +68,28 @@ class StepEventPluginTests(unittest.IsolatedAsyncioTestCase):
         self.assertEqual(self.messages[1].metadata["debug_events"][0]["title"], "read_file")
         self.assertEqual(self.messages[1].metadata["debug_events"][1]["title"], "read_file")
         self.assertIn("Result: Read succeeded", self.messages[1].metadata["debug_detail"])
+
+    async def test_plugin_uses_chinese_progress_when_session_language_is_chinese(self) -> None:
+        plugin = CreativeClawStepEventPlugin()
+        tool = SimpleNamespace(name="read_file")
+        tool_context = SimpleNamespace(
+            session=SimpleNamespace(
+                id="session-zh",
+                state={"turn_index": 4, INTERACTION_LANGUAGE_STATE_KEY: "zh"},
+            ),
+        )
+
+        with route_context("cli", "chat-zh"):
+            await plugin.before_tool_callback(
+                tool=tool,
+                tool_args={"path": "README.md"},
+                tool_context=tool_context,
+            )
+
+        self.assertEqual(len(self.messages), 1)
+        self.assertEqual(self.messages[0].metadata["stage_title"], "正在读取上下文")
+        self.assertEqual(self.messages[0].text, "系统正在读取相关工作区内容。")
+        self.assertEqual(self.messages[0].metadata["debug_title"], "read_file")
 
     async def test_plugin_ignores_unknown_tool_names(self) -> None:
         plugin = CreativeClawStepEventPlugin()
@@ -182,6 +205,31 @@ class StepEventPluginTests(unittest.IsolatedAsyncioTestCase):
         self.assertEqual(self.messages[0].metadata["activity_sequence"], 1)
         self.assertEqual(self.messages[0].text, "The system is working with image assets.")
         self.assertIn("slide_01_visual", self.messages[0].metadata["debug_detail"])
+
+    async def test_append_orchestration_step_event_uses_chinese_progress(self) -> None:
+        state = {
+            "sid": "session-append-zh",
+            "turn_index": 3,
+            "orchestration_events": [],
+            INTERACTION_LANGUAGE_STATE_KEY: "zh",
+        }
+
+        with route_context("cli", "chat-append-zh"):
+            reset_step_event_history(session_id="session-append-zh", turn_index=3)
+            append_orchestration_step_event(
+                state,
+                title="invoke_agent",
+                detail="Status: started\nArgs: agent_name=3DGeneration",
+                stage="expert_execution",
+            )
+            await asyncio.sleep(0)
+
+        self.assertEqual(state["orchestration_events"][0]["user_title"], "正在生成内容")
+        self.assertEqual(state["orchestration_events"][0]["user_detail"], "系统正在使用专门能力。")
+        self.assertEqual(len(self.messages), 1)
+        self.assertEqual(self.messages[0].metadata["stage_title"], "正在生成内容")
+        self.assertEqual(self.messages[0].text, "系统正在使用专门能力。")
+        self.assertIn("agent_name=3DGeneration", self.messages[0].metadata["debug_detail"])
 
     async def test_orchestration_event_history_is_scoped_by_turn_index(self) -> None:
         with route_context("cli", "chat-3"):

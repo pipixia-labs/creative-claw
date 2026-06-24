@@ -317,6 +317,7 @@ class PptProductManagerTests(unittest.IsolatedAsyncioTestCase):
                 "read_product_ppt_skill",
                 "read_product_ppt_skill_file",
                 "list_session_files",
+                "read_prepared_ppt_sources",
                 "list_dir",
                 "glob",
                 "grep",
@@ -1448,7 +1449,7 @@ Visual:
         self.assertEqual(agent.include_contents, "none")
         self.assertEqual(
             {tool.__name__ for tool in agent.tools},
-            {"save_ppt_confirmed_requirement_json"},
+            {"read_prepared_ppt_sources", "save_ppt_confirmed_requirement_json"},
         )
         self.assertIn("ConfirmedRequirement JSON", agent.instruction)
         self.assertIn("multiple PPT systems", agent.instruction)
@@ -1456,6 +1457,49 @@ Visual:
         self.assertIn("source_inputs include PPTX/PPTM/POTX/POTM", agent.instruction)
         self.assertIn("Do not infer routes from keyword matching", agent.instruction)
         self.assertIn("受众为", agent.instruction)
+        self.assertIn("read_prepared_ppt_sources", agent.instruction)
+
+    def test_read_prepared_ppt_sources_reads_current_markdown_and_figures(self) -> None:
+        source_path = _write_markdown_source(
+            "prepared_requirement_source.md",
+            "# Prepared Paper\n\nAbstract: This paper studies visual reasoning.\n",
+        )
+        manager = PptProductManager()
+        tool_context = SimpleNamespace(
+            state={
+                "ppt_source_markdown_sources": [
+                    {
+                        "name": "prepared_requirement_source.md",
+                        "source_path": source_path,
+                        "method": "test:markdown",
+                        "output_path": source_path,
+                    }
+                ],
+                "ppt_source_figures": [
+                    {
+                        "source_name": "prepared_requirement_source.md",
+                        "alt": "Main result",
+                        "path": "generated/figure.png",
+                        "markdown_output_path": source_path,
+                    }
+                ],
+                "ppt_source_output_files": [
+                    {
+                        "name": "prepared_requirement_source.md",
+                        "path": source_path,
+                    }
+                ],
+            }
+        )
+
+        result = manager.read_prepared_ppt_sources(tool_context=tool_context)
+
+        self.assertEqual(result["status"], "success")
+        self.assertEqual(result["sources"][0]["name"], "prepared_requirement_source.md")
+        self.assertIn("visual reasoning", result["sources"][0]["text"])
+        self.assertEqual(result["sources"][0]["figure_count"], 1)
+        self.assertEqual(result["figure_count"], 1)
+        self.assertEqual(result["output_files"][0]["path"], source_path)
 
     async def test_requirement_analysis_agenttool_main_path_saves_requirement(self) -> None:
         manager = PptProductManager()
@@ -1546,6 +1590,7 @@ Visual:
             session.state[PPT_REQUIREMENT_ANALYSIS_AGENT_MESSAGE_KEY],
         )
         first_request_tools = _function_declaration_names(fake_llm.requests[0])
+        self.assertIn("read_prepared_ppt_sources", first_request_tools)
         self.assertIn("save_ppt_confirmed_requirement_json", first_request_tools)
         self.assertGreaterEqual(len(fake_llm.requests), 2)
         self.assertNotEqual(
@@ -1672,6 +1717,7 @@ Visual:
         self.assertEqual(session.state[PPT_REQUIREMENT_ANALYSIS_RESULT_STATE_KEY]["analysis_output"]["source"], "llm_agent")
         self.assertEqual(session.state[PPT_CONFIRMED_REQUIREMENT_STATE_KEY]["audience"], "管理层")
         first_request_tools = _function_declaration_names(fake_llm.requests[0])
+        self.assertIn("read_prepared_ppt_sources", first_request_tools)
         self.assertIn("save_ppt_confirmed_requirement_json", first_request_tools)
         self.assertGreaterEqual(len(fake_llm.requests), 2)
 
@@ -1782,6 +1828,136 @@ Visual:
         self.assertNotIn(PPT_SOURCE_PREPARATION_WORKFLOW_OUTPUT_KEY, session.state)
         self.assertNotIn(PPT_CONTENT_PLANNING_WORKFLOW_OUTPUT_KEY, session.state)
         self.assertNotIn("final_file_paths", session.state)
+
+    async def test_initial_interactive_request_prepares_sources_before_requirement_confirmation_direct(self) -> None:
+        source_path = _write_markdown_source("early_prepare_source.pdf", "%PDF test fixture")
+        manager = PptProductManager()
+        tool_context = SimpleNamespace(state={"sid": "ppt-early-source-test", "turn_index": 1, "step": 1})
+
+        def _system_selection_builder(**_kwargs):
+            return {
+                "system_type": "built_in_route",
+                "route": "html",
+                "skill_name": "",
+                "output_format": "pptx",
+                "reason": "Use HTML route for early source preparation test.",
+            }
+
+        result = await manager.run_product_request(
+            task="帮我将这个论文做成一个ppt，用于在组会上讲解。",
+            inputs=[{"name": "early_prepare_source.pdf", "path": source_path}],
+            output={"format": "pptx"},
+            tool_context=tool_context,
+            source_converter=_fake_source_converter,
+            system_selection_builder=_system_selection_builder,
+        )
+
+        self.assertEqual(result["status"], "awaiting_requirement_confirmation")
+        self.assertIn("ppt_source_markdown_sources", tool_context.state)
+        self.assertTrue(tool_context.state["ppt_source_markdown_sources"])
+        confirmed = tool_context.state[PPT_CONFIRMED_REQUIREMENT_STATE_KEY]
+        self.assertTrue(confirmed["source_understanding"]["markdown_sources"])
+        self.assertEqual(confirmed["source_understanding"]["markdown_sources"][0]["name"], "early_prepare_source.pdf")
+        self.assertTrue(tool_context.state["ppt_workflow_state"]["source_materials"]["markdown_sources"])
+        self.assertNotIn(PPT_CONTENT_PLANNING_WORKFLOW_OUTPUT_KEY, tool_context.state)
+
+    async def test_initial_interactive_request_prepares_sources_before_requirement_confirmation_workflow(self) -> None:
+        source_path = _write_markdown_source("early_prepare_workflow_source.pdf", "%PDF test fixture")
+        manager = PptProductManager()
+        fake_llm = _PptProductManagerToolCallingFakeLlm(
+            function_calls=[
+                FunctionCall(
+                    name="save_ppt_confirmed_requirement_json",
+                    args={
+                        "requirement_json": {
+                            "route": "html",
+                            "topic": "Growth Launch",
+                            "audience": "同组同学",
+                            "scenario": "组会",
+                        }
+                    },
+                )
+            ],
+            final_text="PptInitialRequestWorkflow saved prepared-source requirement.",
+        )
+
+        def _system_selection_builder(**_kwargs):
+            return {
+                "system_type": "built_in_route",
+                "route": "html",
+                "skill_name": "",
+                "output_format": "pptx",
+                "reason": "Use HTML route for early Workflow source preparation test.",
+            }
+
+        async def _run_initial_request_harness():
+            @node(name="PptInitialEarlySourceWorkflowHarnessNode", rerun_on_resume=True)
+            async def initial_request_harness(ctx: Context, node_input: str) -> dict[str, Any]:
+                return await manager.run_product_request(
+                    task=node_input,
+                    inputs=[{"name": "early_prepare_workflow_source.pdf", "path": source_path}],
+                    output={"format": "pptx"},
+                    tool_context=ctx,
+                    source_converter=_fake_source_converter,
+                    system_selection_builder=_system_selection_builder,
+                )
+
+            workflow = Workflow(
+                name="PptInitialEarlySourceWorkflowHarness",
+                edges=[("START", initial_request_harness)],
+            )
+            session_service = InMemorySessionService()
+            runner = Runner(
+                node=workflow,
+                session_service=session_service,
+                artifact_service=artifact_service,
+            )
+            user_id = "user-ppt-initial-early-source-workflow"
+            session_id = "session-ppt-initial-early-source-workflow"
+            try:
+                await session_service.create_session(
+                    app_name=workflow.name,
+                    user_id=user_id,
+                    session_id=session_id,
+                    state={
+                        "sid": "ppt-initial-early-source-workflow-test",
+                        "turn_index": 1,
+                        "step": 1,
+                    },
+                )
+                with patch(
+                    "src.productions.ppt.ppt_product_manager.ppt_product_manager.build_llm",
+                    return_value=fake_llm,
+                ):
+                    async for _ in runner.run_async(
+                        user_id=user_id,
+                        session_id=session_id,
+                        new_message=Content(role="user", parts=[Part(text="帮我将这个论文做成一个ppt，用于在组会上讲解。")]),
+                    ):
+                        pass
+                return await session_service.get_session(
+                    app_name=workflow.name,
+                    user_id=user_id,
+                    session_id=session_id,
+                )
+            finally:
+                await runner.close()
+
+        artifact_service = InMemoryArtifactService()
+        session = await _run_initial_request_harness()
+
+        self.assertIsNotNone(session)
+        self.assertEqual(session.state["ppt_product_result"]["status"], "awaiting_requirement_confirmation")
+        self.assertEqual(session.state[PPT_SOURCE_PREPARATION_WORKFLOW_OUTPUT_KEY]["source"], "adk_workflow")
+        self.assertTrue(session.state["ppt_source_markdown_sources"])
+        self.assertTrue(session.state["ppt_workflow_state"]["source_materials"]["markdown_sources"])
+        self.assertEqual(
+            session.state[PPT_CONFIRMED_REQUIREMENT_STATE_KEY]["source_understanding"]["markdown_sources"][0]["name"],
+            "early_prepare_workflow_source.pdf",
+        )
+        first_request_tools = _function_declaration_names(fake_llm.requests[0])
+        self.assertIn("read_prepared_ppt_sources", first_request_tools)
+        self.assertIn("save_ppt_confirmed_requirement_json", first_request_tools)
 
     async def test_auto_confirm_uses_parent_adk_workflow_context(self) -> None:
         manager = PptProductManager()
@@ -2782,6 +2958,42 @@ Visual:
         self.assertEqual(saved_requirement["scenario"], "组会")
         self.assertEqual(saved_requirement["slide_count_policy"]["target"], 15)
         self.assertEqual(saved_requirement["source_inputs"][0]["path"], source_path)
+
+    def test_requirement_analysis_save_tool_rejects_bogus_one_character_topic(self) -> None:
+        source_path = _write_markdown_source("vision_reasoning_paper.pdf", "%PDF test fixture")
+        manager = PptProductManager()
+        fallback_requirement = manager.prepare_confirmed_requirement(
+            task="帮我将这个论文做成一个ppt，用于在组会上讲解。",
+            inputs=[{"name": "Vision Reasoning Paper.pdf", "path": source_path}],
+            output={"format": "pptx"},
+        )
+        tool_context = SimpleNamespace(
+            state={
+                "ppt_requirement_analysis_base": {
+                    "fallback_requirement": fallback_requirement.model_dump(mode="json"),
+                }
+            }
+        )
+
+        result = manager.save_ppt_confirmed_requirement_json(
+            {
+                "route": "html",
+                "topic": "解",
+                "audience": "同组同学",
+                "scenario": "组会",
+            },
+            tool_context,
+        )
+
+        self.assertEqual(result["status"], "success")
+        saved_requirement = tool_context.state[PPT_CONFIRMED_REQUIREMENT_STATE_KEY]
+        self.assertEqual(saved_requirement["topic"], "Vision Reasoning Paper")
+        self.assertNotEqual(saved_requirement["topic"], "解")
+        self.assertNotEqual(manager.prepare_confirmed_requirement(
+            task="帮我将这个论文做成一个ppt，用于在组会上讲解。",
+            inputs=[],
+            output={"format": "pptx"},
+        ).topic, "解")
 
     def test_content_planning_user_message_includes_requirement_json(self) -> None:
         manager = PptProductManager()

@@ -226,6 +226,19 @@ def _ppt_product_error_result(message: str, *, next_actions: list[str] | None = 
     ).model_dump(mode="json")
 
 
+def _dedupe_strings(items: list[str]) -> list[str]:
+    """Deduplicate non-empty strings while preserving order."""
+    seen: set[str] = set()
+    deduped: list[str] = []
+    for item in items:
+        clean_item = str(item or "").strip()
+        if not clean_item or clean_item in seen:
+            continue
+        seen.add(clean_item)
+        deduped.append(clean_item)
+    return deduped
+
+
 class PptProductManager(LlmAgent):
     """ADK LlmAgent that owns PPT product-line requests."""
 
@@ -276,6 +289,7 @@ class PptProductManager(LlmAgent):
                 self.read_product_ppt_skill,
                 self.read_product_ppt_skill_file,
                 self.list_session_files,
+                self.read_prepared_ppt_sources,
                 self.list_dir,
                 self.glob,
                 self.grep,
@@ -438,9 +452,12 @@ Return structured status, current phase, selected route, warnings, next actions,
                 "Do not infer routes from keyword matching. Natural-language words like template, svg, html, or xml are not enough unless the user is explicitly choosing the system or route.\n"
                 "If the user says 受众为/受众设置为, write that value to audience. If the user says 场景为/场景设置为, write that value to scenario.\n"
                 "For Chinese group meeting requests, scenario should be `组会`.\n"
+                "When prepared source Markdown exists, call read_prepared_ppt_sources before saving the requirement. "
+                "Use the prepared source text to infer the topic from the document title or abstract instead of guessing from task wording.\n"
+                "Never keep obvious bogus topics such as `解`, `讲`, `讲解`, `这个论文`, or `论文` when prepared source text or a source filename can provide a better topic.\n"
                 "Do not invent source file paths or generated artifacts."
             ),
-            tools=[self.save_ppt_confirmed_requirement_json],
+            tools=[self.read_prepared_ppt_sources, self.save_ppt_confirmed_requirement_json],
             output_key=PPT_REQUIREMENT_ANALYSIS_AGENT_MESSAGE_KEY,
             include_contents="none",
         )
@@ -801,8 +818,10 @@ Return structured status, current phase, selected route, warnings, next actions,
                 inputs=request.inputs,
                 output=output_options,
                 tool_context=tool_context,
+                expert_agents=available_expert_agents,
                 app_name=app_name,
                 artifact_service=artifact_service,
+                source_converter=source_converter,
                 system_selection_builder=system_selection_builder,
             )
             self._request_adk_tool_confirmation_if_needed(
@@ -1129,8 +1148,10 @@ Return structured status, current phase, selected route, warnings, next actions,
         inputs: Any | None,
         output: dict[str, Any],
         tool_context: ToolContext,
+        expert_agents: dict[str, BaseAgent],
         app_name: str,
         artifact_service: BaseArtifactService | None,
+        source_converter: Any | None = None,
         system_selection_builder: Any | None = None,
     ) -> dict[str, Any]:
         """Start a PPT workflow and stop at the requirement confirmation gate."""
@@ -1142,8 +1163,10 @@ Return structured status, current phase, selected route, warnings, next actions,
                 raw_inputs=raw_inputs,
                 output=output,
                 tool_context=tool_context,
+                expert_agents=expert_agents,
                 app_name=app_name,
                 artifact_service=artifact_service,
+                source_converter=source_converter,
                 system_selection_builder=system_selection_builder,
             )
         return await self._start_interactive_product_request_direct(
@@ -1151,8 +1174,10 @@ Return structured status, current phase, selected route, warnings, next actions,
             raw_inputs=raw_inputs,
             output=output,
             tool_context=tool_context,
+            expert_agents=expert_agents,
             app_name=app_name,
             artifact_service=artifact_service,
+            source_converter=source_converter,
             system_selection_builder=system_selection_builder,
         )
 
@@ -1163,20 +1188,37 @@ Return structured status, current phase, selected route, warnings, next actions,
         raw_inputs: list[Any],
         output: dict[str, Any],
         tool_context: ToolContext,
+        expert_agents: dict[str, BaseAgent],
         app_name: str,
         artifact_service: BaseArtifactService | None,
+        source_converter: Any | None = None,
         system_selection_builder: Any | None = None,
     ) -> dict[str, Any]:
         """Run the initial interactive request logic without a parent Workflow wrapper."""
         try:
+            source_preparation: PptSourcePreparationResult | None = None
+            source_understanding = SourceUnderstanding(
+                document_type=self._infer_document_type(self._normalize_source_inputs(raw_inputs)),
+            )
+            source_inputs: list[SourceInput] | None = None
+            if raw_inputs:
+                source_preparation = await self._run_source_preparation_phase(
+                    raw_inputs=raw_inputs,
+                    tool_context=tool_context,
+                    expert_agents=expert_agents,
+                    app_name=app_name,
+                    artifact_service=artifact_service,
+                    source_converter=source_converter,
+                )
+                source_understanding = source_preparation.source_materials
+                source_inputs = source_preparation.source_inputs
+
             requirement_phase = await self._prepare_initial_requirement_phase(
                 task=task,
                 raw_inputs=raw_inputs,
                 output=output,
-                source_understanding=SourceUnderstanding(
-                    document_type=self._infer_document_type(self._normalize_source_inputs(raw_inputs)),
-                ),
-                source_inputs=None,
+                source_understanding=source_understanding,
+                source_inputs=source_inputs,
                 tool_context=tool_context,
                 app_name=app_name,
                 artifact_service=artifact_service,
@@ -1218,6 +1260,11 @@ Return structured status, current phase, selected route, warnings, next actions,
                 "confirmed_requirement": requirement.model_dump(mode="json"),
                 "system_selection": system_selection,
             }
+            if source_preparation is not None:
+                workflow_state["source_inputs"] = [
+                    item.model_dump(mode="json") for item in source_preparation.source_inputs
+                ]
+                workflow_state["source_materials"] = source_preparation.source_materials.model_dump(mode="json")
             self._mark_confirmation_waiting(workflow_state, tool_context.state)
             result = self._build_requirement_confirmation_result(requirement, workflow_state)
             _persist_ppt_workflow_state(tool_context.state, workflow_state)
@@ -1987,6 +2034,7 @@ Return structured status, current phase, selected route, warnings, next actions,
     ) -> ConfirmedRequirement:
         """Merge an LLM-produced requirement JSON with validated fallback-owned fields."""
         merged = fallback_requirement.model_dump(mode="json")
+        rejected_topic_from_payload = False
         for field_name in ("topic", "audience", "scenario", "language", "request_brief"):
             raw_value = payload.get(field_name)
             if isinstance(raw_value, str) and raw_value.strip():
@@ -1999,6 +2047,9 @@ Return structured status, current phase, selected route, warnings, next actions,
                         )
                         or clean_value
                     )
+                    if cls._is_invalid_public_topic(clean_value):
+                        rejected_topic_from_payload = True
+                        continue
                 merged[field_name] = clean_value
 
         raw_route = str(payload.get("route") or "").strip().lower()
@@ -2027,8 +2078,16 @@ Return structured status, current phase, selected route, warnings, next actions,
                 except Exception:
                     pass
 
-        if not str(merged.get("topic") or "").strip():
-            merged["topic"] = fallback_requirement.topic
+        source_topic = cls._fallback_topic_from_source_inputs(fallback_requirement.source_inputs)
+        if rejected_topic_from_payload and source_topic:
+            merged["topic"] = source_topic
+        elif (
+            not str(merged.get("topic") or "").strip()
+            or cls._is_invalid_public_topic(str(merged.get("topic") or ""))
+        ):
+            merged["topic"] = source_topic or fallback_requirement.topic or "论文组会汇报"
+        if cls._is_invalid_public_topic(str(merged.get("topic") or "")):
+            merged["topic"] = "论文组会汇报"
 
         # File/material ownership stays in deterministic code so the LLM cannot invent paths.
         merged["source_inputs"] = [
@@ -4067,6 +4126,187 @@ Return structured status, current phase, selected route, warnings, next actions,
             "status": "success",
             **payload,
         }
+
+    def read_prepared_ppt_sources(
+        self,
+        max_chars: int = 12000,
+        tool_context: ToolContext | None = None,
+    ) -> dict[str, Any]:
+        """Read current PPT prepared Markdown sources and material records.
+
+        This tool is intentionally narrower than `read_file`: it reads only
+        source-preparation outputs already associated with the active PPT task.
+        """
+        if tool_context is None:
+            return {
+                "status": "error",
+                "message": "read_prepared_ppt_sources requires tool_context.",
+            }
+
+        state = tool_context.state
+        source_records = self._prepared_markdown_source_records(state)
+        figures = self._prepared_source_material_records(state, "figures")
+        output_files = self._prepared_source_material_records(state, "output_files")
+        warnings = self._prepared_source_warnings(state)
+        try:
+            requested_chars = int(max_chars)
+        except (TypeError, ValueError):
+            requested_chars = 12000
+        remaining_chars = min(max(0, requested_chars), 24000)
+        source_texts: list[dict[str, Any]] = []
+        read_warnings: list[str] = []
+
+        for source in source_records:
+            output_path = str(source.get("output_path") or "").strip()
+            if not output_path:
+                read_warnings.append(f"Prepared source `{source.get('name', '')}` has no output_path.")
+                continue
+            try:
+                markdown = resolve_workspace_path(output_path).read_text(encoding="utf-8")
+            except Exception as exc:
+                read_warnings.append(f"Could not read prepared source `{output_path}`: {exc}")
+                continue
+
+            normalized_markdown = normalize_workspace_markdown_image_paths(
+                markdown,
+                markdown_path=output_path,
+            )
+            clipped = normalized_markdown[:remaining_chars] if remaining_chars > 0 else ""
+            remaining_chars = max(0, remaining_chars - len(clipped))
+            related_figures = [
+                figure
+                for figure in figures
+                if str(figure.get("markdown_output_path") or "").strip() == output_path
+                or str(figure.get("source_name") or "").strip() == str(source.get("name") or "").strip()
+            ]
+            source_texts.append(
+                {
+                    "name": str(source.get("name") or output_path),
+                    "source_path": str(source.get("source_path") or ""),
+                    "method": str(source.get("method") or ""),
+                    "output_path": output_path,
+                    "text": clipped,
+                    "truncated": len(clipped) < len(normalized_markdown),
+                    "figure_count": len(related_figures),
+                }
+            )
+            if remaining_chars <= 0:
+                break
+
+        all_warnings = _dedupe_strings([*warnings, *read_warnings])
+        status = "success" if source_texts else "empty"
+        return {
+            "status": status,
+            "message": (
+                f"Read {len(source_texts)} prepared PPT Markdown source(s)."
+                if source_texts
+                else "No prepared PPT Markdown sources are available."
+            ),
+            "sources": source_texts,
+            "figures": figures[:50],
+            "figure_count": len(figures),
+            "output_files": output_files,
+            "warnings": all_warnings,
+        }
+
+    @staticmethod
+    def _prepared_markdown_source_records(state: dict[str, Any]) -> list[dict[str, Any]]:
+        """Collect prepared Markdown source records already bound to this PPT task."""
+        records: list[dict[str, Any]] = []
+
+        def _extend(value: Any) -> None:
+            if not isinstance(value, list):
+                return
+            for item in value:
+                if isinstance(item, dict):
+                    records.append(dict(item))
+
+        _extend(state.get("ppt_source_markdown_sources"))
+        source_materials = state.get("ppt_source_materials")
+        if isinstance(source_materials, dict):
+            _extend(source_materials.get("markdown_sources"))
+        preparation_result = state.get(PPT_SOURCE_PREPARATION_RESULT_STATE_KEY)
+        if isinstance(preparation_result, dict):
+            result_materials = preparation_result.get("source_materials")
+            if isinstance(result_materials, dict):
+                _extend(result_materials.get("markdown_sources"))
+        confirmed_requirement = state.get(PPT_CONFIRMED_REQUIREMENT_STATE_KEY)
+        if isinstance(confirmed_requirement, dict):
+            requirement_materials = confirmed_requirement.get("source_understanding")
+            if isinstance(requirement_materials, dict):
+                _extend(requirement_materials.get("markdown_sources"))
+
+        seen: set[str] = set()
+        deduped: list[dict[str, Any]] = []
+        for record in records:
+            key = str(record.get("output_path") or record.get("source_path") or record.get("name") or "").strip()
+            if not key or key in seen:
+                continue
+            seen.add(key)
+            deduped.append(record)
+        return deduped
+
+    @staticmethod
+    def _prepared_source_material_records(state: dict[str, Any], field_name: str) -> list[dict[str, Any]]:
+        """Collect one prepared source material record list from stable state locations."""
+        records: list[dict[str, Any]] = []
+
+        def _extend(value: Any) -> None:
+            if not isinstance(value, list):
+                return
+            for item in value:
+                if isinstance(item, dict):
+                    records.append(dict(item))
+
+        _extend(state.get(f"ppt_source_{field_name}"))
+        source_materials = state.get("ppt_source_materials")
+        if isinstance(source_materials, dict):
+            _extend(source_materials.get(field_name))
+        preparation_result = state.get(PPT_SOURCE_PREPARATION_RESULT_STATE_KEY)
+        if isinstance(preparation_result, dict):
+            result_materials = preparation_result.get("source_materials")
+            if isinstance(result_materials, dict):
+                _extend(result_materials.get(field_name))
+        confirmed_requirement = state.get(PPT_CONFIRMED_REQUIREMENT_STATE_KEY)
+        if isinstance(confirmed_requirement, dict):
+            requirement_materials = confirmed_requirement.get("source_understanding")
+            if isinstance(requirement_materials, dict):
+                _extend(requirement_materials.get(field_name))
+
+        seen: set[str] = set()
+        deduped: list[dict[str, Any]] = []
+        for record in records:
+            key = str(record.get("path") or record.get("output_path") or record.get("name") or record).strip()
+            if not key or key in seen:
+                continue
+            seen.add(key)
+            deduped.append(record)
+        return deduped
+
+    @staticmethod
+    def _prepared_source_warnings(state: dict[str, Any]) -> list[str]:
+        """Collect source-preparation warnings from current task state."""
+        warnings: list[str] = []
+
+        def _extend(value: Any) -> None:
+            if isinstance(value, list):
+                warnings.extend(str(item) for item in value if str(item or "").strip())
+
+        source_materials = state.get("ppt_source_materials")
+        if isinstance(source_materials, dict):
+            _extend(source_materials.get("extraction_warnings"))
+        preparation_result = state.get(PPT_SOURCE_PREPARATION_RESULT_STATE_KEY)
+        if isinstance(preparation_result, dict):
+            result_materials = preparation_result.get("source_materials")
+            if isinstance(result_materials, dict):
+                _extend(result_materials.get("extraction_warnings"))
+        confirmed_requirement = state.get(PPT_CONFIRMED_REQUIREMENT_STATE_KEY)
+        if isinstance(confirmed_requirement, dict):
+            requirement_materials = confirmed_requirement.get("source_understanding")
+            if isinstance(requirement_materials, dict):
+                _extend(requirement_materials.get("extraction_warnings"))
+        _extend(state.get("ppt_source_input_warnings"))
+        return _dedupe_strings(warnings)
 
     def list_session_files(
         self,
@@ -6155,7 +6395,7 @@ Return structured status, current phase, selected route, warnings, next actions,
     def _topic_from_action_pattern(task: str) -> str:
         """Extract topic from action phrases such as `科普AI` or `介绍产品`."""
         match = re.search(
-            r"(?:科普|介绍|讲解|讲|说明|分享|培训|解读)(?P<topic>[A-Za-z0-9\u4e00-\u9fff][^，。,.；;：:]{0,50})",
+            r"(?:科普|介绍|讲解|讲(?!解)|说明|分享|培训|解读)(?P<topic>[A-Za-z0-9\u4e00-\u9fff][^，。,.；;：:]{0,50})",
             task,
             flags=re.IGNORECASE,
         )
@@ -6219,6 +6459,38 @@ Return structured status, current phase, selected route, warnings, next actions,
         if clean_topic == "AI" and "科普" in original_task:
             clean_topic = "AI科普"
         return clean_topic[:60].strip()
+
+    @staticmethod
+    def _is_invalid_public_topic(topic: str) -> bool:
+        """Return whether a topic is too generic or clearly produced by bad parsing."""
+        normalized = re.sub(r"[\s，。,.！!？?：:；;、-]+", "", str(topic or "").strip().lower())
+        return normalized in {
+            "",
+            "解",
+            "讲",
+            "讲解",
+            "论文",
+            "这个论文",
+            "这篇论文",
+            "素材",
+            "这个素材",
+            "ppt",
+            "pptx",
+        }
+
+    @staticmethod
+    def _fallback_topic_from_source_inputs(source_inputs: list[SourceInput]) -> str:
+        """Infer a conservative display topic from uploaded source filenames."""
+        for source_input in source_inputs:
+            raw_name = str(source_input.name or source_input.path or "").strip()
+            if not raw_name:
+                continue
+            stem = Path(raw_name.split("?", 1)[0]).stem.strip()
+            stem = re.sub(r"[_-]+", " ", stem).strip()
+            stem = re.sub(r"\s+", " ", stem)
+            if stem and not PptProductManager._is_invalid_public_topic(stem):
+                return stem[:60]
+        return ""
 
     @staticmethod
     def _clean_audience(audience: str, *, split_possessive: bool = True) -> str:
@@ -7132,15 +7404,19 @@ async def _run_ppt_initial_request_workflow(
     raw_inputs: list[Any],
     output: dict[str, Any],
     tool_context: ToolContext,
+    expert_agents: dict[str, BaseAgent],
     app_name: str,
     artifact_service: BaseArtifactService | None,
+    source_converter: Any | None,
     system_selection_builder: Any | None,
 ) -> dict[str, Any]:
     """Run the initial interactive PPT request through ADK Workflow."""
     workflow = _build_ppt_initial_request_workflow(
         manager=manager,
+        expert_agents=expert_agents,
         app_name=app_name,
         artifact_service=artifact_service,
+        source_converter=source_converter,
         system_selection_builder=system_selection_builder,
     )
     result = await tool_context.run_node(
@@ -7158,8 +7434,10 @@ async def _run_ppt_initial_request_workflow(
 def _build_ppt_initial_request_workflow(
     *,
     manager: PptProductManager,
+    expert_agents: dict[str, BaseAgent],
     app_name: str,
     artifact_service: BaseArtifactService | None,
+    source_converter: Any | None,
     system_selection_builder: Any | None,
 ) -> Workflow:
     """Build the ADK 2 dynamic Workflow for an initial interactive PPT request."""
@@ -7170,14 +7448,29 @@ def _build_ppt_initial_request_workflow(
         task = str(node_input.get("task") or "")
         raw_inputs = list(node_input.get("raw_inputs") or [])
         output = dict(node_input.get("output") or {})
+        source_preparation: PptSourcePreparationResult | None = None
+        source_understanding = SourceUnderstanding(
+            document_type=manager._infer_document_type(manager._normalize_source_inputs(raw_inputs)),
+        )
+        source_inputs: list[SourceInput] | None = None
+        if raw_inputs:
+            source_preparation = await manager._run_source_preparation_phase(
+                raw_inputs=raw_inputs,
+                tool_context=ctx,
+                expert_agents=expert_agents,
+                app_name=app_name,
+                artifact_service=artifact_service,
+                source_converter=source_converter,
+            )
+            source_understanding = source_preparation.source_materials
+            source_inputs = source_preparation.source_inputs
+
         requirement_phase = await manager._prepare_initial_requirement_phase(
             task=task,
             raw_inputs=raw_inputs,
             output=output,
-            source_understanding=SourceUnderstanding(
-                document_type=manager._infer_document_type(manager._normalize_source_inputs(raw_inputs)),
-            ),
-            source_inputs=None,
+            source_understanding=source_understanding,
+            source_inputs=source_inputs,
             tool_context=ctx,
             app_name=app_name,
             artifact_service=artifact_service,
@@ -7226,6 +7519,11 @@ def _build_ppt_initial_request_workflow(
             "confirmed_requirement": requirement.model_dump(mode="json"),
             "system_selection": system_selection,
         }
+        if source_preparation is not None:
+            workflow_state["source_inputs"] = [
+                item.model_dump(mode="json") for item in source_preparation.source_inputs
+            ]
+            workflow_state["source_materials"] = source_preparation.source_materials.model_dump(mode="json")
         manager._mark_confirmation_waiting(workflow_state, ctx.state)
         _persist_ppt_workflow_state(ctx.state, workflow_state)
         product_result = manager._build_requirement_confirmation_result(requirement, workflow_state)

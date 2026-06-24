@@ -9,6 +9,7 @@ from typing import Any, Awaitable, Callable
 from google.adk.plugins.base_plugin import BasePlugin
 
 from src.channels.events import OutboundMessage
+from src.runtime.interaction_language import INTERACTION_LANGUAGE_STATE_KEY
 from src.runtime.progress_events import build_progress_metadata, progress_text_from_metadata
 from src.runtime.tool_context import get_route
 from src.runtime.tool_display import format_tool_args, summarize_tool_result
@@ -111,6 +112,15 @@ def _resolve_tool_turn_index(tool_context: Any) -> int | None:
     return _normalize_turn_index(state.get("turn_index"))
 
 
+def _resolve_tool_interaction_language(tool_context: Any) -> str:
+    """Extract the current interaction language from an ADK tool context when present."""
+    session = getattr(tool_context, "session", None)
+    state = getattr(session, "state", None)
+    if not isinstance(state, dict):
+        return ""
+    return str(state.get(INTERACTION_LANGUAGE_STATE_KEY) or "")
+
+
 async def _publish_step_event(
     *,
     session_id: str,
@@ -120,6 +130,7 @@ async def _publish_step_event(
     detail: str,
     user_title: str | None = None,
     user_detail: str | None = None,
+    interaction_language: str = "",
 ) -> None:
     """Publish one realtime tool progress event with user/debug fields separated."""
     publisher = _STEP_EVENT_PUBLISHER
@@ -141,6 +152,7 @@ async def _publish_step_event(
         turn_index=normalized_turn,
         debug_events=_debug_history(history),
         activity_sequence=len(history),
+        interaction_language=interaction_language,
     )
 
     maybe_awaitable = publisher(
@@ -210,6 +222,7 @@ def publish_orchestration_step_event(
     stage: str,
     user_title: str | None = None,
     user_detail: str | None = None,
+    interaction_language: str = "",
 ) -> None:
     """Schedule one realtime publish for an orchestrator-level step event."""
     if not step_event_streaming_active():
@@ -227,6 +240,7 @@ def publish_orchestration_step_event(
             detail=detail,
             user_title=user_title,
             user_detail=user_detail,
+            interaction_language=interaction_language,
         )
     )
 
@@ -255,6 +269,7 @@ def append_orchestration_step_event(
         user_detail=user_detail,
         turn_index=_normalize_turn_index(state.get("turn_index")),
         activity_sequence=len(events) + 1,
+        interaction_language=str(state.get(INTERACTION_LANGUAGE_STATE_KEY) or ""),
     )
     events.append(
         {
@@ -281,6 +296,7 @@ def append_orchestration_step_event(
         stage=normalized_stage,
         user_title=str(metadata.get("user_title") or ""),
         user_detail=str(metadata.get("user_detail") or ""),
+        interaction_language=str(state.get(INTERACTION_LANGUAGE_STATE_KEY) or ""),
     )
 
 
@@ -315,6 +331,7 @@ class CreativeClawStepEventPlugin(BasePlugin):
             tool_name=tool.name,
             stage=stage,
             detail=_build_detail(status="started", args=tool_args),
+            interaction_language=_resolve_tool_interaction_language(tool_context),
         )
         return None
 
@@ -341,6 +358,7 @@ class CreativeClawStepEventPlugin(BasePlugin):
                 args=tool_args,
                 result_text=summary,
             ),
+            interaction_language=_resolve_tool_interaction_language(tool_context),
         )
         return None
 
@@ -362,5 +380,6 @@ class CreativeClawStepEventPlugin(BasePlugin):
             tool_name=tool.name,
             stage=stage,
             detail=_build_detail(status="error", args=tool_args, result_text=str(error).strip()),
+            interaction_language=_resolve_tool_interaction_language(tool_context),
         )
         return None

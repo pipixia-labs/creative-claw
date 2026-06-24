@@ -5,6 +5,8 @@ from __future__ import annotations
 from dataclasses import dataclass
 from typing import Any
 
+from src.runtime.interaction_language import LANGUAGE_ZH, normalize_interaction_language
+
 
 @dataclass(frozen=True)
 class ProgressCopy:
@@ -17,6 +19,10 @@ class ProgressCopy:
 DEFAULT_PROGRESS_COPY = ProgressCopy(
     title="Working on your request",
     detail="The system is working on your request.",
+)
+DEFAULT_PROGRESS_COPY_ZH = ProgressCopy(
+    title="正在处理你的请求",
+    detail="系统正在处理你的请求。",
 )
 
 STAGE_PROGRESS_COPY: dict[str, ProgressCopy] = {
@@ -80,6 +86,67 @@ TOOL_PROGRESS_COPY: dict[str, ProgressCopy] = {
     "run_design_product": ProgressCopy("Creating the design", "The system is working on the design deliverable."),
 }
 
+STAGE_PROGRESS_COPY_ZH: dict[str, ProgressCopy] = {
+    "started": ProgressCopy("正在准备请求", "系统正在准备处理你的请求。"),
+    "attachment_received": ProgressCopy("正在读取附件", "系统正在准备你提供的文件。"),
+    "in_progress": DEFAULT_PROGRESS_COPY_ZH,
+    "orchestrating": DEFAULT_PROGRESS_COPY_ZH,
+    "planning": ProgressCopy("正在规划下一步", "系统正在判断接下来要做什么。"),
+    "inspection": ProgressCopy("正在检查上下文", "系统正在查看相关上下文和文件。"),
+    "editing": ProgressCopy("正在更新文件", "系统正在进行你要求的修改。"),
+    "image_processing": ProgressCopy("正在处理图像", "系统正在处理图像素材。"),
+    "video_processing": ProgressCopy("正在处理视频", "系统正在处理视频素材。"),
+    "audio_processing": ProgressCopy("正在处理音频", "系统正在处理音频素材。"),
+    "execution": ProgressCopy("正在执行任务", "系统正在为这个请求执行本地任务。"),
+    "research": ProgressCopy("正在检索资料", "系统正在收集相关信息。"),
+    "design_planning": ProgressCopy("正在准备设计", "系统正在分析设计需求。"),
+    "expert_execution": ProgressCopy("正在生成内容", "系统正在使用专门能力处理这一步。"),
+    "finalizing": ProgressCopy("正在整理结果", "系统正在整理最终回复。"),
+    "completed": ProgressCopy("已完成", "任务已完成。"),
+    "cancelled": ProgressCopy("已取消", "任务已停止。"),
+    "failed": ProgressCopy("失败", "任务执行失败。"),
+    "ppt_product_planning": ProgressCopy("正在准备演示文稿", "系统正在规划演示文稿流程。"),
+    "ppt_product_confirmation": ProgressCopy(
+        "正在更新演示文稿方案",
+        "系统正在继续处理演示文稿流程。",
+    ),
+    "page_planning": ProgressCopy("正在准备页面", "系统正在规划页面流程。"),
+    "page_product": ProgressCopy("正在创建页面", "系统正在处理页面交付物。"),
+    "design_product": ProgressCopy("正在创建设计", "系统正在处理设计交付物。"),
+    "template_selection": ProgressCopy("正在选择版式", "系统正在选择合适的版式方案。"),
+    "content_draft": ProgressCopy("正在起草内容", "系统正在起草页面内容。"),
+    "material_preparation": ProgressCopy("正在准备素材", "系统正在准备辅助素材。"),
+    "final_draft": ProgressCopy("正在准备最终简报", "系统正在整理最终生成简报。"),
+    "html_generation": ProgressCopy("正在生成页面", "系统正在生成最终 HTML 输出。"),
+}
+
+TOOL_PROGRESS_COPY_ZH: dict[str, ProgressCopy] = {
+    "list_session_files": ProgressCopy(
+        "正在检查上下文",
+        "系统正在查看本次对话的文件和之前的输出。",
+    ),
+    "list_skills": ProgressCopy("正在检查能力", "系统正在检查可用能力。"),
+    "read_skill": ProgressCopy("正在读取指引", "系统正在读取相关工作流指引。"),
+    "list_dir": ProgressCopy("正在检查文件", "系统正在查看相关工作区文件。"),
+    "glob": ProgressCopy("正在查找文件", "系统正在查找相关工作区文件。"),
+    "grep": ProgressCopy("正在搜索文件", "系统正在搜索相关工作区内容。"),
+    "read_file": ProgressCopy("正在读取上下文", "系统正在读取相关工作区内容。"),
+    "write_file": ProgressCopy("正在写入文件", "系统正在创建或更新文件。"),
+    "edit_file": ProgressCopy("正在更新文件", "系统正在应用文件改动。"),
+    "exec_command": ProgressCopy("正在执行任务", "系统正在为这个请求执行本地任务。"),
+    "process_session": ProgressCopy("正在检查任务输出", "系统正在检查本地任务结果。"),
+    "web_search": ProgressCopy("正在检索资料", "系统正在搜索相关信息。"),
+    "web_fetch": ProgressCopy("正在读取参考资料", "系统正在读取相关参考资料。"),
+    "invoke_agent": ProgressCopy("正在生成内容", "系统正在使用专门能力。"),
+    "run_ppt_product": ProgressCopy("正在创建演示文稿", "系统正在处理演示文稿。"),
+    "continue_ppt_product": ProgressCopy(
+        "正在继续演示文稿",
+        "系统正在继续处理演示文稿流程。",
+    ),
+    "run_page_product": ProgressCopy("正在创建页面", "系统正在处理页面交付物。"),
+    "run_design_product": ProgressCopy("正在创建设计", "系统正在处理设计交付物。"),
+}
+
 
 def resolve_user_progress(
     *,
@@ -87,17 +154,26 @@ def resolve_user_progress(
     debug_title: str = "",
     user_title: str | None = None,
     user_detail: str | None = None,
+    interaction_language: str = "",
 ) -> ProgressCopy:
     """Return user-facing progress copy while keeping debug text out of the UI."""
     explicit_title = str(user_title or "").strip()
     explicit_detail = str(user_detail or "").strip()
     if explicit_title or explicit_detail:
-        fallback = _progress_copy_for(stage=stage, debug_title=debug_title)
+        fallback = _progress_copy_for(
+            stage=stage,
+            debug_title=debug_title,
+            interaction_language=interaction_language,
+        )
         return ProgressCopy(
             title=explicit_title or fallback.title,
             detail=explicit_detail or fallback.detail,
         )
-    return _progress_copy_for(stage=stage, debug_title=debug_title)
+    return _progress_copy_for(
+        stage=stage,
+        debug_title=debug_title,
+        interaction_language=interaction_language,
+    )
 
 
 def build_progress_metadata(
@@ -112,6 +188,7 @@ def build_progress_metadata(
     debug_events: list[dict[str, str]] | None = None,
     activity_group_id: str | None = None,
     activity_sequence: int | None = None,
+    interaction_language: str = "",
 ) -> dict[str, Any]:
     """Build metadata for one progress event with separated user/debug fields."""
     normalized_session_id = str(session_id or "").strip()
@@ -123,6 +200,7 @@ def build_progress_metadata(
         debug_title=normalized_debug_title,
         user_title=user_title,
         user_detail=user_detail,
+        interaction_language=interaction_language,
     )
     metadata: dict[str, Any] = {
         "session_id": normalized_session_id,
@@ -154,15 +232,19 @@ def progress_text_from_metadata(metadata: dict[str, Any]) -> str:
     return str(metadata.get("user_detail") or "").strip() or DEFAULT_PROGRESS_COPY.detail
 
 
-def _progress_copy_for(*, stage: str, debug_title: str) -> ProgressCopy:
+def _progress_copy_for(*, stage: str, debug_title: str, interaction_language: str = "") -> ProgressCopy:
+    use_zh = normalize_interaction_language(interaction_language, fallback="") == LANGUAGE_ZH
+    tool_copy_map = TOOL_PROGRESS_COPY_ZH if use_zh else TOOL_PROGRESS_COPY
+    stage_copy_map = STAGE_PROGRESS_COPY_ZH if use_zh else STAGE_PROGRESS_COPY
+    default_copy = DEFAULT_PROGRESS_COPY_ZH if use_zh else DEFAULT_PROGRESS_COPY
     tool_key = _tool_progress_key(debug_title)
-    tool_copy = TOOL_PROGRESS_COPY.get(tool_key)
+    tool_copy = tool_copy_map.get(tool_key)
     if tool_copy is not None:
         return tool_copy
-    stage_copy = STAGE_PROGRESS_COPY.get(str(stage or "").strip())
+    stage_copy = stage_copy_map.get(str(stage or "").strip())
     if stage_copy is not None:
         return stage_copy
-    return DEFAULT_PROGRESS_COPY
+    return default_copy
 
 
 def _resolve_activity_group_id(

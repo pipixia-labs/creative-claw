@@ -29,6 +29,7 @@ from src.runtime.interaction_language import (
     INTERACTION_LANGUAGE_STATE_KEY,
     LANGUAGE_ZH,
     localized_copy,
+    resolve_interaction_language,
 )
 from src.runtime.models import InboundMessage, WorkflowEvent
 from src.runtime.product_results import is_product_confirmation_result
@@ -146,6 +147,7 @@ def _build_progress_event(
     user_detail: str | None = None,
     turn_index: int | None = None,
     activity_sequence: int | None = None,
+    interaction_language: str = "",
 ) -> WorkflowEvent:
     """Build one progress event with user-facing copy and debug details."""
     metadata = build_progress_metadata(
@@ -157,6 +159,7 @@ def _build_progress_event(
         user_detail=user_detail,
         turn_index=turn_index,
         activity_sequence=activity_sequence,
+        interaction_language=interaction_language,
     )
     return WorkflowEvent(event_type="status", text=progress_text_from_metadata(metadata), metadata=metadata)
 
@@ -167,6 +170,7 @@ def _build_orchestration_progress_event(
     session_id: str,
     turn_index: int | None = None,
     activity_sequence: int | None = None,
+    interaction_language: str = "",
 ) -> WorkflowEvent:
     """Convert one structured orchestrator step event into a progress event."""
     stage = str(step_event.get("stage", "")).strip() or "in_progress"
@@ -181,6 +185,7 @@ def _build_orchestration_progress_event(
         user_detail=str(step_event.get("user_detail") or "").strip() or None,
         turn_index=turn_index,
         activity_sequence=activity_sequence,
+        interaction_language=interaction_language,
     )
 
 
@@ -221,6 +226,17 @@ class CreativeClawRuntime:
             return
 
         user_id, session_id = await self._ensure_session(inbound)
+        current_session = await self.session_service.get_session(
+            app_name=SYS_CONFIG.app_name,
+            user_id=user_id,
+            session_id=session_id,
+        )
+        interaction_language = resolve_interaction_language(
+            explicit=inbound.metadata.get("interaction_language", inbound.metadata.get("language", "")),
+            state=current_session.state if current_session is not None else None,
+            texts=(inbound.text,),
+            default=LANGUAGE_ZH if _contains_form_answers(inbound.text) else "en",
+        )
         run_id = str(inbound.metadata.get("run_id") or "").strip()
         current_turn: int | None = None
         try:
@@ -265,6 +281,7 @@ class CreativeClawRuntime:
                 stage="started",
                 turn_index=current_turn,
                 activity_sequence=1,
+                interaction_language=interaction_language,
             )
             reset_step_event_history(session_id=session_id, turn_index=current_turn)
             activity_sequence = 1
@@ -276,10 +293,11 @@ class CreativeClawRuntime:
                     stage="attachment_received",
                     turn_index=current_turn,
                     activity_sequence=activity_sequence,
+                    interaction_language=interaction_language,
                 )
             if _contains_form_answers(inbound.text):
                 activity_sequence += 1
-                form_language = LANGUAGE_ZH
+                form_language = interaction_language or LANGUAGE_ZH
                 current_session = await self.session_service.get_session(
                     app_name=SYS_CONFIG.app_name,
                     user_id=user_id,
@@ -298,10 +316,15 @@ class CreativeClawRuntime:
                     form_answer_detail,
                     session_id=session_id,
                     stage="design_planning",
-                    user_title="Reviewing your answers",
+                    user_title=localized_copy(
+                        form_language,
+                        en="Reviewing your answers",
+                        zh="正在检查你的回答",
+                    ),
                     user_detail=form_answer_detail,
                     turn_index=current_turn,
                     activity_sequence=activity_sequence,
+                    interaction_language=interaction_language,
                 )
 
             try:
@@ -363,6 +386,7 @@ class CreativeClawRuntime:
                     session_id=session_id,
                     turn_index=current_turn,
                     activity_sequence=activity_sequence,
+                    interaction_language=interaction_language,
                 )
 
             final_event = await self._build_final_event(
@@ -499,6 +523,11 @@ class CreativeClawRuntime:
         )
         state_delta["product_line_options"] = inbound.metadata
         state_delta["user_prompt"] = inbound.text
+        state_delta[INTERACTION_LANGUAGE_STATE_KEY] = resolve_interaction_language(
+            explicit=inbound.metadata.get("interaction_language", inbound.metadata.get("language", "")),
+            state=current_session.state,
+            texts=(inbound.text,),
+        )
         state_delta["step"] = current_session.state.get("step", 0)
         state_delta["expert_step"] = current_session.state.get("expert_step", 0)
         state_delta["turn_index"] = current_turn

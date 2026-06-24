@@ -40,11 +40,13 @@ from src.agents.orchestrator.orchestrator_agent import (
     _extract_question_form_tool_result,
     _extract_terminal_product_tool_result,
     _format_confirmation_reply,
+    _format_model_event_error,
     _format_question_form_reply,
     _normalize_final_response_paths,
     orchestrator_before_model_callback,
 )
 from src.runtime.adk_compat import annotate_agent_origin
+from src.runtime.interaction_language import INTERACTION_LANGUAGE_STATE_KEY
 from src.runtime.step_events import configure_step_event_publisher
 from src.runtime.tool_context import route_context
 from src.runtime.workspace import build_workspace_file_record, workspace_relative_path, workspace_root
@@ -173,6 +175,7 @@ class OrchestratorTests(unittest.TestCase):
         self.assertIn("save a binary mask image file", instruction)
         self.assertIn("return bounding boxes", instruction)
         self.assertIn("deterministic local image operations", instruction)
+        self.assertIn('agent_name="3DGeneration"', instruction)
         self.assertIn("Serper image search", instruction)
         self.assertIn("Use this expert for text-to-video", instruction)
         self.assertIn("ImageBasicOperations", instruction)
@@ -298,6 +301,17 @@ class OrchestratorTests(unittest.TestCase):
         self.assertEqual(extractor.append('{"reply_text":"Hi'), "Hi")
         self.assertEqual(extractor.append(' there", "final_file_paths":[]}'), " there")
         self.assertEqual(extractor.published_text, "Hi there")
+
+    def test_format_model_event_error_reads_code_and_message(self) -> None:
+        event = SimpleNamespace(
+            error_code="openai_codex_error",
+            error_message="server_is_overloaded",
+        )
+
+        self.assertEqual(
+            _format_model_event_error(event),
+            "openai_codex_error: server_is_overloaded",
+        )
 
     def test_list_skills_records_orchestration_step(self) -> None:
         orchestrator = Orchestrator(
@@ -1461,6 +1475,177 @@ class OrchestratorCallbackTests(unittest.IsolatedAsyncioTestCase):
         )
         self.assertEqual(session.state["final_response"], "Here is the final image.")
         self.assertEqual(session.state["final_file_paths"], [relative_path])
+
+    async def test_run_until_done_model_error_does_not_reuse_previous_output(self) -> None:
+        session_service = InMemorySessionService()
+        artifact_service = InMemoryArtifactService()
+        orchestrator = Orchestrator(
+            session_service=session_service,
+            artifact_service=artifact_service,
+            expert_agents={},
+        )
+        orchestrator.uid = "user-model-error"
+        orchestrator.sid = "session-model-error"
+
+        class _ModelErrorEvent:
+            error_code = "openai_codex_error"
+            error_message = "server_is_overloaded"
+            partial = False
+            content = None
+
+            def model_dump_json(self, **_kwargs) -> str:
+                return '{"error_code":"openai_codex_error","error_message":"server_is_overloaded"}'
+
+            def is_final_response(self) -> bool:
+                return False
+
+        class _ErrorRunner:
+            async def run_async(self, **_kwargs):
+                yield _ModelErrorEvent()
+
+        with tempfile.TemporaryDirectory(dir=workspace_root()) as tmpdir:
+            previous_file = Path(tmpdir) / "previous_image.png"
+            previous_file.write_bytes(b"previous-image")
+            previous_record = build_workspace_file_record(
+                previous_file,
+                description="previous generated image",
+                source="image_generation",
+            )
+
+            await session_service.create_session(
+                app_name=SYS_CONFIG.app_name,
+                user_id=orchestrator.uid,
+                session_id=orchestrator.sid,
+                state={
+                    "turn_index": 2,
+                    "orchestration_events": [],
+                    "generated": [previous_record],
+                    "generated_history": [],
+                    "uploaded": [],
+                    "uploaded_history": [],
+                    "files_history": [[previous_record]],
+                    "user_prompt": "基于这个图像，帮我生成一个3D模型",
+                    INTERACTION_LANGUAGE_STATE_KEY: "zh",
+                },
+            )
+            orchestrator.runner = _ErrorRunner()
+
+            result = await orchestrator.run_until_done()
+
+        self.assertIn("模型服务暂时不可用", result["final_response"])
+        self.assertEqual(result["final_file_paths"], [])
+
+        session = await session_service.get_session(
+            app_name=SYS_CONFIG.app_name,
+            user_id=orchestrator.uid,
+            session_id=orchestrator.sid,
+        )
+        structured = session.state[ORCHESTRATOR_FINAL_RESPONSE_OUTPUT_KEY]
+        self.assertIn("模型服务暂时不可用", structured["reply_text"])
+        self.assertEqual(structured["final_file_paths"], [])
+        self.assertEqual(session.state["final_file_paths"], [])
+
+    async def test_run_until_done_parent_model_error_after_expert_success_delivers_expert_output(self) -> None:
+        session_service = InMemorySessionService()
+        artifact_service = InMemoryArtifactService()
+        orchestrator = Orchestrator(
+            session_service=session_service,
+            artifact_service=artifact_service,
+            expert_agents={},
+        )
+        orchestrator.uid = "user-expert-success-parent-error"
+        orchestrator.sid = "session-expert-success-parent-error"
+
+        class _ModelErrorEvent:
+            error_code = "openai_codex_error"
+            error_message = (
+                "Codex response failed: {'type': 'service_unavailable_error', "
+                "'code': 'server_is_overloaded'}"
+            )
+            partial = False
+            content = None
+
+            def model_dump_json(self, **_kwargs) -> str:
+                return '{"error_code":"openai_codex_error","error_message":"server_is_overloaded"}'
+
+            def is_final_response(self) -> bool:
+                return False
+
+        with tempfile.TemporaryDirectory(dir=workspace_root()) as tmpdir:
+            previous_file = Path(tmpdir) / "previous_image.png"
+            previous_file.write_bytes(b"previous-image")
+            previous_record = build_workspace_file_record(
+                previous_file,
+                description="previous generated image",
+                source="image_generation",
+            )
+            model_file = Path(tmpdir) / "seed3d_result_1.zip"
+            model_file.write_bytes(b"3d-model")
+            model_record = build_workspace_file_record(
+                model_file,
+                description="generated 3D model",
+                source="3d_generation",
+            )
+            model_relative_path = workspace_relative_path(model_file)
+            tool_result = {
+                "agent_name": "3DGeneration",
+                "status": "success",
+                "message": "3DGeneration completed seed3d job job-1 with 1 file(s): seed3d_result_1.zip",
+                "output_files": [model_record],
+                "output_text": "",
+                "parameters": {"provider": "seed3d"},
+                "structured_data": {},
+            }
+
+            class _ExpertThenErrorRunner:
+                async def run_async(self, **_kwargs):
+                    yield Event(
+                        author="CreativeClawOrchestrator",
+                        content=Content(
+                            role="user",
+                            parts=[
+                                Part.from_function_response(
+                                    name="invoke_agent",
+                                    response=tool_result,
+                                )
+                            ],
+                        ),
+                    )
+                    yield _ModelErrorEvent()
+
+            await session_service.create_session(
+                app_name=SYS_CONFIG.app_name,
+                user_id=orchestrator.uid,
+                session_id=orchestrator.sid,
+                state={
+                    "turn_index": 2,
+                    "orchestration_events": [],
+                    "generated": [previous_record, model_record],
+                    "generated_history": [],
+                    "uploaded": [],
+                    "uploaded_history": [],
+                    "new_files": [model_record],
+                    "files_history": [[previous_record], [model_record]],
+                    "user_prompt": "基于这个图像，帮我生成一个3D模型",
+                    INTERACTION_LANGUAGE_STATE_KEY: "zh",
+                },
+            )
+            orchestrator.runner = _ExpertThenErrorRunner()
+
+            result = await orchestrator.run_until_done()
+
+        self.assertIn("已完成 3D 模型生成", result["final_response"])
+        self.assertEqual(result["final_file_paths"], [model_relative_path])
+
+        session = await session_service.get_session(
+            app_name=SYS_CONFIG.app_name,
+            user_id=orchestrator.uid,
+            session_id=orchestrator.sid,
+        )
+        structured = session.state[ORCHESTRATOR_FINAL_RESPONSE_OUTPUT_KEY]
+        self.assertIn("已完成 3D 模型生成", structured["reply_text"])
+        self.assertEqual(structured["final_file_paths"], [model_relative_path])
+        self.assertEqual(session.state["final_file_paths"], [model_relative_path])
 
     async def test_native_structured_output_uses_adk_set_model_response_smoke(self) -> None:
         session_service = InMemorySessionService()

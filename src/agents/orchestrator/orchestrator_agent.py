@@ -1081,6 +1081,105 @@ def _resolve_product_interaction_language(
     return language
 
 
+def _format_model_event_error(event: Any) -> str | None:
+    """Return a concise ADK model-event error summary when one is present."""
+    error_code = str(getattr(event, "error_code", "") or "").strip()
+    error_message = str(getattr(event, "error_message", "") or "").strip()
+    if not error_code and not error_message:
+        return None
+    if error_code and error_message:
+        return f"{error_code}: {error_message}"
+    return error_code or error_message
+
+
+def _format_model_error_reply(error_text: str, state: Any) -> str:
+    """Return a localized final reply for a model-event failure."""
+    language = resolve_interaction_language(state=state)
+    error_summary = str(error_text or "").strip()
+    if error_summary:
+        return localized_copy(
+            language,
+            en=(
+                "The model service is temporarily unavailable, so this generation step did not start. "
+                f"Please retry this step later. Error: {error_summary}"
+            ),
+            zh=(
+                "模型服务暂时不可用，所以这一步生成还没有开始。"
+                f"请稍后重试这一步。错误：{error_summary}"
+            ),
+        )
+    return localized_copy(
+        language,
+        en="The model service is temporarily unavailable, so this generation step did not start. Please retry this step later.",
+        zh="模型服务暂时不可用，所以这一步生成还没有开始。请稍后重试这一步。",
+    )
+
+
+def _output_paths_from_expert_tool_result(result: dict[str, Any]) -> list[str]:
+    """Return unique workspace-relative output paths from an expert tool result."""
+    paths: list[str] = []
+    seen_paths: set[str] = set()
+    for file_info in list(result.get("output_files") or []):
+        if not isinstance(file_info, dict):
+            continue
+        path = str(file_info.get("path") or "").strip()
+        if not path or path in seen_paths:
+            continue
+        paths.append(path)
+        seen_paths.add(path)
+    return paths
+
+
+def _format_successful_expert_final_reply(result: dict[str, Any], state: Any) -> str:
+    """Return localized final copy for a completed expert when parent finalization fails."""
+    language = resolve_interaction_language(state=state)
+    agent_name = str(result.get("agent_name") or "").strip()
+    if agent_name == "3DGeneration":
+        return localized_copy(
+            language,
+            en="The 3D model generation is complete. See the attached file.",
+            zh="已完成 3D 模型生成，生成文件见附件。",
+        )
+    return localized_copy(
+        language,
+        en="The generation step is complete. See the attached file.",
+        zh="已完成生成，结果文件见附件。",
+    )
+
+
+def _build_successful_expert_structured_final_response(
+    result: dict[str, Any],
+    *,
+    state: Any,
+) -> OrchestratorFinalResponse | None:
+    """Build a deterministic final response from a successful expert result."""
+    agent_name = str(result.get("agent_name") or "").strip()
+    status = str(result.get("status") or "").strip().lower()
+    final_file_paths = _output_paths_from_expert_tool_result(result)
+    if not agent_name or status != "success" or not final_file_paths:
+        return None
+    return OrchestratorFinalResponse(
+        reply_text=_format_successful_expert_final_reply(result, state),
+        final_file_paths=final_file_paths,
+    )
+
+
+def _extract_successful_expert_structured_final_response(
+    event: Any,
+    *,
+    state: Any,
+) -> OrchestratorFinalResponse | None:
+    """Return a completed expert-output final response candidate from an ADK event."""
+    for result in _iter_function_response_results(event):
+        structured_response = _build_successful_expert_structured_final_response(
+            result,
+            state=state,
+        )
+        if structured_response is not None:
+            return structured_response
+    return None
+
+
 class Orchestrator:
     """Plan one workflow step at a time with skills and builtin tools."""
 
@@ -1274,6 +1373,7 @@ Creative media workflow hints:
 - If the user has a topic, campaign brief, rough idea, script, narration, reference image, or clip but still needs scenes, storyboard structure, prompt derivation, or QC, reason directly and prepare the smallest useful plan before invoking generation experts.
 - If the user already gave a clear final generation request, execute directly with the smallest suitable expert call.
 - For image/video generation, pass exact expert parameters as a JSON object string to `invoke_agent`.
+- If the user asks to create a 3D model from a provided or previously generated image, call `invoke_agent` with `agent_name="3DGeneration"` and pass the source workspace image through `input_path` in the JSON prompt. For image-only 3D generation, omit a text prompt or use provider `seed3d`; for Hunyuan3D prompt-plus-image generation, use `generate_type="sketch"`.
 - Prefer current session workspace file paths for source images, videos, audio, and generated assets.
 
 PPT workflow routing hints:
@@ -2404,13 +2504,15 @@ Expert parameter contracts:
         """Run one orchestrator turn and collect the final text response."""
         final_response_text = ""
         pending_final_reply: str | None = None
+        latest_successful_expert_response: OrchestratorFinalResponse | None = None
         self._last_run_streamed_reply_text = False
         current_session = await self.session_service.get_session(
             app_name=self.app_name,
             user_id=user_id,
             session_id=session_id,
         )
-        turn_index = int((current_session.state if current_session else {}).get("turn_index", 0) or 0)
+        current_state = current_session.state if current_session is not None else {}
+        turn_index = int(current_state.get("turn_index", 0) or 0)
         reply_stream = _ReplyTextStreamExtractor(allow_plain_text=True)
         stream_reply_text = assistant_delta_streaming_active()
         deepseek_thinking_placeholder_sent = False
@@ -2432,6 +2534,26 @@ Expert parameter contracts:
                 session_id,
                 event.model_dump_json(indent=2, exclude_none=True),
             )
+            event_error = _format_model_event_error(event)
+            if pending_final_reply is None and event_error:
+                if latest_successful_expert_response is not None:
+                    await self._persist_structured_final_response(
+                        user_id=user_id,
+                        session_id=session_id,
+                        reply_text=latest_successful_expert_response.reply_text,
+                        final_file_paths=list(latest_successful_expert_response.final_file_paths),
+                    )
+                    pending_final_reply = latest_successful_expert_response.reply_text
+                    continue
+                final_reply = _format_model_error_reply(event_error, current_state)
+                await self._persist_structured_final_response(
+                    user_id=user_id,
+                    session_id=session_id,
+                    reply_text=final_reply,
+                    final_file_paths=[],
+                )
+                pending_final_reply = final_reply
+                continue
             if (
                 pending_final_reply is None
                 and stream_reply_text
@@ -2462,6 +2584,12 @@ Expert parameter contracts:
                         self._last_run_streamed_reply_text = True
             if pending_final_reply is not None:
                 continue
+            successful_expert_response = _extract_successful_expert_structured_final_response(
+                event,
+                state=current_state,
+            )
+            if successful_expert_response is not None:
+                latest_successful_expert_response = successful_expert_response
             adk_confirmation_request = _extract_adk_ppt_confirmation_request(event)
             if adk_confirmation_request is not None:
                 final_reply = _format_adk_ppt_confirmation_reply(adk_confirmation_request)
