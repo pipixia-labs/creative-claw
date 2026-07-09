@@ -12,12 +12,8 @@
 
 <p align="center">
   <a href="https://youtu.be/H8DIIPYhO7w">
-    <img src="https://img.youtube.com/vi/H8DIIPYhO7w/maxresdefault.jpg" alt="Watch the CreativeClaw demo" width="720">
+    <img src="https://img.youtube.com/vi/H8DIIPYhO7w/hqdefault.jpg" alt="Watch the CreativeClaw demo" width="720">
   </a>
-</p>
-
-<p align="center">
-  <a href="https://youtu.be/H8DIIPYhO7w"><strong>▶ Watch the CreativeClaw demo</strong></a>
 </p>
 
 CreativeClaw is a creative workflow system powered by multiple autonomous agents, turning the creative process from tool switching into continuous conversation.
